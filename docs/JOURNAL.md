@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Audited v0.1.0 runtime & architecture and scheduled M4 hardening after M3 repo reorganization
+
+- Decided (owner): approve all findings from the `v0.1.0` source and architecture audit (`D12`–`D14` — explicit `naka`/`data-naka` binding, separating `naka-ignore` from `data-naka-runtime` export stripping, unmutated disk snapshot comparison, `</script` and `<!--` JSON escaping, normalized/scoped storage keys, live `fileHandle.getFile()` sync on focus/pre-write, ephemeral `data-naka-auto-template` lifecycle, deferred attribute baking, expanded input/table/list support, and symmetrical `Naka` API methods) and sequence them as `M4` immediately after `M3` repository reorganization so implementation happens once in `src/index.ts`.
+- Done: recorded `D12`–`D14` in `docs/DECISIONS.md`, added `EC06`–`EC13` (`OPEN`) to `docs/EDGE_CASES.md`, and inserted `M4` (`M4.1`–`M4.4`, renumbering `M5`–`M7`) in `docs/PLAN.md`.
+- Verified: markdown link/reference review and `git diff --check` pass (`vp check` and `vp test` not run for documentation-only planning update).
+- Next: execute `M3.1` and `M3.2` (`dist/naka.js` build output, remove root `naka.js`, move `index.html` into `site/`, and add starter templates in `examples/`), then implement `M4` runtime hardening.
+
 ## 2026-10-18 — Planned M3–M6 roadmap: repo layout, consumer AI skill, GitHub Pages / js.org site, and CDN release pipeline
 
 - Decided (owner): adopt clean repository separation (`D09` — emit `dist/naka.js` via `vp pack` and remove root `naka.js`, move playground to `site/`, keep starter templates in `examples/`, and place the distributable consumer AI skill in `skills/nakajs/SKILL.md`), maintainer-controlled CDN release workflows supporting both `workflow_dispatch` and GitHub Release publish triggers (`D10`), and GitHub Pages (`js.org`) website hosting with `/llms.txt`, `/llms-full.txt`, and `/SKILL.md` endpoints for unobstructed AI agent documentation ingestion (`D11`).

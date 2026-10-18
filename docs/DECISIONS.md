@@ -24,15 +24,15 @@ Every commit must use a Conventional Commit subject (`type(scope): subject`, wit
 
 ## D03 — Embedded `<script id="nakadb" type="application/json">` as canonical in-file database
 
-Adopted 2026-10-18. Rather than storing state only in browser storage or scattering state solely across DOM attributes, `naka.js` maintains a canonical JSON document inside `<script id="nakadb" type="application/json">` at the top of `<head>` with four top-level keys: `_meta`, `fields`, `lists`, and `custom`. Simultaneously, `readAndBakeElement()` bakes scalar values into standard HTML attributes (`value`, `checked`, `selected`, `textContent`). This gives AI coding agents a single structured JSON block at the top of the file to read and mutate while keeping the raw HTML markup self-contained.
+Adopted 2026-10-18 (serialization escaping amended for `M4` by `D13`; deferred attribute baking amended for `M4` by `D14`). Rather than storing state only in browser storage or scattering state solely across DOM attributes, `naka.js` maintains a canonical JSON document inside `<script id="nakadb" type="application/json">` at the top of `<head>` with four top-level keys: `_meta`, `fields`, `lists`, and `custom`. Simultaneously, `readAndBakeElement()` bakes scalar values into standard HTML attributes (`value`, `checked`, `selected`, `textContent`). This gives AI coding agents a single structured JSON block at the top of the file to read and mutate while keeping the raw HTML markup self-contained.
 
 ## D04 — Dual-layer persistence with snapshot-based disk vs. browser conflict resolution
 
-Adopted 2026-10-18. Every user edit immediately caches state in `localStorage` (`nakadb_state_<pathname>`) and schedules a debounced (250 ms) disk write via the File System Access API (`FileSystemFileHandle` persisted in IndexedDB `NakaDB_Handles`). Whenever `naka.js` writes to disk or hydrates from disk, it records the raw `#nakadb` string in `localStorage` under `nakadb_disk_hash_<pathname>`. On boot, if the current `#nakadb` text in the HTML file differs from `nakadb_disk_hash_<pathname>`, `naka.js` detects that an external process (such as an AI agent or text editor) modified the file on disk and hydrates from the disk state instead of the browser cache.
+Adopted 2026-10-18 (snapshot timing, storage key normalization, and live `fileHandle.getFile()` sync amended for `M4` by `D13`). Every user edit immediately caches state in `localStorage` (`nakadb_state_<pathname>`) and schedules a debounced (250 ms) disk write via the File System Access API (`FileSystemFileHandle` persisted in IndexedDB `NakaDB_Handles`). Whenever `naka.js` writes to disk or hydrates from disk, it records the raw `#nakadb` string in `localStorage` under `nakadb_disk_hash_<pathname>`. On boot, if the current `#nakadb` text in the HTML file differs from `nakadb_disk_hash_<pathname>`, `naka.js` detects that an external process (such as an AI agent or text editor) modified the file on disk and hydrates from the disk state instead of the browser cache.
 
 ## D05 — Runtime UI isolation via Shadow DOM and `naka-ignore` / `data-naka-ignore`
 
-Adopted 2026-10-18. The floating status/sync pill (`#__nakadb_host__`) mounts inside an open Shadow DOM root so its styles never collide with the host document. Auto-injected list stylesheet (`#__nakadb_styles__`), per-item action toolbars (`.naka-item-tools`), and list footers (`.naka-list-footer`) are marked with `naka-ignore="true"`. Before writing HTML back to disk or returning from `Naka.exportHTML()`, `getCleanHtmlString()` clones `document.documentElement` and strips `[naka-ignore], [data-naka-ignore], #__nakadb_host__, #__nakadb_styles__` so runtime controls never accumulate in saved files.
+Adopted 2026-10-18 (separation of `naka-ignore` state exclusion from `data-naka-runtime` export stripping amended for `M4` by `D12`). The floating status/sync pill (`#__nakadb_host__`) mounts inside an open Shadow DOM root so its styles never collide with the host document. Auto-injected list stylesheet (`#__nakadb_styles__`), per-item action toolbars (`.naka-item-tools`), and list footers (`.naka-list-footer`) are marked with `naka-ignore="true"`. Before writing HTML back to disk or returning from `Naka.exportHTML()`, `getCleanHtmlString()` clones `document.documentElement` and strips `[naka-ignore], [data-naka-ignore], #__nakadb_host__, #__nakadb_styles__` so runtime controls never accumulate in saved files.
 
 ## D06 — TypeScript core in `src/` with Vite+ (`vite-plus`) toolchain and root `naka.js` IIFE
 
@@ -48,7 +48,7 @@ Accepted by the owner on 2026-10-18. Support both concise `naka` / `naka-*` attr
 
 ## D09 — Repository layout (`src/`, `dist/`, `site/`, `examples/`, `skills/`) and build-emitted `dist/naka.js`
 
-Accepted by the owner on 2026-10-18 (superseding the root `naka.js` and root `index.html` placement in `D06`, scheduled for `M3`–`M4`). Keep the repository root clean by separating source, build outputs, website/playground, starter templates, and AI skills:
+Accepted by the owner on 2026-10-18 (superseding the root `naka.js` and root `index.html` placement in `D06`, scheduled for `M3`–`M5`). Keep the repository root clean by separating source, build outputs, website/playground, starter templates, and AI skills:
 
 - **`src/index.ts` → `dist/naka.js`:** Remove the tracked `naka.js` copy from the repository root. Emit `dist/naka.js` (standalone IIFE), `dist/index.mjs` (ESM), and `dist/index.d.mts` (TypeScript declarations) during `vp pack` (`tsdown`), and point `package.json` (`main`, `unpkg`, `jsdelivr`) to `dist/naka.js`.
 - **`site/`:** Move the interactive playground (`index.html`) into `site/` to serve both `vp dev` and the public documentation/demo website.
@@ -57,14 +57,39 @@ Accepted by the owner on 2026-10-18 (superseding the root `naka.js` and root `in
 
 ## D10 — Maintainer-controlled release pipeline (`workflow_dispatch` + GitHub Release) to npm, jsDelivr, and unpkg
 
-Accepted by the owner on 2026-10-18 (scheduled for `M6`). Keep release creation under explicit maintainer control rather than publishing on every commit to `main`:
+Accepted by the owner on 2026-10-18 (scheduled for `M7`). Keep release creation under explicit maintainer control rather than publishing on every commit to `main`:
 
 - **Continuous Integration (`.github/workflows/ci.yml`):** Run `vp install`, `vp check`, `vp test`, and `vp pack` on pushes and pull requests without publishing.
 - **Controlled Release (`.github/workflows/release.yml`):** Support both manual `workflow_dispatch` (one-click version bump `patch` / `minor` / `major` or explicit version that runs verification, tags, and creates a GitHub Release with `dist/naka.js` attached) and `release: types: [published]` (when a release is published manually in the GitHub UI) to build `dist/` and publish the `nakajs` package to npm. Publishing to npm automatically populates both `jsDelivr` (`https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js`) and `unpkg` (`https://unpkg.com/nakajs@latest/dist/naka.js`).
 
 ## D11 — GitHub Pages (`js.org`) documentation site with AI-agent native endpoints (`/llms.txt`, `/llms-full.txt`, `/SKILL.md`)
 
-Accepted by the owner on 2026-10-18 (scheduled for `M5`–`M6`). Host the project website (`site/`) on **GitHub Pages** via GitHub Actions (`actions/deploy-pages`) designed for a `js.org` custom domain (`naka.js.org` / `nakajs.js.org`) instead of Cloudflare Pages:
+Accepted by the owner on 2026-10-18 (scheduled for `M6`–`M7`). Host the project website (`site/`) on **GitHub Pages** via GitHub Actions (`actions/deploy-pages`) designed for a `js.org` custom domain (`naka.js.org` / `nakajs.js.org`) instead of Cloudflare Pages:
 
 - **Why GitHub Pages over Cloudflare Pages:** `js.org` natively supports GitHub Pages CNAME targets without Cloudflare API domain-binding workarounds, keeps all CI/CD inside GitHub Actions, and avoids Cloudflare Bot Fight Mode / managed challenge blocks (`403 Forbidden`) when AI agents fetch documentation via `curl`, `WebFetch`, or `read_url_content`.
 - **AI-agent native documentation:** Alongside the interactive HTML landing page and playground, publish static plain-text/Markdown endpoints at `/llms.txt` (concise agent index and quick rules), `/llms-full.txt` (complete reference + starter templates in one request), and `/SKILL.md` (direct copy of `skills/nakajs/SKILL.md`).
+
+## D12 — Explicit `naka` / `data-naka` binding and separation of `naka-ignore` from `data-naka-runtime` export stripping
+
+Accepted by the owner on 2026-10-18 (amending `D05`, scheduled for `M4` immediately after `M3` repository reorganization). Resolve the collision where `naka-ignore` both excluded user inputs from state tracking and deleted them from saved HTML, and prevent global selector hijacking:
+
+- **Explicit binding rule:** Standalone fields in `db.fields` must opt in explicitly via `naka="key"`, `data-naka="key"`, or `data-naka-field="key"`. Inside `[naka-item]` / `[data-naka-item]`, tracked elements also accept `name` as a fallback key (prioritizing `name` over `id` on radio inputs). Unannotated page UI controls (search boxes, filters, custom widgets) are not implicitly captured into `db.fields`.
+- **`naka-ignore` vs. `data-naka-runtime`:** `naka-ignore` and `data-naka-ignore` exclude an element (and its subtree) from `naka.js` state binding while **preserving** the element in saved/exported HTML. Internal runtime UI injected by `naka.js` (`.naka-item-tools`, `.naka-list-footer`, `#__nakadb_host__`, `#__nakadb_styles__`) is marked with `data-naka-runtime="true"` and stripped by `getCleanHtmlString()`.
+
+## D13 — Safe `#nakadb` serialization, unmutated disk snapshot hashing, normalized storage keys, and live `fileHandle.getFile()` sync
+
+Accepted by the owner on 2026-10-18 (amending `D03` and `D04`, scheduled for `M4`). Harden persistence and conflict resolution across browser refreshes and live AI agent disk edits:
+
+- **Unmutated disk snapshot comparison:** In `initNaka()`, record `nakadb_disk_hash_<key>` from the raw/canonicalized disk `#nakadb` payload *before* `captureDomToState()` updates `_meta.updatedAt` or reformats indentation, and do not bump `_meta.updatedAt` during read-only hydration. This ensures `localStorage` browser edits survive page refreshes when the file on disk has not changed.
+- **Script-safe JSON serialization:** Escape `</script` (as `<\/script`, case-insensitive) and `<!--` (as `<\!--`) when writing JSON to `<script id="nakadb" type="application/json">` so literal script tags or HTML comments in user notes never prematurely close the `<script>` tag on disk save.
+- **Normalized and scoped storage keys:** Normalize trailing `/index.html` to `/` in `location.pathname` and incorporate an optional document identifier (`<html naka-id="...">`, `data-naka-id`, or `_meta.id`) into `getPageKey()` and `getSnapshotKey()` to prevent cross-project `localStorage` and IndexedDB handle collisions on `localhost`.
+- **Live two-way disk sync while tab is open:** When `FileSystemFileHandle` has permission, inspect `await fileHandle.getFile()` on window `focus` / `visibilitychange` and prior to `writeToDisk()`. If `#nakadb` on disk changed externally since the last snapshot, automatically hydrate the live DOM from disk instead of overwriting external AI agent edits.
+
+## D14 — Ephemeral auto-inferred list templates (`data-naka-auto-template`), richer element bindings, deferred attribute baking, and symmetrical `Naka` API
+
+Accepted by the owner on 2026-10-18 (amending `D03`, scheduled for `M4`). Eliminate stale inferred list templates, DOM layout issues, and input edge cases:
+
+- **Auto-inferred template lifecycle:** Mark runtime-inferred `<template>` nodes with `data-naka-auto-template="true"`. When no explicit `<template naka-template>` is authored, regenerate the auto-template from the first `[naka-item]` on boot. In `getCleanHtmlString()`, strip `template[data-naka-auto-template]` whenever the list contains $\ge 1$ item, and keep it only when the list has $0$ items so emptied lists preserve their item blueprint on disk.
+- **Deferred DOM attribute baking:** Split live value reading (`readElementValue`) from HTML attribute baking (`bakeElementAttributes`). Run attribute baking (`setAttribute('value', ...)`, `setAttribute('checked', ...)`, `textarea.textContent = ...`) only during hydration and inside `getCleanHtmlString()` prior to HTML export/save, preventing `<textarea>` cursor jumps on live `input` events and redundant `JSON.stringify` passes in `Naka.set()`.
+- **Expanded element & list support:** Preserve numeric values (`number | null`) for `input[type="number"]` and `input[type="range"]`; support boolean `open` state on `<details naka="key">`; support `<select multiple>`; guard non-input elements with child elements against destructive `textContent` overwrite; support `contenteditable=""`, `"true"`, and `"plaintext-only"` while ignoring `"false"`; support self-bound `[naka-item]` elements (`<li naka-item naka="key">`); scope radio input `name` attributes per list item row; and place list controls in valid table DOM positions for `<table>` / `<tbody naka-list>` / `<tr naka-item>`.
+- **Symmetrical programmatic API:** Extend `window.Naka` (`window.NakaDB`) with `getField(key)`, `setField(key, value)`, and `updateItem(listName, index, partialData)` alongside existing `get`, `set`, `getList`, `addItem`, `removeItem`, `moveItem`, `save`, and `exportHTML`.
