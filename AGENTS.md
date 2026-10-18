@@ -1,0 +1,47 @@
+# AGENTS.md — nakajs
+
+## What this project is
+
+**nakajs** — product definition, target users, core promises, and technical architecture are being established during initial project planning. See [docs/PRODUCT.md](docs/PRODUCT.md) for product scope and invariants.
+
+License: MIT ([LICENSE](LICENSE)).
+
+## Start here — authoritative project memory
+
+Read [docs/PLAN.md](docs/PLAN.md) and the latest entry in [docs/JOURNAL.md](docs/JOURNAL.md) before substantial work. Read relevant decisions in [docs/DECISIONS.md](docs/DECISIONS.md), known boundary cases in [docs/EDGE_CASES.md](docs/EDGE_CASES.md), and any affected specifications under `docs/`.
+
+- [docs/PRODUCT.md](docs/PRODUCT.md) — product vision, target users, core promises (invariants), and scope boundaries.
+- [docs/PLAN.md](docs/PLAN.md) — authoritative task, milestone/slice sequencing, and acceptance ledger.
+- [docs/DECISIONS.md](docs/DECISIONS.md) — ADR-style log of durable architectural and owner decisions (`D01`, `D02`, ...).
+- [docs/EDGE_CASES.md](docs/EDGE_CASES.md) — edge-case resolution ledger (`EC01`, `EC02`, ...; statuses: `ADR`, `fix`, `doc`, `PARTIAL`, `OPEN`).
+- [docs/JOURNAL.md](docs/JOURNAL.md) — newest-first cross-session progress log.
+
+Specs and contracts are hypotheses: when implementation or owner review changes behavior, update the matching specification in the same change as the code change.
+
+Versions in documentation and memory identify feature targets and compatibility only. Do not maintain publication status, release dates, or pending-release markers in project memory; GitHub Releases and tags own publication state.
+
+## Project memory and closeout
+
+At the end of each state-changing session, independently useful development slice, milestone, or durable handoff, use the repository-scoped [nakajs-closeout](.agents/skills/nakajs-closeout/SKILL.md) skill to reconcile project memory from evidence. Read the skill file directly if the host has not registered repository skills; do not invent a slash command.
+
+- Update affected contracts and specs in the same change as behavior.
+- Mark tasks or milestones done in `docs/PLAN.md` only when their acceptance criteria and verification evidence are satisfied. Keep blocked and not-run checks explicit.
+- Prepend one dated entry to `docs/JOURNAL.md` with 2–5 concise bullets covering done, decided when relevant, verification or blockers, and the next concrete technical action.
+- Record durable architectural or owner decisions in `docs/DECISIONS.md` (`Dxx`), superseding prior decisions explicitly rather than silently rewriting history.
+- Record reproduced edge cases or their tested resolutions in `docs/EDGE_CASES.md` (`ECxx`); `OPEN` means planned or unresolved, never "resolved by documentation."
+- Do not record branch names, commit SHAs, PR numbers/status, push/pull/merge steps, or CI run/job identifiers in project memory documents; keep delivery bookkeeping in chat, Git history, and the hosting service.
+
+## Verification
+
+Use proportional verification:
+- Documentation edits require link/reference review and whitespace checks (`git diff --check`).
+- Code, schema, or behavior changes require running the relevant test, lint, and typecheck suites once configured in the repository.
+- Rerun checks when changes or unresolved concerns justify it, not only at closeout. Do not claim unrun checks passed or treat plans/fixtures as proof of passing behavior.
+
+## Git workflow
+
+- After completing and verifying each coherent change, including documentation changes, reconcile project memory and create a local commit without asking again unless the user explicitly requests otherwise.
+- Use Conventional Commits for commit messages (`type(scope): subject`); include a scope only when it adds clarity. Common types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `ci`, and `build`.
+- Every commit must include a factual body after the subject and a blank line explaining what changed, why, and any relevant limitations. Do not create subject-only commits. Scale the detail to the change. Validation results and checks not run belong in closeout documentation and chat; they are not required in commit bodies.
+- Stage only changes belonging to the completed work. Preserve unrelated staged and unstaged changes. Leave incomplete or verification-blocked work uncommitted and report the blocker unless the user requests a checkpoint.
+- This authorizes local commits only. Push, tag, publish, or open a pull request only when separately requested by the user.
