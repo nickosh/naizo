@@ -6,9 +6,9 @@ Versions in this document identify planned feature scope and compatibility. Task
 
 ## Current state and next action
 
-`M0`, `M1`, and `M2` are complete (`v0.1.0` core runtime in `src/index.ts` and root `naka.js`, dual `naka` / `data-naka` attributes, `index.html` playground, Vite+ `vp check` / `vp test` / `vp pack` pipeline, and automated test coverage for `EC01`, `EC03`, `EC04`, and `EC05` in `tests/naka.test.ts`). Following the source/architecture reviews and ecosystem viability analysis on 2026-10-18, the owner adopted `D27` (consolidating `D12`–`D17` and the lean subset of `D21`–`D26` while rejecting `D18`, `D19`, `D20`, `D22` HTML sanitizer, and `D25` adapter/server bloat).
+`M0`, `M1`, `M2`, and `M3` are complete (`v0.1.0` core runtime in `src/index.ts` and browser IIFE entry `src/iife.ts`, tracked `dist/naka.js` artifact with root `naka.js` removed, `site/index.html` playground, `examples/starter.html` and `examples/checklist.html` starter templates, Vite+ `vp check` / `vp test` / `vp pack` pipeline, and 7/7 passing tests in `tests/naka.test.ts`). Following the source/architecture reviews and ecosystem viability analysis on 2026-10-18, the owner adopted `D27` (consolidating `D12`–`D17` and the lean subset of `D21`–`D26` while rejecting `D18`, `D19`, `D20`, `D22` HTML sanitizer, and `D25` adapter/server bloat).
 
-Next action: execute `M3.1` and `M3.2` (`dist/naka.js` emitted from `src/iife.ts` and tracked per `D17`, remove root `naka.js`, move `index.html` into `site/`), then implement `M4.1`–`M4.4` to land the lean store, event-targeted capture, surgical `#nakadb` disk sync, and truthful status pill UX (`Naka.copyJSON()`).
+Next action: implement `M4.1`–`M4.4` in sequence (`M4.1` in-memory store, synchronous boot, and `O(1)` event-targeted capture; `M4.2` surgical `#nakadb` disk sync, live `file.lastModified` watch, shallow top-level key merge, and truthful status pill UX with `Naka.copyJSON()`; `M4.3` element bindings, list repeater polish, and public `window.Naka` API; `M4.4` automated regression verification and edge-case closure).
 
 ## M0 — Project definition & foundation ✅ done 2026-10-18
 
@@ -34,15 +34,15 @@ Next action: execute `M3.1` and `M3.2` (`dist/naka.js` emitted from `src/iife.ts
 - [x] **M2.1 — Execute Vite+ verification suite** (landed 2026-10-18): installed dependencies via `vp install`, resolved Oxlint/tsgolint warnings in `src/index.ts` and `naka.js`, aligned `package.json` `"types"` with `dist/index.d.mts`, and verified clean `vp check`, `vp test`, and `vp pack` runs.
 - [x] **M2.2 — Close `EC01`–`EC05` with observed test evidence** (landed 2026-10-18): verified 5/5 passing tests in `tests/naka.test.ts` under Vitest `jsdom` and promoted `EC01`, `EC03`, `EC04`, and `EC05` to `fix` in `docs/EDGE_CASES.md`.
 
-## M3 — Repository reorganization & build output cleanup (`D09`, `D17`, `D25`, `D27`)
+## M3 — Repository reorganization & build output cleanup (`D09`, `D17`, `D25`, `D27`) ✅ done 2026-10-18
 
-- [ ] **M3.1 — Emit and track `dist/naka.js` via Vite+ and remove root `naka.js` (`D09`, `D17`, `D25`, `EC30`, `EC37`)**:
-  - Add a dedicated IIFE entry `src/iife.ts` (sets `window.Naka` / `window.NakaDB`, no `NakaBundle` namespace global, honors `data-naka-manual` opt-out) while keeping `src/index.ts` (`dist/index.mjs`) side-effect free (`D25`, `EC37`).
-  - Configure `vite.config.ts` (`pack`) and `package.json` (`main`, `module`, `types`, `unpkg`, `jsdelivr`, `files`, `exports`, `prepublishOnly` — excluding maintainer `AGENTS.md` from npm `files`) so `vp pack` emits `dist/naka.js` (IIFE), `dist/index.mjs` (ESM), and `dist/index.d.mts`.
-  - Un-ignore `dist/naka.js` only, commit the built copy, remove the tracked root `naka.js`, and update `AGENTS.md`, `README.md`, and `docs/PRODUCT.md` in the same change.
-- [ ] **M3.2 — Separate `site/` playground and `examples/` starter templates (`D09`, `EC39`)**:
-  - Move root `index.html` into `site/index.html` (updating `vite.config.ts` dev/build paths as needed).
-  - Add clean, copy-ready starter HTML artifacts in `examples/` (`examples/starter.html`, `examples/checklist.html`) using wrapping `<label>` elements (`EC39`) and explicit `naka` / `naka-list` bindings.
+- [x] **M3.1 — Emit and track `dist/naka.js` via Vite+ and remove root `naka.js` (`D09`, `D17`, `D25`, `EC30`, `EC37`)** (landed 2026-10-18):
+  - Added dedicated IIFE entry `src/iife.ts` (sets `window.Naka` / `window.NakaDB`, no `NakaBundle` namespace global, honors `data-naka-manual` / `naka-manual` opt-out) while keeping `src/index.ts` (`dist/index.mjs`) side-effect free (`D25`, `EC37`).
+  - Configured `vite.config.ts` (`pack`) and `package.json` (`main`, `module`, `types`, `unpkg`, `jsdelivr`, `files`, `exports`, `prepublishOnly` — excluding maintainer `AGENTS.md` from npm `files`) so `vp pack` emits `dist/naka.js` (IIFE), `dist/index.mjs` (ESM), and `dist/index.d.mts`.
+  - Un-ignored `dist/naka.js` only in `.gitignore`, removed tracked root `naka.js`, and updated `AGENTS.md`, `README.md`, and `docs/PRODUCT.md`.
+- [x] **M3.2 — Separate `site/` playground and `examples/` starter templates (`D09`, `EC39`)** (landed 2026-10-18):
+  - Moved root `index.html` into `site/index.html` and configured `vite.config.ts` dev/build paths.
+  - Added clean, copy-ready starter HTML artifacts in `examples/` (`examples/starter.html`, `examples/checklist.html`) using wrapping `<label>` elements (`EC39`) and explicit `naka` / `naka-list` bindings, verified in `tests/naka.test.ts`.
 
 ## M4 — Core runtime re-architecture & hardening (`D12`–`D17`, `D21`–`D27`, `EC02`, `EC04`, `EC06`–`EC40`)
 

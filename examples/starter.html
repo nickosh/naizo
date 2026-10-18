@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Spec — naka.js Starter</title>
+
+    <!-- 1. Canonical #nakadb JSON state (readable & editable by humans and AI agents) -->
+    <script id="nakadb" type="application/json">
+      {
+        "_meta": {},
+        "fields": {
+          "title": "Feature Proposal & Implementation Plan",
+          "owner": "Alex",
+          "status": "Draft",
+          "summary": "Outline the problem statement, key constraints, and rollout plan."
+        },
+        "lists": {
+          "milestones": [
+            {
+              "done": true,
+              "task": "Define core user journeys and acceptance criteria",
+              "owner": "Alex"
+            },
+            {
+              "done": false,
+              "task": "Implement prototype and verify edge cases",
+              "owner": "Sam"
+            }
+          ]
+        },
+        "custom": {}
+      }
+    </script>
+
+    <!-- 2. Load naka.js locally or via CDN:
+         <script src="https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js" defer></script> -->
+    <script src="../dist/naka.js" defer></script>
+
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #2563eb;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        max-width: 740px;
+        margin: 2.5rem auto;
+        padding: 0 1.25rem 5rem;
+        line-height: 1.5;
+      }
+      h1[contenteditable='true'] {
+        margin: 0 0 1.25rem;
+        font-size: 1.75rem;
+        padding: 4px 8px;
+        margin-left: -8px;
+        border-radius: 6px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1.25rem;
+        margin-bottom: 1.25rem;
+      }
+      .card h2 {
+        margin: 0 0 0.75rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+      label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      input[type='text'],
+      select,
+      textarea {
+        width: 100%;
+        margin-top: 0.25rem;
+        padding: 0.5rem 0.65rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font: inherit;
+        color: var(--text);
+        box-sizing: border-box;
+      }
+      textarea {
+        min-height: 84px;
+        resize: vertical;
+      }
+      .item-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.25rem;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .item-check {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0;
+        cursor: pointer;
+      }
+      .item-task {
+        flex: 1;
+        margin: 0;
+      }
+      .item-owner {
+        width: 130px;
+        margin: 0;
+      }
+      .item-row input[type='text'] {
+        margin-top: 0;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 contenteditable="true" naka="title">Feature Proposal & Implementation Plan</h1>
+
+    <section class="card">
+      <h2>Overview</h2>
+      <div class="grid">
+        <label>
+          Owner
+          <input type="text" naka="owner" value="Alex" />
+        </label>
+        <label>
+          Status
+          <select naka="status">
+            <option value="Draft" selected>Draft</option>
+            <option value="In Review">In Review</option>
+            <option value="Approved">Approved</option>
+          </select>
+        </label>
+      </div>
+      <label>
+        Summary &amp; Context
+        <textarea naka="summary">
+Outline the problem statement, key constraints, and rollout plan.</textarea>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>Milestones</h2>
+      <div naka-list="milestones">
+        <div class="item-row" naka-item>
+          <label class="item-check">
+            <input type="checkbox" naka="done" />
+            <span class="sr-only">Completed</span>
+          </label>
+          <label class="item-task">
+            <span class="sr-only">Milestone task</span>
+            <input type="text" naka="task" placeholder="Describe milestone..." />
+          </label>
+          <label class="item-owner">
+            <span class="sr-only">Assignee</span>
+            <input type="text" naka="owner" placeholder="Owner" />
+          </label>
+        </div>
+      </div>
+    </section>
+  </body>
+</html>

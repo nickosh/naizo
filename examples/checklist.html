@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Release Checklist — naka.js Example</title>
+
+    <!-- 1. Canonical #nakadb JSON state (readable & editable by humans and AI agents) -->
+    <script id="nakadb" type="application/json">
+      {
+        "_meta": {},
+        "fields": {
+          "checklist_title": "Pre-Release Verification Checklist",
+          "reviewer": "Jordan",
+          "environment": "Staging",
+          "ready_for_release": false,
+          "signoff_notes": "All unit and DOM integration checks must pass before tagging."
+        },
+        "lists": {
+          "checks": [
+            {
+              "done": true,
+              "task": "Run format, lint, and type-check suite (vp check)",
+              "priority": "High"
+            },
+            {
+              "done": true,
+              "task": "Verify automated unit and DOM tests (vp test)",
+              "priority": "High"
+            },
+            {
+              "done": false,
+              "task": "Smoke-test disk sync and HTML snapshot export in browser",
+              "priority": "Med"
+            }
+          ]
+        },
+        "custom": {}
+      }
+    </script>
+
+    <!-- 2. Load naka.js locally or via CDN:
+         <script src="https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js" defer></script> -->
+    <script src="../dist/naka.js" defer></script>
+
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #2563eb;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        max-width: 760px;
+        margin: 2.5rem auto;
+        padding: 0 1.25rem 5rem;
+        line-height: 1.5;
+      }
+      h1[contenteditable='true'] {
+        margin: 0 0 1.25rem;
+        font-size: 1.75rem;
+        padding: 4px 8px;
+        margin-left: -8px;
+        border-radius: 6px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1.25rem;
+        margin-bottom: 1.25rem;
+      }
+      .card h2 {
+        margin: 0 0 0.75rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .meta-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 1rem;
+        align-items: end;
+      }
+      label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      .ready-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        cursor: pointer;
+      }
+      input[type='text'],
+      select,
+      textarea {
+        width: 100%;
+        margin-top: 0.25rem;
+        padding: 0.5rem 0.65rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font: inherit;
+        color: var(--text);
+        box-sizing: border-box;
+      }
+      textarea {
+        min-height: 72px;
+        resize: vertical;
+      }
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.25rem;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .check-box {
+        display: inline-flex;
+        align-items: center;
+        margin: 0;
+        cursor: pointer;
+      }
+      .check-task {
+        flex: 1;
+        margin: 0;
+      }
+      .check-priority {
+        width: 110px;
+        margin: 0;
+      }
+      .check-row input[type='text'],
+      .check-row select {
+        margin-top: 0;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 contenteditable="true" naka="checklist_title">Pre-Release Verification Checklist</h1>
+
+    <section class="card">
+      <h2>Release Metadata</h2>
+      <div class="meta-row">
+        <label>
+          Reviewer
+          <input type="text" naka="reviewer" value="Jordan" />
+        </label>
+        <label>
+          Target Environment
+          <select naka="environment">
+            <option value="Local">Local</option>
+            <option value="Staging" selected>Staging</option>
+            <option value="Production">Production</option>
+          </select>
+        </label>
+        <label class="ready-toggle">
+          <input type="checkbox" naka="ready_for_release" />
+          <span>Ready for Release</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Verification Items</h2>
+      <div naka-list="checks">
+        <div class="check-row" naka-item>
+          <label class="check-box">
+            <input type="checkbox" naka="done" />
+            <span class="sr-only">Done</span>
+          </label>
+          <label class="check-task">
+            <span class="sr-only">Verification item</span>
+            <input type="text" naka="task" placeholder="Add verification step..." />
+          </label>
+          <label class="check-priority">
+            <span class="sr-only">Priority</span>
+            <select naka="priority">
+              <option value="High">High</option>
+              <option value="Med">Med</option>
+              <option value="Low">Low</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Sign-Off Notes</h2>
+      <label>
+        Notes &amp; Blockers
+        <textarea naka="signoff_notes">
+All unit and DOM integration checks must pass before tagging.</textarea>
+      </label>
+    </section>
+  </body>
+</html>

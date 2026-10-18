@@ -1,5 +1,6 @@
 node_modules/
-dist/
+dist/*
+!dist/naka.js
 coverage/
 .vite-plus/
 .DS_Store

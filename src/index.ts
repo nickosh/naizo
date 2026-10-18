@@ -18,6 +18,7 @@ export interface NakaDatabase {
 }
 
 export interface NakaAPI {
+  init(): Promise<void>;
   get(key?: string): unknown;
   set(key: string, value: unknown): void;
   getList(listName: string): Array<Record<string, unknown>>;
@@ -685,6 +686,7 @@ function handleListClicks(e: Event): void {
 
 // --- 10. Public API (window.Naka & window.NakaDB alias) ---
 export const Naka: NakaAPI = {
+  init: initNaka,
   get(key?: string): unknown {
     const db = parseDbScript();
     return key ? db.custom[key] : db;
@@ -780,18 +782,5 @@ export async function initNaka(): Promise<void> {
       if (!target?.closest?.(`#${UI_ID}`)) triggerSave();
     });
     listenersAttached = true;
-  }
-}
-
-if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  window.Naka = Naka;
-  window.NakaDB = NakaDB;
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      void initNaka();
-    });
-  } else {
-    void initNaka();
   }
 }

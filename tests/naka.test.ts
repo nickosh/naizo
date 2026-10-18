@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import { initNaka, Naka, parseDbScript } from '../src/index';
+import iifeBundleCode from '../dist/naka.js?raw';
+import checklistHtml from '../examples/checklist.html?raw';
+import starterHtml from '../examples/starter.html?raw';
+import pkgJson from '../package.json';
+import siteHtml from '../site/index.html?raw';
+import { initNaka, Naka, NakaDB, parseDbScript } from '../src/index';
 
 describe('naka.js v0.1.0 core runtime', () => {
   beforeEach(() => {
     localStorage.clear();
+    document.documentElement.removeAttribute('data-naka-manual');
+    document.documentElement.removeAttribute('naka-manual');
     document.head.innerHTML = '';
     document.body.innerHTML = '';
   });
@@ -186,5 +193,77 @@ describe('naka.js v0.1.0 core runtime', () => {
     expect(warnSpy).toHaveBeenCalled();
 
     warnSpy.mockRestore();
+  });
+
+  it('keeps ESM entry side-effect free and emits clean dist/naka.js IIFE with data-naka-manual opt-out (D17, D25, EC37)', async () => {
+    // ESM import does not auto-mount #__nakadb_host__ before initNaka() is called
+    expect(document.getElementById('__nakadb_host__')).toBeNull();
+    expect(Naka).toBe(NakaDB);
+    expect(typeof Naka.init).toBe('function');
+
+    // Package entrypoints agree: ESM for main/module/exports["."], IIFE for unpkg/jsdelivr
+    expect(pkgJson.main).toBe('./dist/index.mjs');
+    expect(pkgJson.module).toBe('./dist/index.mjs');
+    expect(pkgJson.types).toBe('./dist/index.d.mts');
+    expect(pkgJson.unpkg).toBe('./dist/naka.js');
+    expect(pkgJson.jsdelivr).toBe('./dist/naka.js');
+    expect(pkgJson.files).toEqual(['dist', 'README.md']);
+
+    // Built dist/naka.js is a clean IIFE without NakaBundle global namespace
+    expect(iifeBundleCode.startsWith('(function() {')).toBe(true);
+    expect(iifeBundleCode).not.toContain('NakaBundle');
+    expect(iifeBundleCode).toContain('window.Naka = Naka');
+    expect(iifeBundleCode).toContain('data-naka-manual');
+
+    // Loading src/iife.ts with data-naka-manual sets window.Naka without auto-booting
+    Reflect.deleteProperty(window, 'Naka');
+    Reflect.deleteProperty(window, 'NakaDB');
+    document.documentElement.setAttribute('data-naka-manual', '');
+    Object.defineProperty(document, 'readyState', { value: 'loading', configurable: true });
+
+    await import('../src/iife');
+    expect(window.Naka).toBe(Naka);
+    expect(window.NakaDB).toBe(Naka);
+
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    expect(document.getElementById('__nakadb_host__')).toBeNull();
+
+    // Removing data-naka-manual allows boot on DOMContentLoaded
+    document.documentElement.removeAttribute('data-naka-manual');
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    expect(document.getElementById('__nakadb_host__')).not.toBeNull();
+
+    Object.defineProperty(document, 'readyState', { value: 'complete', configurable: true });
+  });
+
+  it('hydrates site/index.html and examples/ starter templates with wrapping labels (M3.2, EC39)', async () => {
+    for (const html of [siteHtml, starterHtml, checklistHtml]) {
+      const parsedDoc = new DOMParser().parseFromString(html, 'text/html');
+      const rawJson = parsedDoc.getElementById('nakadb')?.textContent?.trim() ?? '';
+      expect(rawJson.length).toBeGreaterThan(0);
+      const db = JSON.parse(rawJson) as Record<string, unknown>;
+      expect(db).toHaveProperty('_meta');
+      expect(db).toHaveProperty('fields');
+      expect(db).toHaveProperty('lists');
+      expect(db).toHaveProperty('custom');
+    }
+
+    // Load checklist.html into DOM and verify wrapping <label> controls stay scoped per row (EC39)
+    const doc = new DOMParser().parseFromString(checklistHtml, 'text/html');
+    document.head.innerHTML = doc.head.innerHTML;
+    document.body.innerHTML = doc.body.innerHTML;
+
+    await initNaka();
+
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[naka-item]'));
+    expect(rows.length).toBe(3);
+    for (const row of rows) {
+      const labels = Array.from(row.querySelectorAll('label'));
+      expect(labels.length).toBeGreaterThan(0);
+      for (const label of labels) {
+        expect(label.control).not.toBeNull();
+        expect(row.contains(label.control)).toBe(true);
+      }
+    }
   });
 });

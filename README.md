@@ -38,17 +38,17 @@ Run the local demo playground with [Vite+](https://viteplus.dev/):
 ```bash
 vp install
 vp dev
-# Opens http://localhost:3000/index.html
+# Opens http://localhost:3000 (serves site/index.html)
 ```
 
-Or drop `naka.js` into any HTML file:
+Or copy a starter template from [`examples/starter.html`](examples/starter.html) / [`examples/checklist.html`](examples/checklist.html) and drop `naka.js` into any HTML file:
 
 ```html
 <head>
   <script id="nakadb" type="application/json">
     { "_meta": {}, "fields": {}, "lists": {}, "custom": {} }
   </script>
-  <script src="https://cdn.jsdelivr.net/gh/YOUR_USERNAME/nakajs@main/naka.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/gh/YOUR_USERNAME/nakajs@main/dist/naka.js" defer></script>
 </head>
 ```
 
