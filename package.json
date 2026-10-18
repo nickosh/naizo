@@ -1,0 +1,28 @@
+{
+  "name": "nakajs",
+  "version": "1.1.0",
+  "description": "Self-persisting HTML inner database (#nakadb) and declarative list repeater for Human + AI Agent workflows.",
+  "main": "naka.js",
+  "jsdelivr": "naka.js",
+  "unpkg": "naka.js",
+  "files": [
+    "naka.js",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "scripts": {
+    "dev": "npx --yes serve . -l 3000"
+  },
+  "keywords": [
+    "nakajs",
+    "nakadb",
+    "html",
+    "micro-db",
+    "local-first",
+    "file-system-access-api",
+    "ai-agents",
+    "self-saving-html"
+  ],
+  "author": "",
+  "license": "MIT"
+}

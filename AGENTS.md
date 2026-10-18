@@ -2,9 +2,36 @@
 
 ## What this project is
 
-**nakajs** — product definition, target users, core promises, and technical architecture are being established during initial project planning. See [docs/PRODUCT.md](docs/PRODUCT.md) for product scope and invariants.
+**`naka.js`** (`nakajs`) — zero-dependency, self-persisting HTML inner database (`#nakadb`) and declarative list repeater (`[data-naka-list]`) for Human + AI Agent workflows. It turns static `.html` artifacts (specs, plans, checklists, triage boards, custom tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="nakadb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
+
+See [docs/PRODUCT.md](docs/PRODUCT.md) for product vision, target users, and scope boundaries.
+
+Core promises (never compromise these):
+1. **In-file canonical state (`#nakadb`)**: `<script id="nakadb" type="application/json">` in `<head>` holds `{ _meta, fields, lists, custom }` in human- and agent-readable JSON (`2`-space indented) alongside baked HTML input attributes.
+2. **Two-way Human ↔ AI Agent sync**: On boot, `naka.js` compares `#nakadb` on disk against its last known disk snapshot (`nakadb_disk_hash_<pathname>`). External edits on disk (e.g., by a CLI/IDE AI agent) automatically supersede stale `localStorage` browser cache; otherwise, browser edits persist across refreshes even before linking disk.
+3. **Clean HTML serialization**: Writing to disk via the File System Access API (`showSaveFilePicker` with handle persisted in IndexedDB `NakaDB_Handles`) or `Naka.exportHTML()` strips all runtime-injected UI (`[data-naka-ignore]`, `#__nakadb_host__` Shadow DOM pill, `#__nakadb_styles__`).
+4. **Zero-dependency, single-file drop-in**: `naka.js` is a standalone vanilla JavaScript IIFE with no runtime dependencies or build step required, loadable locally or via CDN (`jsDelivr` / `unpkg`).
 
 License: MIT ([LICENSE](LICENSE)).
+
+## Authoring HTML with `naka.js` (AI Agent Instructions)
+
+Whenever you generate or update an interactive HTML file (plans, specs, checklists, triage boards, or custom editors), make it self-persisting using **`naka.js`**:
+
+1. **Embed `#nakadb` in `<head>`:** Include `<script id="nakadb" type="application/json">` at the top of `<head>` initialized with:
+   ```json
+   {
+     "_meta": {},
+     "fields": {},
+     "lists": {},
+     "custom": {}
+   }
+   ```
+2. **Load `naka.js`:** Include `<script src="./naka.js" defer></script>` (or the CDN URL `https://cdn.jsdelivr.net/gh/YOUR_USERNAME/nakajs@main/naka.js`) in `<head>`.
+3. **Standalone Fields (`data-naka`):** Bind inputs, checkboxes, radios, selects, and `contenteditable="true"` blocks using `data-naka="key_name"`.
+4. **Dynamic Lists (`data-naka-list`):** For checklists, tables, or cards where the user may add, edit, reorder, or delete items, wrap the container in `data-naka-list="list_name"` and each repeating row/card in `data-naka-item`, using `data-naka="prop_name"` on fields inside the item.
+5. **Custom Widgets (`window.Naka`):** Persist custom JavaScript state via `Naka.get('key')` and `Naka.set('key', value)`. Listen to the `'naka:hydrate'` window event to sync custom UI on load.
+6. **Reading & Updating Files on Disk:** When inspecting or modifying an existing HTML file on disk, read or edit `<script id="nakadb">` directly—`naka.js` automatically hydrates the DOM and renders list items from `#nakadb` when opened in the browser.
 
 ## Start here — authoritative project memory
 
@@ -35,7 +62,8 @@ At the end of each state-changing session, independently useful development slic
 
 Use proportional verification:
 - Documentation edits require link/reference review and whitespace checks (`git diff --check`).
-- Code, schema, or behavior changes require running the relevant test, lint, and typecheck suites once configured in the repository.
+- Code or behavior changes in `naka.js` or `index.html` require syntax checks (`node --check naka.js`), JSON validation of `package.json` and embedded `#nakadb` blocks, and running any configured test suites.
+- Interactive playground preview: `npm run dev` (`npx --yes serve . -l 3000`).
 - Rerun checks when changes or unresolved concerns justify it, not only at closeout. Do not claim unrun checks passed or treat plans/fixtures as proof of passing behavior.
 
 ## Git workflow

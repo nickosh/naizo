@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>naka.js — Interactive Spec & Playground</title>
+
+  <!-- 1. Embedded #nakadb JSON State (Readable & Editable by AI Agents on Disk) -->
+  <script id="nakadb" type="application/json">
+{
+  "_meta": {
+    "updatedAt": "2026-10-18T08:00:00.000Z"
+  },
+  "fields": {
+    "feature_title": "OAuth2 & Rate-Limiting Spec",
+    "owner": "Kenji",
+    "status": "In Review",
+    "notes": "Click anywhere in this box to edit architecture notes directly. Refresh the page—or click 'Link Disk' in the bottom right—to see your changes persist directly into index.html!"
+  },
+  "lists": {
+    "tasks": [
+      {
+        "done": true,
+        "title": "Design PKCE token exchange flow",
+        "priority": "High"
+      },
+      {
+        "done": false,
+        "title": "Implement Redis token-bucket middleware",
+        "priority": "High"
+      },
+      {
+        "done": false,
+        "title": "Add integration tests for 429 burst responses",
+        "priority": "Med"
+      }
+    ]
+  },
+  "custom": {
+    "rateLimitRps": 120
+  }
+}
+  </script>
+
+  <!-- 2. Load naka.js -->
+  <script src="./naka.js" defer></script>
+
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #2563eb;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 760px;
+      margin: 2.5rem auto;
+      padding: 0 1.25rem 5rem;
+      line-height: 1.5;
+    }
+    header {
+      margin-bottom: 1.5rem;
+    }
+    .badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-bottom: 0.5rem;
+    }
+    h1[contenteditable="true"] {
+      margin: 0.25rem 0;
+      font-size: 1.75rem;
+      padding: 2px 6px;
+      margin-left: -6px;
+      border-radius: 6px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 1rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    input[type="text"], select {
+      width: 100%;
+      margin-top: 0.25rem;
+      padding: 0.5rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font: inherit;
+      color: var(--text);
+      box-sizing: border-box;
+    }
+    .task-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 4px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .task-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .task-title {
+      flex: 1;
+      padding: 3px 6px;
+      border-radius: 4px;
+    }
+    .task-row select {
+      width: auto;
+      margin-top: 0;
+      padding: 3px 8px;
+      font-size: 0.8rem;
+    }
+    [contenteditable="true"]:focus {
+      outline: 2px solid var(--accent);
+      background: #eff6ff;
+    }
+    .notes-box {
+      min-height: 80px;
+      padding: 0.75rem;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      background: #fffbeb;
+    }
+    .slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .slider-wrap input[type="range"] {
+      flex: 1;
+    }
+    .rps-badge {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      background: #f1f5f9;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="badge">naka.js + #nakadb Demo</span>
+    <h1 contenteditable="true" data-naka="feature_title">OAuth2 & Rate-Limiting Spec</h1>
+  </header>
+
+  <!-- 1. Standalone Bound Inputs -->
+  <section class="card">
+    <h2>1. Standalone Fields (<code>data-naka</code>)</h2>
+    <div class="meta-grid">
+      <label>
+        Spec Owner
+        <input type="text" data-naka="owner">
+      </label>
+      <label>
+        Approval Status
+        <select data-naka="status">
+          <option value="Draft">Draft</option>
+          <option value="In Review">In Review</option>
+          <option value="Approved">Approved</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <!-- 2. Declarative List Repeater -->
+  <section class="card">
+    <h2>2. Dynamic Checklist Repeater (<code>data-naka-list="tasks"</code>)</h2>
+    <div data-naka-list="tasks">
+      <div class="task-row" data-naka-item>
+        <input type="checkbox" data-naka="done">
+        <span class="task-title" contenteditable="true" data-naka="title">New task...</span>
+        <select data-naka="priority">
+          <option value="High">High</option>
+          <option value="Med">Med</option>
+          <option value="Low">Low</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Freeform Editable Notes -->
+  <section class="card">
+    <h2>3. Editable Notes (<code>contenteditable="true"</code>)</h2>
+    <div class="notes-box" contenteditable="true" data-naka="notes"></div>
+  </section>
+
+  <!-- 4. Custom Widget using window.Naka API -->
+  <section class="card">
+    <h2>4. Custom JS Widget (<code>Naka.get</code> / <code>Naka.set</code>)</h2>
+    <div class="slider-wrap">
+      <input type="range" id="rps-slider" min="10" max="500" step="10" data-naka-ignore>
+      <span class="rps-badge"><span id="rps-val">120</span> req/sec</span>
+    </div>
+  </section>
+
+  <script>
+    const slider = document.getElementById('rps-slider');
+    const label = document.getElementById('rps-val');
+
+    function syncCustomWidget() {
+      const rps = window.Naka?.get('rateLimitRps') ?? 120;
+      slider.value = rps;
+      label.textContent = rps;
+    }
+
+    window.addEventListener('naka:hydrate', syncCustomWidget);
+    window.addEventListener('DOMContentLoaded', syncCustomWidget);
+
+    slider.addEventListener('input', () => {
+      const val = Number(slider.value);
+      label.textContent = val;
+      window.Naka.set('rateLimitRps', val);
+    });
+  </script>
+
+</body>
+</html>
