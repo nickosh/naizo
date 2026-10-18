@@ -2,6 +2,8 @@
 
 Record durable architectural and owner decisions and their rationale. Allocate the next `Dxx` ID for new decisions; supersede an old decision explicitly rather than silently rewriting its history.
 
+Entries marked **Status: Proposed** are recommendations pending owner review. They bind nothing and amend nothing until the owner accepts them; on acceptance, record the date and any changes in the entry and update the decisions it amends.
+
 ## D01 — Hybrid project memory structure
 
 Accepted by the owner on 2026-10-18. Use a hybrid project memory layout combining the lean core ledger from `nuance-skills` with the product and edge-case ledgers from `napflow`:
@@ -123,3 +125,67 @@ Accepted by the owner on 2026-10-18 (amending `D09`, scheduled for `M3`). `D09` 
 - Build `dist/naka.js` from a dedicated IIFE entry (`src/iife.ts`) that imports the core and sets `window.Naka` / `window.NakaDB` without exporting a bundle namespace global (removes the stray `NakaBundle` global).
 - CI (`M7.1`) runs `vp pack` and fails when `dist/naka.js` differs from the committed copy; `package.json` gains a `prepublishOnly` build so npm never ships a stale `dist/`.
 - Consumer URLs become `https://cdn.jsdelivr.net/gh/<owner>/nakajs@main/dist/naka.js` for the Git tree and `https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js` after the first npm release (`D10`).
+
+## D18 — Single data namespace with a schema version (proposed)
+
+**Status: Proposed 2026-10-18 by the third source review; pending owner decision.** Would amend `D03` and `D15`. `#nakadb` splits data into `fields`, `lists`, and `custom`, which exposes a runtime detail (whether a key is bound to the DOM) in the data model: agents must guess which bucket a value belongs in, `Naka.get('owner')` cannot read a bound field, and the API grows a getter/setter pair per bucket.
+
+- Replace the three buckets with one namespace: `{ "_meta": { "schema": 1 }, "owner": "Kenji", "tasks": [ … ], "rateLimitRps": 120 }`. Underscore-prefixed top-level keys are reserved for the runtime.
+- `naka="key"` binds a scalar and `naka-list="key"` binds an array of objects; `Naka.get(key)`, `Naka.set(key, value)`, and `Naka.delete(key)` cover every key and leave room for dotted paths later.
+- `_meta.schema` versions the format so later changes migrate files instead of breaking them. Files in the `v0.1.0` shape may be migrated once on load; no further compatibility layer.
+- Trade-off: one key can no longer be both a field and a list (intended), and every sample and test fixture changes once.
+
+## D19 — Stable list item identity (proposed)
+
+**Status: Proposed 2026-10-18 by the third source review; pending owner decision.** Would extend `D15`. List items are identified only by position, which breaks three-way merges (`D20`), rebuilding the row-to-item `WeakMap` after reload, and agent instructions that name a specific item.
+
+- Every list item carries an identity key (`id` by default, overridable per list with an attribute such as `naka-key="slug"`). The runtime generates a short unique value for items without one (new rows, agent-written items) and never changes an existing value.
+- Rendered rows reference their item by identity, and `Naka` list methods accept an identity as well as an index.
+- Trade-off: one extra key per item in the JSON.
+
+## D20 — Retain the base snapshot for three-way JSON merge (proposed)
+
+**Status: Proposed 2026-10-18 by the third source review; pending owner decision.** Would amend the "Snapshot is a hash" bullet of `D16` and the whole-document "disk wins" rule of `D04` / `D16`. A hash can only detect divergence, so every conflict resolves as "disk wins" with the browser edits moved to a backup. Conflicts are the common path rather than an edge case: in the default unlinked flow a user ticks boxes (cache), the agent edits the file, and the next reload discards every tick; live sync (`EC10`) makes the same divergence routine while a tab stays open.
+
+- Store the full canonical JSON of the last known disk state (the merge base) in IndexedDB, which has a larger quota than `localStorage`, keyed like the cache.
+- On divergence, merge base, browser, and disk per top-level key and per list item identity (`D19`). Apply non-overlapping changes from both sides automatically; for a key changed on both sides, disk wins and the browser value goes to the conflict backup with the restore notice from `D16`.
+- Never apply a merged update to the element that has focus; apply it on blur.
+
+## D21 — Event-targeted capture (proposed)
+
+**Status: Proposed 2026-10-18 by the third source review; pending owner decision.** Would amend the "Debounce DOM capture" bullet of `D15`. A debounced full-document scan still rereads every bound element: with duplicate keys the last element wins (`EC19`), elements rendered after boot overwrite stored values with their defaults (`EC20`), and each edit costs O(n) (`EC16`).
+
+- On `input` / `change`, resolve the binding of `event.target` (a key, or a list item identity plus property) and update only that entry, and only when its normalized value changed (`EC25`).
+- Propagate the new value to every other element bound to the same key (one key, many elements).
+- Hydrate bound elements added after boot through a `MutationObserver` or an explicit `Naka.bind(root)`; never read them back into the store unprompted.
+- Debounce only persistence (cache, `#nakadb` text, disk) and flush on `pagehide` / `visibilitychange: hidden` as in `D15`. Page scripts that set `.value` without dispatching an event are not captured; document `Naka.set` for them.
+
+## D22 — Plain-text `contenteditable` storage by default (proposed)
+
+**Status: Proposed 2026-10-18 by the third source review; pending owner decision.** Settles the plain-text evaluation item left open by the second review. Hydrating stored strings through `innerHTML` turns data into live markup (`EC18`) and fills agent-readable JSON with browser editing artifacts (`&nbsp;`, `<br>`, `<div>`).
+
+- `contenteditable` bindings read and write plain text by default.
+- Rich text is opt-in per element (e.g., `naka-html`), and every write passes a small built-in allowlist sanitizer (or `Element.setHTML()` where the browser provides it).
+
+## D23 — Bake attributes only on the export clone (proposed)
+
+**Status: Proposed 2026-10-18 by the third source review; pending owner decision.** Would amend the deferred-baking bullet of `D14`. Under `D16` disk sync never serializes the body, so attributes baked into the live DOM have no consumer outside `Naka.exportHTML()` and the Blob fallback. Copy live values into attributes of the cloned document inside `getCleanHtmlString()` only, and never mutate value attributes on the live page.
+
+## D24 — Write safety: single-flight writes, payload snapshots, and file identity (proposed)
+
+**Status: Proposed 2026-10-18 by the third source review; pending owner decision.** Would amend `D16`.
+
+- Serialize disk writes through one queue; coalesce edits made during a write into the next write instead of starting overlapping writes.
+- Derive the snapshot (and the `D20` merge base) from the exact payload written, never from live state after the write resolves (`EC26`).
+- Assign `_meta.id` (a random identifier) when a document first links to disk. Before the first write to a handle, read the file and confirm that its `#nakadb` block carries the same `_meta.id` or matches the merge base; otherwise ask before writing (`EC28`).
+- Never insert a missing `#nakadb` block into an existing file without explicit confirmation, replacing the unconditional "insert after `<head>`" rule in `D16`.
+
+## D25 — Factory core, side-effect-free ESM, persistence adapters, and modular source (proposed)
+
+**Status: Proposed 2026-10-18 by the third source review; pending owner decision.** Would amend `D06` and `D17`.
+
+- Expose `createNaka({ root, storage, adapter, clock })` returning an instance; module-level state (`fileHandle`, timers, listener flags) moves into the instance so tests and multiple documents do not share it.
+- The ESM entry has no side effects (`"sideEffects": false`); only `src/iife.ts` auto-starts and assigns `window.Naka` / `window.NakaDB` (`D17`).
+- Persistence goes through an adapter interface (read the source, write the `#nakadb` block, watch for external changes), with File System Access and Blob download as the first adapters. On `http(s)` the download adapter fetches `location.href` and splices the JSON block into the original source instead of serializing the live DOM, so DOM rendered by other libraries (e.g., Mermaid diagrams) is not baked into the snapshot.
+- Split `src/` into modules (store, bindings, lists, persistence adapters, UI, serialization, IIFE entry) bundled into one IIFE.
+- Open product question, outside this proposal: an optional local save adapter (a Vite plugin or `npx nakajs serve` that accepts writes of the JSON block and pushes file changes to the page) would make disk sync work in every browser and in IDE preview panes, but touches the "Backend servers" non-goal in `docs/PRODUCT.md`.

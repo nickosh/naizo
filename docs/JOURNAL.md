@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Third source review: reproduced EC18–EC31 and proposed D18–D25 (pending owner decision)
+
+- Done: reviewed `src/index.ts`, root `naka.js`, tests, playground, and project memory; reproduced `EC18`–`EC28`, `EC30`, and `EC31` with throwaway jsdom probes against `src/index.ts` and the shipped `naka.js` (a mocked `FileSystemFileHandle` for `EC26` / `EC28`; `EC27` simulated in one window; `EC29` confirmed by inspection), then deleted the probes; repaired the `EC12` table row that the formatter had split at an escaped pipe.
+- Proposed, not accepted: `D18` single data namespace with `_meta.schema`, `D19` stable list item identity, `D20` base snapshot for three-way merge, `D21` event-targeted capture, `D22` plain-text `contenteditable`, `D23` export-only attribute baking, `D24` write safety, and `D25` factory core with persistence adapters; plan adjustments are listed under "Pending owner review" in `docs/PLAN.md`.
+- Verified: `vp check`, `vp test` (5/5), markdown link/reference review, and `git diff --check` pass.
+- Next: owner reviews `D18`–`D25` and the pending plan adjustments; meanwhile execute `M3.1`.
+
 ## 2026-10-18 — Added ecosystem comparison table to README.md
 
 - Done: researched adjacent self-saving/declarative HTML tools (`ClayJS` / `HyperclayJS`, `Bento`, `Mavo`, `Alpine.js + @alpinejs/persist`, and `TiddlyWiki` / `Feather Wiki`) and added the `How naka.js Compares` feature matrix to `README.md`.
