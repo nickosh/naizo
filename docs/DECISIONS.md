@@ -194,3 +194,11 @@ Accepted by the owner on 2026-10-18 (amending `D09`, scheduled for `M3`). `D09` 
 - Persistence goes through an adapter interface (read the source, write the `#nakadb` block, watch for external changes), with File System Access and Blob download as the first adapters. On `http(s)` the download adapter fetches `location.href` and splices the JSON block into the original source instead of serializing the live DOM, so DOM rendered by other libraries (e.g., Mermaid diagrams) is not baked into the snapshot.
 - Split `src/` into modules (store, bindings, lists, persistence adapters, UI, serialization, IIFE entry) bundled into one IIFE.
 - Open product question, outside this proposal: an optional local save adapter (a Vite plugin or `npx nakajs serve` that accepts writes of the JSON block and pushes file changes to the page) would make disk sync work in every browser and in IDE preview panes, but touches the "Backend servers" non-goal in `docs/PRODUCT.md`.
+
+## D26 — Lightweight, fast, low-ceremony product priority
+
+Owner clarification on 2026-10-18: `naka.js` should remain a light, fast tool with few imposed authoring constraints. This reinforces `D06` and guides evaluation of the pending `D18`–`D25` proposals; it does not accept those proposals or supersede the existing data contract.
+
+- Favor simple defaults, a small public API, ordinary HTML/JSON, and optional escape hatches. Runtime validation protects data integrity and supported binding shapes; it should not become an application-schema system.
+- Prefer removing repeated work and unnecessary runtime features over restricting user content. Preserve dual attributes, unknown JSON data, inferred templates, and custom-widget integration under their accepted contracts.
+- Keep data-loss prevention and truthful persistence status. Evaluate automatic merging, compulsory identities, generalized adapters, and other expansion against their size, runtime work, and authoring cost before adding them. Concrete simplification recommendations remain pending in `PLAN.md`.

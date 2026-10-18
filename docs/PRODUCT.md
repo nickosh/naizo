@@ -28,6 +28,10 @@ AI coding agents (Antigravity, Claude Code, Gemini CLI, Cursor, Codex) increasin
 4. **Dual declarative attribute syntax + programmatic API** — Both concise `naka` / `naka-*` attributes (`naka="key"`, `naka-list="name"`, `naka-item`, `naka-ignore`) and HTML5-compliant `data-naka` / `data-naka-*` attributes work interchangeably alongside the `window.Naka` (`window.NakaDB`) API (`D08`).
 5. **Zero runtime dependencies** — `naka.js` ships as a standalone vanilla JavaScript IIFE usable directly via `<script src="./naka.js" defer></script>` or CDN (`jsDelivr` / `unpkg`), plus ESM/TypeScript declarations built from `src/index.ts` via Vite+ (`D06`).
 
+## Design priority
+
+Keep the tool lightweight, fast, and easy to add to ordinary HTML (`D26`). Prefer a small API, useful defaults, and optional escape hatches. Preserve authors’ unknown JSON data and freedom to build custom widgets; require only what binding and safe persistence need. Reduce repeated DOM/serialization work before adding optimization machinery. Data-loss prevention remains part of the core promise.
+
 ## Scope and non-goals
 
 - **In scope:** Declarative scalar field binding (`input`, `textarea`, `select`, `[contenteditable="true"]`, `[naka]`, `[data-naka]`), single-level declarative list repeaters (`[naka-list]` / `[data-naka-list]`), custom key-value state (`Naka.get`/`Naka.set`), `localStorage` caching, File System Access API disk write-back with IndexedDB handle persistence, and fallback `.html` snapshot download.

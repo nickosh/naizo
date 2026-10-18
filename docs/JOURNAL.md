@@ -2,6 +2,14 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Simplification review and lightweight product priority
+
+- Decided (owner direction): recorded `D26` for a lightweight, fast tool with few authoring requirements; reflected it in `PRODUCT.md`. Specific changes to the runtime/API remain pending.
+- Recommended: one store/change/save path, optional item IDs, disk fingerprint plus recoverable backup without a merge-base database, explicit late binding, minimal validation, and private test seams. Defer automatic merging, rich text, public adapters, and general history/configuration UI; decide the common data API before adding namespace-specific methods. Added a concise scope comparison to `PLAN.md` without changing accepted milestones.
+- Evidence: a 500-field jsdom probe of the built source IIFE counted 500 attribute writes and two serializations for one input event, three serializations for one custom setter, and 100 parses for 100 getters. Measured existing unminified gzip sizes only; no rewrite size/latency claim. Production code is unchanged.
+- Verified: documentation formatting, local link/decision reference review, and `git diff --check` pass. Runtime test/build/browser suites were not rerun for this documentation-only follow-up; the operation-count probe is not a behavioral regression suite.
+- Next: settle D18’s public data shape under D26, then implement M3.1 with the minimal CI/artifact checks and the focused M4 regression harness.
+
 ## 2026-10-18 — Fourth source/design review: durability, validation, and narrower hardening scope
 
 - Done: reviewed both runtime artifacts, all five tests, build/package configuration, playground, and project memory; reproduced `EC32`–`EC37` (cache/custom mismatch, invalid shapes, startup event gap, non-JSON API values, save acknowledgement/status, package entry mismatch) and narrowed `EC04` to `PARTIAL` after destructive startup recovery. Production code is unchanged.
