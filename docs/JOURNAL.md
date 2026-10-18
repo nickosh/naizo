@@ -2,6 +2,14 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Fifth source/design review: smaller core and ordinary HTML integration
+
+- Done: reviewed both runtime artifacts, tests, packaging, playground, and all project memory. Corrected the README's unimplemented live handle claim and documented snapshot asset/relocation limits. Production code is unchanged.
+- Evidence: isolated jsdom documents against root `naka.js` and the freshly built source IIFE reconfirmed destructive invalid-source recovery, unbound-data loss, data-as-markup hydration, and stale custom-state restoration (`EC04`, `EC14`, `EC18`, `EC32`). Added `EC38`–`EC40` for lost `__proto__` keys, duplicate row IDs/label targets, and row-initialization gaps; extended `EC12` with changed native reset defaults. Snapshot-relative URLs resolved beside the copy, rather than beside the original.
+- Recommended, not accepted: choose one data API before adding bucket methods; define programmatic edits versus `save()`; consider one cache checkpoint envelope and UTF-8-only source preservation; retain delegated row behavior or a small initialization signal. Reduce owner decision gates to public data/API and conflict policy, and defer merging, mandatory item IDs, public adapters, and rich text. No milestone completion or new owner decision recorded.
+- Verified: baseline `vp check`, `vp test` (5/5), `vp pack`, `node --check naka.js`, and package/playground JSON validation passed. Documentation formatting, local links/decision references, and `git diff --check` passed after reconciliation. Probes are characterization evidence, not landed regression tests. Real-browser/native picker, actual listener execution through user interaction, and OS-level concurrency checks were not run.
+- Next: settle the public data/API and overwrite policy, fold the chosen scope into M3/M4 task text, then implement M3.1's generated artifact/minimal CI and the focused M4 preservation/reload harness before replacing the core.
+
 ## 2026-10-18 — Simplification review and lightweight product priority
 
 - Decided (owner direction): recorded `D26` for a lightweight, fast tool with few authoring requirements; reflected it in `PRODUCT.md`. Specific changes to the runtime/API remain pending.
