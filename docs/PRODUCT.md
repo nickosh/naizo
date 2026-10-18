@@ -4,7 +4,7 @@ Status: `v0.1.0` specification adopted 2026-10-18. Companions: [PLAN.md](PLAN.md
 
 ## One-liner
 
-**`naka.js`** is a zero-dependency, lightweight script (~3.2 KB gzipped) providing a self-persisting HTML inner database (`#nakadb`) and declarative list repeater (`[naka-list]` / `[data-naka-list]`) that keeps human edits in the browser and AI agent edits on disk in two-way sync.
+**`naka.js`** is a zero-dependency, lightweight script (~4.7 KB minified + gzipped, ~6.3 KB gzipped unminified as of `v0.1.0`) providing a self-persisting HTML inner database (`#nakadb`) and declarative list repeater (`[naka-list]` / `[data-naka-list]`) that keeps human edits in the browser and AI agent edits on disk in two-way sync.
 
 ## Problem
 
@@ -22,9 +22,9 @@ AI coding agents (Antigravity, Claude Code, Gemini CLI, Cursor, Codex) increasin
 
 ## Core promises (product invariants — never compromise)
 
-1. **In-file canonical JSON database (`#nakadb`)** — `<script id="nakadb" type="application/json">` in `<head>` holds `{ _meta, fields, lists, custom }` in clean, 2-space indented JSON that AI agents can read and edit directly on disk and Git can diff cleanly.
+1. **In-file canonical JSON database (`#nakadb`)** — `<script id="nakadb" type="application/json">` in `<head>` holds `{ _meta, fields, lists, custom }` in clean, 2-space indented JSON that AI agents can read and edit directly on disk and Git can diff cleanly. Amended for `M4` by `D15`: keys without a matching DOM binding pass through untouched instead of being dropped on load.
 2. **Two-way Human ↔ Agent conflict resolution** — On page load, `naka.js` compares the current `#nakadb` text on disk against the last known disk snapshot (`nakadb_disk_hash_<pathname>`). If the file on disk was modified externally (e.g., by an AI agent), disk state wins and hydrates the DOM; otherwise, cached browser state (`nakadb_state_<pathname>`) hydrates the DOM.
-3. **Clean HTML serialization** — Saving to disk (via the File System Access API with `FileSystemFileHandle` persisted in IndexedDB, or fallback HTML download) bakes live input/select/checkbox/textarea values into HTML attributes and strips all runtime-injected elements (`[naka-ignore]`, `[data-naka-ignore]`, `#__nakadb_host__`, `#__nakadb_styles__`).
+3. **Clean HTML serialization** — Saving to disk (via the File System Access API with `FileSystemFileHandle` persisted in IndexedDB, or fallback HTML download) bakes live input/select/checkbox/textarea values into HTML attributes and strips all runtime-injected elements (`[naka-ignore]`, `[data-naka-ignore]`, `#__nakadb_host__`, `#__nakadb_styles__`). Amended for `M4` by `D16`: disk sync will rewrite only the `#nakadb` block and leave every other byte of the file untouched, while full-document serialization with runtime stripping remains the explicit `Naka.exportHTML()` snapshot mode.
 4. **Dual declarative attribute syntax + programmatic API** — Both concise `naka` / `naka-*` attributes (`naka="key"`, `naka-list="name"`, `naka-item`, `naka-ignore`) and HTML5-compliant `data-naka` / `data-naka-*` attributes work interchangeably alongside the `window.Naka` (`window.NakaDB`) API (`D08`).
 5. **Zero runtime dependencies** — `naka.js` ships as a standalone vanilla JavaScript IIFE usable directly via `<script src="./naka.js" defer></script>` or CDN (`jsDelivr` / `unpkg`), plus ESM/TypeScript declarations built from `src/index.ts` via Vite+ (`D06`).
 

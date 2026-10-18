@@ -5,7 +5,7 @@
 **The Lightweight Script for Self-Persisting HTML & AI Agent Workflows**
 
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#)
-[![Bundle Size](https://img.shields.io/badge/gzip-~3.2_KB-blue.svg)](#)
+[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~4.7_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 _Turn any static `.html` file into a living, human-editable application with an embedded JSON inner database (`#nakadb`) that syncs directly back to disk._

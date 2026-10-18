@@ -2,6 +2,14 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Second source review: adopted store model, surgical disk sync, and tracked dist artifact; restructured M4
+
+- Done: reviewed `src/index.ts`, `naka.js`, tests, playground, and build config; reproduced `EC06`, `EC09`, `EC11` and new cases `EC14` (unbound agent JSON destroyed on load), `EC15` (unknown `<select>` value coerced to `""`), `EC16` (full-document capture and baking per keystroke), and `EC17` (silent conflict discard, no unlink) with a throwaway jsdom probe; measured real bundle size (~4.7 KB minified + gzipped, ~6.3 KB gzipped unminified) and corrected `README.md` and `docs/PRODUCT.md`.
+- Decided (owner): `D15` in-memory store as runtime truth with merge semantics, pass-through keys, single-attribute key contract, change-only `updatedAt`, and debounced capture; `D16` surgical `#nakadb` block writes for disk sync with full serialization reserved for `Naka.exportHTML()`, read-before-write live detection, conflict backup and notice, hash snapshot, and unlink; `D17` track built `dist/naka.js` with a CI freshness check and a dedicated `src/iife.ts` entry, resolving the `D09` jsDelivr `gh` URL contradiction.
+- Done: restructured `M4` in `docs/PLAN.md` so `M4.1` (store) and `M4.2` (surgical sync) land before other hardening, added browser-level tests to `M4.4`, extended `M3.1` and `M7.1` for `D17`, and added `EC14`–`EC17` while rescoping `EC03`, `EC06`, `EC07`, `EC09`, `EC10`, and `EC11`.
+- Verified: `vp check` (formatter fixes applied to `docs/DECISIONS.md` and `docs/EDGE_CASES.md`), `vp test` 5/5, markdown link/reference review, and `git diff --check` pass. Not decided: plain-text default for `contenteditable` storage and `showOpenFilePicker` as the link gesture remain evaluation items, not decisions.
+- Next: execute `M3.1` and `M3.2`, then implement `M4.1` against the store before any other `M4` item.
+
 ## 2026-10-18 — Audited v0.1.0 runtime & architecture and scheduled M4 hardening after M3 repo reorganization
 
 - Decided (owner): approve all findings from the `v0.1.0` source and architecture audit (`D12`–`D14` — explicit `naka`/`data-naka` binding, separating `naka-ignore` from `data-naka-runtime` export stripping, unmutated disk snapshot comparison, `</script` and `<!--` JSON escaping, normalized/scoped storage keys, live `fileHandle.getFile()` sync on focus/pre-write, ephemeral `data-naka-auto-template` lifecycle, deferred attribute baking, expanded input/table/list support, and symmetrical `Naka` API methods) and sequence them as `M4` immediately after `M3` repository reorganization so implementation happens once in `src/index.ts`.

@@ -6,9 +6,9 @@ Versions in this document identify planned feature scope and compatibility. Task
 
 ## Current state and next action
 
-`M0`, `M1`, and `M2` are complete (`v0.1.0` core runtime in `src/index.ts` and root `naka.js`, dual `naka` / `data-naka` attributes, `index.html` playground, Vite+ `vp check` / `vp test` / `vp pack` pipeline, and automated test coverage for `EC01`, `EC03`, `EC04`, and `EC05` in `tests/naka.test.ts`). Milestones `M3`–`M7` are planned below (`D09`–`D14`), sequencing repository reorganization (`M3`) first so runtime and architecture hardening (`M4`, covering `EC02` and `EC06`–`EC13`) is implemented once in `src/index.ts` after the duplicate root `naka.js` is removed.
+`M0`, `M1`, and `M2` are complete (`v0.1.0` core runtime in `src/index.ts` and root `naka.js`, dual `naka` / `data-naka` attributes, `index.html` playground, Vite+ `vp check` / `vp test` / `vp pack` pipeline, and automated test coverage for `EC01`, `EC03`, `EC04`, and `EC05` in `tests/naka.test.ts`). A second source review on 2026-10-18 reproduced `EC06`, `EC09`, `EC11`, and new cases `EC14`–`EC17`, and the owner adopted `D15` (in-memory store with merge semantics, pass-through keys, and a single-attribute key contract), `D16` (surgical `#nakadb` block writes for disk sync; full serialization only in `Naka.exportHTML()`), and `D17` (tracked `dist/naka.js` with a CI freshness check). `M4` was restructured so the store (`M4.1`) and surgical sync (`M4.2`) land first and every other hardening item is implemented once against them.
 
-Next action: execute `M3.1` and `M3.2` to emit `dist/naka.js` via `vp pack`, remove root `naka.js`, move `index.html` into `site/`, and add starter templates in `examples/` (`D09`), then proceed to `M4` runtime hardening.
+Next action: execute `M3.1` and `M3.2` (`dist/naka.js` emitted from `src/iife.ts` and tracked per `D17`, remove root `naka.js`, move `index.html` into `site/`, add starter templates in `examples/`), then implement `M4.1` before any other `M4` work.
 
 ## M0 — Project definition & foundation ✅ done 2026-10-18
 
@@ -36,28 +36,36 @@ Next action: execute `M3.1` and `M3.2` to emit `dist/naka.js` via `vp pack`, rem
 
 ## M3 — Repository reorganization & build output cleanup (`D09`)
 
-- [ ] **M3.1 — Emit `dist/naka.js` via Vite+ and remove root `naka.js`**: configure `vite.config.ts` (`pack`) and `package.json` (`main`, `module`, `types`, `unpkg`, `jsdelivr`, `files`, `exports`) so `vp pack` emits `dist/naka.js` (IIFE), `dist/index.mjs` (ESM), and `dist/index.d.mts`; remove the tracked root `naka.js` copy and update `AGENTS.md`, `README.md`, and `docs/PRODUCT.md` in the same change.
+- [ ] **M3.1 — Emit and track `dist/naka.js` via Vite+ and remove root `naka.js` (`D09`, `D17`)**: add a dedicated IIFE entry `src/iife.ts` (sets `window.Naka` / `window.NakaDB`, no `NakaBundle` namespace global, honors an auto-init opt-out attribute such as `data-naka-manual` on the script tag), configure `vite.config.ts` (`pack`) and `package.json` (`main`, `module`, `types`, `unpkg`, `jsdelivr`, `files`, `exports`, `prepublishOnly`) so `vp pack` emits `dist/naka.js` (IIFE), `dist/index.mjs` (ESM), and `dist/index.d.mts`; un-ignore `dist/naka.js` only and commit the built copy; remove the tracked root `naka.js`; update the jsDelivr `gh` URL to `@main/dist/naka.js` in `AGENTS.md`, `README.md`, and `docs/PRODUCT.md` in the same change.
 - [ ] **M3.2 — Separate `site/` playground and `examples/` starter templates**: move root `index.html` into `site/index.html` (updating `vite.config.ts` dev/build paths as needed) and add clean, copy-ready starter HTML artifacts in `examples/` (e.g., `examples/starter.html`, `examples/checklist.html`).
 
-## M4 — Core runtime & architecture hardening (`D12`–`D14`, `EC02`, `EC06`–`EC13`)
+## M4 — Core runtime re-architecture & hardening (`D12`–`D17`, `EC02`, `EC06`–`EC17`)
 
-- [ ] **M4.1 — Persistence, conflict resolution, and serialization hardening (`D13`, `EC02`, `EC06`, `EC08`, `EC10`, `EC11`, `EC13`)**:
-  - Record unmutated disk `#nakadb` payload in `nakadb_disk_hash_<key>` before `captureDomToState()` runs and avoid bumping `_meta.updatedAt` during read-only hydration so `localStorage` edits survive browser refreshes (`EC06`).
-  - Escape `</script` (`<\/script`, case-insensitive) and `<!--` (`<\!--`) when serializing `#nakadb` JSON (`EC08`).
-  - Normalize storage keys (`/index.html` → `/`) and support optional document ID scoping (`naka-id`, `data-naka-id`, `_meta.id`) (`EC11`).
-  - Add live external disk edit detection via `fileHandle.getFile()` on window `focus` / `visibilitychange` and pre-write checks in `writeToDisk()` (`EC10`).
-  - Call `URL.revokeObjectURL()` in the Blob download fallback (`EC02`, `EC13`).
-- [ ] **M4.2 — Explicit binding, `naka-ignore` vs. `data-naka-runtime` separation, and element type support (`D12`, `D14`, `EC07`, `EC11`, `EC12`)**:
-  - Separate `naka-ignore` / `data-naka-ignore` (skip state binding, preserve element in saved HTML) from `data-naka-runtime` (strip injected runtime UI in `getCleanHtmlString()`, `EC07`).
-  - Require explicit `naka` / `data-naka` / `data-naka-field` attributes on standalone fields while allowing `name` fallback inside `[naka-item]` (with `name` prioritized over `id` on radio inputs, `EC11`).
-  - Split `readElementValue()` from `bakeElementAttributes()` so DOM attribute baking (`setAttribute`, `textarea.textContent`) only runs on hydration and HTML export (`getCleanHtmlString()`), preventing `<textarea>` cursor jumps on live `input` events (`EC12`).
-  - Support numeric coercion (`number | null`) for `input[type="number"|"range"]`, boolean `open` state for `<details>`, `<select multiple>`, `contenteditable` variants (`""`, `"true"`, `"plaintext-only"` vs `"false"`), and non-leaf element guards (`EC12`).
-- [ ] **M4.3 — List repeater hardening & symmetrical `window.Naka` API (`D14`, `EC09`, `EC13`)**:
-  - Mark inferred list templates with `data-naka-auto-template="true"`, regenerate from the first `[naka-item]` on boot when no explicit `<template naka-template>` is authored, and strip `template[data-naka-auto-template]` in `getCleanHtmlString()` when the list has $\ge 1$ item while preserving it when the list has $0$ items (`EC09`).
-  - Support self-bound `[naka-item]` root elements (`<li naka-item naka="label">`), scope radio input `name` attributes per list item row, and place list controls in valid table DOM positions for `<table>` / `<tbody naka-list>` / `<tr naka-item>` (`EC13`).
-  - Add `Naka.getField(key)`, `Naka.setField(key, value)`, and `Naka.updateItem(listName, index, partialData)` to `window.Naka` / `window.NakaDB` (`D14`), and update `AGENTS.md`, `README.md`, and `docs/PRODUCT.md` contracts in the same change.
-- [ ] **M4.4 — Automated verification & edge-case closure (`EC02`, `EC06`–`EC13`)**:
-  - Expand `tests/naka.test.ts` with deterministic Vitest coverage for `EC02` and `EC06`–`EC13` and promote all verified cases to `fix` in `docs/EDGE_CASES.md`.
+Sequence is binding: `M4.1` and `M4.2` replace the DOM-as-truth capture loop and the full-document disk write. Items in `M4.3` are implemented only against the store so no hardening is done twice.
+
+- [ ] **M4.1 — In-memory store, merge semantics, and single-attribute key contract (`D15`, `D12`; `EC06`, `EC11`, `EC14`, `EC15`, `EC16`)**:
+  - Build one in-memory `NakaDatabase` in `initNaka()` from the resolved source; route `Naka.get` / `set` / `getList` / `getField` / `setField` / `updateItem` / `deleteField` through it; serialize to `#nakadb` text, `localStorage`, and disk only on save.
+  - Merge DOM reads into `store.fields` and per-item source objects (`WeakMap` from rendered `[naka-item]` to its object); never reset `fields` / `lists`; pass unknown fields, lists, and item keys through untouched; key removal is explicit.
+  - Bind exclusively via `naka` / `data-naka` / `data-naka-field` inside and outside items; remove the `id`, `name`, and `field_${idx}` fallbacks; leave unannotated inputs untracked.
+  - Bump `_meta.updatedAt` only when serialized `fields` / `lists` / `custom` changed; never on hydration or boot.
+  - Debounce capture (about 150 ms) and flush synchronously on `pagehide` / `visibilitychange: hidden`; split `readElementValue()` from `bakeElementAttributes()` so baking runs only in hydration and export (`D14`).
+  - Preserve stored `<select>` values with no matching `<option>` and warn instead of coercing to `""`.
+  - Keep `naka-ignore` / `data-naka-ignore` strictly as a binding exclusion; mark injected runtime UI with `data-naka-runtime` (`D12`, `EC07`).
+- [ ] **M4.2 — Surgical disk sync, conflict handling, and storage keys (`D16`, `D13`; `EC02`, `EC08`, `EC10`, `EC13`, `EC17`)**:
+  - `writeToDisk()` reads the file via `fileHandle.getFile()`, replaces only the first `<script id="nakadb">` block (insert after `<head>` when absent), and writes the otherwise byte-identical text; escape `</script` and `<!--` in the serialized JSON (`EC08`).
+  - Treat read-before-write and the window `focus` / `visibilitychange` check as the external-change detector (`EC10`); hydrate from disk when the on-disk block differs from the snapshot hash.
+  - Store a synchronous string hash of the canonical JSON in `nakadb_disk_hash_<key>`; normalize `/index.html` → `/` and support optional `naka-id` / `data-naka-id` / `_meta.id` scoping in `getPageKey()` / `getSnapshotKey()`.
+  - On three-way divergence keep the discarded browser state under `nakadb_backup_<key>` and surface a conflict notice with a restore action in the status pill (`EC17`); add an unlink action that clears the persisted handle; evaluate `showOpenFilePicker` as the link gesture to avoid the overwrite prompt.
+  - Keep full `Naka.exportHTML()` serialization (with `data-naka-runtime` and auto-template stripping) for the Blob-download fallback and call `URL.revokeObjectURL()` after download (`EC02`, `EC13`).
+- [ ] **M4.3 — Element bindings, list repeater support, and symmetrical API on top of the store (`D14`, `D15`; `EC09`, `EC12`, `EC13`)**:
+  - Numeric coercion (`number | null`) for `input[type="number"|"range"]`, boolean `open` for `<details>`, `<select multiple>`, `contenteditable` variants (`""`, `"true"`, `"plaintext-only"` vs `"false"`), and non-leaf element guards.
+  - Auto-template lifecycle: mark inferred templates with `data-naka-auto-template`, regenerate from the first `[naka-item]` on boot, scope the template selector to a direct child `template[naka-template]`, and strip on export only when the list has $\ge 1$ item (`EC09`).
+  - Self-bound `[naka-item]` roots, per-row radio `name` scoping, valid control placement for `<table>` / `<tbody naka-list>` / `<tr naka-item>`, attribute-escaped list names in injected controls, and a documented guard or rejection for nested lists.
+  - Finalize `window.Naka` / `window.NakaDB`: `getField`, `setField`, `updateItem`, `deleteField`, `unlink`, plus a `naka:change` event; update `AGENTS.md`, `README.md`, and `docs/PRODUCT.md` contracts (body is template, JSON is data) in the same change.
+- [ ] **M4.4 — Automated verification and edge-case closure (`EC02`, `EC06`–`EC17`)**:
+  - Vitest `jsdom`: store merge and pass-through, key contract, change-only `updatedAt`, debounce and flush, select preservation, escaping, block replacement on sample file text, hash snapshot, and conflict backup.
+  - Browser-level suite (Playwright or Vitest browser mode) with a mocked `showSaveFilePicker` / `showOpenFilePicker` and an in-memory `FileSystemFileHandle`: handle persistence across reloads, surgical write leaving unrelated bytes untouched, read-before-write detection, conflict notice and restore, unlink, and Blob fallback. `jsdom` cannot exercise these paths.
+  - Promote every verified case to `fix` in `docs/EDGE_CASES.md`; keep anything not covered explicitly `OPEN` or `PARTIAL`.
 
 ## M5 — Consumer AI skill & usage documentation (`D09`, `D12`–`D14`)
 
@@ -71,5 +79,5 @@ Next action: execute `M3.1` and `M3.2` to emit `dist/naka.js` via `vp pack`, rem
 
 ## M7 — CI/CD & maintainer-controlled CDN release workflows (`D10`, `D11`)
 
-- [ ] **M7.1 — CI verification & GitHub Pages deployment workflows (`.github/workflows/ci.yml`, `.github/workflows/pages.yml`)**: run `vp install`, `vp check`, `vp test`, and `vp pack` on pushes and pull requests, and deploy the built `site/` directory (including `dist/naka.js`, `/llms.txt`, `/llms-full.txt`, `/SKILL.md`) to GitHub Pages on `main`.
+- [ ] **M7.1 — CI verification & GitHub Pages deployment workflows (`.github/workflows/ci.yml`, `.github/workflows/pages.yml`)**: run `vp install`, `vp check`, `vp test`, `vp pack`, the browser-level suite from `M4.4`, and a `dist/naka.js` freshness check (`git diff --exit-code dist/naka.js` after `vp pack`, `D17`) on pushes and pull requests, and deploy the built `site/` directory (including `dist/naka.js`, `/llms.txt`, `/llms-full.txt`, `/SKILL.md`) to GitHub Pages on `main`.
 - [ ] **M7.2 — Maintainer-controlled CDN release workflow (`.github/workflows/release.yml`)**: support both manual `workflow_dispatch` (select `patch` / `minor` / `major` or explicit version to run verification, bump `package.json`, tag, and create a GitHub Release with `dist/naka.js` attached) and `release: types: [published]` to publish `nakajs` to npm, automatically populating `jsDelivr` and `unpkg` CDNs.
