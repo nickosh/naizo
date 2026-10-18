@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Consolidated D27 lean architecture and cleaned up project memory
+
+- Decided (owner): recorded `D27` to lock the final lean `naka.js` architecture after auditing the third through fifth review rounds against product goals (`D01`–`D08`, `D15`–`D17`, `D26`). Rejected `D18` (schema flattening), `D19` (compulsory synthetic list item IDs), and `D20` (IndexedDB merge-base database and 3-way merge engine); accepted `D21`–`D25` in narrowed form (`O(1)` event-targeted capture + `Naka.bind(root)`, plain-text `contenteditable` default without a bundled HTML sanitizer, export-only attribute baking, single-flight surgical `#nakadb` write queue with exact-payload snapshot and BOM preservation, and a side-effect-free ESM entry without public adapter/server frameworks); added truthful status pill states (amber `Browser Cache · Click to Link Disk` vs. green `Synced to Disk` after `writable.close()`) and `Naka.copyJSON()` clipboard export.
+- Done: updated `docs/DECISIONS.md` (`D18`–`D25`, `D27`), removed the stacked review-commentary appendices from `docs/PLAN.md` and folded `D27` directly into `M3` (`M3.1`–`M3.2`) and `M4` (`M4.1`–`M4.4`), updated `EC12` and `EC16`–`EC40` in `docs/EDGE_CASES.md` (marking `EC39` resolved as `ADR D27 / doc`), and restored concise `Quick Start` and comparison table copy in `README.md`.
+- Verified: markdown link/reference review, `git diff --check`, and `vp check` pass.
+- Next: execute `M3.1` (`src/iife.ts`, `dist/naka.js`, side-effect-free ESM exports, and `.github/workflows/ci.yml`) and `M3.2` (`site/index.html` and `examples/`), then implement `M4.1`–`M4.4`.
+
 ## 2026-10-18 — Fifth source/design review: smaller core and ordinary HTML integration
 
 - Done: reviewed both runtime artifacts, tests, packaging, playground, and all project memory. Corrected the README's unimplemented live handle claim and documented snapshot asset/relocation limits. Production code is unchanged.
