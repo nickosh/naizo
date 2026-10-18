@@ -84,6 +84,9 @@ Accepted by the owner on 2026-10-18 (amending `D03` and `D04`, scheduled for `M4
 
 - **Unmutated disk snapshot comparison:** In `initNaka()`, record `nakadb_disk_hash_<key>` from the raw/canonicalized disk `#nakadb` payload _before_ `captureDomToState()` updates `_meta.updatedAt` or reformats indentation, and do not bump `_meta.updatedAt` during read-only hydration. This ensures `localStorage` browser edits survive page refreshes when the file on disk has not changed.
 - **Script-safe JSON serialization:** Escape `</script` (as `<\/script`, case-insensitive) and `<!--` (as `<\!--`) when writing JSON to `<script id="nakadb" type="application/json">` so literal script tags or HTML comments in user notes never prematurely close the `<script>` tag on disk save.
+
+> Technical correction from the fourth review (2026-10-18): the preceding `<\!--` example is not a legal JSON escape; implementing it makes `JSON.parse()` fail. Preserve the accepted script-safety intent using `JSON.stringify(value, null, 2).replace(/</g, '\\u003c')`. The replacement emits a literal JSON Unicode escape, preserves string case/content on parse, and covers script/comment opener sequences as well as closers. A standalone jsdom probe verified round-trip parsing; runtime implementation remains `OPEN` (`EC08`).
+
 - **Normalized and scoped storage keys:** Normalize trailing `/index.html` to `/` in `location.pathname` and incorporate an optional document identifier (`<html naka-id="...">`, `data-naka-id`, or `_meta.id`) into `getPageKey()` and `getSnapshotKey()` to prevent cross-project `localStorage` and IndexedDB handle collisions on `localhost`.
 - **Live two-way disk sync while tab is open:** When `FileSystemFileHandle` has permission, inspect `await fileHandle.getFile()` on window `focus` / `visibilitychange` and prior to `writeToDisk()`. If `#nakadb` on disk changed externally since the last snapshot, automatically hydrate the live DOM from disk instead of overwriting external AI agent edits.
 
@@ -116,6 +119,8 @@ Accepted by the owner on 2026-10-18 (amending `D03`, `D04`, `D05`, `D12`, and `D
 - **Conflicts are visible and recoverable:** When cache, disk, and snapshot all differ, disk still wins by default (`D04`), but the discarded browser state is kept under `nakadb_backup_<key>` and the status pill announces the conflict with a restore action instead of discarding silently (`EC17`).
 - **Snapshot is a hash:** `nakadb_disk_hash_<key>` stores a cheap synchronous string hash of the canonical JSON rather than a second full copy, halving `localStorage` usage per document.
 - **Unlink:** The status pill offers an unlink action that forgets the persisted `FileSystemFileHandle` so a wrongly linked file can be corrected without clearing IndexedDB by hand.
+
+> Fourth-review constraint (2026-10-18): the byte-preservation and conflict-detection promises above need explicit limits before implementation. A reproduced `Blob.text()` → UTF-8 encode round trip removed a UTF-8 BOM (9 input bytes → 6 output bytes). Preserve original bytes outside the selected block, or explicitly narrow supported encodings. Read-before-write is not an atomic comparison-and-write against an external editor; retain this as an unresolved acceptance constraint in `PLAN.md`, not a concurrency guarantee.
 
 ## D17 — Track the built `dist/naka.js` artifact with a CI freshness check
 

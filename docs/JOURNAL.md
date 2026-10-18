@@ -2,6 +2,14 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Fourth source/design review: durability, validation, and narrower hardening scope
+
+- Done: reviewed both runtime artifacts, all five tests, build/package configuration, playground, and project memory; reproduced `EC32`–`EC37` (cache/custom mismatch, invalid shapes, startup event gap, non-JSON API values, save acknowledgement/status, package entry mismatch) and narrowed `EC04` to `PARTIAL` after destructive startup recovery. Production code is unchanged.
+- Evidence: isolated jsdom probes exercised root `naka.js` and the freshly built source IIFE, including delayed IndexedDB and a granted mock handle; source-bundle null-item hydration threw after removing all rows. A separate probe rejected `D13`’s comment escape as invalid JSON, verified Unicode-escaped HTML/JSON round trips, and showed a BOM lost by text decoding/re-encoding. Package-main import in Node reproduced `ReferenceError: location is not defined`.
+- Recommended, not accepted: move minimal CI and regression characterization ahead of examples/site work; add validation, full-state hydration, readiness/disposal, an explicit durability contract, and source/concurrency constraints to M4. Adopt targeted capture/plain text/export-only baking/queued writes; stage or defer namespace flattening, automatic list merging, rich text, and public adapters. No new owner decision or milestone completion recorded.
+- Verified: `vp check`, `vp test` (5/5), `vp pack`, `node --check naka.js`, and JSON validation of `package.json` and the playground database passed before documentation reconciliation. Documentation formatting, local link/reference review, and `git diff --check` passed after it. Real browser/native picker, OS-level concurrent writer, and cross-browser tests were not run; probes characterize defects, not fixes.
+- Next: review the fourth-review recommendations in `PLAN.md`, implement `M3.1` with minimal CI and actual artifact/package-entry tests, then build the proposed `M4.0` regression harness before replacing the runtime.
+
 ## 2026-10-18 — Third source review: reproduced EC18–EC31 and proposed D18–D25 (pending owner decision)
 
 - Done: reviewed `src/index.ts`, root `naka.js`, tests, playground, and project memory; reproduced `EC18`–`EC28`, `EC30`, and `EC31` with throwaway jsdom probes against `src/index.ts` and the shipped `naka.js` (a mocked `FileSystemFileHandle` for `EC26` / `EC28`; `EC27` simulated in one window; `EC29` confirmed by inspection), then deleted the probes; repaired the `EC12` table row that the formatter had split at an escaped pipe.
