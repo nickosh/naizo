@@ -2,15 +2,16 @@
 
 ## What this project is
 
-**`naka.js`** (`nakajs`) — zero-dependency, self-persisting HTML inner database (`#nakadb`) and declarative list repeater (`[data-naka-list]`) for Human + AI Agent workflows. It turns static `.html` artifacts (specs, plans, checklists, triage boards, custom tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="nakadb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
+**`naka.js`** (`nakajs` `v0.1.0`) — zero-dependency, self-persisting HTML inner database (`#nakadb`) and declarative list repeater (`[naka-list]` / `[data-naka-list]`) for Human + AI Agent workflows. It turns static `.html` artifacts (specs, plans, checklists, triage boards, custom tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="nakadb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
 
 See [docs/PRODUCT.md](docs/PRODUCT.md) for product vision, target users, and scope boundaries.
 
 Core promises (never compromise these):
 1. **In-file canonical state (`#nakadb`)**: `<script id="nakadb" type="application/json">` in `<head>` holds `{ _meta, fields, lists, custom }` in human- and agent-readable JSON (`2`-space indented) alongside baked HTML input attributes.
 2. **Two-way Human ↔ AI Agent sync**: On boot, `naka.js` compares `#nakadb` on disk against its last known disk snapshot (`nakadb_disk_hash_<pathname>`). External edits on disk (e.g., by a CLI/IDE AI agent) automatically supersede stale `localStorage` browser cache; otherwise, browser edits persist across refreshes even before linking disk.
-3. **Clean HTML serialization**: Writing to disk via the File System Access API (`showSaveFilePicker` with handle persisted in IndexedDB `NakaDB_Handles`) or `Naka.exportHTML()` strips all runtime-injected UI (`[data-naka-ignore]`, `#__nakadb_host__` Shadow DOM pill, `#__nakadb_styles__`).
-4. **Zero-dependency, single-file drop-in**: `naka.js` is a standalone vanilla JavaScript IIFE with no runtime dependencies or build step required, loadable locally or via CDN (`jsDelivr` / `unpkg`).
+3. **Clean HTML serialization**: Writing to disk via the File System Access API (`showSaveFilePicker` with handle persisted in IndexedDB `NakaDB_Handles`) or `Naka.exportHTML()` strips all runtime-injected UI (`[naka-ignore]`, `[data-naka-ignore]`, `#__nakadb_host__` Shadow DOM pill, `#__nakadb_styles__`).
+4. **Dual attribute syntax**: Both short attributes (`naka="key"`, `naka-list="name"`, `naka-item`, `naka-ignore`, etc.) and HTML5-compliant `data-*` aliases (`data-naka="key"`, `data-naka-list="name"`, `data-naka-item`, `data-naka-ignore`, etc.) are supported everywhere (D08).
+5. **Zero-dependency drop-in**: `naka.js` is a standalone vanilla JavaScript IIFE with no runtime dependencies, loadable locally or via CDN (`jsDelivr` / `unpkg`), authored in TypeScript (`src/index.ts`) and managed with the [Vite+](https://viteplus.dev/) (`vp`) toolchain.
 
 License: MIT ([LICENSE](LICENSE)).
 
@@ -28,8 +29,8 @@ Whenever you generate or update an interactive HTML file (plans, specs, checklis
    }
    ```
 2. **Load `naka.js`:** Include `<script src="./naka.js" defer></script>` (or the CDN URL `https://cdn.jsdelivr.net/gh/YOUR_USERNAME/nakajs@main/naka.js`) in `<head>`.
-3. **Standalone Fields (`data-naka`):** Bind inputs, checkboxes, radios, selects, and `contenteditable="true"` blocks using `data-naka="key_name"`.
-4. **Dynamic Lists (`data-naka-list`):** For checklists, tables, or cards where the user may add, edit, reorder, or delete items, wrap the container in `data-naka-list="list_name"` and each repeating row/card in `data-naka-item`, using `data-naka="prop_name"` on fields inside the item.
+3. **Standalone Fields (`naka` or `data-naka`):** Bind inputs, checkboxes, radios, selects, and `contenteditable="true"` blocks using `naka="key_name"` (or `data-naka="key_name"`).
+4. **Dynamic Lists (`naka-list` or `data-naka-list`):** For checklists, tables, or cards where the user may add, edit, reorder, or delete items, wrap the container in `naka-list="list_name"` (or `data-naka-list="list_name"`) and each repeating row/card in `naka-item` (or `data-naka-item`), using `naka="prop_name"` on fields inside the item.
 5. **Custom Widgets (`window.Naka`):** Persist custom JavaScript state via `Naka.get('key')` and `Naka.set('key', value)`. Listen to the `'naka:hydrate'` window event to sync custom UI on load.
 6. **Reading & Updating Files on Disk:** When inspecting or modifying an existing HTML file on disk, read or edit `<script id="nakadb">` directly—`naka.js` automatically hydrates the DOM and renders list items from `#nakadb` when opened in the browser.
 
@@ -58,12 +59,18 @@ At the end of each state-changing session, independently useful development slic
 - Record reproduced edge cases or their tested resolutions in `docs/EDGE_CASES.md` (`ECxx`); `OPEN` means planned or unresolved, never "resolved by documentation."
 - Do not record branch names, commit SHAs, PR numbers/status, push/pull/merge steps, or CI run/job identifiers in project memory documents; keep delivery bookkeeping in chat, Git history, and the hosting service.
 
-## Verification
+## Toolchain & verification (`Vite+`)
+
+This repository uses [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) configured in [vite.config.ts](vite.config.ts):
+- `vp install` — install dependencies
+- `vp check` — format (`Oxfmt`), lint (`Oxlint`), and type-check (`tsgolint`) in one pass
+- `vp test` — run Vitest suite (`tests/**/*.test.ts`)
+- `vp pack` — build library outputs (`dist/`) via `tsdown`
+- `vp dev` — start local playground server (`http://localhost:3000`)
 
 Use proportional verification:
 - Documentation edits require link/reference review and whitespace checks (`git diff --check`).
-- Code or behavior changes in `naka.js` or `index.html` require syntax checks (`node --check naka.js`), JSON validation of `package.json` and embedded `#nakadb` blocks, and running any configured test suites.
-- Interactive playground preview: `npm run dev` (`npx --yes serve . -l 3000`).
+- Code or behavior changes in `src/index.ts`, `naka.js`, or `index.html` require `vp check` and `vp test` (when `vite-plus` is installed), syntax checks (`node --check naka.js`), and JSON validation of `package.json` and embedded `#nakadb` blocks. Keep root `naka.js` synchronized with `src/index.ts`.
 - Rerun checks when changes or unresolved concerns justify it, not only at closeout. Do not claim unrun checks passed or treat plans/fixtures as proof of passing behavior.
 
 ## Git workflow

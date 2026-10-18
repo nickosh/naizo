@@ -1,6 +1,7 @@
 /**
- * naka.js v1.1.0 — Self-Persisting HTML Inner Database (#nakadb) & List Repeater
+ * naka.js v0.1.0 — Self-Persisting HTML Inner Database (#nakadb) & List Repeater
  * Syncs DOM State & Lists <-> <script id="nakadb" type="application/json"> <-> Local Disk
+ * Supports both short `naka` / `naka-*` and HTML5 `data-naka` / `data-naka-*` attributes.
  * License: MIT
  */
 (() => {
@@ -11,10 +12,49 @@
   const SNAPSHOT_KEY = 'nakadb_disk_hash_' + location.pathname;
   const IDB_NAME = 'NakaDB_Handles';
 
+  const NOT_IGNORED = ':not([naka-ignore]):not([data-naka-ignore])';
+  const TRACKED_SELECTOR = [
+    'input',
+    'textarea',
+    'select',
+    '[contenteditable="true"]',
+    '[naka]',
+    '[data-naka]',
+    '[data-naka-field]',
+  ]
+    .map((sel) => `${sel}${NOT_IGNORED}`)
+    .join(', ');
+
+  const LIST_SELECTOR = '[naka-list], [data-naka-list]';
+  const ITEM_SELECTOR = '[naka-item], [data-naka-item]';
+  const DIRECT_ITEM_SELECTOR = ':scope > [naka-item], :scope > [data-naka-item]';
+  const TEMPLATE_SELECTOR = 'template[naka-template], template[data-naka-template], template';
+  const IGNORE_SELECTOR = '[naka-ignore], [data-naka-ignore]';
+
   let fileHandle = null;
   let saveTimeout = null;
   let statusEl = null;
   let actionBtn = null;
+
+  function getAttr(el, shortName) {
+    return el.getAttribute(shortName) ?? el.getAttribute('data-' + shortName);
+  }
+
+  function hasAttr(el, shortName) {
+    return el.hasAttribute(shortName) || el.hasAttribute('data-' + shortName);
+  }
+
+  function escapeSelectorAttr(val) {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+      return CSS.escape(val);
+    }
+    return val.replace(/["\\]/g, '\\$&');
+  }
+
+  function findListElement(listName) {
+    const escaped = escapeSelectorAttr(listName);
+    return document.querySelector(`[naka-list="${escaped}"], [data-naka-list="${escaped}"]`);
+  }
 
   // --- 1. IndexedDB Helper for Persisting FileSystemFileHandle ---
   function idbStore(mode, callback) {
@@ -31,11 +71,11 @@
   }
 
   function saveHandleToIDB(handle) {
-    idbStore('readwrite', store => store.put(handle, PAGE_KEY));
+    idbStore('readwrite', (store) => store.put(handle, PAGE_KEY));
   }
 
   function loadHandleFromIDB() {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       try {
         const req = indexedDB.open(IDB_NAME, 1);
         req.onupgradeneeded = () => req.result.createObjectStore('handles');
@@ -70,10 +110,10 @@
       const raw = getDbScript().textContent.trim();
       const parsed = raw ? JSON.parse(raw) : {};
       return {
-        _meta: parsed._meta || {},
-        fields: parsed.fields || {},
-        lists: parsed.lists || {},
-        custom: parsed.custom || {}
+        _meta: parsed._meta && typeof parsed._meta === 'object' ? parsed._meta : {},
+        fields: parsed.fields && typeof parsed.fields === 'object' ? parsed.fields : {},
+        lists: parsed.lists && typeof parsed.lists === 'object' ? parsed.lists : {},
+        custom: parsed.custom && typeof parsed.custom === 'object' ? parsed.custom : {},
       };
     } catch (e) {
       console.warn('[naka.js] Invalid JSON in #nakadb, resetting.', e);
@@ -81,12 +121,32 @@
     }
   }
 
-  // --- 3. Element Value Helpers (Read, Write & Attribute Baking) ---
-  const TRACKED_SELECTOR =
-    'input:not([data-naka-ignore]), textarea:not([data-naka-ignore]), select:not([data-naka-ignore]), [contenteditable="true"]:not([data-naka-ignore]), [data-naka]:not([data-naka-ignore])';
+  function parseCachedState(raw) {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return {
+        _meta: parsed._meta && typeof parsed._meta === 'object' ? parsed._meta : {},
+        fields: parsed.fields && typeof parsed.fields === 'object' ? parsed.fields : {},
+        lists: parsed.lists && typeof parsed.lists === 'object' ? parsed.lists : {},
+        custom: parsed.custom && typeof parsed.custom === 'object' ? parsed.custom : {},
+      };
+    } catch (e) {
+      console.warn('[naka.js] Invalid JSON in localStorage cache, ignoring.', e);
+      return null;
+    }
+  }
 
+  // --- 3. Element Value Helpers (Read, Write & Attribute Baking) ---
   function getElementKey(el, idx) {
-    return el.getAttribute('data-naka') || el.getAttribute('data-naka-field') || el.id || el.name || `field_${idx}`;
+    return (
+      getAttr(el, 'naka') ||
+      el.getAttribute('data-naka-field') ||
+      el.id ||
+      el.name ||
+      `field_${idx}`
+    );
   }
 
   function readAndBakeElement(el) {
@@ -103,7 +163,7 @@
       return undefined;
     }
     if (el.tagName === 'SELECT') {
-      Array.from(el.options).forEach(opt => {
+      Array.from(el.options).forEach((opt) => {
         opt.selected ? opt.setAttribute('selected', 'selected') : opt.removeAttribute('selected');
       });
       return el.value;
@@ -126,7 +186,7 @@
     if (el.type === 'checkbox') {
       el.checked = Boolean(val);
     } else if (el.type === 'radio') {
-      el.checked = (el.value === String(val));
+      el.checked = el.value === String(val);
     } else if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
       el.value = val ?? '';
     } else if (el.hasAttribute('contenteditable')) {
@@ -143,67 +203,75 @@
       el.removeAttribute('checked');
     } else if (el.tagName === 'SELECT') {
       if (el.options.length) el.selectedIndex = 0;
+      Array.from(el.options).forEach((opt, i) => {
+        if (i === 0) opt.setAttribute('selected', 'selected');
+        else opt.removeAttribute('selected');
+      });
     } else if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
       el.value = '';
       el.removeAttribute('value');
       if (el.tagName === 'TEXTAREA') el.textContent = '';
     } else if (el.hasAttribute('contenteditable')) {
       el.innerHTML = '';
+    } else {
+      el.textContent = '';
     }
   }
 
-  // --- 4. Declarative List Repeater Engine ([data-naka-list]) ---
+  // --- 4. Declarative List Repeater Engine ([naka-list] / [data-naka-list]) ---
   function ensureListBlueprints() {
-    document.querySelectorAll('[data-naka-list]').forEach(listEl => {
-      let tpl = listEl.querySelector('template[data-naka-template], template');
+    document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
+      let tpl = listEl.querySelector(TEMPLATE_SELECTOR);
       if (!tpl) {
-        const firstItem = listEl.querySelector('[data-naka-item]');
+        const firstItem = listEl.querySelector(ITEM_SELECTOR);
         if (!firstItem) return;
         const cleanClone = firstItem.cloneNode(true);
-        cleanClone.querySelectorAll('[data-naka-ignore]').forEach(n => n.remove());
+        cleanClone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
         cleanClone.querySelectorAll(TRACKED_SELECTOR).forEach(clearElementValue);
 
         tpl = document.createElement('template');
-        tpl.setAttribute('data-naka-template', '');
+        tpl.setAttribute('naka-template', '');
         tpl.content.appendChild(cleanClone);
         listEl.prepend(tpl);
-      } else if (!tpl.hasAttribute('data-naka-template')) {
-        tpl.setAttribute('data-naka-template', '');
+      } else if (!hasAttr(tpl, 'naka-template')) {
+        tpl.setAttribute('naka-template', '');
       }
     });
   }
 
   function decorateListControls(listEl) {
-    if (listEl.hasAttribute('data-naka-no-controls')) return;
-    const listName = listEl.getAttribute('data-naka-list');
+    if (hasAttr(listEl, 'naka-no-controls')) return;
+    const listName = getAttr(listEl, 'naka-list');
+    if (!listName) return;
 
-    listEl.querySelectorAll(':scope > [data-naka-item]').forEach(itemEl => {
-      if (itemEl.querySelector('[data-naka-remove]')) return;
+    listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
+      if (itemEl.querySelector('[naka-remove], [data-naka-remove]')) return;
       const tools = document.createElement('span');
       tools.className = 'naka-item-tools';
-      tools.setAttribute('data-naka-ignore', 'true');
+      tools.setAttribute('naka-ignore', 'true');
       tools.innerHTML = `
-        <button type="button" data-naka-move="up" title="Move up">↑</button>
-        <button type="button" data-naka-move="down" title="Move down">↓</button>
-        <button type="button" data-naka-remove title="Delete item">×</button>
+        <button type="button" naka-move="up" title="Move up">↑</button>
+        <button type="button" naka-move="down" title="Move down">↓</button>
+        <button type="button" naka-remove title="Delete item">×</button>
       `;
       itemEl.appendChild(tools);
     });
 
-    if (!document.querySelector(`[data-naka-add="${listName}"]`)) {
+    const escaped = escapeSelectorAttr(listName);
+    if (!document.querySelector(`[naka-add="${escaped}"], [data-naka-add="${escaped}"]`)) {
       const addWrap = document.createElement('div');
       addWrap.className = 'naka-list-footer';
-      addWrap.setAttribute('data-naka-ignore', 'true');
-      addWrap.innerHTML = `<button type="button" class="naka-add-btn" data-naka-add="${listName}">+ Add Item</button>`;
+      addWrap.setAttribute('naka-ignore', 'true');
+      addWrap.innerHTML = `<button type="button" class="naka-add-btn" naka-add="${listName}">+ Add Item</button>`;
       listEl.insertAdjacentElement('afterend', addWrap);
     }
   }
 
   function createItemNode(listEl, itemData = {}) {
-    const tpl = listEl.querySelector('template[data-naka-template], template');
+    const tpl = listEl.querySelector(TEMPLATE_SELECTOR);
     if (!tpl) return null;
     const fragment = tpl.content.cloneNode(true);
-    const itemEl = fragment.querySelector('[data-naka-item]') || fragment.firstElementChild;
+    const itemEl = fragment.querySelector(ITEM_SELECTOR) || fragment.firstElementChild;
     if (!itemEl) return null;
 
     itemEl.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
@@ -216,8 +284,8 @@
   }
 
   function renderListItems(listEl, itemsArray) {
-    listEl.querySelectorAll(':scope > [data-naka-item]').forEach(el => el.remove());
-    itemsArray.forEach(itemData => {
+    listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((el) => el.remove());
+    itemsArray.forEach((itemData) => {
       const node = createItemNode(listEl, itemData);
       if (node) listEl.appendChild(node);
     });
@@ -231,17 +299,18 @@
 
     db.fields = {};
     document.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-      if (el.closest('[data-naka-item], template')) return;
+      if (el.closest(`${ITEM_SELECTOR}, template`)) return;
       const key = getElementKey(el, idx);
       const val = readAndBakeElement(el);
       if (val !== undefined) db.fields[key] = val;
     });
 
     db.lists = {};
-    document.querySelectorAll('[data-naka-list]').forEach(listEl => {
-      const listName = listEl.getAttribute('data-naka-list');
+    document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
+      const listName = getAttr(listEl, 'naka-list');
+      if (!listName) return;
       const items = [];
-      listEl.querySelectorAll(':scope > [data-naka-item]').forEach(itemEl => {
+      listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
         const itemObj = {};
         itemEl.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
           const key = getElementKey(el, idx);
@@ -263,15 +332,15 @@
 
     if (db.fields) {
       document.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-        if (el.closest('[data-naka-item], template')) return;
+        if (el.closest(`${ITEM_SELECTOR}, template`)) return;
         const key = getElementKey(el, idx);
         if (key in db.fields) writeElementValue(el, db.fields[key]);
       });
     }
 
-    document.querySelectorAll('[data-naka-list]').forEach(listEl => {
-      const listName = listEl.getAttribute('data-naka-list');
-      if (db.lists && Array.isArray(db.lists[listName])) {
+    document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
+      const listName = getAttr(listEl, 'naka-list');
+      if (listName && db.lists && Array.isArray(db.lists[listName])) {
         renderListItems(listEl, db.lists[listName]);
       } else {
         decorateListControls(listEl);
@@ -286,7 +355,7 @@
   function getCleanHtmlString() {
     captureDomToState();
     const clone = document.documentElement.cloneNode(true);
-    clone.querySelectorAll(`[data-naka-ignore], #${UI_ID}, #${STYLE_ID}`).forEach(el => el.remove());
+    clone.querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`).forEach((el) => el.remove());
     return '<!DOCTYPE html>\n' + clone.outerHTML;
   }
 
@@ -305,7 +374,15 @@
       await writable.close();
 
       localStorage.setItem(SNAPSHOT_KEY, getDbScript().textContent.trim());
-      updateUi('saved', 'Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      updateUi(
+        'saved',
+        'Saved ' +
+          new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          }),
+      );
       return true;
     } catch (err) {
       console.warn('[naka.js] Disk write failed:', err);
@@ -341,11 +418,13 @@
       try {
         fileHandle = await window.showSaveFilePicker({
           suggestedName: location.pathname.split('/').pop() || 'index.html',
-          types: [{ description: 'HTML Document', accept: { 'text/html': ['.html'] } }]
+          types: [{ description: 'HTML Document', accept: { 'text/html': ['.html'] } }],
         });
         saveHandleToIDB(fileHandle);
         await writeToDisk();
-      } catch (e) { /* User cancelled file picker */ }
+      } catch (e) {
+        /* User cancelled file picker */
+      }
     } else {
       const blob = new Blob([getCleanHtmlString()], { type: 'text/html' });
       const a = document.createElement('a');
@@ -361,20 +440,22 @@
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
-      style.setAttribute('data-naka-ignore', 'true');
+      style.setAttribute('naka-ignore', 'true');
       style.textContent = `
-        [data-naka-item] { position: relative; }
+        [naka-item], [data-naka-item] { position: relative; }
         .naka-item-tools {
           display: inline-flex; gap: 3px; margin-left: auto; padding-left: 8px; opacity: 0.3;
           transition: opacity 0.15s; vertical-align: middle;
         }
-        [data-naka-item]:hover .naka-item-tools { opacity: 1; }
+        [naka-item]:hover .naka-item-tools, [data-naka-item]:hover .naka-item-tools { opacity: 1; }
         .naka-item-tools button {
           background: transparent; border: 1px solid #cbd5e1; color: #475569;
           border-radius: 4px; padding: 1px 6px; font: 11px/1.4 system-ui; cursor: pointer;
         }
         .naka-item-tools button:hover { background: #f1f5f9; color: #0f172a; }
-        .naka-item-tools button[data-naka-remove]:hover { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+        .naka-item-tools button[naka-remove]:hover, .naka-item-tools button[data-naka-remove]:hover {
+          background: #fee2e2; color: #b91c1c; border-color: #fca5a5;
+        }
         .naka-list-footer { margin: 10px 0 16px; }
         .naka-add-btn {
           background: #f8fafc; border: 1px dashed #94a3b8; color: #334155;
@@ -387,7 +468,7 @@
 
     const host = document.createElement('div');
     host.id = UI_ID;
-    host.setAttribute('data-naka-ignore', 'true');
+    host.setAttribute('naka-ignore', 'true');
     const shadow = host.attachShadow({ mode: 'open' });
 
     shadow.innerHTML = `
@@ -429,7 +510,7 @@
       setTimeout(() => (copyBtn.textContent = '{ } Copy'), 1500);
     });
 
-    host._setDot = state => {
+    host._setDot = (state) => {
       dotEl.className = 'dot ' + (state === 'saved' ? 'saved' : state === 'saving' ? 'saving' : '');
     };
 
@@ -453,16 +534,16 @@
 
   // --- 9. Event Delegation for List Actions (+ Add, × Remove, ↑/↓ Move) ---
   function handleListClicks(e) {
-    const addBtn = e.target.closest('[data-naka-add]');
+    const addBtn = e.target.closest('[naka-add], [data-naka-add]');
     if (addBtn) {
-      const listName = addBtn.getAttribute('data-naka-add');
-      window.Naka.addItem(listName, {});
+      const listName = getAttr(addBtn, 'naka-add');
+      if (listName) window.Naka.addItem(listName, {});
       return;
     }
 
-    const removeBtn = e.target.closest('[data-naka-remove]');
+    const removeBtn = e.target.closest('[naka-remove], [data-naka-remove]');
     if (removeBtn) {
-      const itemEl = removeBtn.closest('[data-naka-item]');
+      const itemEl = removeBtn.closest(ITEM_SELECTOR);
       if (itemEl) {
         itemEl.remove();
         triggerSave();
@@ -470,16 +551,18 @@
       return;
     }
 
-    const moveBtn = e.target.closest('[data-naka-move]');
+    const moveBtn = e.target.closest('[naka-move], [data-naka-move]');
     if (moveBtn) {
-      const dir = moveBtn.getAttribute('data-naka-move');
-      const itemEl = moveBtn.closest('[data-naka-item]');
+      const dir = getAttr(moveBtn, 'naka-move');
+      const itemEl = moveBtn.closest(ITEM_SELECTOR);
       if (!itemEl) return;
-      if (dir === 'up' && itemEl.previousElementSibling?.hasAttribute('data-naka-item')) {
-        itemEl.parentNode.insertBefore(itemEl, itemEl.previousElementSibling);
+      const prev = itemEl.previousElementSibling;
+      const next = itemEl.nextElementSibling;
+      if (dir === 'up' && prev && hasAttr(prev, 'naka-item')) {
+        itemEl.parentNode.insertBefore(itemEl, prev);
         triggerSave();
-      } else if (dir === 'down' && itemEl.nextElementSibling?.hasAttribute('data-naka-item')) {
-        itemEl.parentNode.insertBefore(itemEl.nextElementSibling, itemEl);
+      } else if (dir === 'down' && next && hasAttr(next, 'naka-item')) {
+        itemEl.parentNode.insertBefore(next, itemEl);
         triggerSave();
       }
     }
@@ -502,37 +585,39 @@
       return parseDbScript().lists[listName] || [];
     },
     addItem(listName, itemData = {}) {
-      const listEl = document.querySelector(`[data-naka-list="${listName}"]`);
+      const listEl = findListElement(listName);
       if (!listEl) return;
       const node = createItemNode(listEl, itemData);
       if (node) {
         listEl.appendChild(node);
         decorateListControls(listEl);
-        const firstInput = node.querySelector('input[type="text"], [contenteditable="true"], textarea');
+        const firstInput = node.querySelector(
+          'input[type="text"], [contenteditable="true"], textarea',
+        );
         if (firstInput) firstInput.focus();
         triggerSave();
       }
     },
     removeItem(listName, index) {
-      const listEl = document.querySelector(`[data-naka-list="${listName}"]`);
+      const listEl = findListElement(listName);
       if (!listEl) return;
-      const items = listEl.querySelectorAll(':scope > [data-naka-item]');
+      const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
       if (items[index]) {
         items[index].remove();
         triggerSave();
       }
     },
     moveItem(listName, fromIndex, toIndex) {
-      const listEl = document.querySelector(`[data-naka-list="${listName}"]`);
+      const listEl = findListElement(listName);
       if (!listEl) return;
-      const items = Array.from(listEl.querySelectorAll(':scope > [data-naka-item]'));
+      const items = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
       if (!items[fromIndex] || !items[toIndex] || fromIndex === toIndex) return;
       const target = items[toIndex];
       listEl.insertBefore(items[fromIndex], fromIndex < toIndex ? target.nextSibling : target);
       triggerSave();
     },
     save: triggerSave,
-    exportHTML: getCleanHtmlString
+    exportHTML: getCleanHtmlString,
   };
 
   window.Naka = api;
@@ -546,10 +631,10 @@
     const currentDiskRaw = getDbScript().textContent.trim();
     const lastKnownDiskRaw = localStorage.getItem(SNAPSHOT_KEY);
     const diskState = parseDbScript();
-    const cachedRaw = localStorage.getItem(PAGE_KEY);
-    const cachedState = cachedRaw ? JSON.parse(cachedRaw) : null;
+    const cachedState = parseCachedState(localStorage.getItem(PAGE_KEY));
 
-    const diskModifiedExternally = lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw;
+    const diskModifiedExternally =
+      lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw;
 
     if (diskModifiedExternally || !cachedState) {
       hydrateDomFromState(diskState);
@@ -570,10 +655,10 @@
     }
 
     document.addEventListener('click', handleListClicks);
-    document.addEventListener('input', e => {
+    document.addEventListener('input', (e) => {
       if (!e.target.closest(`#${UI_ID}`)) triggerSave();
     });
-    document.addEventListener('change', e => {
+    document.addEventListener('change', (e) => {
       if (!e.target.closest(`#${UI_ID}`)) triggerSave();
     });
   }

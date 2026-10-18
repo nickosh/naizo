@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Reset to v0.1.0, added dual naka/data-naka attributes, and configured Vite+ toolchain
+
+- Decided (owner): reset initial version to `0.1.0` (`D07`), adopt [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) with TypeScript source in `src/index.ts` and root `naka.js` IIFE (`D06`), and support both concise `naka` / `naka-*` and HTML5 `data-naka` / `data-naka-*` attributes (`D08`).
+- Done: created `vite.config.ts`, `tsconfig.json`, `.gitignore`, TypeScript runtime `src/index.ts`, synchronized standalone `naka.js` (`v0.1.0`), implemented the `EC05` fixes (`parseCachedState` guard + clearing plain text elements in inferred templates), updated `index.html`, `README.md`, and `AGENTS.md`, and added the Vitest suite in `tests/naka.test.ts`.
+- Verified: `node --check naka.js`, JSON validation of `package.json` (`0.1.0`) and `index.html` `#nakadb`, and `git diff --check` pass. `vp install`, `vp check`, `vp test`, and `vp pack` were not run yet per owner request to run `vp install` manually.
+- Next: after the owner runs `vp install`, run `vp check`, `vp test`, and `vp pack` to verify `src/index.ts` and `tests/naka.test.ts` and close `M2`.
+
 ## 2026-10-18 — Landed naka.js v1.1.0 core bundle, playground, and product specs (M0 & M1)
 
 - Done: applied the `naka.js` `v1.1.0` project bundle (`package.json`, `naka.js`, `index.html`, `README.md`) and integrated the consumer AI agent HTML-authoring instructions into `AGENTS.md`; fixed a malformed markdown link inside the `README.md` CDN `<script>` code block.

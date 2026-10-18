@@ -174,20 +174,20 @@
 
   <header>
     <span class="badge">naka.js + #nakadb Demo</span>
-    <h1 contenteditable="true" data-naka="feature_title">OAuth2 & Rate-Limiting Spec</h1>
+    <h1 contenteditable="true" naka="feature_title">OAuth2 & Rate-Limiting Spec</h1>
   </header>
 
   <!-- 1. Standalone Bound Inputs -->
   <section class="card">
-    <h2>1. Standalone Fields (<code>data-naka</code>)</h2>
+    <h2>1. Standalone Fields (<code>naka</code> / <code>data-naka</code>)</h2>
     <div class="meta-grid">
       <label>
         Spec Owner
-        <input type="text" data-naka="owner">
+        <input type="text" naka="owner">
       </label>
       <label>
         Approval Status
-        <select data-naka="status">
+        <select naka="status">
           <option value="Draft">Draft</option>
           <option value="In Review">In Review</option>
           <option value="Approved">Approved</option>
@@ -198,12 +198,12 @@
 
   <!-- 2. Declarative List Repeater -->
   <section class="card">
-    <h2>2. Dynamic Checklist Repeater (<code>data-naka-list="tasks"</code>)</h2>
-    <div data-naka-list="tasks">
-      <div class="task-row" data-naka-item>
-        <input type="checkbox" data-naka="done">
-        <span class="task-title" contenteditable="true" data-naka="title">New task...</span>
-        <select data-naka="priority">
+    <h2>2. Dynamic Checklist Repeater (<code>naka-list="tasks"</code>)</h2>
+    <div naka-list="tasks">
+      <div class="task-row" naka-item>
+        <input type="checkbox" naka="done">
+        <span class="task-title" contenteditable="true" naka="title">New task...</span>
+        <select naka="priority">
           <option value="High">High</option>
           <option value="Med">Med</option>
           <option value="Low">Low</option>
@@ -215,14 +215,14 @@
   <!-- 3. Freeform Editable Notes -->
   <section class="card">
     <h2>3. Editable Notes (<code>contenteditable="true"</code>)</h2>
-    <div class="notes-box" contenteditable="true" data-naka="notes"></div>
+    <div class="notes-box" contenteditable="true" naka="notes"></div>
   </section>
 
   <!-- 4. Custom Widget using window.Naka API -->
   <section class="card">
     <h2>4. Custom JS Widget (<code>Naka.get</code> / <code>Naka.set</code>)</h2>
     <div class="slider-wrap">
-      <input type="range" id="rps-slider" min="10" max="500" step="10" data-naka-ignore>
+      <input type="range" id="rps-slider" min="10" max="500" step="10" naka-ignore>
       <span class="rps-badge"><span id="rps-val">120</span> req/sec</span>
     </div>
   </section>

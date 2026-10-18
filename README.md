@@ -23,7 +23,7 @@ HTML is far more expressive than Markdown—until a human wants to edit it:
 2. **Browser storage hides edits from AI agents:** Saving state to `localStorage` keeps it trapped inside your browser profile. When your CLI AI agent reads `plan.html` from disk on the next turn, it is completely blind to your changes.
 
 **`naka.js`** solves this with a single `<script>` tag:
-* **`naka.js`:** The tiny reactive engine that binds your HTML inputs and dynamic lists.
+* **`naka.js`:** The tiny reactive engine that binds your HTML inputs and dynamic lists (`naka="key"`, `naka-list="tasks"`).
 * **`<script id="nakadb" type="application/json">`:** The **中 (*naka* — inside)** JSON micro-database living right inside the HTML file, fully readable and writable by AI agents and Git diffs.
 * **仲 (*naka* — bridge/rapport):** Keeps **Human edits in the browser** and **AI Agent edits on disk** in two-way sync without a backend server.
 
@@ -31,10 +31,11 @@ HTML is far more expressive than Markdown—until a human wants to edit it:
 
 ## Quick Start
 
-Run the local demo playground:
+Run the local demo playground with [Vite+](https://viteplus.dev/):
 
 ```bash
-npm run dev
+vp install
+vp dev
 # Opens http://localhost:3000/index.html
 ```
 
@@ -53,17 +54,19 @@ Or drop `naka.js` into any HTML file:
 
 ## Declarative HTML Attributes
 
-| Attribute | Target Element | Description |
-|---|---|---|
-| `data-naka="key"` | `<input>`, `<textarea>`, `<select>`, `[contenteditable="true"]` | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when inside a `[data-naka-item]`). |
-| `data-naka-list="name"` | Container (`<div>`, `<ul>`, `<tbody>`) | Declares a repeating list bound to `lists["name"]` in `#nakadb`. Automatically injects a `+ Add Item` button below the list. |
-| `data-naka-item` | Child of `[data-naka-list]` | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls. |
-| `data-naka-template` | `<template>` inside `[data-naka-list]` | Optional explicit HTML blueprint for new items. Auto-generated from the first `[data-naka-item]` if omitted. |
-| `data-naka-add="name"` | `<button>` | Appends a new blank item to `[data-naka-list="name"]`. |
-| `data-naka-remove` | `<button>` inside `[data-naka-item]` | Removes the enclosing `[data-naka-item]`. |
-| `data-naka-move="up\|down"` | `<button>` inside `[data-naka-item]` | Moves the enclosing `[data-naka-item]` up or down. |
-| `data-naka-no-controls` | `[data-naka-list]` | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list. |
-| `data-naka-ignore` | Any HTML element | Excludes the element from state tracking and strips it from the HTML clone before writing to disk. |
+`naka.js` supports both concise **`naka` / `naka-*`** attributes (recommended for low token overhead) and HTML5-compliant **`data-naka` / `data-naka-*`** attributes (for strict HTML validators):
+
+| Short Attribute | HTML5 `data-*` Alias | Target Element | Description |
+|---|---|---|---|
+| `naka="key"` | `data-naka="key"` | `<input>`, `<textarea>`, `<select>`, `[contenteditable="true"]` | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when inside a `[naka-item]`). |
+| `naka-list="name"` | `data-naka-list="name"` | Container (`<div>`, `<ul>`, `<tbody>`) | Declares a repeating list bound to `lists["name"]` in `#nakadb`. Automatically injects a `+ Add Item` button below the list. |
+| `naka-item` | `data-naka-item` | Child of `[naka-list]` | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls. |
+| `naka-template` | `data-naka-template` | `<template>` inside `[naka-list]` | Optional explicit HTML blueprint for new items. Auto-generated from the first `[naka-item]` if omitted. |
+| `naka-add="name"` | `data-naka-add="name"` | `<button>` | Appends a new blank item to `[naka-list="name"]`. |
+| `naka-remove` | `data-naka-remove` | `<button>` inside `[naka-item]` | Removes the enclosing `[naka-item]`. |
+| `naka-move="up\|down"` | `data-naka-move="up\|down"` | `<button>` inside `[naka-item]` | Moves the enclosing `[naka-item]` up or down. |
+| `naka-no-controls` | `data-naka-no-controls` | `[naka-list]` | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list. |
+| `naka-ignore` | `data-naka-ignore` | Any HTML element | Excludes the element from state tracking and strips it from the HTML clone before writing to disk. |
 
 ---
 
@@ -83,6 +86,20 @@ Naka.removeItem('tasks', 1);
 // Core Utilities
 Naka.save();                    // Manually trigger DOM capture + save cycle
 const html = Naka.exportHTML(); // Return clean HTML string stripped of runtime UI
+```
+
+---
+
+## Development (`Vite+`)
+
+This repository uses [Vite+](https://viteplus.dev/) (`vp` CLI) configured via `vite.config.ts`:
+
+```bash
+vp install  # Install dependencies
+vp dev      # Start Vite dev server (http://localhost:3000)
+vp check    # Run Oxfmt, Oxlint, and type-checking together
+vp test     # Run Vitest unit/DOM suite
+vp pack     # Bundle library outputs via tsdown
 ```
 
 ---
