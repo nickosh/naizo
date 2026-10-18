@@ -92,6 +92,22 @@ const html = Naka.exportHTML(); // Return clean HTML string stripped of runtime 
 
 ---
 
+## How `naka.js` Compares
+
+Several tools explore reactive HTML, declarative persistence, or self-saving single-file apps, but each targets a different layer of the stack:
+
+| Feature / Tool                        | **`naka.js`**                                        | **[ClayJS](https://clayjs.com/) / [HyperclayJS](https://hyperclayjs.com/)** | **[Bento](https://bento.page/) (`.bento.html`)**     | **[Mavo](https://mavo.io/)**                   | **[Alpine.js](https://alpinejs.dev/) + `$persist`** | **[TiddlyWiki](https://tiddlywiki.com/) / [Feather Wiki](https://feather.wiki/)** |
+| :------------------------------------ | :--------------------------------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------- | :--------------------------------------------- | :-------------------------------------------------- | :-------------------------------------------------------------------------------- |
+| **Primary Goal**                      | Drop-in script for custom HTML + AI agent sync       | Malleable HTML apps via save server / host                                  | Pre-built single-file office apps (Slides, etc.)     | Declarative CRUD web apps from HTML            | General frontend reactivity + `localStorage`        | Standalone single-file personal wiki                                              |
+| **Works on Arbitrary Custom HTML**    | **Yes** (any `.html` file)                           | **Yes**                                                                     | No (fixed app shells)                                | **Yes**                                        | **Yes**                                             | No (wiki UI / tiddlers)                                                           |
+| **Canonical In-File JSON (`<head>`)** | **Yes** (`#nakadb` JSON + baked DOM)                 | Optional (`clay-data` / `live` plugin; DOM-first)                           | **Yes** (`#bento-doc` JSON)                          | No (external `.json` / cloud / `localStorage`) | No (`localStorage` only)                            | Internal tiddler store                                                            |
+| **Zero-Server Local Disk Save**       | **Yes** (File System Access API + download fallback) | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                |
+| **Two-Way Human ↔ AI Disk Sync**      | **Yes** (disk snapshot diff + live handle check)     | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                |
+| **Declarative List Repeater**         | **Yes** (`naka-list` / `naka-item`)                  | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    |
+| **Runtime Footprint (Gzip)**          | **~4.7 KB** (0 deps)                                 | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    |
+
+---
+
 ## Development (`Vite+`)
 
 This repository uses [Vite+](https://viteplus.dev/) (`vp` CLI) configured via `vite.config.ts`:

@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Added ecosystem comparison table to README.md
+
+- Done: researched adjacent self-saving/declarative HTML tools (`ClayJS` / `HyperclayJS`, `Bento`, `Mavo`, `Alpine.js + @alpinejs/persist`, and `TiddlyWiki` / `Feather Wiki`) and added the `How naka.js Compares` feature matrix to `README.md`.
+- Verified: markdown link/reference review and `git diff --check` pass (`vp check` and `vp test` not run for `README.md` documentation update).
+- Next: execute `M3.1` and `M3.2`, then implement `M4.1` against the store before any other `M4` item.
+
 ## 2026-10-18 — Second source review: adopted store model, surgical disk sync, and tracked dist artifact; restructured M4
 
 - Done: reviewed `src/index.ts`, `naka.js`, tests, playground, and build config; reproduced `EC06`, `EC09`, `EC11` and new cases `EC14` (unbound agent JSON destroyed on load), `EC15` (unknown `<select>` value coerced to `""`), `EC16` (full-document capture and baking per keystroke), and `EC17` (silent conflict discard, no unlink) with a throwaway jsdom probe; measured real bundle size (~4.7 KB minified + gzipped, ~6.3 KB gzipped unminified) and corrected `README.md` and `docs/PRODUCT.md`.
