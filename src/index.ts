@@ -109,6 +109,15 @@ function findListElement(listName: string): HTMLElement | null {
   );
 }
 
+function toTextValue(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean' || typeof val === 'bigint') {
+    return String(val);
+  }
+  return JSON.stringify(val);
+}
+
 let fileHandle: NakaFileHandle | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let statusEl: HTMLElement | null = null;
@@ -255,20 +264,21 @@ function readAndBakeElement(el: Element): unknown {
 }
 
 function writeElementValue(el: Element, val: unknown): void {
+  const textVal = toTextValue(val);
   if (el instanceof HTMLInputElement) {
     if (el.type === 'checkbox') {
       el.checked = Boolean(val);
     } else if (el.type === 'radio') {
-      el.checked = el.value === String(val);
+      el.checked = el.value === textVal;
     } else {
-      el.value = val != null ? String(val) : '';
+      el.value = textVal;
     }
   } else if (el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
-    el.value = val != null ? String(val) : '';
+    el.value = textVal;
   } else if (el.hasAttribute('contenteditable')) {
-    el.innerHTML = val != null ? String(val) : '';
+    el.innerHTML = textVal;
   } else {
-    el.textContent = val != null ? String(val) : '';
+    el.textContent = textVal;
   }
   readAndBakeElement(el);
 }
@@ -440,7 +450,9 @@ export function hydrateDomFromState(db: NakaDatabase | null): void {
 export function getCleanHtmlString(): string {
   captureDomToState();
   const clone = document.documentElement.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`).forEach((el) => el.remove());
+  clone
+    .querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`)
+    .forEach((el) => el.remove());
   return '<!DOCTYPE html>\n' + clone.outerHTML;
 }
 
@@ -737,8 +749,7 @@ export async function initNaka(): Promise<void> {
   const diskState = parseDbScript();
   const cachedState = parseCachedState(localStorage.getItem(pageKey));
 
-  const diskModifiedExternally =
-    lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw;
+  const diskModifiedExternally = lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw;
 
   if (diskModifiedExternally || !cachedState) {
     hydrateDomFromState(diskState);

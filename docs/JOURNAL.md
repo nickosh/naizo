@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Completed Vite+ verification and edge-case test suite (M2)
+
+- Done: resolved all Oxlint and type-aware `tsgolint` warnings in `src/index.ts` and `naka.js` (`toTextValue` string coercion helper, explicit `if/else` attribute toggles, and `void` on floating promises), aligned `package.json` `"types"` with `dist/index.d.mts`, expanded `tests/naka.test.ts` to 5 tests covering `Naka.get`/`Naka.set`, `naka:hydrate`, and `EC01`/`EC03`/`EC04`/`EC05`, and promoted `EC01`, `EC03`, `EC04`, and `EC05` to `fix`.
+- Verified: `vp check` (0 warnings, 0 lint/type errors), `vp test` (5/5 tests passing in `tests/naka.test.ts`), `vp pack` (`dist/index.mjs`, `dist/index.d.mts`, `dist/index.iife.js`), and `git diff --check` pass.
+- Next: review next feature milestone with the owner (such as Blob download fallback tests for `EC02` or additional `naka.js` runtime capabilities).
+
 ## 2026-10-18 — Reset to v0.1.0, added dual naka/data-naka attributes, and configured Vite+ toolchain
 
 - Decided (owner): reset initial version to `0.1.0` (`D07`), adopt [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) with TypeScript source in `src/index.ts` and root `naka.js` IIFE (`D06`), and support both concise `naka` / `naka-*` and HTML5 `data-naka` / `data-naka-*` attributes (`D08`).

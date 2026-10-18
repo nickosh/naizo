@@ -5,6 +5,7 @@ Record durable architectural and owner decisions and their rationale. Allocate t
 ## D01 — Hybrid project memory structure
 
 Accepted by the owner on 2026-10-18. Use a hybrid project memory layout combining the lean core ledger from `nuance-skills` with the product and edge-case ledgers from `napflow`:
+
 - `AGENTS.md` (with a root `CLAUDE.md -> AGENTS.md` symlink) for repository-wide instructions, architecture, verification, and workflow rules.
 - `docs/PRODUCT.md` for product definition, target users, core invariants, and non-goals.
 - `docs/PLAN.md` as the single authoritative task, milestone/slice sequencing, and acceptance ledger (omitting a separate `REQUIREMENTS.md` checkbox matrix until needed).

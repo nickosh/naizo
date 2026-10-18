@@ -65,7 +65,7 @@
         const tx = req.result.transaction('handles', mode);
         callback(tx.objectStore('handles'));
       };
-    } catch (e) {
+    } catch {
       // Fallback if IndexedDB is restricted on file:// protocol
     }
   }
@@ -86,7 +86,7 @@
           getReq.onerror = () => resolve(null);
         };
         req.onerror = () => resolve(null);
-      } catch (e) {
+      } catch {
         resolve(null);
       }
     });
@@ -151,7 +151,11 @@
 
   function readAndBakeElement(el) {
     if (el.type === 'checkbox') {
-      el.checked ? el.setAttribute('checked', 'checked') : el.removeAttribute('checked');
+      if (el.checked) {
+        el.setAttribute('checked', 'checked');
+      } else {
+        el.removeAttribute('checked');
+      }
       return el.checked;
     }
     if (el.type === 'radio') {
@@ -164,7 +168,11 @@
     }
     if (el.tagName === 'SELECT') {
       Array.from(el.options).forEach((opt) => {
-        opt.selected ? opt.setAttribute('selected', 'selected') : opt.removeAttribute('selected');
+        if (opt.selected) {
+          opt.setAttribute('selected', 'selected');
+        } else {
+          opt.removeAttribute('selected');
+        }
       });
       return el.value;
     }
@@ -355,7 +363,9 @@
   function getCleanHtmlString() {
     captureDomToState();
     const clone = document.documentElement.cloneNode(true);
-    clone.querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`).forEach((el) => el.remove());
+    clone
+      .querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`)
+      .forEach((el) => el.remove());
     return '<!DOCTYPE html>\n' + clone.outerHTML;
   }
 
@@ -402,7 +412,9 @@
 
     updateUi('saving', 'Saving...');
     clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => writeToDisk(), 250);
+    saveTimeout = setTimeout(() => {
+      void writeToDisk();
+    }, 250);
   }
 
   async function connectOrResumeDisk() {
@@ -422,7 +434,7 @@
         });
         saveHandleToIDB(fileHandle);
         await writeToDisk();
-      } catch (e) {
+      } catch {
         /* User cancelled file picker */
       }
     } else {
@@ -502,10 +514,12 @@
     const dotEl = shadow.getElementById('dot');
     const copyBtn = shadow.getElementById('copy');
 
-    actionBtn.addEventListener('click', connectOrResumeDisk);
+    actionBtn.addEventListener('click', () => {
+      void connectOrResumeDisk();
+    });
     copyBtn.addEventListener('click', () => {
       const { formatted } = captureDomToState();
-      navigator.clipboard.writeText(formatted.trim());
+      void navigator.clipboard.writeText(formatted.trim());
       copyBtn.textContent = '✓ Copied';
       setTimeout(() => (copyBtn.textContent = '{ } Copy'), 1500);
     });
@@ -633,8 +647,7 @@
     const diskState = parseDbScript();
     const cachedState = parseCachedState(localStorage.getItem(PAGE_KEY));
 
-    const diskModifiedExternally =
-      lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw;
+    const diskModifiedExternally = lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw;
 
     if (diskModifiedExternally || !cachedState) {
       hydrateDomFromState(diskState);
@@ -664,8 +677,10 @@
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+      void init();
+    });
   } else {
-    init();
+    void init();
   }
 })();

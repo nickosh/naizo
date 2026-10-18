@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vite-plus/test';
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import { initNaka, Naka, parseDbScript } from '../src/index';
 
 describe('naka.js v0.1.0 core runtime', () => {
@@ -16,7 +16,10 @@ describe('naka.js v0.1.0 core runtime', () => {
         "fields": {
           "title": "Spec v1",
           "owner": "Kenji",
-          "approved": true
+          "approved": true,
+          "tier": "pro",
+          "status": "Approved",
+          "summary": "Initial notes"
         },
         "lists": {},
         "custom": {}
@@ -27,6 +30,13 @@ describe('naka.js v0.1.0 core runtime', () => {
       <h1 contenteditable="true" naka="title">Draft</h1>
       <input type="text" data-naka="owner" value="">
       <input type="checkbox" naka="approved">
+      <input type="radio" name="tier" naka="tier" value="free">
+      <input type="radio" name="tier" naka="tier" value="pro">
+      <select naka="status">
+        <option value="Draft">Draft</option>
+        <option value="Approved">Approved</option>
+      </select>
+      <textarea data-naka="summary"></textarea>
     `;
 
     await initNaka();
@@ -34,12 +44,22 @@ describe('naka.js v0.1.0 core runtime', () => {
     const h1 = document.querySelector('[naka="title"]') as HTMLElement;
     const owner = document.querySelector('[data-naka="owner"]') as HTMLInputElement;
     const approved = document.querySelector('[naka="approved"]') as HTMLInputElement;
+    const radios = document.querySelectorAll<HTMLInputElement>('input[type="radio"]');
+    const select = document.querySelector('select[naka="status"]') as HTMLSelectElement;
+    const textarea = document.querySelector('textarea[data-naka="summary"]') as HTMLTextAreaElement;
 
     expect(h1.innerHTML).toBe('Spec v1');
     expect(owner.value).toBe('Kenji');
     expect(owner.getAttribute('value')).toBe('Kenji');
     expect(approved.checked).toBe(true);
     expect(approved.getAttribute('checked')).toBe('checked');
+    expect(radios[0]?.checked).toBe(false);
+    expect(radios[1]?.checked).toBe(true);
+    expect(radios[1]?.getAttribute('checked')).toBe('checked');
+    expect(select.value).toBe('Approved');
+    expect(select.options[1]?.getAttribute('selected')).toBe('selected');
+    expect(textarea.value).toBe('Initial notes');
+    expect(textarea.textContent).toBe('Initial notes');
   });
 
   it('supports declarative list repeaters (naka-list & data-naka-list) and clears plain text in inferred templates (EC05)', async () => {
@@ -89,6 +109,20 @@ describe('naka.js v0.1.0 core runtime', () => {
     expect(Naka.getList('tasks')).toHaveLength(2);
   });
 
+  it('persists custom state via Naka.get / Naka.set and dispatches naka:hydrate', async () => {
+    const hydrateSpy = vi.fn();
+    window.addEventListener('naka:hydrate', hydrateSpy);
+
+    await initNaka();
+    expect(hydrateSpy).toHaveBeenCalledTimes(1);
+
+    Naka.set('rateLimitRps', 350);
+    expect(Naka.get('rateLimitRps')).toBe(350);
+    expect((Naka.get() as { custom: Record<string, unknown> }).custom.rateLimitRps).toBe(350);
+
+    window.removeEventListener('naka:hydrate', hydrateSpy);
+  });
+
   it('strips runtime UI and naka-ignore / data-naka-ignore elements in exportHTML (EC03)', async () => {
     document.body.innerHTML = `
       <input type="text" naka="project" value="nakajs">
@@ -111,7 +145,8 @@ describe('naka.js v0.1.0 core runtime', () => {
     expect(exported).toContain('"project": "nakajs"');
   });
 
-  it('resolves conflicts in favor of disk when #nakadb changed externally, and recovers from corrupted localStorage (EC01, EC04, EC05)', async () => {
+  it('resolves conflicts in favor of disk when #nakadb changed externally, and recovers from malformed JSON (EC01, EC04, EC05)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const pageKey = 'nakadb_state_' + location.pathname;
     const snapshotKey = 'nakadb_disk_hash_' + location.pathname;
 
@@ -140,9 +175,16 @@ describe('naka.js v0.1.0 core runtime', () => {
     const input = document.querySelector('[naka="status"]') as HTMLInputElement;
     expect(input.value).toBe('Approved');
 
-    // Also verify corrupted localStorage does not throw (EC05)
+    // Verify corrupted localStorage does not throw (EC05)
     localStorage.setItem(pageKey, '{corrupted json');
     await expect(initNaka()).resolves.toBeUndefined();
     expect(parseDbScript().fields.status).toBe('Approved');
+
+    // Verify malformed #nakadb JSON resets cleanly without throwing (EC04)
+    document.head.innerHTML = `<script id="nakadb" type="application/json">{not valid json</script>`;
+    expect(parseDbScript()).toEqual({ _meta: {}, fields: {}, lists: {}, custom: {} });
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
   });
 });

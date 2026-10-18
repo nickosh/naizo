@@ -7,6 +7,7 @@
 See [docs/PRODUCT.md](docs/PRODUCT.md) for product vision, target users, and scope boundaries.
 
 Core promises (never compromise these):
+
 1. **In-file canonical state (`#nakadb`)**: `<script id="nakadb" type="application/json">` in `<head>` holds `{ _meta, fields, lists, custom }` in human- and agent-readable JSON (`2`-space indented) alongside baked HTML input attributes.
 2. **Two-way Human ↔ AI Agent sync**: On boot, `naka.js` compares `#nakadb` on disk against its last known disk snapshot (`nakadb_disk_hash_<pathname>`). External edits on disk (e.g., by a CLI/IDE AI agent) automatically supersede stale `localStorage` browser cache; otherwise, browser edits persist across refreshes even before linking disk.
 3. **Clean HTML serialization**: Writing to disk via the File System Access API (`showSaveFilePicker` with handle persisted in IndexedDB `NakaDB_Handles`) or `Naka.exportHTML()` strips all runtime-injected UI (`[naka-ignore]`, `[data-naka-ignore]`, `#__nakadb_host__` Shadow DOM pill, `#__nakadb_styles__`).
@@ -62,6 +63,7 @@ At the end of each state-changing session, independently useful development slic
 ## Toolchain & verification (`Vite+`)
 
 This repository uses [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) configured in [vite.config.ts](vite.config.ts):
+
 - `vp install` — install dependencies
 - `vp check` — format (`Oxfmt`), lint (`Oxlint`), and type-check (`tsgolint`) in one pass
 - `vp test` — run Vitest suite (`tests/**/*.test.ts`)
@@ -69,6 +71,7 @@ This repository uses [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) con
 - `vp dev` — start local playground server (`http://localhost:3000`)
 
 Use proportional verification:
+
 - Documentation edits require link/reference review and whitespace checks (`git diff --check`).
 - Code or behavior changes in `src/index.ts`, `naka.js`, or `index.html` require `vp check` and `vp test` (when `vite-plus` is installed), syntax checks (`node --check naka.js`), and JSON validation of `package.json` and embedded `#nakadb` blocks. Keep root `naka.js` synchronized with `src/index.ts`.
 - Rerun checks when changes or unresolved concerns justify it, not only at closeout. Do not claim unrun checks passed or treat plans/fixtures as proof of passing behavior.
