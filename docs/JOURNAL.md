@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-18 — Planned M3–M6 roadmap: repo layout, consumer AI skill, GitHub Pages / js.org site, and CDN release pipeline
+
+- Decided (owner): adopt clean repository separation (`D09` — emit `dist/naka.js` via `vp pack` and remove root `naka.js`, move playground to `site/`, keep starter templates in `examples/`, and place the distributable consumer AI skill in `skills/nakajs/SKILL.md`), maintainer-controlled CDN release workflows supporting both `workflow_dispatch` and GitHub Release publish triggers (`D10`), and GitHub Pages (`js.org`) website hosting with `/llms.txt`, `/llms-full.txt`, and `/SKILL.md` endpoints for unobstructed AI agent documentation ingestion (`D11`).
+- Done: recorded `D09`–`D11` in `docs/DECISIONS.md` and added milestones `M3`–`M6` to `docs/PLAN.md`.
+- Verified: markdown link/reference review and `git diff --check` pass (`vp check` and `vp test` not run for documentation-only planning update).
+- Next: execute `M3.1` and `M3.2` (`dist/naka.js` build output, remove root `naka.js`, move `index.html` into `site/`, and add starter templates in `examples/`).
+
 ## 2026-10-18 — Completed Vite+ verification and edge-case test suite (M2)
 
 - Done: resolved all Oxlint and type-aware `tsgolint` warnings in `src/index.ts` and `naka.js` (`toTextValue` string coercion helper, explicit `if/else` attribute toggles, and `void` on floating promises), aligned `package.json` `"types"` with `dist/index.d.mts`, expanded `tests/naka.test.ts` to 5 tests covering `Naka.get`/`Naka.set`, `naka:hydrate`, and `EC01`/`EC03`/`EC04`/`EC05`, and promoted `EC01`, `EC03`, `EC04`, and `EC05` to `fix`.

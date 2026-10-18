@@ -36,7 +36,7 @@ Adopted 2026-10-18. The floating status/sync pill (`#__nakadb_host__`) mounts in
 
 ## D06 — TypeScript core in `src/` with Vite+ (`vite-plus`) toolchain and root `naka.js` IIFE
 
-Amended by the owner on 2026-10-18 (superseding the initial plain-JS-only setup). Author the core runtime in TypeScript (`src/index.ts`) and use [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) configured via `vite.config.ts` as the unified toolchain for development (`vp dev`), formatting/linting/type-checking (`vp check`), testing (`vp test` with Vitest + `jsdom`), and library packaging (`vp pack` with `tsdown` emitting `dist/`). Keep the standalone zero-dependency IIFE `naka.js` at the repository root synchronized so `<script src="./naka.js" defer></script>` and CDN links (`jsDelivr` / `unpkg`) work directly without requiring consumers to run a build step.
+Amended by the owner on 2026-10-18 (superseding the initial plain-JS-only setup; root `naka.js` and root `index.html` placement superseded for `M3` by `D09`). Author the core runtime in TypeScript (`src/index.ts`) and use [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) configured via `vite.config.ts` as the unified toolchain for development (`vp dev`), formatting/linting/type-checking (`vp check`), testing (`vp test` with Vitest + `jsdom`), and library packaging (`vp pack` with `tsdown` emitting `dist/`). Keep the standalone zero-dependency IIFE `naka.js` at the repository root synchronized until `M3` lands (`D09`).
 
 ## D07 — Reset initial version to `0.1.0` (experimental `0.x` series)
 
@@ -45,3 +45,26 @@ Accepted by the owner on 2026-10-18. Reset the initial version from the specific
 ## D08 — Dual attribute syntax (`naka` / `naka-*` and `data-naka` / `data-naka-*`)
 
 Accepted by the owner on 2026-10-18. Support both concise `naka` / `naka-*` attributes (`naka="key"`, `naka-list="name"`, `naka-item`, `naka-template`, `naka-add`, `naka-remove`, `naka-move`, `naka-no-controls`, `naka-ignore`) and standard HTML5 `data-naka` / `data-naka-*` aliases (`data-naka="key"`, `data-naka-list="name"`, etc.). Reject `naka-data-*` because HTML5 requires custom data attributes to start with `data-`, making `naka-data-*` as verbose as `data-naka-*` without HTML5 validator compliance. Supporting both `naka*` and `data-naka*` gives humans and AI agents minimal token overhead by default while preserving strict HTML5 validity when needed.
+
+## D09 — Repository layout (`src/`, `dist/`, `site/`, `examples/`, `skills/`) and build-emitted `dist/naka.js`
+
+Accepted by the owner on 2026-10-18 (superseding the root `naka.js` and root `index.html` placement in `D06`, scheduled for `M3`–`M4`). Keep the repository root clean by separating source, build outputs, website/playground, starter templates, and AI skills:
+
+- **`src/index.ts` → `dist/naka.js`:** Remove the tracked `naka.js` copy from the repository root. Emit `dist/naka.js` (standalone IIFE), `dist/index.mjs` (ESM), and `dist/index.d.mts` (TypeScript declarations) during `vp pack` (`tsdown`), and point `package.json` (`main`, `unpkg`, `jsdelivr`) to `dist/naka.js`.
+- **`site/`:** Move the interactive playground (`index.html`) into `site/` to serve both `vp dev` and the public documentation/demo website.
+- **`examples/`:** Store clean, self-contained starter HTML templates (e.g., `examples/starter.html`, `examples/checklist.html`) for humans and AI agents to copy.
+- **`skills/nakajs/SKILL.md`:** Place the distributable consumer-facing AI skill in `skills/nakajs/SKILL.md` (with reference docs in `docs/`), keeping `.agents/skills/` exclusively for repository maintenance skills (`nakajs-closeout`).
+
+## D10 — Maintainer-controlled release pipeline (`workflow_dispatch` + GitHub Release) to npm, jsDelivr, and unpkg
+
+Accepted by the owner on 2026-10-18 (scheduled for `M6`). Keep release creation under explicit maintainer control rather than publishing on every commit to `main`:
+
+- **Continuous Integration (`.github/workflows/ci.yml`):** Run `vp install`, `vp check`, `vp test`, and `vp pack` on pushes and pull requests without publishing.
+- **Controlled Release (`.github/workflows/release.yml`):** Support both manual `workflow_dispatch` (one-click version bump `patch` / `minor` / `major` or explicit version that runs verification, tags, and creates a GitHub Release with `dist/naka.js` attached) and `release: types: [published]` (when a release is published manually in the GitHub UI) to build `dist/` and publish the `nakajs` package to npm. Publishing to npm automatically populates both `jsDelivr` (`https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js`) and `unpkg` (`https://unpkg.com/nakajs@latest/dist/naka.js`).
+
+## D11 — GitHub Pages (`js.org`) documentation site with AI-agent native endpoints (`/llms.txt`, `/llms-full.txt`, `/SKILL.md`)
+
+Accepted by the owner on 2026-10-18 (scheduled for `M5`–`M6`). Host the project website (`site/`) on **GitHub Pages** via GitHub Actions (`actions/deploy-pages`) designed for a `js.org` custom domain (`naka.js.org` / `nakajs.js.org`) instead of Cloudflare Pages:
+
+- **Why GitHub Pages over Cloudflare Pages:** `js.org` natively supports GitHub Pages CNAME targets without Cloudflare API domain-binding workarounds, keeps all CI/CD inside GitHub Actions, and avoids Cloudflare Bot Fight Mode / managed challenge blocks (`403 Forbidden`) when AI agents fetch documentation via `curl`, `WebFetch`, or `read_url_content`.
+- **AI-agent native documentation:** Alongside the interactive HTML landing page and playground, publish static plain-text/Markdown endpoints at `/llms.txt` (concise agent index and quick rules), `/llms-full.txt` (complete reference + starter templates in one request), and `/SKILL.md` (direct copy of `skills/nakajs/SKILL.md`).
