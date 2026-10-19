@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Made npm the documented CDN distribution source
+
+- Done (`M7.8`): replaced the GitHub-backed README/agent CDN examples with npm-backed jsDelivr/unpkg URLs and aligned product/publishing guidance. Documented minified bundles, `@latest` updates after cache refresh, exact-version alternatives, npm publication prerequisites, and the separate local-development path. Starter templates already used npm-backed URLs.
+- Decided (`D34`): npm publication supplies CDN releases. Superseded `D17`'s consumer URL recommendation while preserving the tracked readable bundle and freshness policy; retained the old URL in the decision log as historical context. Runtime contracts and edge-case statuses are unchanged.
+- Verified: clean VP format/lint/types, CDN URL syntax and package bundle paths, eight-file npm manifest, local links/guide anchor, fish syntax, provider documentation, and whitespace. Runtime tests/builds and live npm/CDN availability/publication were not run for this documentation-only change.
+- Next: continue `M4.1`'s in-memory store and synchronous boot work, using the documented npm URLs for release-based CDN examples.
+
 ## 2026-10-19 — Removed fixed version labels from source and distribution headers
 
 - Done (`M7.7`): removed the hardcoded version from both TypeScript source headers and regenerated readable/minified browser bundles, ESM, and declarations. The tracked readable bundle changes only its header comment; package version and runtime behavior are unchanged.

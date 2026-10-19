@@ -130,6 +130,28 @@ For an authentication failure, check the exact owner/repository/workflow fields,
 
 The action references are pinned to reviewed commit IDs and kept current by weekly Dependabot updates. CI, Pages, and release builds use `setup-vp`, which reads the Vite+ version from `package.json`, Node from `.node-version`, and pnpm from `packageManager`. `pnpm-workspace.yaml` delegates environment management to VP and records resolution policy in the lockfile; pnpm 12.14.0 is required to interpret this configuration consistently. CI/Pages cache package-manager data; release builds disable that cache. The publishing job reads `.node-version` with `setup-node`, installs no project dependencies, and uses npm 11 for OIDC. Publication outcomes belong to npm and GitHub Releases/tags, not project memory documents.
 
+## CDN URLs and automatic updates
+
+Publishing to npm makes the verified distribution available through jsDelivr and unpkg. Use one provider in each HTML file:
+
+```html
+<!-- jsDelivr -->
+<script src="https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js" defer></script>
+```
+
+```html
+<!-- Alternative: unpkg -->
+<script src="https://unpkg.com/nakajs@latest/dist/naka.js" defer></script>
+```
+
+Replace `dist/naka.js` with `dist/naka.min.js` for the prebuilt minified bundle. These explicit browser-bundle paths work with a classic deferred script tag.
+
+The `@latest` URLs follow new npm releases as CDN caches refresh. Availability and cache invalidation are not instantaneous; pages pick up an updated script on a later reload after cache refresh. For a fixed artifact, use an exact package version, for example `https://cdn.jsdelivr.net/npm/nakajs@0.1.0/dist/naka.js` or `https://unpkg.com/nakajs@0.1.0/dist/naka.js`. See the providers' [npm URL and caching documentation](https://github.com/jsdelivr/jsdelivr#npm) and [unpkg documentation](https://unpkg.com/).
+
+Npm publication is the CDN deployment step; no CDN upload or additional generated-file commit during publication is needed. A source change or CI build alone does not change what these npm-backed URLs serve. The package/version must exist on npm; local examples can keep using their relative `dist/naka.js` paths for development or offline use.
+
+The repository still tracks the readable bundle and checks its freshness (`D17`, `D33`). Rebuild and commit it with source changes for repository consumers and review. Release builds regenerate all four outputs and publish the verified tarball without committing generated files back to Git.
+
 ## Maintain release tooling locally
 
 Use VP-managed Node for the private tooling package and install its separate npm lockfile with lifecycle scripts disabled:

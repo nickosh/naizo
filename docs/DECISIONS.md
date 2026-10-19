@@ -124,6 +124,8 @@ Accepted by the owner on 2026-10-18 (amending `D03`, `D04`, `D05`, `D12`, and `D
 
 ## D17 — Track the built `dist/naka.js` artifact with a CI freshness check
 
+The consumer CDN URL recommendation is superseded by `D34`; the tracked-artifact and freshness policies remain in effect.
+
 Accepted by the owner on 2026-10-18 (amending `D09`, scheduled for `M3`). `D09` ignores `dist/` in Git while `AGENTS.md` and `README.md` point consumers and agents at a jsDelivr `gh` URL, which serves files from the Git tree and would return `404` once the root `naka.js` is removed. Resolve the contradiction by tracking the single built browser artifact:
 
 - Un-ignore `dist/naka.js` only; keep `dist/index.mjs` and `dist/index.d.mts` untracked and built on demand.
@@ -254,3 +256,11 @@ Accepted by the owner on 2026-10-19. Refines `D17` / `D32`: omit hardcoded packa
 
 - Keep package versions out of generated banners so a Release Please metadata/changelog bump does not require a source-header edit or bundle commit. Source, build configuration, or dependency changes that affect output still require `vp pack` and the tracked readable bundle in the same reviewed change.
 - Preserve the tracked `dist/naka.js` artifact and existing CI/release freshness check. Rebuild readable/minified browser bundles, ESM, and declarations from the tagged source; publication does not commit generated files back to Git.
+
+## D34 — npm-backed jsDelivr/unpkg URLs for release-driven CDN updates
+
+Accepted by the owner on 2026-10-19. Supersedes `D17`'s GitHub-backed consumer CDN recommendation and refines `D10` / `D32` distribution guidance. Keep the tracked readable artifact, source synchronization, and freshness checks from `D17` / `D33`.
+
+- Use `https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js` as the default documented CDN URL and `https://unpkg.com/nakajs@latest/dist/naka.js` as the alternative. Use one provider per page; the prebuilt minified counterpart is `dist/naka.min.js` on either provider.
+- Publishing the verified npm tarball makes the bundles available to these CDNs. Floating `@latest` URLs follow npm releases as caches refresh; exact versions keep artifacts fixed. Source changes or CI builds alone do not update CDN-served npm files, and the referenced package/version must exist on npm. Keep relative local paths for development and offline use.
+- Align README, consumer agent instructions, product distribution guidance, and the publishing guide. Retain historical GitHub-backed URLs in the decision log as superseded context, rather than rewriting prior decisions. No CDN upload step or release-time bundle commit is introduced.

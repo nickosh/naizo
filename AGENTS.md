@@ -29,7 +29,7 @@ Whenever you generate or update an interactive HTML file (plans, specs, checklis
      "custom": {}
    }
    ```
-2. **Load `naka.js`:** Include `<script src="./dist/naka.js" defer></script>` (or the CDN URL `https://cdn.jsdelivr.net/gh/nickosh/nakajs@main/dist/naka.js` / `https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js`) in `<head>`.
+2. **Load `naka.js`:** Include `<script src="./dist/naka.js" defer></script>` for a local copy, or use one npm-backed CDN URL: `https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js` / `https://unpkg.com/nakajs@latest/dist/naka.js`. Use `dist/naka.min.js` for the prebuilt minified bundle. `@latest` follows npm releases as caches refresh; use an exact version such as `@0.1.0` for a fixed artifact. CDN URLs require a published npm package/version. Prefer these npm-backed URLs when authoring CDN examples (`D34`).
 3. **Standalone Fields (`naka` or `data-naka`):** Bind inputs, checkboxes, radios, selects, and `contenteditable="true"` blocks using `naka="key_name"` (or `data-naka="key_name"`).
 4. **Dynamic Lists (`naka-list` or `data-naka-list`):** For checklists, tables, or cards where the user may add, edit, reorder, or delete items, wrap the container in `naka-list="list_name"` (or `data-naka-list="list_name"`) and each repeating row/card in `naka-item` (or `data-naka-item`), using `naka="prop_name"` on fields inside the item and wrapping `<label>` elements around inputs (`EC39`).
 5. **Custom Widgets (`window.Naka`):** Persist custom JavaScript state via `Naka.get('key')` and `Naka.set('key', value)`. Listen to the `'naka:hydrate'` window event to sync custom UI on load.

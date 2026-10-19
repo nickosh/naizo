@@ -48,11 +48,21 @@ Or copy a starter template from [`examples/starter.html`](examples/starter.html)
   <script id="nakadb" type="application/json">
     { "_meta": {}, "fields": {}, "lists": {}, "custom": {} }
   </script>
-  <script src="https://cdn.jsdelivr.net/gh/nickosh/nakajs@main/dist/naka.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js" defer></script>
 </head>
 ```
 
 Edits are cached immediately in `localStorage` and written back to the local `.html` file once linked via the bottom-right status pill (`showSaveFilePicker` in Chromium browsers, with HTML download fallback elsewhere).
+
+You can use unpkg instead of jsDelivr (load one provider):
+
+```html
+<script src="https://unpkg.com/nakajs@latest/dist/naka.js" defer></script>
+```
+
+Both providers serve the published npm package. The `@latest` URLs follow new npm releases as CDN caches refresh; no separate CDN deployment is needed. Use `dist/naka.min.js` in either URL for the prebuilt minified bundle. To keep an HTML artifact on a fixed version, replace `@latest` with an exact version such as `@0.1.0`.
+
+CDN URLs require the package/version to be published to npm. For local development or offline use, load a local copy of `dist/naka.js`. See the [publishing guide](docs/PUBLISHING.md#cdn-urls-and-automatic-updates) for release and caching details.
 
 ---
 
