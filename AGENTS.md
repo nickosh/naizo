@@ -66,6 +66,10 @@ This repository uses [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) con
 
 Prefer the global `vp` CLI for local development. Project environment pins live in [`.node-version`](.node-version) (Node 24.22.0), [`package.json`](package.json) (`packageManager: pnpm@12.14.0`, exact `vite-plus: 1.3.0`), and the lockfile. Use `vp env current` / `vp env doctor` to inspect resolution and `vp node` for Node scripts. Change project pins with `vp env pin`; keep CI reading those declarations and avoid changing user-global defaults. Native npm commands remain appropriate for the registry-specific publication flow in [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
+Release Please 17.11.2 is isolated in the private [`.github/release-tools/package.json`](.github/release-tools/package.json), with its own npm lockfile. Install it using `vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund` and test using `vp node --test .github/release-tools/test.cjs`. Keep tooling out of root/runtime dependencies and the eight-file npm distribution. Changes to release automation require these tests and workflow lint in addition to the main checks.
+
+Release preparation is explicit: ordinary pushes only check merged release PRs. A manual blank-input `prepare-release.yml` request or a newly pushed Conventional Commit with a stable `Release-As:` footer prepares/refreshes a release PR. Preserve descriptive commit bodies and any intended footer when squashing. The manual `v0.1.0` bootstrap precedes subsequent preparation; unfinished drafts require recovery. Only `release.yml` receives npm OIDC identity. See [docs/PUBLISHING.md](docs/PUBLISHING.md) for rollout and recovery.
+
 [`pnpm-workspace.yaml`](pnpm-workspace.yaml) sets `runtimeOnFail: ignore` and `pmOnFail: ignore` so VP owns environment selection, and `lockfile.includeResolutionSettings: true` so the lockfile records resolution policy for consistent frozen installs. Keep dependency build approvals explicit if future dependencies need lifecycle scripts.
 
 - `vp install` — install dependencies

@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Implemented explicit release preparation and safe publication recovery
+
+- Done (`M7.6`): added isolated locked Release Please 17.11.2 tooling, explicit manual/footer preparation, real updater regressions, baseline manifest/changelog, draft/tag handoff at the exact SHA, and safe asset recovery. Updated the eight-file npm allowlist, fish guide, and contributor instructions; retained readable/minified bundles and the VP/Node/pnpm pins.
+- Decided (`D32`, superseding the preparation policy in `D29`): ordinary pushes leave release PRs untouched; unfinished drafts require recovery. The built-in GitHub token dispatches the tagged publisher, and npm identity remains isolated. Recorded tested partial-publication/conflict handling as `EC41`; runtime/product contracts are unchanged.
+- Verified: locked root/tooling installs; 21 tooling and 13 project tests; clean VP format/lint/types; library/site builds; syntax/freshness, actual tarball/hash/JSON, workflow/action pins/permissions, bash/fish syntax, local links, and whitespace checks. Credential scanning found only an unchanged historical prose false positive. Live GitHub Actions settings, bootstrap, OIDC, and publication were not run; the existing standalone-script site warning remains nonblocking.
+- Next: validate the documented owner-managed Actions/OIDC integration when exercising release automation, then continue `M4.1`'s in-memory store and synchronous boot work.
+
 ## 2026-10-19 — Made the first-publish guide fish-compatible
 
 - Done: marked the publishing guide's four command blocks as fish, replaced the temporary-directory assignment with `set RELEASE_DIR (mktemp -d)`, and explained repository-root execution, same-session variable scope, and checking command results. Runtime and release behavior are unchanged.

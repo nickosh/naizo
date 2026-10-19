@@ -128,7 +128,7 @@ vp env current # Inspect the resolved Node.js and package-manager versions
 
 `pnpm-workspace.yaml` keeps runtime and package-manager selection with VP (`runtimeOnFail: ignore`, `pmOnFail: ignore`) and records pnpm resolution settings in the lockfile. The file configures this single-package repository; it does not add workspace packages.
 
-For the first npm publication, token-free GitHub Actions setup, and subsequent versioned releases, see the [publishing guide](https://github.com/nickosh/nakajs/blob/main/docs/PUBLISHING.md).
+Release preparation is explicit: a manual **Prepare release** request or a newly pushed `Release-As:` footer opens or refreshes the version/changelog PR. Ordinary pushes leave it unchanged; merging it starts verified npm Trusted Publishing and finalizes the GitHub draft. Both readable and minified bundles are included. For the manual `v0.1.0` bootstrap, GitHub settings, and recovery, see the [publishing guide](https://github.com/nickosh/nakajs/blob/main/docs/PUBLISHING.md).
 
 ---
 

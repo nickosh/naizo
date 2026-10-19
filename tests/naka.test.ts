@@ -215,6 +215,7 @@ describe('naka.js v0.1.0 core runtime', () => {
       'dist/index.mjs',
       'dist/index.d.mts',
       'README.md',
+      'CHANGELOG.md',
     ]);
 
     // Built dist/naka.js is a clean IIFE without NakaBundle global namespace

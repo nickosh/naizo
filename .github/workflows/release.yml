@@ -13,6 +13,10 @@ on:
         required: true
         type: boolean
         default: true
+      expected_sha:
+        description: 'Expected full tag commit SHA (automatically supplied by release preparation)'
+        required: false
+        type: string
   release:
     types: [published]
 
@@ -25,6 +29,7 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+  EXPECTED_SHA: ${{ inputs.expected_sha }}
 
 jobs:
   build:
@@ -55,17 +60,23 @@ jobs:
           vp node scripts/release.ts tag "$RELEASE_TAG"
           COMMIT=$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")
           WORKFLOW_COMMIT=$(git rev-parse --verify "${GITHUB_SHA}^{commit}")
-          if [ "$COMMIT" != "$WORKFLOW_COMMIT" ]; then
-            echo "::error::Run this workflow from the version tag so npm provenance identifies the published source."
-            exit 1
-          fi
+          vp node scripts/release.ts source "$COMMIT" "$WORKFLOW_COMMIT" "$EXPECTED_SHA"
           git merge-base --is-ancestor "$COMMIT" origin/main
           git checkout --detach "$COMMIT"
           vp node scripts/release.ts version "$RELEASE_TAG"
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
+      - name: Confirm local bootstrap when npm publishing is disabled
+        if: github.event_name == 'workflow_dispatch' && !inputs.publish_npm
+        run: vp node scripts/release.ts bootstrap "$RELEASE_TAG"
+
       - name: Install locked dependencies without a release cache
         run: vp install --frozen-lockfile
+
+      - name: Verify isolated release tooling
+        run: |
+          vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
+          vp node --test .github/release-tools/test.cjs
 
       - name: Verify and build distribution
         run: |
@@ -82,6 +93,7 @@ jobs:
           npm pack --ignore-scripts --json --pack-destination release-assets > release-assets/pack.json
           vp node scripts/release.ts package release-assets/pack.json
           cp dist/naka.js dist/naka.min.js release-assets/
+          vp node scripts/release.ts artifacts release-assets
 
       - name: Upload verified release artifacts
         id: artifact
@@ -128,11 +140,12 @@ jobs:
       - name: Publish or verify an identical existing version
         run: |
           node scripts/release.ts package release-assets/pack.json
+          TARBALL=$(node scripts/release.ts artifacts release-assets)
           STATUS=$(node scripts/release.ts status release-assets/pack.json)
           if [ "$STATUS" = identical ]; then
             echo "The identical package is already on npm; skipping publish."
           else
-            npm publish ./release-assets/*.tgz --access public --provenance --ignore-scripts
+            npm publish "./release-assets/$TARBALL" --access public --provenance --ignore-scripts
           fi
 
   github-release:
@@ -144,6 +157,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout verified commit for release guards
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.commit }}
+          persist-credentials: false
+
+      - name: Setup pinned Node without project dependencies
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
       - name: Download verified artifacts from this run
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -151,14 +176,10 @@ jobs:
           path: release-assets
           merge-multiple: true
 
-      - name: Create or update GitHub Release
+      - name: Verify assets and publish GitHub draft preserving its notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+          EXPECTED_SHA: ${{ needs.build.outputs.commit }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release-assets/naka.js release-assets/naka.min.js release-assets/*.tgz --clobber
-          else
-            gh release create "$RELEASE_TAG" release-assets/naka.js release-assets/naka.min.js release-assets/*.tgz \
-              --verify-tag --title "$RELEASE_TAG" --generate-notes
-          fi
+          node scripts/release.ts package release-assets/pack.json
+          node .github/release-tools/github.cjs

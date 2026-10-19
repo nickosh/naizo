@@ -35,6 +35,11 @@ jobs:
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
+      - name: Verify isolated release tooling
+        run: |
+          vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
+          vp node --test .github/release-tools/test.cjs
+
       - name: Run format, lint, and type-check (vp check)
         run: vp check
 

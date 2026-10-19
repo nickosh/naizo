@@ -1,0 +1,52 @@
+name: Prepare release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Recover an existing release tag; leave blank to explicitly prepare/refresh a release PR'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-preparation
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: write
+    steps:
+      - name: Checkout pushed history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup pinned VP environment without project dependencies
+        uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          version-file: package.json
+          node-version-file: .node-version
+          cache: false
+          run-install: false
+
+      - name: Install isolated locked release tooling without lifecycle scripts
+        run: vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
+
+      - name: Check merges, explicitly prepare, or recover publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: vp node .github/release-tools/run.cjs

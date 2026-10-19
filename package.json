@@ -27,7 +27,8 @@
     "dist/naka.min.js",
     "dist/index.mjs",
     "dist/index.d.mts",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "type": "module",
   "main": "./dist/index.mjs",

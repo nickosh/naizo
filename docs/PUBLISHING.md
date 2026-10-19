@@ -30,13 +30,15 @@ The commands below use **fish shell** syntax. Run them from the repository root,
    vp install --frozen-lockfile
    vp check
    vp test
+   vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
+   vp node --test .github/release-tools/test.cjs
    vp pack
    vp node --check dist/naka.js
    vp node --check dist/naka.min.js
    git diff --exit-code dist/naka.js
    ```
 
-3. Pack once, inspect the manifest, and publish that exact tarball. Fish uses `set RELEASE_DIR (mktemp -d)` to create a temporary directory and store its path. Keep these commands in the same fish session so `RELEASE_DIR` stays available; it does not need to be exported. The manifest guard requires exactly `LICENSE`, `README.md`, `package.json`, and the four distribution files.
+3. Pack once, inspect the manifest, and publish that exact tarball. Fish uses `set RELEASE_DIR (mktemp -d)` to create a temporary directory and store its path. Keep these commands in the same fish session so `RELEASE_DIR` stays available; it does not need to be exported. The manifest guard requires exactly eight public files: `CHANGELOG.md`, `LICENSE`, `README.md`, `package.json`, and the four distribution files. Private release tooling is excluded.
 
    ```fish
    set RELEASE_DIR (mktemp -d)
@@ -74,19 +76,67 @@ Enter only the filename, not `.github/workflows/release.yml`. Newly configured p
 
 After the first successful OIDC publication, set npm **Publishing access → Require two-factor authentication and disallow tokens**. Trusted publishing continues to work with this setting. Remove any obsolete npm publish tokens or GitHub `NPM_TOKEN` secret; this workflow does not use them.
 
+## Enable explicit release preparation
+
+Before activation, enable repository **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. Preparation uses only the built-in `GITHUB_TOKEN`; no PAT, GitHub App, or stored npm token is required. Bot-created PR checks may need **Approve workflows to run**. Check that all required verification has completed before merging. GitHub normally suppresses new runs caused by `GITHUB_TOKEN`, so preparation explicitly dispatches the publisher with `workflow_dispatch`. See [GitHub's trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+
+Complete both parts of the manual `v0.1.0` bootstrap above before requesting another release. The manifest starts at `0.1.0`; the adapter checks for the public GitHub release and npm package before calling Release Please. Configure the npm trusted publisher for **`release.yml`**, not `prepare-release.yml`, when the next version is ready.
+
 ## Subsequent stable releases
 
-Update `package.json` locally (for example, `npm version minor --no-git-tag-version`), build and verify, and commit the reviewed change through the normal repository workflow. Once that version's commit is on `main`, create and push its annotated `vMAJOR.MINOR.PATCH` tag. The workflow no longer bumps versions, commits, or creates tags itself; this supersedes the original one-click bump inputs.
+Ordinary pushes check for a merged release PR but **do not create or refresh one**. Request preparation explicitly from **Actions → Prepare release → Run workflow**, select **main**, and leave `release_tag` blank. Equivalent fish command:
 
-Use either entry point:
+```fish
+gh workflow run prepare-release.yml --ref main
+```
 
-- Run **Actions → Release** from the version tag (select it in the workflow ref selector) with the same tag input and `publish_npm` checked. This publishes to npm and then creates or updates the GitHub Release.
-- Publish a GitHub Release in the UI against an existing tag. The `release: published` event verifies, publishes to npm, and attaches the assets. If npm fails, the UI-created release already exists; rerun the failed workflow after correcting configuration.
+Release Please 17.11.2 opens or refreshes one release PR updating `package.json`, `.release-please-manifest.json`, and `CHANGELOG.md`. Conventional Commits since the previous release determine the version: before `1.0.0`, `fix:` bumps patch, while `feat:` and breaking changes bump minor. Requests with no releasable changes succeed without a PR. Review the proposed version, changelog, and checks, then merge the release PR. Its merge starts verification and publication automatically.
 
-The workflow accepts stable versions only, requires the tag's commit to belong to `main`, requires the workflow run's commit to equal that tag for accurate provenance, and requires the tag to match `package.json`. It installs locked dependencies without a release cache, runs checks/tests/build, audits the npm file manifest, and transfers the resulting tarball by artifact ID to a separate OIDC job. That job installs no project dependencies and publishes with lifecycle scripts disabled. Only the final GitHub Release job has repository write permission.
+For an explicit stable version, put a `Release-As:` footer in a Conventional Commit. For example, run this after staging the intended changes, then deliver the commit through the normal reviewed contributor workflow:
 
-Retries skip npm publication only when the registry's existing version has the same SHA-512 integrity as the built tarball. A registry/network failure or differing package fails the run. Never move a version tag to repair a published package; use a new version for changed content. The manually published `0.1.0` is bootstrapped with npm publishing disabled because local and CI toolchain differences can produce different tarball bytes.
+```fish
+git commit -m "chore: prepare the stable API release" -m "Finalize the reviewed public API and release notes for the stable package." -m "Release-As: 1.0.0"
+```
+
+When this commit enters `main`, the preparation workflow reads every commit newly introduced by that push. A valid footer requests preparation; malformed values, prereleases, and build metadata are rejected. Use a version greater than the previous release. A footer already present before the push does not retrigger preparation. If you squash a contributor PR, keep the footer in the resulting commit message.
+
+An existing release PR stays unchanged on later ordinary pushes. Run **Prepare release** again with the blank input to explicitly refresh it before merging if later changes should be included. Keep its version and changelog aligned with the intended source: the release tag points to the merged release PR commit, including preceding changes on `main`.
+
+On merge, Release Please immediately creates a plain `vMAJOR.MINOR.PATCH` tag and a **draft** GitHub release. Preparation resolves the tag's exact commit, checks its source and release metadata, and dispatches **`release.yml` at that tag** with `expected_sha`. The preparation job has repository/PR/label/workflow permissions and no npm identity. Only the isolated npm publish job has `id-token: write`.
+
+The publisher requires a stable tag belonging to `main`, equality between the tag and workflow commit, equality to the supplied expected SHA, and the matching package version. It installs locked dependencies without a release cache, runs checks/tests/build, audits the eight-file npm manifest, and transfers one verified tarball by artifact ID. The OIDC job installs no project dependencies, verifies the tarball hash and bundle bytes, and publishes with lifecycle scripts disabled. After npm succeeds, the asset job attaches `naka.js`, `naka.min.js`, and the tarball, then publishes the draft while preserving Release Please's notes.
+
+## Recovery and manual tagged releases
+
+An unfinished stable draft blocks new preparation. Correct the failed configuration or service issue, then recover its existing tag from **Prepare release** using `release_tag`, for example:
+
+```fish
+gh workflow run prepare-release.yml --ref main -f release_tag=v0.2.0
+```
+
+Recovery validates the existing tag, GitHub release, exact commit, and membership in `main`, then dispatches publication at that tag with the expected SHA. This handles failures after draft/tag creation, after npm publication, or during asset attachment. Preparation recovery always enables npm publishing; for an interrupted local `v0.1.0` bootstrap, rerun **Release** at that tag with `publish_npm=false` instead. A failed handoff before the draft exists can be retried by rerunning the preparation workflow; once the draft exists, use recovery.
+
+Retries skip npm publication only when the registry's existing version has the same SHA-512 integrity as the verified tarball. Matching GitHub assets are reused and missing assets are uploaded. Differing package integrity or asset bytes fail; assets are never overwritten. Registry/network errors fail rather than being treated as an absent version. Never move a version tag to repair a published package; changed content needs a new version. Inspect unexpected assets before deciding how to resolve a conflict.
+
+The existing manual entry points remain available:
+
+- Run **Actions → Release** from the version tag, with the same `tag`, `publish_npm` checked, and optionally the full `expected_sha` for additional source validation. For example: `gh workflow run release.yml --ref v0.2.0 -f tag=v0.2.0 -f expected_sha=FULL_COMMIT_SHA -F publish_npm=true`.
+- Publish a GitHub Release in the UI against an existing stable tag. The `release: published` event verifies, publishes to npm, and attaches assets. If npm fails, this manually published GitHub release already exists; rerun the failed workflow after correcting configuration.
+- For the local first-publish bootstrap only, use `v0.1.0` with `publish_npm=false` as described above. The workflow confirms that npm already has `nakajs@0.1.0` and rejects this bypass for other tags. Local and CI toolchain differences can produce different tarball bytes.
+
+Remote settings, interactive bootstrap, and a live automated release are owner rollout steps. Local tooling tests validate logic with fixtures and the pinned updater; they do not validate GitHub permissions or npm OIDC credentials.
 
 For an authentication failure, check the exact owner/repository/workflow fields, publisher expiry, direct-publish permission, and that the job runs on a GitHub-hosted runner. The workflow uses Node 24 and npm 11, exceeding npm's OIDC minimums of Node 22.14.0 and npm 11.5.1. `npm whoami` checks interactive credentials and is not an OIDC test. [npm troubleshooting](https://docs.npmjs.com/trusted-publishers/)
 
 The action references are pinned to reviewed commit IDs and kept current by weekly Dependabot updates. CI, Pages, and release builds use `setup-vp`, which reads the Vite+ version from `package.json`, Node from `.node-version`, and pnpm from `packageManager`. `pnpm-workspace.yaml` delegates environment management to VP and records resolution policy in the lockfile; pnpm 12.14.0 is required to interpret this configuration consistently. CI/Pages cache package-manager data; release builds disable that cache. The publishing job reads `.node-version` with `setup-node`, installs no project dependencies, and uses npm 11 for OIDC. Publication outcomes belong to npm and GitHub Releases/tags, not project memory documents.
+
+## Maintain release tooling locally
+
+Use VP-managed Node for the private tooling package and install its separate npm lockfile with lifecycle scripts disabled:
+
+```fish
+vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
+vp node --test .github/release-tools/test.cjs
+```
+
+The exact Release Please dependency and its lockfile live in `.github/release-tools/`; they are not runtime dependencies or npm distribution files. Root dependencies remain managed by pnpm through VP. Review dependency changes together with the real-updater regression tests.
