@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Pinned the VP environment and standardized local commands (D30)
+
+- Done: added `.node-version` (24.22.0), `packageManager` (pnpm 9.15.9), exact Vite+ 1.3.0, and a lockfile normalized by the pinned pnpm with unchanged resolved package versions; switched CI/Pages/release builds to pinned `setup-vp` and direct VP commands. Updated `AGENTS.md`, README, and publishing instructions.
+- Decided: `D30` makes VP the main local development entry point and project declarations the shared environment source, preserving user-global defaults, existing Vite configuration, native npm registry operations, and isolated OIDC publishing permissions. Reconciled `PLAN.md` (`M7.4`); product/runtime edge-case contracts are unchanged.
+- Verified: `vp env current` / `vp env doctor`, exact Node/pnpm execution, `vp install --frozen-lockfile`, `vp check`, `vp test` (11/11), `vp pack`, bundle syntax/freshness, npm file audit, embedded JSON, actionlint/source-selection probes, local links, and whitespace checks. Live GitHub execution of `setup-vp` was not run.
+- Next: validate the updated setup in CI, then continue `M4.1` for the in-memory store and synchronous boot.
+
 ## 2026-10-19 — Modernized CI/CD and documented npm bootstrap (D29)
 
 - Done: added prepared-tag release validation, isolated build/OIDC/GitHub Release jobs, exact npm file allowlist and retry-integrity guards, Node 24 / pnpm 9.15.9, reviewed action pins with Dependabot maintenance, job-scoped Pages permissions, and `docs/PUBLISHING.md`; narrowed npm packaging to the four distribution files plus README and automatic metadata/license files.

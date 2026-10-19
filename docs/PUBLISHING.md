@@ -4,13 +4,15 @@ The first interactive npm publication creates the package. Later releases use np
 
 ## First version: `0.1.0`
 
-1. Create an [npm account](https://www.npmjs.com/signup), verify its email address, and enable two-factor authentication. Use Node.js 24 and npm 11 locally. Make the workflow changes available on GitHub's `main`, then work from the same clean checkout that will receive the version tag. These commands publish the real library; no placeholder package or separate website creation step is needed.
+1. Create an [npm account](https://www.npmjs.com/signup), verify its email address, and enable two-factor authentication. Install the [global Vite+ CLI](https://viteplus.dev/guide/global-cli) with environment management enabled. VP reads Node 24.22.0 from `.node-version` and pnpm 9.15.9 from `package.json#packageManager`; the pinned Node includes npm 11. Use VP for local installation, checks, builds, and scripts, and native npm for registry login, package manifests, and publication. Make the workflow changes available on GitHub's `main`, then work from the same clean checkout that will receive the version tag. These commands publish the real library; no placeholder package or separate website creation step is needed.
 
    ```sh
    git switch main
    git pull --ff-only
    git status --short
-   node --version
+   vp env install
+   vp env current
+   vp node --version
    npm --version
    npm login --registry=https://registry.npmjs.org
    npm whoami --registry=https://registry.npmjs.org
@@ -19,16 +21,16 @@ The first interactive npm publication creates the package. Later releases use np
 
    The status output should be empty. `npm view` returning `E404` means there is no public package under this name; other errors need investigation. If it returns someone else's package, choose an available name or a scoped name and update package metadata, release guards, and CDN links first. Do not proceed under another maintainer's package name.
 
-2. Verify `package.json` is at `0.1.0`, install the locked dependencies with pnpm 9.15.9, and build. Using `pnpm exec` ensures the repository's Vite+ tools run.
+2. Verify `package.json` is at `0.1.0`, install the locked dependencies through VP, and build. The global CLI delegates development commands to the project's exact Vite+ 1.3.0 toolchain.
 
    ```sh
-   node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version"
-   npm exec --yes --package=pnpm@9.15.9 -- pnpm install --frozen-lockfile
-   pnpm exec vp check
-   pnpm exec vp test
-   pnpm exec vp pack
-   node --check dist/naka.js
-   node --check dist/naka.min.js
+   vp node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version"
+   vp install --frozen-lockfile
+   vp check
+   vp test
+   vp pack
+   vp node --check dist/naka.js
+   vp node --check dist/naka.min.js
    git diff --exit-code dist/naka.js
    ```
 
@@ -37,7 +39,7 @@ The first interactive npm publication creates the package. Later releases use np
    ```sh
    RELEASE_DIR=$(mktemp -d)
    npm pack --ignore-scripts --json --pack-destination "$RELEASE_DIR" > "$RELEASE_DIR/pack.json"
-   node scripts/release.ts package "$RELEASE_DIR/pack.json"
+   vp node scripts/release.ts package "$RELEASE_DIR/pack.json"
    cat "$RELEASE_DIR/pack.json"
    npm publish "$RELEASE_DIR/nakajs-0.1.0.tgz" --access public --ignore-scripts --registry=https://registry.npmjs.org
    npm view nakajs@0.1.0 version dist.integrity --registry=https://registry.npmjs.org
@@ -85,4 +87,4 @@ Retries skip npm publication only when the registry's existing version has the s
 
 For an authentication failure, check the exact owner/repository/workflow fields, publisher expiry, direct-publish permission, and that the job runs on a GitHub-hosted runner. The workflow uses Node 24 and npm 11, exceeding npm's OIDC minimums of Node 22.14.0 and npm 11.5.1. `npm whoami` checks interactive credentials and is not an OIDC test. [npm troubleshooting](https://docs.npmjs.com/trusted-publishers/)
 
-The action references are pinned to reviewed commit IDs and kept current by weekly Dependabot updates. CI and Pages use Node 24 and pnpm 9.15.9; their dependency caches remain separate from uncached release builds. Publication outcomes belong to npm and GitHub Releases/tags, not project memory documents.
+The action references are pinned to reviewed commit IDs and kept current by weekly Dependabot updates. CI, Pages, and release builds use `setup-vp`, which reads the Vite+ version from `package.json`, Node from `.node-version`, and pnpm from `packageManager`. CI/Pages cache package-manager data; release builds disable that cache. The publishing job reads `.node-version` with `setup-node`, installs no project dependencies, and uses npm 11 for OIDC. Publication outcomes belong to npm and GitHub Releases/tags, not project memory documents.

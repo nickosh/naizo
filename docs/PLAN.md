@@ -6,7 +6,7 @@ Versions in this document identify planned feature scope and compatibility. Task
 
 ## Current state and next action
 
-`M0`, `M1`, `M2`, `M3`, and `M7` are complete (`v0.1.0` core runtime in `src/index.ts` and browser IIFE entry `src/iife.ts`, tracked `dist/naka.js` artifact plus build-emitted `dist/naka.min.js` (`D17`, `D28`), `site/index.html` playground, `examples/starter.html` and `examples/checklist.html` starter templates, Vite+ `vp check` / `vp test` / `vp pack` pipeline, 11/11 passing tests across `tests/naka.test.ts` and `tests/release.test.ts`, and locally verified CI, Pages, and npm OIDC release workflows (`D29`; live GitHub/npm account integration is not covered by local checks)).
+`M0`, `M1`, `M2`, `M3`, and `M7` are complete (`v0.1.0` core runtime in `src/index.ts` and browser IIFE entry `src/iife.ts`, tracked `dist/naka.js` artifact plus build-emitted `dist/naka.min.js` (`D17`, `D28`), `site/index.html` playground, `examples/starter.html` and `examples/checklist.html` starter templates, Vite+ `vp check` / `vp test` / `vp pack` pipeline, 11/11 passing tests across `tests/naka.test.ts` and `tests/release.test.ts`, and locally verified CI, Pages, and npm OIDC release workflows with a project-pinned VP environment (`D29`, `D30`; live GitHub/npm account integration is not covered by local checks)).
 
 Next action: implement `M4.1`–`M4.4` in sequence (`M4.1` in-memory store, synchronous boot, and `O(1)` event-targeted capture; `M4.2` surgical `#nakadb` disk sync, live `file.lastModified` watch, shallow top-level key merge, and truthful status pill UX with `Naka.copyJSON()`; `M4.3` element bindings, list repeater polish, and public `window.Naka` API; `M4.4` automated regression verification and edge-case closure).
 
@@ -44,7 +44,7 @@ Next action: implement `M4.1`–`M4.4` in sequence (`M4.1` in-memory store, sync
   - Moved root `index.html` into `site/index.html` and configured `vite.config.ts` dev/build paths.
   - Added clean, copy-ready starter HTML artifacts in `examples/` (`examples/starter.html`, `examples/checklist.html`) using wrapping `<label>` elements (`EC39`) and explicit `naka` / `naka-list` bindings, verified in `tests/naka.test.ts`.
 
-## M7 — CI/CD & maintainer-controlled CDN release workflows (`D10`, `D11`, `D17`, `D28`, `D29`) ✅ done 2026-10-19
+## M7 — CI/CD & maintainer-controlled CDN release workflows (`D10`, `D11`, `D17`, `D28`, `D29`, `D30`) ✅ done 2026-10-19
 
 Sequenced immediately after `M3` (`D28`) so the current working `v0.1.0` package (`dist/naka.js`, `dist/naka.min.js`, `dist/index.mjs`, `dist/index.d.mts`, `site/index.html`, and `examples/`) has verification and distribution workflows before `M4` modifies the core runtime. `D29` subsequently modernizes release authentication and source selection without changing that sequence.
 
@@ -52,6 +52,8 @@ Sequenced immediately after `M3` (`D28`) so the current working `v0.1.0` package
 - [x] **M7.2 — Maintainer-controlled CDN release workflow & `dist/naka.min.js` build target (`.github/workflows/release.yml`, `vite.config.ts`, `package.json`)** (landed 2026-10-19): added `dist/naka.min.js` (`minify: true`, ~4.68 KB gzipped, untracked in Git per `D17` / `D28`) to `vite.config.ts` (`vp pack`) and `package.json` `exports`, and created `.github/workflows/release.yml` supporting both manual `workflow_dispatch` (`current`, `patch`, `minor`, `major`, or `custom` version to run verification, tag, and create a GitHub Release with `dist/naka.js` and `dist/naka.min.js` attached) and `release: types: [published]` to publish `nakajs` to npm (`jsDelivr` and `unpkg`).
 
 - [x] **M7.3 — Modern CI/CD and first-publish instructions (`D29`)** (landed 2026-10-19): superseded `M7.2`'s version-bump inputs with prepared stable tags, package/tag/workflow-source checks, isolated build/OIDC/GitHub Release jobs, npm tarball allowlist and integrity checks, Node 24 / pnpm 9.15.9, action commit pins with Dependabot maintenance, and job-scoped Pages permissions. Added `scripts/release.ts`, four regression tests, and `docs/PUBLISHING.md`. Verified the locked install on pnpm 9.15.9, Node 24 checks/tests/build (11/11), package audit and unauthenticated publish dry-run, workflow lint/source-selection probes, bundle syntax/freshness, and JSON/link/whitespace checks locally. Live GitHub Actions, npm authentication/OIDC, and Pages deployment were not run.
+
+- [x] **M7.4 — Shared VP environment pins and local workflow (`D30`)** (landed 2026-10-19): pinned Node 24.22.0 in `.node-version`, pnpm 9.15.9 in `packageManager`, and the Vite+ 1.3.0 dependency; normalized the lockfile with the pinned pnpm without upgrading package versions. Replaced separate build-job Node/pnpm setup with commit-pinned `setup-vp`, kept the isolated npm publishing job, and aligned contributor/publishing instructions with direct VP commands. Verified VP environment resolution/doctor, frozen install, check/test/build (11/11), bundle syntax/freshness, package audit, embedded JSON, workflow lint/source-selection probes, local links, and whitespace. Live execution of the changed CI setup was not run.
 
 ## M4 — Core runtime re-architecture & hardening (`D12`–`D17`, `D21`–`D28`, `EC02`, `EC04`, `EC06`–`EC40`)
 

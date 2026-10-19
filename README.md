@@ -112,7 +112,7 @@ Several tools explore reactive HTML, declarative persistence, or self-saving sin
 
 ## Development (`Vite+`)
 
-This repository uses [Vite+](https://viteplus.dev/) (`vp` CLI) configured via `vite.config.ts`:
+Use the [global Vite+ CLI](https://viteplus.dev/guide/global-cli) (`vp`) for local development. VP reads the project pins automatically: Node **24.22.0** from `.node-version`, pnpm **9.15.9** from `package.json#packageManager`, and the local Vite+ toolchain **1.3.0** from `package.json` / `pnpm-lock.yaml`. Build, lint, format, and test settings live in `vite.config.ts`.
 
 ```bash
 vp install  # Install dependencies
@@ -120,7 +120,11 @@ vp dev      # Start Vite dev server (http://localhost:3000)
 vp check    # Run Oxfmt, Oxlint, and type-checking together
 vp test     # Run Vitest unit/DOM suite
 vp pack     # Bundle library outputs via tsdown
+vp node scripts/release.ts version v0.1.0 # Run a script with the pinned Node.js
+vp env current # Inspect the resolved Node.js and package-manager versions
 ```
+
+`vp install --frozen-lockfile` reproduces the locked dependency installation. VP provisions missing managed versions as needed; use `vp env doctor` to diagnose environment selection. Refresh the project pins deliberately with `vp env pin <node-version> --target node-version` and `vp env pin pnpm@<version> --target package-manager`, then verify and commit the changes. CI uses the same declarations through `setup-vp`; the npm publishing job reads `.node-version` directly and keeps its separate, dependency-free npm OIDC setup.
 
 For the first npm publication, token-free GitHub Actions setup, and subsequent versioned releases, see the [publishing guide](https://github.com/nickosh/nakajs/blob/main/docs/PUBLISHING.md).
 

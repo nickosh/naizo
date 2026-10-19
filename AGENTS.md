@@ -64,6 +64,8 @@ At the end of each state-changing session, independently useful development slic
 
 This repository uses [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) configured in [vite.config.ts](vite.config.ts):
 
+Prefer the global `vp` CLI for local development. Project environment pins live in [`.node-version`](.node-version) (Node 24.22.0), [`package.json`](package.json) (`packageManager: pnpm@9.15.9`, exact `vite-plus: 1.3.0`), and the lockfile. Use `vp env current` / `vp env doctor` to inspect resolution and `vp node` for Node scripts. Change project pins with `vp env pin`; keep CI reading those declarations and avoid changing user-global defaults. Native npm commands remain appropriate for the registry-specific publication flow in [docs/PUBLISHING.md](docs/PUBLISHING.md).
+
 - `vp install` — install dependencies
 - `vp check` — format (`Oxfmt`), lint (`Oxlint`), and type-check (`tsgolint`) in one pass
 - `vp test` — run Vitest suite (`tests/**/*.test.ts`)
