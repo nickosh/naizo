@@ -13,7 +13,15 @@
     "self-saving-html"
   ],
   "license": "MIT",
-  "author": "",
+  "author": "Nikolay Shishov (https://github.com/nickosh)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickosh/nakajs.git"
+  },
+  "homepage": "https://github.com/nickosh/nakajs#readme",
+  "bugs": {
+    "url": "https://github.com/nickosh/nakajs/issues"
+  },
   "files": [
     "dist",
     "README.md"

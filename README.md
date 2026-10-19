@@ -48,7 +48,7 @@ Or copy a starter template from [`examples/starter.html`](examples/starter.html)
   <script id="nakadb" type="application/json">
     { "_meta": {}, "fields": {}, "lists": {}, "custom": {} }
   </script>
-  <script src="https://cdn.jsdelivr.net/gh/YOUR_USERNAME/nakajs@main/dist/naka.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/gh/nickosh/nakajs@main/dist/naka.js" defer></script>
 </head>
 ```
 
