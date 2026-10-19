@@ -12,18 +12,21 @@
     "nakajs",
     "self-saving-html"
   ],
+  "homepage": "https://github.com/nickosh/nakajs#readme",
+  "bugs": {
+    "url": "https://github.com/nickosh/nakajs/issues"
+  },
   "license": "MIT",
   "author": "Nikolay Shishov (https://github.com/nickosh)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nickosh/nakajs.git"
   },
-  "homepage": "https://github.com/nickosh/nakajs#readme",
-  "bugs": {
-    "url": "https://github.com/nickosh/nakajs/issues"
-  },
   "files": [
-    "dist",
+    "dist/naka.js",
+    "dist/naka.min.js",
+    "dist/index.mjs",
+    "dist/index.d.mts",
     "README.md"
   ],
   "type": "module",
@@ -54,6 +57,7 @@
     "prepublishOnly": "vp pack"
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "jsdom": "^26.1.0",
     "typescript": "^5.8.3",
     "vite-plus": "^1.3.0"

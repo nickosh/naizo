@@ -3,149 +3,166 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      bump:
-        description: 'Version target (use "current" for initial v0.1.0 or when package.json is already bumped)'
+      tag:
+        description: 'Existing stable version tag (must match package.json and belong to main)'
         required: true
-        type: choice
-        default: current
-        options:
-          - current
-          - patch
-          - minor
-          - major
-          - custom
-      custom_version:
-        description: 'Explicit semver (e.g. 0.1.0 or 0.2.0) when bump is "custom"'
-        required: false
         type: string
+        default: v0.1.0
       publish_npm:
-        description: 'Publish package to npm (populates jsDelivr and unpkg)'
+        description: 'Publish through npm Trusted Publishing (disable for the local first-publish bootstrap)'
         required: true
         type: boolean
         default: true
   release:
-    types:
-      - published
+    types: [published]
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
+env:
+  RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+
 jobs:
-  release:
-    name: Verify, Tag, GitHub Release & Publish
+  build:
+    name: Verify tagged source and pack once
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 24
+          package-manager-cache: false
 
-      - name: Install dependencies
+      - name: Validate and select exact tagged source
+        id: source
+        run: |
+          node scripts/release.ts tag "$RELEASE_TAG"
+          COMMIT=$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")
+          WORKFLOW_COMMIT=$(git rev-parse --verify "${GITHUB_SHA}^{commit}")
+          if [ "$COMMIT" != "$WORKFLOW_COMMIT" ]; then
+            echo "::error::Run this workflow from the version tag so npm provenance identifies the published source."
+            exit 1
+          fi
+          git merge-base --is-ancestor "$COMMIT" origin/main
+          git checkout --detach "$COMMIT"
+          node scripts/release.ts version "$RELEASE_TAG"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 9.15.9
+          cache: false
+
+      - name: Install locked dependencies without a release cache
         run: pnpm install --frozen-lockfile
 
-      - name: Add local bin to PATH
-        run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
-
-      - name: Run verification suite (vp check, vp test, vp pack)
+      - name: Verify and build distribution
         run: |
-          vp check
-          vp test
-          vp pack
+          pnpm exec vp check
+          pnpm exec vp test
+          pnpm exec vp pack
           node --check dist/naka.js
           node --check dist/naka.min.js
           git diff --exit-code dist/naka.js
 
-      - name: Resolve version and create GitHub Release (workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        id: cut_release
+      - name: Pack and validate exact publishable files
+        run: |
+          mkdir release-assets
+          npm pack --ignore-scripts --json --pack-destination release-assets > release-assets/pack.json
+          node scripts/release.ts package release-assets/pack.json
+          cp dist/naka.js dist/naka.min.js release-assets/
+
+      - name: Upload verified release artifacts
+        id: artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish exact tarball with npm OIDC
+    needs: build
+    if: github.event_name == 'release' || inputs.publish_npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout verified commit for release guards
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.commit }}
+          persist-credentials: false
+
+      - name: Setup Node.js for npm Trusted Publishing
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Ensure an OIDC-capable npm CLI
+        run: npm install --global npm@11 --ignore-scripts
+
+      - name: Download verified artifacts from this run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish or verify an identical existing version
+        run: |
+          node scripts/release.ts package release-assets/pack.json
+          STATUS=$(node scripts/release.ts status release-assets/pack.json)
+          if [ "$STATUS" = identical ]; then
+            echo "The identical package is already on npm; skipping publish."
+          else
+            npm publish ./release-assets/*.tgz --access public --provenance --ignore-scripts
+          fi
+
+  github-release:
+    name: Attach verified assets to GitHub Release
+    needs: [build, publish]
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified artifacts from this run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_BUMP: ${{ inputs.bump }}
-          INPUT_CUSTOM: ${{ inputs.custom_version }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-
-          if [ "$INPUT_BUMP" = "current" ]; then
-            TARGET_VERSION="$CURRENT_VERSION"
-          elif [ "$INPUT_BUMP" = "custom" ]; then
-            if [ -z "$INPUT_CUSTOM" ]; then
-              echo "::error::custom_version input is required when bump is 'custom'"
-              exit 1
-            fi
-            TARGET_VERSION="${INPUT_CUSTOM#v}"
-            if [ "$TARGET_VERSION" != "$CURRENT_VERSION" ]; then
-              npm version "$TARGET_VERSION" --no-git-tag-version
-            fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/naka.js release-assets/naka.min.js release-assets/*.tgz --clobber
           else
-            npm version "$INPUT_BUMP" --no-git-tag-version
-            TARGET_VERSION=$(node -p "require('./package.json').version")
+            gh release create "$RELEASE_TAG" release-assets/naka.js release-assets/naka.min.js release-assets/*.tgz \
+              --verify-tag --title "$RELEASE_TAG" --generate-notes
           fi
-
-          if ! git diff --quiet package.json; then
-            vp pack
-            git add package.json dist/naka.js
-            git commit -m "chore(release): v${TARGET_VERSION}" -m "Bump package version to ${TARGET_VERSION} for release."
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-
-          TAG="v${TARGET_VERSION}"
-          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
-            git tag -a "$TAG" -m "Release ${TAG}"
-            git push origin "$TAG"
-          fi
-
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/naka.js dist/naka.min.js --clobber
-          else
-            gh release create "$TAG" dist/naka.js dist/naka.min.js \
-              --title "$TAG" \
-              --generate-notes
-          fi
-
-          echo "version=${TARGET_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Attach dist/naka.js and dist/naka.min.js on manual GitHub Release publish
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ github.event.release.tag_name }}" dist/naka.js dist/naka.min.js --clobber
-
-      - name: Publish to npm (populates jsDelivr and unpkg)
-        if: ${{ github.event_name == 'release' || inputs.publish_npm }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::warning::NPM_TOKEN secret is not set; skipping npm publish. GitHub Release and gh CDN tags are live."
-            exit 0
-          fi
-          PKG_NAME=$(node -p "require('./package.json').name")
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
-            echo "${PKG_NAME}@${PKG_VERSION} is already published on npm; skipping."
-            exit 0
-          fi
-          npm publish --access public --provenance

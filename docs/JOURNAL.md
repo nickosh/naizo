@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Modernized CI/CD and documented npm bootstrap (D29)
+
+- Done: added prepared-tag release validation, isolated build/OIDC/GitHub Release jobs, exact npm file allowlist and retry-integrity guards, Node 24 / pnpm 9.15.9, reviewed action pins with Dependabot maintenance, job-scoped Pages permissions, and `docs/PUBLISHING.md`; narrowed npm packaging to the four distribution files plus README and automatic metadata/license files.
+- Decided: `D29` supersedes the earlier automatic version-bump/tag and token-publishing implementation while retaining maintainer-controlled release triggers. Reconciled `PLAN.md` (`M7.3`) and the matching decision history; runtime/product contracts and existing runtime edge cases are unchanged.
+- Verified: locked pnpm 9.15.9 install, Node 24 `vp check`, `vp test` (11/11), `vp pack`, bundle syntax/freshness, seven-file tarball audit, unauthenticated `npm publish --dry-run`, actionlint, source-selection probes, package/embedded JSON validation, local documentation links/references, and whitespace checks. Live GitHub Actions, npm login/publication/OIDC, and Pages deployment were not run.
+- Next: validate the documented account/runner integration when performing a maintainer-controlled release; continue `M4.1` implementation for the in-memory store and synchronous boot.
+
 ## 2026-10-19 — Completed M7 CI/CD & release workflows, added dist/naka.min.js build output, and prepared initial v0.1.0 baseline (D28)
 
 - Decided (owner): recorded `D28` to sequence `M7` (`M7.1`–`M7.2` CI verification, GitHub Pages deployment, and maintainer-controlled release workflows) immediately after `M3` for the initial `v0.1.0` baseline before `M4` re-architects the runtime, and to emit minified `dist/naka.min.js` (`minify: true`, ~4.68 KB gzipped, untracked in Git per `D17`) alongside tracked readable `dist/naka.js` during `vp pack`.

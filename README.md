@@ -122,6 +122,8 @@ vp test     # Run Vitest unit/DOM suite
 vp pack     # Bundle library outputs via tsdown
 ```
 
+For the first npm publication, token-free GitHub Actions setup, and subsequent versioned releases, see the [publishing guide](https://github.com/nickosh/nakajs/blob/main/docs/PUBLISHING.md).
+
 ---
 
 ## License
