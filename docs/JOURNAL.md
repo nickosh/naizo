@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Removed fixed version labels from source and distribution headers
+
+- Done (`M7.7`): removed the hardcoded version from both TypeScript source headers and regenerated readable/minified browser bundles, ESM, and declarations. The tracked readable bundle changes only its header comment; package version and runtime behavior are unchanged.
+- Decided (`D33`): source/generated headers stay versionless, so automated version/changelog bumps need no header edits or bundle commits. Keep release identity in metadata/changelog/tags and retain the tracked-bundle freshness policy. Updated `PLAN.md` acceptance evidence and its current test counts; product/runtime contracts and edge-case statuses are unchanged.
+- Verified: clean VP format/lint/types, 13 project tests, 21 tooling tests, library/site builds, repeat-build freshness, JavaScript syntax, versionless emitted headers, comment-stripped JavaScript equivalence, eight-file npm manifest and actual tarball integrity, package/embedded JSON, actionlint, fish syntax, local links, and whitespace. The existing standalone-script site warning remains nonblocking; live CI/OIDC/publication were not run.
+- Next: continue `M4.1`'s in-memory store and synchronous boot work, keeping the generated readable bundle synchronized with source changes.
+
 ## 2026-10-19 — Implemented explicit release preparation and safe publication recovery
 
 - Done (`M7.6`): added isolated locked Release Please 17.11.2 tooling, explicit manual/footer preparation, real updater regressions, baseline manifest/changelog, draft/tag handoff at the exact SHA, and safe asset recovery. Updated the eight-file npm allowlist, fish guide, and contributor instructions; retained readable/minified bundles and the VP/Node/pnpm pins.

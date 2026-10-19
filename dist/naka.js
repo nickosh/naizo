@@ -587,7 +587,7 @@
 	//#endregion
 	//#region src/iife.ts
 	/**
-	* naka.js v0.1.0 — Browser IIFE Entrypoint
+	* naka.js — Browser IIFE Entrypoint
 	* Attaches window.Naka / window.NakaDB and auto-initializes unless opted out via data-naka-manual / naka-manual.
 	* License: MIT
 	*/

@@ -1,5 +1,5 @@
 /**
- * naka.js v0.1.0 — Self-Persisting HTML Inner Database (#nakadb) & List Repeater
+ * naka.js — Self-Persisting HTML Inner Database (#nakadb) & List Repeater
  * Syncs DOM State & Lists <-> <script id="nakadb" type="application/json"> <-> Local Disk
  * Supports both short `naka` / `naka-*` and HTML5 `data-naka` / `data-naka-*` attributes.
  * License: MIT
