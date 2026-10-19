@@ -6,9 +6,9 @@ Versions in this document identify planned feature scope and compatibility. Task
 
 ## Current state and next action
 
-`M0`, `M1`, `M2`, and `M3` are complete (`v0.1.0` core runtime in `src/index.ts` and browser IIFE entry `src/iife.ts`, tracked `dist/naka.js` artifact with root `naka.js` removed, `site/index.html` playground, `examples/starter.html` and `examples/checklist.html` starter templates, Vite+ `vp check` / `vp test` / `vp pack` pipeline, and 7/7 passing tests in `tests/naka.test.ts`). Following the source/architecture reviews and ecosystem viability analysis on 2026-10-18, the owner adopted `D27` (consolidating `D12`–`D17` and the lean subset of `D21`–`D26` while rejecting `D18`, `D19`, `D20`, `D22` HTML sanitizer, and `D25` adapter/server bloat).
+`M0`, `M1`, `M2`, and `M3` are complete (`v0.1.0` core runtime in `src/index.ts` and browser IIFE entry `src/iife.ts`, tracked `dist/naka.js` artifact with root `naka.js` removed, `site/index.html` playground, `examples/starter.html` and `examples/checklist.html` starter templates, Vite+ `vp check` / `vp test` / `vp pack` pipeline, and 7/7 passing tests in `tests/naka.test.ts`). Following the source/architecture reviews and ecosystem viability analysis on 2026-10-18, the owner adopted `D27` (consolidating `D12`–`D17` and the lean subset of `D21`–`D26` while rejecting `D18`, `D19`, `D20`, `D22` HTML sanitizer, and `D25` adapter/server bloat). On 2026-10-19, the owner adopted `D28` to bring `M7` (`M7.1`–`M7.2` CI/CD & release workflows) immediately after `M3` so the current working library can be verified in CI and cut as the initial `v0.1.0` baseline before `M4` re-architects the runtime (`v0.2.0` target).
 
-Next action: implement `M4.1`–`M4.4` in sequence (`M4.1` in-memory store, synchronous boot, and `O(1)` event-targeted capture; `M4.2` surgical `#nakadb` disk sync, live `file.lastModified` watch, shallow top-level key merge, and truthful status pill UX with `Naka.copyJSON()`; `M4.3` element bindings, list repeater polish, and public `window.Naka` API; `M4.4` automated regression verification and edge-case closure).
+Next action: implement `M7.1` (`.github/workflows/ci.yml` and `.github/workflows/pages.yml`) and `M7.2` (`.github/workflows/release.yml` supporting initial `v0.1.0` release as well as subsequent `patch` / `minor` / `major` and published GitHub Release triggers), then implement `M4.1`–`M4.4` in sequence.
 
 ## M0 — Project definition & foundation ✅ done 2026-10-18
 
@@ -44,9 +44,16 @@ Next action: implement `M4.1`–`M4.4` in sequence (`M4.1` in-memory store, sync
   - Moved root `index.html` into `site/index.html` and configured `vite.config.ts` dev/build paths.
   - Added clean, copy-ready starter HTML artifacts in `examples/` (`examples/starter.html`, `examples/checklist.html`) using wrapping `<label>` elements (`EC39`) and explicit `naka` / `naka-list` bindings, verified in `tests/naka.test.ts`.
 
-## M4 — Core runtime re-architecture & hardening (`D12`–`D17`, `D21`–`D27`, `EC02`, `EC04`, `EC06`–`EC40`)
+## M7 — CI/CD & maintainer-controlled CDN release workflows (`D10`, `D11`, `D17`, `D28`)
 
-Sequence is binding: `M4.1` and `M4.2` establish the in-memory store, event-targeted capture, and surgical `#nakadb` disk sync so `M4.3` bindings and list controls are implemented once on top of the store.
+Sequenced immediately after `M3` (`D28`) so the current working `v0.1.0` package (`dist/naka.js`, `dist/index.mjs`, `dist/index.d.mts`, `site/index.html`, and `examples/`) is verified in CI and ready to cut as the initial `v0.1.0` baseline before `M4` modifies the core runtime.
+
+- [ ] **M7.1 — CI verification & GitHub Pages deployment workflows (`.github/workflows/ci.yml`, `.github/workflows/pages.yml`)**: run `vp install`, `vp check`, `vp test` (which automatically includes the expanded `M4.4` suite once `M4.4` lands), `vp pack`, `node --check dist/naka.js`, and a `dist/naka.js` freshness check (`git diff --exit-code dist/naka.js` after `vp pack`, `D17`) on pushes and pull requests, and stage/deploy `site/` (bundling `dist/naka.js` and `examples/` now, and automatically serving `/llms.txt`, `/llms-full.txt`, `/SKILL.md`, and `CNAME` once `M6.2` lands) to GitHub Pages on `main`.
+- [ ] **M7.2 — Maintainer-controlled CDN release workflow (`.github/workflows/release.yml`)**: support both manual `workflow_dispatch` (accepting `current` / explicit `0.1.0` to tag and release the initial `v0.1.0` baseline without failing when `package.json` is already at the target version, alongside `patch` / `minor` / `major` version bumps that run verification, update `package.json`, tag, and create a GitHub Release with `dist/naka.js` attached) and `release: types: [published]` to publish `nakajs` to npm, automatically populating `jsDelivr` and `unpkg` CDNs.
+
+## M4 — Core runtime re-architecture & hardening (`D12`–`D17`, `D21`–`D28`, `EC02`, `EC04`, `EC06`–`EC40`)
+
+Scheduled after `M7` (`D28`, targeting the next `0.x` release after the initial `v0.1.0` baseline). Internal sequence is binding: `M4.1` and `M4.2` establish the in-memory store, event-targeted capture, and surgical `#nakadb` disk sync so `M4.3` bindings and list controls are implemented once on top of the store.
 
 - [ ] **M4.1 — In-memory store, synchronous boot, and `O(1)` event-targeted capture (`D12`, `D15`, `D21`–`D23`, `D27`; `EC04`, `EC06`, `EC11`, `EC14`–`EC16`, `EC18`–`EC25`, `EC32`–`EC35`, `EC38`)**:
   - Build one in-memory `NakaDatabase` (`{ _meta, fields, lists, custom }`) in `initNaka()`, validating root/bucket shapes (`EC33`) and installing all four buckets from resolved disk or `localStorage` cache before hydrating or firing `naka:hydrate` (`EC32`). If startup `#nakadb` has a JSON syntax error (`EC04`), preserve the raw script text, surface an error state in the status pill, and block automatic write-back until resolved.
@@ -79,8 +86,3 @@ Sequence is binding: `M4.1` and `M4.2` establish the in-memory store, event-targ
 
 - [ ] **M6.1 — Build documentation & interactive demo website (`site/`)**: expand `site/index.html` into the public `naka.js` project site featuring an interactive live demo, `#nakadb` live state viewer, CDN copy snippets, and documentation.
 - [ ] **M6.2 — Add AI-agent discovery endpoints (`/llms.txt`, `/llms-full.txt`, `/SKILL.md`) & `js.org` `CNAME`**: generate/serve `/llms.txt` (concise index and core authoring contract), `/llms-full.txt` (complete single-file documentation and templates for LLM ingestion), and `/SKILL.md` in the built site alongside the `CNAME` file for `js.org` registration.
-
-## M7 — CI/CD & maintainer-controlled CDN release workflows (`D10`, `D11`)
-
-- [ ] **M7.1 — CI verification & GitHub Pages deployment workflows (`.github/workflows/ci.yml`, `.github/workflows/pages.yml`)**: run `vp install`, `vp check`, `vp test`, `vp pack`, the browser-level suite from `M4.4`, and a `dist/naka.js` freshness check (`git diff --exit-code dist/naka.js` after `vp pack`, `D17`) on pushes and pull requests, and deploy the built `site/` directory (including `dist/naka.js`, `/llms.txt`, `/llms-full.txt`, `/SKILL.md`) to GitHub Pages on `main`.
-- [ ] **M7.2 — Maintainer-controlled CDN release workflow (`.github/workflows/release.yml`)**: support both manual `workflow_dispatch` (select `patch` / `minor` / `major` or explicit version to run verification, bump `package.json`, tag, and create a GitHub Release with `dist/naka.js` attached) and `release: types: [published]` to publish `nakajs` to npm, automatically populating `jsDelivr` and `unpkg` CDNs.

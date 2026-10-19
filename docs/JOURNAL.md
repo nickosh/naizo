@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Advanced M7 ahead of M4 to ship initial v0.1.0 baseline (D28)
+
+- Decided (owner): recorded `D28` to bring `M7` (`M7.1`–`M7.2` CI verification, GitHub Pages deployment, and maintainer-controlled release workflows) immediately after `M3` so the current working library is verified in CI and ready to cut as the initial `v0.1.0` milestone before `M4` re-architects the runtime (`v0.2.0` target).
+- Done: reordered `M7` ahead of `M4`–`M6` in `docs/PLAN.md`, decoupled `M7.1` and `M7.2` from later milestones (running current `vp test` in `ci.yml`, staging `site/` + `dist/naka.js` + `examples/` in `pages.yml` with automatic inclusion of `M6.2` endpoints later, and supporting `current` / explicit `0.1.0` on `release.yml` `workflow_dispatch`), and updated `docs/DECISIONS.md` (`D10`, `D12`, `D27`, `D28`).
+- Verified: markdown link/reference review and `git diff --check` pass (`vp check`, `vp test`, and `vp pack` not run for documentation-only planning update).
+- Next: implement `M7.1` (`.github/workflows/ci.yml`, `.github/workflows/pages.yml`) and `M7.2` (`.github/workflows/release.yml`), then proceed to `M4.1`–`M4.4`.
+
 ## 2026-10-18 — Completed M3 repository reorganization, dist/naka.js build pipeline, and starter templates
 
 - Done (`M3.1`, `M3.2`): created dedicated browser IIFE entrypoint `src/iife.ts` (sets `window.Naka` / `window.NakaDB`, honors `data-naka-manual` / `naka-manual` opt-out, and emits no `NakaBundle` global) while making `src/index.ts` (`dist/index.mjs`) side-effect free (`D25`, `EC37`); updated `vite.config.ts` and `package.json` (`main`, `module`, `types`, `unpkg`, `jsdelivr`, `files`, `exports`, `prepublishOnly`) so `vp pack` emits `dist/naka.js`, `dist/index.mjs`, and `dist/index.d.mts`; un-ignored `dist/naka.js` in `.gitignore` (`D17`) and removed drifted root `naka.js` (`EC30`); moved `index.html` to `site/index.html`; added `examples/starter.html` and `examples/checklist.html` using wrapping `<label>` elements (`EC39`); and updated `AGENTS.md`, `README.md`, `docs/PRODUCT.md`, `docs/PLAN.md`, and `docs/EDGE_CASES.md` (promoting `EC37` to `fix` and `EC30` to `PARTIAL`).
