@@ -1,0 +1,7 @@
+# VP owns the project Node.js and package-manager versions.
+runtimeOnFail: ignore
+pmOnFail: ignore
+
+# Record resolution policy alongside the dependency graph for reproducible installs.
+lockfile:
+  includeResolutionSettings: true

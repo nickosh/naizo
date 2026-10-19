@@ -112,7 +112,7 @@ Several tools explore reactive HTML, declarative persistence, or self-saving sin
 
 ## Development (`Vite+`)
 
-Use the [global Vite+ CLI](https://viteplus.dev/guide/global-cli) (`vp`) for local development. VP reads the project pins automatically: Node **24.22.0** from `.node-version`, pnpm **9.15.9** from `package.json#packageManager`, and the local Vite+ toolchain **1.3.0** from `package.json` / `pnpm-lock.yaml`. Build, lint, format, and test settings live in `vite.config.ts`.
+Use the [global Vite+ CLI](https://viteplus.dev/guide/global-cli) (`vp`) for local development. VP reads the project pins automatically: Node **24.22.0** from `.node-version`, pnpm **12.14.0** from `package.json#packageManager`, and the local Vite+ toolchain **1.3.0** from `package.json` / `pnpm-lock.yaml`. Build, lint, format, and test settings live in `vite.config.ts`.
 
 ```bash
 vp install  # Install dependencies
@@ -125,6 +125,8 @@ vp env current # Inspect the resolved Node.js and package-manager versions
 ```
 
 `vp install --frozen-lockfile` reproduces the locked dependency installation. VP provisions missing managed versions as needed; use `vp env doctor` to diagnose environment selection. Refresh the project pins deliberately with `vp env pin <node-version> --target node-version` and `vp env pin pnpm@<version> --target package-manager`, then verify and commit the changes. CI uses the same declarations through `setup-vp`; the npm publishing job reads `.node-version` directly and keeps its separate, dependency-free npm OIDC setup.
+
+`pnpm-workspace.yaml` keeps runtime and package-manager selection with VP (`runtimeOnFail: ignore`, `pmOnFail: ignore`) and records pnpm resolution settings in the lockfile. The file configures this single-package repository; it does not add workspace packages.
 
 For the first npm publication, token-free GitHub Actions setup, and subsequent versioned releases, see the [publishing guide](https://github.com/nickosh/nakajs/blob/main/docs/PUBLISHING.md).
 

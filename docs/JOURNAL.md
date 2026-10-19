@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Upgraded pnpm to 12.14.0 through VP (D31)
+
+- Done: updated the project pnpm pin through VP, retained Node 24.22.0 and Vite+ 1.3.0, added `pnpm-workspace.yaml` with VP-owned environment selection and recorded resolution settings, and refreshed the lockfile without changing any of the 236 resolved dependency versions. Updated `AGENTS.md`, README, and publishing instructions; existing CI inherits the project pin.
+- Decided: `D31` supersedes the pnpm 9 pin in `D30`, preserves default dependency-build protections without new script approvals, and keeps npm publication separate. Reconciled `PLAN.md` (`M7.5`); library/runtime contracts and edge-case statuses are unchanged.
+- Verified: VP environment resolution/doctor, clean CI-mode forced frozen install, `vp check`, `vp test` (11/11), `vp pack`, `vp build`, bundle syntax/freshness, seven-file npm package audit, embedded JSON, actionlint, links/references, and whitespace. The existing Vite+/Vitest alias peer diagnostic and standalone browser-script bundling warning remain; live GitHub/npm execution was not run.
+- Next: validate the inherited pnpm 12 environment in CI, then continue `M4.1` for the in-memory store and synchronous boot.
+
 ## 2026-10-19 — Pinned the VP environment and standardized local commands (D30)
 
 - Done: added `.node-version` (24.22.0), `packageManager` (pnpm 9.15.9), exact Vite+ 1.3.0, and a lockfile normalized by the pinned pnpm with unchanged resolved package versions; switched CI/Pages/release builds to pinned `setup-vp` and direct VP commands. Updated `AGENTS.md`, README, and publishing instructions.
