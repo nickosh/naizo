@@ -276,3 +276,11 @@ Accepted by the owner on 2026-10-19. Supersedes `D17` / `D33` / `D34`'s requirem
 - Require the checkout and current primary-branch SHA to match the planned bundle source before scheduling and around PR writes. If the branch advances, fail with an explicit refresh instruction; the existing PR must be refreshed and verified before merge. Retain the tagged commit/source/version and ancestry checks during publication.
 - Use Release Please's `always-update` option so explicit refreshes replace the bundle even when release notes are unchanged. Ordinary pushes still only check merged release PRs; no-op requests produce no PR or bundle job. The post-build stage only prepares PRs and cannot create a release/tag or dispatch publication.
 - Regular CI builds/tests without a tracked-file comparison. The Release Please PR and tagged publisher enforce readable-bundle freshness; publication never repairs or commits a bundle after tagging. Manual bootstrap or manually prepared tags must contain their rebuilt readable bundle before tagging. The committed bundle can lag current source between releases, while npm/CDN releases contain freshly verified outputs.
+
+## D36 — Retain the unscoped package name and request npm review
+
+Accepted by the owner on 2026-10-19 after npm rejected `nakajs` as too similar to `kafkajs`. Retain the intended `nakajs` package identity and its CDN URLs; request npm Support review before considering a rename. This does not supersede the release automation or authentication decisions.
+
+- A registry lookup returning `E404` does not establish permission to register a name; npm can enforce similarity policy when publication is attempted. Authentication success does not establish publication success.
+- Treat this rejection as an external naming-policy dependency. Token changes, version bumps, or CI changes do not resolve it. npm decides whether a review permits the unscoped name; a replacement identity requires an explicit owner choice and coordinated metadata, release-guard, and documentation changes.
+- Bootstrap instructions require successful npm publication and registry confirmation before tagging. Retry from a clean, verified source and newly packed tarball when source or package contents have changed.

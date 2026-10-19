@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Diagnosed npm package-name similarity rejection
+
+- Done: traced the supplied npm debug log to an `E403` name-similarity rejection after an `E404` lookup and completed browser authentication. Corrected the bootstrap guide's availability/success wording and added a minimal npm Support review request without authentication URLs or identifiers.
+- Decided (`D36`): retain `nakajs` and seek npm's review; no package rename, version bump, or CI change is warranted by this error. Recorded the external naming-policy dependency as `EC44` (`OPEN`); runtime contracts and the implementation plan are unchanged.
+- Verified: reviewed the error evidence against npm's name guidelines and support entry point; local documentation links/references, all eight fish blocks, VP format/lint/types, and whitespace checks passed. Runtime tests/builds and publication were not run for this documentation-only change. Support submission could not proceed past the website's security verification.
+- Next: submit the prepared request through npm Support; use its response to decide whether to retry the verified bootstrap or explicitly choose a replacement package name.
+
 ## 2026-10-19 — Automated tracked browser bundle updates in release PRs
 
 - Done (`M7.9`): explicit release preparation now plans an exact source commit, builds/tests in a read-only job, and transfers the readable bundle by artifact ID into the Release Please PR. Regular CI builds before tests and permits source-only changes; release PRs and tagged publication retain freshness checks. Updated local demo, bootstrap, publishing, product, and contributor guidance.
