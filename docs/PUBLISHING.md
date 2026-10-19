@@ -29,14 +29,16 @@ The commands below use **fish shell** syntax. Run them from the repository root,
    vp node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version"
    vp install --frozen-lockfile
    vp check
+   vp pack
    vp test
    vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
    vp node --test .github/release-tools/test.cjs
-   vp pack
    vp node --check dist/naka.js
    vp node --check dist/naka.min.js
    git diff --exit-code dist/naka.js
    ```
+
+   For this manual first-version bootstrap, the rebuilt readable bundle must match the commit that will be tagged. If the freshness check reports a change, review and commit the generated bundle before continuing. Subsequent Release Please releases update it automatically.
 
 3. Pack once, inspect the manifest, and publish that exact tarball. Fish uses `set RELEASE_DIR (mktemp -d)` to create a temporary directory and store its path. Keep these commands in the same fish session so `RELEASE_DIR` stays available; it does not need to be exported. The manifest guard requires exactly eight public files: `CHANGELOG.md`, `LICENSE`, `README.md`, `package.json`, and the four distribution files. Private release tooling is excluded.
 
@@ -90,7 +92,7 @@ Ordinary pushes check for a merged release PR but **do not create or refresh one
 gh workflow run prepare-release.yml --ref main
 ```
 
-Release Please 17.11.2 opens or refreshes one release PR updating `package.json`, `.release-please-manifest.json`, and `CHANGELOG.md`. Conventional Commits since the previous release determine the version: before `1.0.0`, `fix:` bumps patch, while `feat:` and breaking changes bump minor. Requests with no releasable changes succeed without a PR. Review the proposed version, changelog, and checks, then merge the release PR. Its merge starts verification and publication automatically.
+Preparation first checks for releasable changes and records the exact source commit. A separate job with read-only repository permission installs locked dependencies, builds all outputs with `vp pack`, and tests the freshly built bundle. It transfers only `dist/naka.js` by artifact ID to the PR job. Release Please 17.11.2 opens or refreshes one release PR updating `package.json`, `.release-please-manifest.json`, `CHANGELOG.md`, and the readable `dist/naka.js` bundle. The minified bundle, ESM, and declarations remain untracked and are rebuilt for npm publication. Conventional Commits since the previous release determine the version: before `1.0.0`, `fix:` bumps patch, while `feat:` and breaking changes bump minor. Requests with no releasable changes succeed without a PR. Review the proposed version, changelog, readable bundle, and checks, then merge the release PR. Its merge starts verification and publication automatically.
 
 For an explicit stable version, put a `Release-As:` footer in a Conventional Commit. For example, run this after staging the intended changes, then deliver the commit through the normal reviewed contributor workflow:
 
@@ -100,9 +102,11 @@ git commit -m "chore: prepare the stable API release" -m "Finalize the reviewed 
 
 When this commit enters `main`, the preparation workflow reads every commit newly introduced by that push. A valid footer requests preparation; malformed values, prereleases, and build metadata are rejected. Use a version greater than the previous release. A footer already present before the push does not retrigger preparation. If you squash a contributor PR, keep the footer in the resulting commit message.
 
-An existing release PR stays unchanged on later ordinary pushes. Run **Prepare release** again with the blank input to explicitly refresh it before merging if later changes should be included. Keep its version and changelog aligned with the intended source: the release tag points to the merged release PR commit, including preceding changes on `main`.
+Ordinary source changes do not require a manually committed bundle. CI builds before testing and checks bundle freshness specifically on Release Please PRs; tagged publication checks it again.
 
-On merge, Release Please immediately creates a plain `vMAJOR.MINOR.PATCH` tag and a **draft** GitHub release. Preparation resolves the tag's exact commit, checks its source and release metadata, and dispatches **`release.yml` at that tag** with `expected_sha`. The preparation job has repository/PR/label/workflow permissions and no npm identity. Only the isolated npm publish job has `id-token: write`.
+An existing release PR stays unchanged on later ordinary pushes. Run **Prepare release** again with the blank input to explicitly refresh it before merging if later changes should be included. Explicit refreshes also update the bundle when release notes are unchanged. Preparation verifies the planned source against the current primary branch before and after PR writes. If it reports that the branch advanced during the build or update, request preparation again and verify the refreshed PR before merging; a failed preparation is not ready to merge. Keep its version and changelog aligned with the intended source: the release tag points to the merged release PR commit, including preceding changes on `main`.
+
+On merge, Release Please immediately creates a plain `vMAJOR.MINOR.PATCH` tag and a **draft** GitHub release. Preparation resolves the tag's exact commit, checks its source and release metadata, and dispatches **`release.yml` at that tag** with `expected_sha`. The merge/recovery check has repository/PR/label/workflow permissions; the PR job has repository/PR/label writes. Project dependency installation and build/test execution happen in a separate job with read-only repository permission and no write token. Preparation jobs have no npm identity. Only the isolated npm publish job has `id-token: write`.
 
 The publisher requires a stable tag belonging to `main`, equality between the tag and workflow commit, equality to the supplied expected SHA, and the matching package version. It installs locked dependencies without a release cache, runs checks/tests/build, audits the eight-file npm manifest, and transfers one verified tarball by artifact ID. The OIDC job installs no project dependencies, verifies the tarball hash and bundle bytes, and publishes with lifecycle scripts disabled. After npm succeeds, the asset job attaches `naka.js`, `naka.min.js`, and the tarball, then publishes the draft while preserving Release Please's notes.
 
@@ -118,7 +122,7 @@ Recovery validates the existing tag, GitHub release, exact commit, and membershi
 
 Retries skip npm publication only when the registry's existing version has the same SHA-512 integrity as the verified tarball. Matching GitHub assets are reused and missing assets are uploaded. Differing package integrity or asset bytes fail; assets are never overwritten. Registry/network errors fail rather than being treated as an absent version. Never move a version tag to repair a published package; changed content needs a new version. Inspect unexpected assets before deciding how to resolve a conflict.
 
-The existing manual entry points remain available:
+The existing manual entry points remain available. A manually prepared tag must already contain the rebuilt readable bundle; rebuild and commit it before tagging. The Release Please PR automates that commit for the normal release path:
 
 - Run **Actions → Release** from the version tag, with the same `tag`, `publish_npm` checked, and optionally the full `expected_sha` for additional source validation. For example: `gh workflow run release.yml --ref v0.2.0 -f tag=v0.2.0 -f expected_sha=FULL_COMMIT_SHA -F publish_npm=true`.
 - Publish a GitHub Release in the UI against an existing stable tag. The `release: published` event verifies, publishes to npm, and attaches assets. If npm fails, this manually published GitHub release already exists; rerun the failed workflow after correcting configuration.
@@ -150,7 +154,7 @@ The `@latest` URLs follow new npm releases as CDN caches refresh. Availability a
 
 Npm publication is the CDN deployment step; no CDN upload or additional generated-file commit during publication is needed. A source change or CI build alone does not change what these npm-backed URLs serve. The package/version must exist on npm; local examples can keep using their relative `dist/naka.js` paths for development or offline use.
 
-The repository still tracks the readable bundle and checks its freshness (`D17`, `D33`). Rebuild and commit it with source changes for repository consumers and review. Release builds regenerate all four outputs and publish the verified tarball without committing generated files back to Git.
+The repository tracks the readable bundle from release preparation (`D35`); between releases it can lag current source. Run `vp pack` before local tests or the demo. Source changes need no bundle commit: the Release Please PR updates it automatically, and release PR/tagged CI checks its freshness. Release builds regenerate all four outputs and publish the verified tarball without committing generated files back to Git.
 
 ## Maintain release tooling locally
 

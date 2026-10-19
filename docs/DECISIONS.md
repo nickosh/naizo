@@ -124,7 +124,7 @@ Accepted by the owner on 2026-10-18 (amending `D03`, `D04`, `D05`, `D12`, and `D
 
 ## D17 — Track the built `dist/naka.js` artifact with a CI freshness check
 
-The consumer CDN URL recommendation is superseded by `D34`; the tracked-artifact and freshness policies remain in effect.
+The consumer CDN URL recommendation is superseded by `D34`; `D35` moves tracked-bundle updates into release preparation and narrows freshness enforcement to release PRs and tagged publication.
 
 Accepted by the owner on 2026-10-18 (amending `D09`, scheduled for `M3`). `D09` ignores `dist/` in Git while `AGENTS.md` and `README.md` point consumers and agents at a jsDelivr `gh` URL, which serves files from the Git tree and would return `404` once the root `naka.js` is removed. Resolve the contradiction by tracking the single built browser artifact:
 
@@ -252,6 +252,8 @@ Accepted by the owner on 2026-10-19. Supersedes `D29`'s manual version preparati
 
 ## D33 — Versionless source headers and generated distribution comments
 
+`D35` subsequently replaces the requirement to commit a rebuilt bundle with each source change; the versionless-header policy remains in effect.
+
 Accepted by the owner on 2026-10-19. Refines `D17` / `D32`: omit hardcoded package versions from the headers in `src/index.ts` and `src/iife.ts`, including their generated distribution comments. Package metadata, changelog entries, and version tags identify releases; documentation and test labels may still identify feature targets or compatibility.
 
 - Keep package versions out of generated banners so a Release Please metadata/changelog bump does not require a source-header edit or bundle commit. Source, build configuration, or dependency changes that affect output still require `vp pack` and the tracked readable bundle in the same reviewed change.
@@ -264,3 +266,13 @@ Accepted by the owner on 2026-10-19. Supersedes `D17`'s GitHub-backed consumer C
 - Use `https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js` as the default documented CDN URL and `https://unpkg.com/nakajs@latest/dist/naka.js` as the alternative. Use one provider per page; the prebuilt minified counterpart is `dist/naka.min.js` on either provider.
 - Publishing the verified npm tarball makes the bundles available to these CDNs. Floating `@latest` URLs follow npm releases as caches refresh; exact versions keep artifacts fixed. Source changes or CI builds alone do not update CDN-served npm files, and the referenced package/version must exist on npm. Keep relative local paths for development and offline use.
 - Align README, consumer agent instructions, product distribution guidance, and the publishing guide. Retain historical GitHub-backed URLs in the decision log as superseded context, rather than rewriting prior decisions. No CDN upload step or release-time bundle commit is introduced.
+
+## D35 — Generate the tracked browser bundle in explicit release PR preparation
+
+Accepted by the owner on 2026-10-19. Supersedes `D17` / `D33` / `D34`'s requirement to synchronize the tracked readable bundle in ordinary source changes. Preserve explicit preparation, plain tags, versionless headers, npm-backed CDN distribution, and isolated OIDC publication.
+
+- Keep `dist/naka.js` tracked, but refresh it in the Release Please PR alongside package metadata, manifest, and changelog. Ordinary source changes need no generated bundle commit. Local development, regular CI, and release builds run `vp pack` before tests so browser-bundle tests use current source; local demo commands also build first. Other distribution outputs remain untracked.
+- Split preparation into merge/recovery/planning, a read-only project build/test job, and a PR-writing job that installs only locked isolated tooling without lifecycle scripts. Transfer only the generated readable bundle by immutable artifact ID, with both downstream checkouts pinned to the planned source commit. Project builds receive no repository write token or npm identity; the publisher remains `release.yml` with its existing OIDC isolation.
+- Require the checkout and current primary-branch SHA to match the planned bundle source before scheduling and around PR writes. If the branch advances, fail with an explicit refresh instruction; the existing PR must be refreshed and verified before merge. Retain the tagged commit/source/version and ancestry checks during publication.
+- Use Release Please's `always-update` option so explicit refreshes replace the bundle even when release notes are unchanged. Ordinary pushes still only check merged release PRs; no-op requests produce no PR or bundle job. The post-build stage only prepares PRs and cannot create a release/tag or dispatch publication.
+- Regular CI builds/tests without a tracked-file comparison. The Release Please PR and tagged publisher enforce readable-bundle freshness; publication never repairs or commits a bundle after tagging. Manual bootstrap or manually prepared tags must contain their rebuilt readable bundle before tagging. The committed bundle can lag current source between releases, while npm/CDN releases contain freshly verified outputs.

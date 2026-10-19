@@ -12,13 +12,16 @@ const path = require('node:path');
 const { tmpdir } = require('node:os');
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { Manifest } = require('release-please');
+const { GitHub, Manifest } = require('release-please');
 const {
   describeCommits,
+  guardWrites,
   pushMessages,
   hasReleaseRequest,
   shouldPrepareRelease,
   guardManifest,
+  assertPreparationSource,
+  planPreparation,
   requireBootstrap,
   maintainRelease,
   run,
@@ -69,7 +72,8 @@ for (const [message, expected] of [
       },
       pullRequestIterator: async function* () {},
     };
-    const manifest = guardManifest(await Manifest.fromManifest(github, 'main'));
+    const bundle = '(function() { console.log("generated release bundle"); })();\n';
+    const manifest = guardManifest(await Manifest.fromManifest(github, 'main'), bundle);
     assert.equal(manifest.repositoryConfig['.'].draft, true);
     assert.equal(manifest.repositoryConfig['.'].forceTag, true);
     assert.equal(manifest.repositoryConfig['.'].includeComponentInTag, false);
@@ -85,6 +89,8 @@ for (const [message, expected] of [
     }
     assert.equal(candidates.length, 1);
     const pr = candidates[0];
+    assert.equal(pr.headRefName, 'release-please--branches--main--components--nakajs');
+    assert.ok(read('.github/workflows/ci.yml').includes(`github.head_ref == '${pr.headRefName}'`));
     const outputs = new Map(
       pr.updates
         .filter((update) => existsSync(path.join(root, update.path)))
@@ -95,6 +101,38 @@ for (const [message, expected] of [
     assert.ok(outputs.get('CHANGELOG.md').includes(expected));
     assert.ok(outputs.get('CHANGELOG.md').includes('## 0.1.0'));
     assert.ok(!outputs.has('.github/release-tools/package.json'));
+    assert.equal(outputs.get('dist/naka.js'), bundle);
+    const changes = await GitHub.prototype.buildChangeSet.call(
+      {
+        getFileContentsOnBranch: async () => ({
+          content: Buffer.from('stale bundle').toString('base64'),
+          parsedContent: 'stale bundle',
+          mode: '100644',
+        }),
+      },
+      [pr.updates.find((update) => update.path === 'dist/naka.js')],
+      'main',
+    );
+    assert.equal(changes.get('dist/naka.js').content, bundle);
+    assert.ok(!pr.updates.some((update) => update.path === 'dist/naka.min.js'));
+    // An explicit refresh must update the bundle even when release notes are unchanged.
+    assert.equal(manifest.alwaysUpdate, true);
+    let refreshed;
+    github.updatePullRequest = async (number, candidate) => {
+      refreshed = candidate;
+      return { number };
+    };
+    await manifest.createOrUpdatePullRequest(
+      pr,
+      [{ number: 9, headBranchName: pr.headRefName, body: pr.body.toString() }],
+      [],
+    );
+    assert.equal(
+      refreshed.updates
+        .find((update) => update.path === 'dist/naka.js')
+        .updater.updateContent('stale'),
+      bundle,
+    );
     // Verify installed implementation, not a mocked version algorithm.
     assert.equal(require('release-please/package.json').version, '17.11.2');
   });
@@ -103,18 +141,152 @@ for (const [message, expected] of [
 void test('creation and refresh retain descriptive Conventional Commit bodies', async () => {
   const calls = [];
   const github = describeCommits({ createPullRequest: async (...args) => calls.push(args) });
-  await github.createPullRequest({}, 'main', 'chore(main): release 0.2.0', [], {});
+  const bundle = { path: 'dist/naka.js', updater: { updateContent: () => 'updated bundle' } };
+  await github.createPullRequest({}, 'main', 'chore(main): release 0.2.0', [bundle], {});
   await github.updatePullRequest(
     7,
-    { title: 'chore(main): release 0.2.0', headRefName: 'release', labels: [], updates: [] },
+    { title: 'chore(main): release 0.2.0', headRefName: 'release', labels: [], updates: [bundle] },
     'main',
     { pullRequestOverflowHandler: { handleOverflow: async () => 'Original notes' } },
   );
   assert.equal(calls.length, 2);
-  for (const args of calls)
+  for (const args of calls) {
     assert.match(args[2], /^chore\(main\): release 0\.2\.0\n\nUpdate the package.*\nMerging/);
+    assert.ok(args[2].includes('generated browser bundle'));
+    assert.equal(args[3][0].updater.updateContent('stale bundle'), 'updated bundle');
+  }
   assert.equal(calls[1][0].number, 7);
   assert.equal(calls[1][0].body, 'Original notes');
+});
+
+void test('planning schedules a bundle build only for a releasable explicit request', async () => {
+  const outputs = [];
+  let checked = 0;
+  const assertSource = async () => {
+    checked++;
+  };
+  const manifest = { createReleases: async () => [], buildPullRequests: async () => [{}] };
+  const plan = (candidate) =>
+    planPreparation(candidate, assertSource, (out) => outputs.push(out), sha);
+  await maintainRelease(manifest, false, plan);
+  assert.equal(checked, 0);
+  assert.deepEqual(outputs, []);
+  await maintainRelease(manifest, true, plan);
+  assert.equal(checked, 2);
+  assert.deepEqual(outputs, [`prepare=true\nsource_sha=${sha}\n`]);
+  manifest.buildPullRequests = async () => [];
+  await maintainRelease(manifest, true, plan);
+  assert.equal(outputs.length, 1);
+  manifest.createReleases = async () => [{ tagName: 'v0.2.0', sha }];
+  await maintainRelease(manifest, true, plan);
+  assert.equal(outputs.length, 1);
+});
+
+void test('planning rejects source movement before scheduling a build', async () => {
+  const outputs = [];
+  let head = sha;
+  const assertSource = () => assertPreparationSource({ head: async () => head }, sha, sha);
+  const manifest = {
+    buildPullRequests: async () => {
+      head = oldSha;
+      return [{}];
+    },
+  };
+  await assert.rejects(
+    planPreparation(manifest, assertSource, (out) => outputs.push(out), sha),
+    /main advanced/,
+  );
+  assert.deepEqual(outputs, []);
+  await assert.rejects(
+    assertPreparationSource({ head: async () => sha }, sha, oldSha),
+    /Checkout differs/,
+  );
+  await assert.rejects(assertPreparationSource({ head: async () => sha }, 'main', sha));
+});
+
+void test('source guards cover creation and refresh and detect main advancing during writes', async () => {
+  let head = sha;
+  let writes = 0;
+  const api = { head: async () => head };
+  const assertSource = () => assertPreparationSource(api, sha, sha);
+  const github = guardWrites(
+    describeCommits({
+      createPullRequest: async () => {
+        writes++;
+        return { number: 7 };
+      },
+    }),
+    assertSource,
+  );
+  head = oldSha;
+  await assert.rejects(
+    github.createPullRequest({}, 'main', 'chore: release 0.2.0', [], {}),
+    /main advanced/,
+  );
+  assert.equal(writes, 0);
+  head = sha;
+  await github.updatePullRequest(
+    7,
+    { title: 'chore: release 0.2.0', headRefName: 'release', labels: [], updates: [] },
+    'main',
+    { pullRequestOverflowHandler: { handleOverflow: async () => 'notes' } },
+  );
+  assert.equal(writes, 1);
+  const moving = guardWrites(
+    {
+      createPullRequest: async () => {
+        head = oldSha;
+        return {};
+      },
+    },
+    assertSource,
+  );
+  await assert.rejects(moving.createPullRequest(), /main advanced/);
+});
+
+void test('the post-build stage prepares the PR without tagging or dispatching', async () => {
+  let prepared = 0;
+  const options = {
+    api: { releases: async () => [baseline] },
+    bootstrap: async () => {},
+    getManifest: async () => ({
+      createReleases: async () => {
+        throw new Error('Must not tag');
+      },
+    }),
+    prepare: async () => {
+      prepared++;
+    },
+    dispatch: async () => {
+      throw new Error('Must not dispatch');
+    },
+    prepareOnly: true,
+    requested: true,
+  };
+  await run(options);
+  assert.equal(prepared, 1);
+  await assert.rejects(run({ ...options, requested: false }), /explicit request/);
+  await assert.rejects(
+    run({ ...options, api: { releases: async () => [baseline, draft] } }),
+    /release_tag/,
+  );
+  assert.equal(prepared, 1);
+});
+
+void test('bundle updater refuses an empty artifact and does not generate a PR for bundle-only changes', async () => {
+  assert.throws(() => guardManifest({}, ''), /empty/);
+  const manifest = guardManifest({ buildPullRequests: async () => [] }, 'fresh bundle');
+  assert.deepEqual(await manifest.buildPullRequests(), []);
+});
+
+void test('GitHub source lookup uses the exact main branch ref', () => {
+  const calls = [];
+  const api = client('nickosh/nakajs', (args) => {
+    calls.push(args);
+    return Buffer.from(JSON.stringify({ ref: 'refs/heads/main', object: { type: 'commit', sha } }));
+  });
+  assert.equal(api.head(), sha);
+  assert.deepEqual(calls, [['api', 'repos/nickosh/nakajs/git/ref/heads/main']]);
 });
 
 void test('only manual preparation or a valid Conventional Commit footer prepares', () => {

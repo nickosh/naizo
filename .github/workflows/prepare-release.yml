@@ -18,10 +18,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  check:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      prepare: ${{ steps.check.outputs.prepare }}
+      source_sha: ${{ steps.check.outputs.source_sha }}
     permissions:
       contents: write
       pull-requests: write
@@ -45,8 +48,101 @@ jobs:
       - name: Install isolated locked release tooling without lifecycle scripts
         run: vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
 
-      - name: Check merges, explicitly prepare, or recover publication
+      - name: Check merges, plan explicit preparation, or recover publication
+        id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: vp node .github/release-tools/run.cjs
+        run: vp node .github/release-tools/run.cjs check
+
+  bundle:
+    name: Build release PR bundle with read-only repository access
+    needs: check
+    if: needs.check.outputs.prepare == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+    steps:
+      - name: Checkout the planned source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.check.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Setup pinned VP environment without a release cache
+        uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          version-file: package.json
+          node-version-file: .node-version
+          cache: false
+          run-install: false
+
+      - name: Verify source identity
+        env:
+          SOURCE_SHA: ${{ needs.check.outputs.source_sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Install and verify source, then build before testing
+        run: |
+          vp install --frozen-lockfile
+          vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
+          vp node --test .github/release-tools/test.cjs
+          vp check
+          vp pack
+          vp test
+          node --check dist/naka.js
+          node --check dist/naka.min.js
+
+      - name: Transfer only the readable release PR bundle
+        id: artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-pr-bundle
+          path: dist/naka.js
+          if-no-files-found: error
+          retention-days: 1
+
+  prepare:
+    name: Include the verified bundle in the Release Please PR
+    needs: [check, bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout the bundle source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.check.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup pinned VP environment without project dependencies
+        uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          version-file: package.json
+          node-version-file: .node-version
+          cache: false
+          run-install: false
+
+      - name: Install isolated locked release tooling without lifecycle scripts
+        run: vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
+
+      - name: Download the bundle from the exact build job
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.bundle.outputs.artifact_id }}
+          path: ${{ runner.temp }}/release-pr-bundle
+          merge-multiple: true
+
+      - name: Explicitly create or refresh the release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ needs.check.outputs.source_sha }}
+          BUNDLE_PATH: ${{ runner.temp }}/release-pr-bundle/naka.js
+        run: vp node .github/release-tools/run.cjs prepare

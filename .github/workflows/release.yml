@@ -81,8 +81,8 @@ jobs:
       - name: Verify and build distribution
         run: |
           vp check
-          vp test
           vp pack
+          vp test
           node --check dist/naka.js
           node --check dist/naka.min.js
           git diff --exit-code dist/naka.js

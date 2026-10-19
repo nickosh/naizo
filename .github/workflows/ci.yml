@@ -43,19 +43,22 @@ jobs:
       - name: Run format, lint, and type-check (vp check)
         run: vp check
 
-      - name: Run unit and DOM test suite (vp test)
-        run: vp test
-
-      - name: Build distribution artifacts (vp pack)
+      - name: Build distribution artifacts before tests (vp pack)
         run: vp pack
 
-      - name: Verify bundle syntax and dist/naka.js freshness (D17)
+      - name: Run unit and DOM test suite against fresh bundles (vp test)
+        run: vp test
+
+      - name: Verify bundle syntax and outputs
         run: |
           node --check dist/naka.js
           node --check dist/naka.min.js
           test -f dist/index.mjs
           test -f dist/index.d.mts
-          git diff --exit-code dist/naka.js
+
+      - name: Verify the release PR includes its freshly built readable bundle
+        if: github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main--components--nakajs' && github.event.pull_request.head.repo.full_name == github.repository
+        run: git diff --exit-code -- dist/naka.js
 
       - name: Audit npm package contents
         run: |

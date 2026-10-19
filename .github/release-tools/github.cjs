@@ -14,6 +14,13 @@ function client(repository = process.env.GITHUB_REPOSITORY, run = gh) {
   assert.match(repository, /^[\w.-]+\/[\w.-]+$/);
   const api = (path) => JSON.parse(run(['api', `repos/${repository}/${path}`]).toString());
   return {
+    head: () => {
+      const ref = api('git/ref/heads/main');
+      assert.equal(ref.ref, 'refs/heads/main');
+      assert.equal(ref.object.type, 'commit');
+      assert.match(ref.object.sha, commitSha);
+      return ref.object.sha;
+    },
     releases: () =>
       JSON.parse(
         run([

@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Automated tracked browser bundle updates in release PRs
+
+- Done (`M7.9`): explicit release preparation now plans an exact source commit, builds/tests in a read-only job, and transfers the readable bundle by artifact ID into the Release Please PR. Regular CI builds before tests and permits source-only changes; release PRs and tagged publication retain freshness checks. Updated local demo, bootstrap, publishing, product, and contributor guidance.
+- Decided (`D35`, superseding the ordinary-change bundle policy in `D17` / `D33` / `D34`): keep the readable bundle tracked and refresh it with release metadata. Require source identity around PR writes and force explicit refreshes even when release notes are unchanged; ordinary pushes still do not prepare PRs. Recorded stale-source and unchanged-notes refresh guards as `EC42` / `EC43`; runtime behavior is unchanged.
+- Verified: locked root/tooling installs, clean VP format/lint/types, 27 tooling and 13 project tests, library/site builds, bundle syntax/freshness, eight-file package and actual tarball integrity, actionlint, workflow permission/artifact/order/bash checks, JSON/fish/docs validation, credential scan, and an isolated source-only commit → actual updater → committed release bundle → rebuild probe. Live GitHub Actions/PR writes, OIDC, and publication were not run; the existing site standalone-script warning remains nonblocking.
+- Next: validate the documented owner-managed Actions integration when exercising release preparation, then continue `M4.1`'s in-memory store and synchronous boot work.
+
 ## 2026-10-19 — Made npm the documented CDN distribution source
 
 - Done (`M7.8`): replaced the GitHub-backed README/agent CDN examples with npm-backed jsDelivr/unpkg URLs and aligned product/publishing guidance. Documented minified bundles, `@latest` updates after cache refresh, exact-version alternatives, npm publication prerequisites, and the separate local-development path. Starter templates already used npm-backed URLs.

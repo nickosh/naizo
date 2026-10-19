@@ -37,6 +37,7 @@ Run the local demo playground with [Vite+](https://viteplus.dev/):
 
 ```bash
 vp install
+vp pack
 vp dev
 # Opens http://localhost:3000 (serves site/index.html)
 ```
@@ -128,8 +129,8 @@ Use the [global Vite+ CLI](https://viteplus.dev/guide/global-cli) (`vp`) for loc
 vp install  # Install dependencies
 vp dev      # Start Vite dev server (http://localhost:3000)
 vp check    # Run Oxfmt, Oxlint, and type-checking together
-vp test     # Run Vitest unit/DOM suite
-vp pack     # Bundle library outputs via tsdown
+vp pack     # Build fresh library outputs before tests or the local demo
+vp test     # Run Vitest unit/DOM suite against freshly built outputs
 vp node scripts/release.ts version v0.1.0 # Run a script with the pinned Node.js
 vp env current # Inspect the resolved Node.js and package-manager versions
 ```
@@ -138,7 +139,7 @@ vp env current # Inspect the resolved Node.js and package-manager versions
 
 `pnpm-workspace.yaml` keeps runtime and package-manager selection with VP (`runtimeOnFail: ignore`, `pmOnFail: ignore`) and records pnpm resolution settings in the lockfile. The file configures this single-package repository; it does not add workspace packages.
 
-Release preparation is explicit: a manual **Prepare release** request or a newly pushed `Release-As:` footer opens or refreshes the version/changelog PR. Ordinary pushes leave it unchanged; merging it starts verified npm Trusted Publishing and finalizes the GitHub draft. Both readable and minified bundles are included. For the manual `v0.1.0` bootstrap, GitHub settings, and recovery, see the [publishing guide](https://github.com/nickosh/nakajs/blob/main/docs/PUBLISHING.md).
+Release preparation is explicit: a manual **Prepare release** request or a newly pushed `Release-As:` footer builds the readable browser bundle and includes it in the version/changelog PR. Ordinary source changes do not require a bundle commit; CI builds before testing. The tracked readable bundle is refreshed in the release PR, while ordinary pushes leave that PR unchanged. Merging it updates the bundle in the repository, starts verified npm Trusted Publishing, and finalizes the GitHub draft. Both readable and minified bundles are included. For the manual `v0.1.0` bootstrap, GitHub settings, and recovery, see the [publishing guide](https://github.com/nickosh/nakajs/blob/main/docs/PUBLISHING.md).
 
 ---
 
