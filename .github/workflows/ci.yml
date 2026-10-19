@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify (check, test, pack)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Add local bin to PATH
+        run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Run format, lint, and type-check (vp check)
+        run: vp check
+
+      - name: Run unit and DOM test suite (vp test)
+        run: vp test
+
+      - name: Build distribution artifacts (vp pack)
+        run: vp pack
+
+      - name: Verify bundle syntax and dist/naka.js freshness (D17)
+        run: |
+          node --check dist/naka.js
+          node --check dist/naka.min.js
+          test -f dist/index.mjs
+          test -f dist/index.d.mts
+          git diff --exit-code dist/naka.js

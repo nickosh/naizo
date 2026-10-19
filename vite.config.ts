@@ -58,5 +58,16 @@ export default defineConfig({
         entryFileNames: 'naka.js',
       },
     },
+    {
+      entry: { 'naka.min': 'src/iife.ts' },
+      format: ['iife'],
+      platform: 'browser',
+      dts: false,
+      minify: true,
+      outDir: 'dist',
+      outputOptions: {
+        entryFileNames: 'naka.min.js',
+      },
+    },
   ],
 });

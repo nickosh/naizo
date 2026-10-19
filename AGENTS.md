@@ -67,7 +67,7 @@ This repository uses [Vite+](https://viteplus.dev/) (`vite-plus` / `vp` CLI) con
 - `vp install` — install dependencies
 - `vp check` — format (`Oxfmt`), lint (`Oxlint`), and type-check (`tsgolint`) in one pass
 - `vp test` — run Vitest suite (`tests/**/*.test.ts`)
-- `vp pack` — build library outputs (`dist/naka.js`, `dist/index.mjs`, `dist/index.d.mts`) via `tsdown`
+- `vp pack` — build library outputs (`dist/naka.js`, `dist/naka.min.js`, `dist/index.mjs`, `dist/index.d.mts`) via `tsdown`
 - `vp dev` — start local playground server (`http://localhost:3000`, serving `site/index.html`)
 
 Use proportional verification:

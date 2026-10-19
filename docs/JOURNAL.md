@@ -2,12 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
-## 2026-10-19 — Advanced M7 ahead of M4 to ship initial v0.1.0 baseline (D28)
+## 2026-10-19 — Completed M7 CI/CD & release workflows, added dist/naka.min.js build output, and prepared initial v0.1.0 baseline (D28)
 
-- Decided (owner): recorded `D28` to bring `M7` (`M7.1`–`M7.2` CI verification, GitHub Pages deployment, and maintainer-controlled release workflows) immediately after `M3` so the current working library is verified in CI and ready to cut as the initial `v0.1.0` milestone before `M4` re-architects the runtime (`v0.2.0` target).
-- Done: reordered `M7` ahead of `M4`–`M6` in `docs/PLAN.md`, decoupled `M7.1` and `M7.2` from later milestones (running current `vp test` in `ci.yml`, staging `site/` + `dist/naka.js` + `examples/` in `pages.yml` with automatic inclusion of `M6.2` endpoints later, and supporting `current` / explicit `0.1.0` on `release.yml` `workflow_dispatch`), and updated `docs/DECISIONS.md` (`D10`, `D12`, `D27`, `D28`).
-- Verified: markdown link/reference review and `git diff --check` pass (`vp check`, `vp test`, and `vp pack` not run for documentation-only planning update).
-- Next: implement `M7.1` (`.github/workflows/ci.yml`, `.github/workflows/pages.yml`) and `M7.2` (`.github/workflows/release.yml`), then proceed to `M4.1`–`M4.4`.
+- Decided (owner): recorded `D28` to sequence `M7` (`M7.1`–`M7.2` CI verification, GitHub Pages deployment, and maintainer-controlled release workflows) immediately after `M3` for the initial `v0.1.0` baseline before `M4` re-architects the runtime, and to emit minified `dist/naka.min.js` (`minify: true`, ~4.68 KB gzipped, untracked in Git per `D17`) alongside tracked readable `dist/naka.js` during `vp pack`.
+- Done (`M7.1`, `M7.2`): added `dist/naka.min.js` to `vite.config.ts` (`pack`) and `package.json` (`exports`); created `.github/workflows/ci.yml` (`pnpm install --frozen-lockfile`, `vp check`, `vp test`, `vp pack`, `node --check dist/naka.js`, `node --check dist/naka.min.js`, and `git diff --exit-code dist/naka.js`), `.github/workflows/pages.yml` (staging `site/`, `dist/naka.js`, `dist/naka.min.js`, and `examples/` for GitHub Pages deployment), and `.github/workflows/release.yml` (supporting `current` / `patch` / `minor` / `major` / `custom` on `workflow_dispatch` and `release: types: [published]` to attach `dist/naka.js` + `dist/naka.min.js` to GitHub Releases and publish to npm); and updated `tests/naka.test.ts`, `AGENTS.md`, `docs/PRODUCT.md`, `docs/DECISIONS.md`, and `docs/PLAN.md`.
+- Verified: `vp fmt`, `vp check` (0 warnings, 0 errors across 21 files), `vp test` (7/7 passing in `tests/naka.test.ts`), `vp pack`, `node --check dist/naka.js`, `node --check dist/naka.min.js`, `git diff --exit-code dist/naka.js`, and `git diff --check` pass. Live GitHub Actions execution requires pushing to the remote repository.
+- Next: implement `M4.1`–`M4.4` in sequence, starting with `M4.1` (in-memory store, synchronous boot before IndexedDB lookup, `O(1)` event-targeted capture, and plain-text `contenteditable` default).
 
 ## 2026-10-18 — Completed M3 repository reorganization, dist/naka.js build pipeline, and starter templates
 

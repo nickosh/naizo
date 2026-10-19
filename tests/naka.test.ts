@@ -207,6 +207,8 @@ describe('naka.js v0.1.0 core runtime', () => {
     expect(pkgJson.types).toBe('./dist/index.d.mts');
     expect(pkgJson.unpkg).toBe('./dist/naka.js');
     expect(pkgJson.jsdelivr).toBe('./dist/naka.js');
+    expect(pkgJson.exports['./naka.min.js']).toBe('./dist/naka.min.js');
+    expect(pkgJson.exports['./dist/naka.min.js']).toBe('./dist/naka.min.js');
     expect(pkgJson.files).toEqual(['dist', 'README.md']);
 
     // Built dist/naka.js is a clean IIFE without NakaBundle global namespace

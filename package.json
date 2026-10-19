@@ -31,7 +31,9 @@
       "default": "./dist/index.mjs"
     },
     "./naka.js": "./dist/naka.js",
+    "./naka.min.js": "./dist/naka.min.js",
     "./dist/naka.js": "./dist/naka.js",
+    "./dist/naka.min.js": "./dist/naka.min.js",
     "./package.json": "./package.json"
   },
   "scripts": {
