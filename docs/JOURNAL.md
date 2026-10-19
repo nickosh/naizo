@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-19 — Made the first-publish guide fish-compatible
+
+- Done: marked the publishing guide's four command blocks as fish, replaced the temporary-directory assignment with `set RELEASE_DIR (mktemp -d)`, and explained repository-root execution, same-session variable scope, and checking command results. Runtime and release behavior are unchanged.
+- Verified: all four blocks pass `fish --no-config --no-execute`; a harmless temporary-directory probe confirms assignment and quoted-path expansion. Documentation formatting, links, and whitespace checks pass. Runtime tests/builds and npm/GitHub publication were not run for this documentation-only edit.
+- Next: follow the guide's fish packaging commands from a clean checkout; continue `M4.1` implementation for the in-memory store and synchronous boot.
+
 ## 2026-10-19 — Upgraded pnpm to 12.14.0 through VP (D31)
 
 - Done: updated the project pnpm pin through VP, retained Node 24.22.0 and Vite+ 1.3.0, added `pnpm-workspace.yaml` with VP-owned environment selection and recorded resolution settings, and refreshed the lockfile without changing any of the 236 resolved dependency versions. Updated `AGENTS.md`, README, and publishing instructions; existing CI inherits the project pin.

@@ -4,9 +4,11 @@ The first interactive npm publication creates the package. Later releases use np
 
 ## First version: `0.1.0`
 
+The commands below use **fish shell** syntax. Run them from the repository root, in order, and continue only after each command succeeds (except the expected `E404` package-name check described below).
+
 1. Create an [npm account](https://www.npmjs.com/signup), verify its email address, and enable two-factor authentication. Install the [global Vite+ CLI](https://viteplus.dev/guide/global-cli) with environment management enabled. VP reads Node 24.22.0 from `.node-version` and pnpm 12.14.0 from `package.json#packageManager`; the pinned Node includes npm 11. Use VP for local installation, checks, builds, and scripts, and native npm for registry login, package manifests, and publication. Make the workflow changes available on GitHub's `main`, then work from the same clean checkout that will receive the version tag. These commands publish the real library; no placeholder package or separate website creation step is needed.
 
-   ```sh
+   ```fish
    git switch main
    git pull --ff-only
    git status --short
@@ -23,7 +25,7 @@ The first interactive npm publication creates the package. Later releases use np
 
 2. Verify `package.json` is at `0.1.0`, install the locked dependencies through VP, and build. The global CLI delegates development commands to the project's exact Vite+ 1.3.0 toolchain.
 
-   ```sh
+   ```fish
    vp node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version"
    vp install --frozen-lockfile
    vp check
@@ -34,10 +36,10 @@ The first interactive npm publication creates the package. Later releases use np
    git diff --exit-code dist/naka.js
    ```
 
-3. Pack once, inspect the manifest, and publish that exact tarball. Keep these commands in the same terminal so `RELEASE_DIR` stays available. The manifest guard requires exactly `LICENSE`, `README.md`, `package.json`, and the four distribution files.
+3. Pack once, inspect the manifest, and publish that exact tarball. Fish uses `set RELEASE_DIR (mktemp -d)` to create a temporary directory and store its path. Keep these commands in the same fish session so `RELEASE_DIR` stays available; it does not need to be exported. The manifest guard requires exactly `LICENSE`, `README.md`, `package.json`, and the four distribution files.
 
-   ```sh
-   RELEASE_DIR=$(mktemp -d)
+   ```fish
+   set RELEASE_DIR (mktemp -d)
    npm pack --ignore-scripts --json --pack-destination "$RELEASE_DIR" > "$RELEASE_DIR/pack.json"
    vp node scripts/release.ts package "$RELEASE_DIR/pack.json"
    cat "$RELEASE_DIR/pack.json"
@@ -49,7 +51,7 @@ The first interactive npm publication creates the package. Later releases use np
 
 4. Tag the same clean commit and send the tag to GitHub:
 
-   ```sh
+   ```fish
    git tag -a v0.1.0 -m "Release v0.1.0"
    git push origin v0.1.0
    ```
