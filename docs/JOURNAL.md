@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-21 — Completed M4.4 behavioral parity verification and closed all M4 edge cases
+
+- Done (`M4.4`, completing `M4`): added `AbortController` listener cleanup (`window.__naizoCleanup`) in `src/index.ts` and `dist/naizo.js` so re-initialization cleanly replaces document/window listeners, added behavioral parity tests in `tests/naizo.test.ts` executing the shipped `dist/naizo.js` IIFE bundle (`EC30`), and promoted `EC30` to `fix` so all `EC01`–`EC45` entries in `docs/EDGE_CASES.md` are resolved (`fix`, `ADR`, or `doc`).
+- Verified: `vp pack`, `vp check` (0 warnings, 0 errors across 33 files), `vp test` (24/24 project tests passing across `tests/naizo.test.ts` and `tests/release.test.ts`), `node --check dist/naizo.js`, `node --check dist/naizo.min.js`, JSON validation of `package.json` and embedded `#naizodb` blocks, and `git diff --check`. Isolated `.github/release-tools` tests, live browser File System Access API, and remote GitHub/npm workflows were not run.
+- Next: proceed with `M5` (`M5.1` comprehensive usage reference `docs/USAGE.md` and `M5.2` distributable `naizo` AI skill `skills/naizo/SKILL.md`).
+
 ## 2026-10-21 — Implemented M4.3 richer element bindings, list repeater polish, and public `window.Naizo` API
 
 - Done (`M4.3`): implemented `number`/`range` coercion (`number | null`), `<details>` `open` boolean binding with capture-phase `toggle` listener, `<select multiple>`, `contenteditable` variants (`""`, `"true"`, `"plaintext-only"` vs `"false"`), non-leaf element guards, and `form.reset()` re-capture (`D14`, `EC12`); separated `naizo-ignore` from `data-naizo-runtime="true"` export stripping (`D12`, `EC07`); added `data-naizo-auto-template="true"` boot regeneration and conditional export stripping (`EC09`); supported self-bound `[naizo-item]` roots, per-row radio `name` scoping, and valid `<table>`/`<tbody>`/`<tr>` control placement (`EC13`); added `@media print` hiding (`EC29`), user-only `[naizo-add]` focus (`EC31`), `aria-label` / `aria-live` attributes, and `naizo:change` / `naizo:item` events (`EC40`); updated `AGENTS.md`, `README.md`, and `docs/PRODUCT.md`.

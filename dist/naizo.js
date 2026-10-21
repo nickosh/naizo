@@ -230,7 +230,7 @@
 	let actionBtn = null;
 	let restoreBtn = null;
 	let unlinkBtn = null;
-	let listenersAttached = false;
+	let listenerController = null;
 	function idbStore(mode, callback) {
 		try {
 			if (typeof indexedDB === "undefined") return;
@@ -1428,26 +1428,48 @@
 		writeStoreToDomScript(store, false);
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 	}
+	function detachListeners() {
+		stopDiskWatch();
+		if (persistTimeout !== null) {
+			clearTimeout(persistTimeout);
+			persistTimeout = null;
+		}
+		if (saveTimeout !== null) {
+			clearTimeout(saveTimeout);
+			saveTimeout = null;
+		}
+		if (listenerController !== null) {
+			listenerController.abort();
+			listenerController = null;
+		}
+	}
 	function attachListeners() {
-		if (listenersAttached) return;
-		document.addEventListener("click", handleListClicks);
-		document.addEventListener("input", handleInputOrChange);
-		document.addEventListener("change", handleInputOrChange);
-		document.addEventListener("toggle", handleInputOrChange, true);
-		document.addEventListener("reset", handleFormReset);
-		window.addEventListener("storage", handleStorageEvent);
+		if (typeof window !== "undefined" && typeof window.__naizoCleanup === "function") window.__naizoCleanup();
+		detachListeners();
+		const controller = new AbortController();
+		listenerController = controller;
+		const { signal } = controller;
+		document.addEventListener("click", handleListClicks, { signal });
+		document.addEventListener("input", handleInputOrChange, { signal });
+		document.addEventListener("change", handleInputOrChange, { signal });
+		document.addEventListener("toggle", handleInputOrChange, {
+			capture: true,
+			signal
+		});
+		document.addEventListener("reset", handleFormReset, { signal });
+		window.addEventListener("storage", handleStorageEvent, { signal });
 		window.addEventListener("focus", () => {
 			checkDiskForExternalChanges();
-		});
+		}, { signal });
 		window.addEventListener("pagehide", () => {
 			if (persistTimeout !== null) flushPersistence(false);
-		});
+		}, { signal });
 		document.addEventListener("visibilitychange", () => {
 			if (document.visibilityState === "hidden") {
 				if (persistTimeout !== null) flushPersistence(false);
 			} else if (document.visibilityState === "visible") checkDiskForExternalChanges();
-		});
-		listenersAttached = true;
+		}, { signal });
+		if (typeof window !== "undefined") window.__naizoCleanup = detachListeners;
 	}
 	const Naizo = {
 		init: initNaizo,

@@ -67,6 +67,7 @@ declare global {
     Naizo: NaizoAPI;
     NaizoDB: NaizoAPI;
     showSaveFilePicker?: (options?: Record<string, unknown>) => Promise<NaizoFileHandle>;
+    __naizoCleanup?: () => void;
   }
 }
 
@@ -381,7 +382,7 @@ let statusEl: HTMLElement | null = null;
 let actionBtn: HTMLButtonElement | null = null;
 let restoreBtn: HTMLButtonElement | null = null;
 let unlinkBtn: HTMLButtonElement | null = null;
-let listenersAttached = false;
+let listenerController: AbortController | null = null;
 
 // --- 1. IndexedDB Helper for Persisting FileSystemFileHandle ---
 function idbStore(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => void): void {
@@ -2079,28 +2080,66 @@ function handleStorageEvent(e: StorageEvent): void {
   window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
 }
 
+function detachListeners(): void {
+  stopDiskWatch();
+  if (persistTimeout !== null) {
+    clearTimeout(persistTimeout);
+    persistTimeout = null;
+  }
+  if (saveTimeout !== null) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  if (listenerController !== null) {
+    listenerController.abort();
+    listenerController = null;
+  }
+}
+
 function attachListeners(): void {
-  if (listenersAttached) return;
-  document.addEventListener('click', handleListClicks);
-  document.addEventListener('input', handleInputOrChange);
-  document.addEventListener('change', handleInputOrChange);
-  document.addEventListener('toggle', handleInputOrChange, true);
-  document.addEventListener('reset', handleFormReset);
-  window.addEventListener('storage', handleStorageEvent);
-  window.addEventListener('focus', () => {
-    void checkDiskForExternalChanges();
-  });
-  window.addEventListener('pagehide', () => {
-    if (persistTimeout !== null) flushPersistence(false);
-  });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      if (persistTimeout !== null) flushPersistence(false);
-    } else if (document.visibilityState === 'visible') {
+  if (typeof window !== 'undefined' && typeof window.__naizoCleanup === 'function') {
+    window.__naizoCleanup();
+  }
+  detachListeners();
+  const controller = new AbortController();
+  listenerController = controller;
+  const { signal } = controller;
+
+  document.addEventListener('click', handleListClicks, { signal });
+  document.addEventListener('input', handleInputOrChange, { signal });
+  document.addEventListener('change', handleInputOrChange, { signal });
+  document.addEventListener('toggle', handleInputOrChange, { capture: true, signal });
+  document.addEventListener('reset', handleFormReset, { signal });
+  window.addEventListener('storage', handleStorageEvent, { signal });
+  window.addEventListener(
+    'focus',
+    () => {
       void checkDiskForExternalChanges();
-    }
-  });
-  listenersAttached = true;
+    },
+    { signal },
+  );
+  window.addEventListener(
+    'pagehide',
+    () => {
+      if (persistTimeout !== null) flushPersistence(false);
+    },
+    { signal },
+  );
+  document.addEventListener(
+    'visibilitychange',
+    () => {
+      if (document.visibilityState === 'hidden') {
+        if (persistTimeout !== null) flushPersistence(false);
+      } else if (document.visibilityState === 'visible') {
+        void checkDiskForExternalChanges();
+      }
+    },
+    { signal },
+  );
+
+  if (typeof window !== 'undefined') {
+    window.__naizoCleanup = detachListeners;
+  }
 }
 
 // --- 10. Public API (window.Naizo & window.NaizoDB alias) ---

@@ -1,3 +1,4 @@
+import { runInThisContext } from 'node:vm';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import iifeBundleCode from '../dist/naizo.js?raw';
 import checklistHtml from '../examples/checklist.html?raw';
@@ -1122,5 +1123,121 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     window.removeEventListener('naizo:change', onChange);
     window.removeEventListener('naizo:item', onItem);
+  });
+
+  it('executes the shipped dist/naizo.js IIFE bundle with full M4 behavioral parity (M4.4, EC30)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    document.documentElement.setAttribute('data-naizo-manual', '');
+    // Evaluate the actual shipped dist/naizo.js browser IIFE bundle
+    runInThisContext(iifeBundleCode);
+    const bundleNaizo = window.Naizo;
+    expect(bundleNaizo).toBeDefined();
+    expect(window.NaizoDB).toBe(bundleNaizo);
+    expect(bundleNaizo).not.toBe(Naizo);
+
+    const initialJson = JSON.stringify(
+      {
+        _meta: {},
+        fields: {
+          title: 'Bundle Spec',
+          unboundField: 'Kept by Bundle',
+          status: 'Shipped',
+          count: 7,
+        },
+        lists: {
+          tasks: [{ id: 'b-1', title: 'Bundle Task 1', extra: 42 }],
+          unboundList: [{ id: 'u-1' }],
+        },
+        custom: { rate: 100 },
+      },
+      null,
+      2,
+    );
+    let diskHtml = `\uFEFF<html><head><script id="naizodb" type="application/json">\n${initialJson}\n</script></head><body class="keep-body"></body></html>`;
+    let diskMtime = 5000;
+
+    document.head.innerHTML = `<script id="naizodb" type="application/json">\n${initialJson}\n</script>`;
+    document.body.innerHTML = `
+      <input id="b-t1" type="text" naizo="title" value="">
+      <input id="b-t2" type="text" naizo="title" value="">
+      <input id="b-count" type="text" naizo="count" value="">
+      <div id="b-note" contenteditable="true" naizo="note"></div>
+      <select id="b-status" naizo="status">
+        <option value="Draft">Draft</option>
+      </select>
+      <div naizo-ignore><input type="text" naizo="ignored" value="skip">Keep user ignore</div>
+      <div naizo-list="tasks">
+        <div naizo-item><input type="text" naizo="title" value=""></div>
+      </div>
+    `;
+
+    await bundleNaizo.init();
+
+    // Verify pass-through keys, unknown <select> preservation, and duplicate scalar propagation in dist/naizo.js
+    expect(bundleNaizo.getField('unboundField')).toBe('Kept by Bundle');
+    expect(bundleNaizo.getField('status')).toBe('Shipped');
+    expect(bundleNaizo.getField('count')).toBe(7);
+    expect(bundleNaizo.getList('unboundList')).toEqual([{ id: 'u-1' }]);
+    expect(bundleNaizo.getList('tasks')).toEqual([
+      { id: 'b-1', title: 'Bundle Task 1', extra: 42 },
+    ]);
+
+    const bt1 = document.getElementById('b-t1') as HTMLInputElement;
+    const bt2 = document.getElementById('b-t2') as HTMLInputElement;
+    bt1.value = 'Edited via Bundle';
+    bt1.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(bt2.value).toBe('Edited via Bundle');
+    expect(bundleNaizo.getField('title')).toBe('Edited via Bundle');
+
+    // Plain-text contenteditable & \u003c escaping
+    bundleNaizo.setField('note', '</script><img src=x onerror=alert(1)>');
+    const noteEl = document.getElementById('b-note') as HTMLElement;
+    expect(noteEl.querySelector('img')).toBeNull();
+    expect(noteEl.textContent).toBe('</script><img src=x onerror=alert(1)>');
+
+    // Surgical disk write + shallow key merge + conflict backup/restore + copyJSON + unlink + exportHTML
+    window.showSaveFilePicker = vi.fn().mockResolvedValue({
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockImplementation(async () => ({
+        lastModified: diskMtime,
+        arrayBuffer: async () => new TextEncoder().encode(diskHtml).buffer,
+        text: async () => diskHtml.replace(/^\uFEFF/, ''),
+      })),
+      createWritable: vi.fn().mockImplementation(async () => ({
+        write: async (data: string) => {
+          diskHtml = data;
+          diskMtime += 100;
+        },
+        close: async () => {},
+      })),
+    });
+
+    const host = document.getElementById('__naizodb_host__');
+    (host?.shadowRoot?.getElementById('action') as HTMLButtonElement | null)?.click();
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(diskHtml.startsWith('\uFEFF')).toBe(true);
+    expect(diskHtml).toContain('<body class="keep-body"></body>');
+    expect(diskHtml).toContain('\\u003c/script>');
+
+    const copied = await bundleNaizo.copyJSON();
+    expect(copied).toContain('"Edited via Bundle"');
+
+    const exported = bundleNaizo.exportHTML();
+    expect(exported).toContain('Keep user ignore');
+    expect(exported).not.toContain('__naizodb_host__');
+    expect(exported).toContain('value="Edited via Bundle"');
+
+    await bundleNaizo.unlink();
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
+      'Browser Cache · Click to Link Disk',
+    );
+
+    Reflect.deleteProperty(window, 'showSaveFilePicker');
+    document.documentElement.removeAttribute('data-naizo-manual');
+    window.Naizo = Naizo;
+    window.NaizoDB = NaizoDB;
+    warnSpy.mockRestore();
   });
 });
