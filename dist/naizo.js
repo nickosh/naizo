@@ -6,6 +6,9 @@
 	const IDB_NAME = "NaizoDB_Handles";
 	const PERSIST_DEBOUNCE_MS = 150;
 	const DISK_DEBOUNCE_MS = 250;
+	const DISK_WATCH_INTERVAL_MS = 2e3;
+	const NAIZODB_SCRIPT_RE = /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
+	const HEAD_OPEN_RE = /(<head\b[^>]*>)/i;
 	const BOUND_SELECTOR = "[naizo], [data-naizo], [data-naizo-field]";
 	const LIST_SELECTOR = "[naizo-list], [data-naizo-list]";
 	const ITEM_SELECTOR = "[naizo-item], [data-naizo-item]";
@@ -118,11 +121,34 @@
 			custom: cloneRecord(rawCustom)
 		};
 	}
+	function normalizePathname(rawPath) {
+		return rawPath.replace(/\/index\.html?$/i, "/") || "/";
+	}
+	function getDocumentScopeId() {
+		if (typeof document === "undefined") return "";
+		const attrId = document.documentElement?.getAttribute("naizo-id") ?? document.documentElement?.getAttribute("data-naizo-id") ?? document.body?.getAttribute("naizo-id") ?? document.body?.getAttribute("data-naizo-id");
+		if (attrId && attrId.trim()) return attrId.trim();
+		if (storeInitialized && typeof store._meta.id === "string" && store._meta.id.trim()) return store._meta.id.trim();
+		const raw = document.getElementById(DB_ID)?.textContent ?? "";
+		if (raw.includes("\"id\"")) try {
+			const parsed = JSON.parse(raw);
+			if (typeof parsed?._meta?.id === "string" && parsed._meta.id.trim()) return parsed._meta.id.trim();
+		} catch {}
+		return "";
+	}
+	function getStorageSuffix() {
+		const normPath = normalizePathname(typeof location !== "undefined" && location.pathname ? location.pathname : "/");
+		const scopeId = getDocumentScopeId();
+		return scopeId ? `${normPath}::${scopeId}` : normPath;
+	}
 	function getPageKey() {
-		return "naizodb_state_" + (typeof location !== "undefined" ? location.pathname : "/");
+		return "naizodb_state_" + getStorageSuffix();
 	}
 	function getSnapshotKey() {
-		return "naizodb_disk_hash_" + (typeof location !== "undefined" ? location.pathname : "/");
+		return "naizodb_disk_hash_" + getStorageSuffix();
+	}
+	function getBackupKey() {
+		return "naizodb_backup_" + getStorageSuffix();
 	}
 	function safeGetStorage(key) {
 		try {
@@ -141,6 +167,15 @@
 			console.warn("[naizo.js] localStorage write failed:", e);
 			return false;
 		}
+	}
+	function safeRemoveStorage(key) {
+		try {
+			if (typeof localStorage === "undefined") return;
+			localStorage.removeItem(key);
+		} catch {}
+	}
+	function serializeDbJson(db) {
+		return JSON.stringify(db, null, 2).replace(/</g, "\\u003c");
 	}
 	function getAttr(el, shortName) {
 		return el.getAttribute(shortName) ?? el.getAttribute(`data-${shortName}`);
@@ -177,12 +212,20 @@
 	let startupInvalidDb = false;
 	let trackedDbScriptEl = null;
 	let lastSerializedContent = "";
+	let lastKnownDiskRaw = null;
+	let lastDiskDb = null;
+	let lastObservedModified = null;
 	let itemDataMap = /* @__PURE__ */ new WeakMap();
 	let fileHandle = null;
 	let persistTimeout = null;
 	let saveTimeout = null;
+	let watchInterval = null;
+	let writeInFlightPromise = null;
+	let writeQueued = false;
 	let statusEl = null;
 	let actionBtn = null;
+	let restoreBtn = null;
+	let unlinkBtn = null;
 	let listenersAttached = false;
 	function idbStore(mode, callback) {
 		try {
@@ -195,7 +238,31 @@
 		} catch {}
 	}
 	function saveHandleToIDB(handle) {
-		idbStore("readwrite", (store) => store.put(handle, getPageKey()));
+		idbStore("readwrite", (idb) => idb.put(handle, getPageKey()));
+	}
+	function deleteHandleFromIDB() {
+		return new Promise((resolve) => {
+			try {
+				if (typeof indexedDB === "undefined") {
+					resolve();
+					return;
+				}
+				const req = indexedDB.open(IDB_NAME, 1);
+				req.onupgradeneeded = () => req.result.createObjectStore("handles");
+				req.onsuccess = () => {
+					try {
+						const delReq = req.result.transaction("handles", "readwrite").objectStore("handles").delete(getPageKey());
+						delReq.onsuccess = () => resolve();
+						delReq.onerror = () => resolve();
+					} catch {
+						resolve();
+					}
+				};
+				req.onerror = () => resolve();
+			} catch {
+				resolve();
+			}
+		});
 	}
 	function loadHandleFromIDB() {
 		return new Promise((resolve) => {
@@ -279,6 +346,18 @@
 			lists: db.lists,
 			custom: db.custom
 		});
+	}
+	function normalizeJsonComparison(raw) {
+		const trimmed = raw.trim();
+		if (!trimmed) return "";
+		try {
+			const parsed = JSON.parse(trimmed);
+			const validated = validateAndNormalizeDb(parsed);
+			if (validated) return serializeContentBuckets(validated);
+			return JSON.stringify(parsed);
+		} catch {
+			return trimmed;
+		}
 	}
 	function ensureStore() {
 		const currentScript = document.getElementById(DB_ID);
@@ -528,11 +607,17 @@
 		itemDataMap.set(itemEl, rowObj);
 		return rowObj;
 	}
+	function isElementActive(el) {
+		if (typeof document === "undefined") return false;
+		const active = document.activeElement;
+		if (!active || active === document.body || active === document.documentElement) return false;
+		return el === active || el.contains(active);
+	}
 	function writeStoreToDomScript(db, allowMetaBump) {
 		const nextContent = serializeContentBuckets(db);
 		if (allowMetaBump && nextContent !== lastSerializedContent) setOwn(db._meta, "updatedAt", (/* @__PURE__ */ new Date()).toISOString());
 		lastSerializedContent = nextContent;
-		const formatted = "\n" + JSON.stringify(db, null, 2) + "\n";
+		const formatted = "\n" + serializeDbJson(db) + "\n";
 		if (!startupInvalidDb) {
 			const scriptEl = getDbScript();
 			scriptEl.textContent = formatted;
@@ -540,14 +625,16 @@
 		}
 		return formatted;
 	}
-	function hydrateSubtreeFromStore(root = document) {
+	function hydrateSubtreeFromStore(root = document, preserveActive = false) {
 		const db = ensureStore();
 		ensureListBlueprints(root);
 		queryStandaloneBoundElements(root).forEach((el) => {
 			const key = getElementKey(el);
 			if (!key) return;
-			if (hasOwn(db.fields, key)) writeElementValue(el, getOwn(db.fields, key));
-			else {
+			if (hasOwn(db.fields, key)) {
+				if (preserveActive && isElementActive(el)) return;
+				writeElementValue(el, getOwn(db.fields, key));
+			} else {
 				const val = readElementValue(el);
 				if (val !== void 0) setOwn(db.fields, key, val);
 			}
@@ -560,8 +647,21 @@
 		lists.forEach((listEl) => {
 			const listName = getAttr(listEl, "naizo-list");
 			if (!listName) return;
-			if (hasOwn(db.lists, listName) && Array.isArray(getOwn(db.lists, listName))) renderListItems(listEl, getOwn(db.lists, listName));
-			else {
+			if (hasOwn(db.lists, listName) && Array.isArray(getOwn(db.lists, listName))) {
+				const targetItems = getOwn(db.lists, listName);
+				const currentRows = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
+				if (preserveActive && isElementActive(listEl) && currentRows.length === targetItems.length) currentRows.forEach((rowEl, idx) => {
+					const itemObj = targetItems[idx];
+					if (!itemObj) return;
+					itemDataMap.set(rowEl, itemObj);
+					queryItemBoundElements(rowEl).forEach((el) => {
+						if (isElementActive(el)) return;
+						const key = getElementKey(el);
+						if (key && hasOwn(itemObj, key)) writeElementValue(el, getOwn(itemObj, key));
+					});
+				});
+				else renderListItems(listEl, targetItems);
+			} else {
 				const seededItems = [];
 				listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
 					const rowObj = {};
@@ -574,7 +674,7 @@
 		});
 	}
 	function getCleanHtmlString() {
-		flushPersistence();
+		flushPersistence(false);
 		const clone = document.documentElement.cloneNode(true);
 		const liveBound = Array.from(document.documentElement.querySelectorAll(BOUND_SELECTOR));
 		const cloneBound = Array.from(clone.querySelectorAll(BOUND_SELECTOR));
@@ -586,67 +686,294 @@
 		clone.querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`).forEach((el) => el.remove());
 		return "<!DOCTYPE html>\n" + clone.outerHTML;
 	}
-	async function writeToDisk() {
+	async function readFileTextPreservingBom(file) {
+		if (typeof file.arrayBuffer === "function") try {
+			const buf = await file.arrayBuffer();
+			return new TextDecoder("utf-8", { ignoreBOM: true }).decode(buf);
+		} catch {}
+		if (typeof file.text === "function") return await file.text();
+		return "";
+	}
+	function extractDbScriptBody(htmlText) {
+		const bodyText = htmlText.startsWith("﻿") ? htmlText.slice(1) : htmlText;
+		const match = NAIZODB_SCRIPT_RE.exec(bodyText);
+		return match ? match[2]?.trim() ?? "" : null;
+	}
+	function replaceDbScriptInHtml(fileText, formattedBlock) {
+		const hasBom = fileText.startsWith("﻿");
+		const bodyText = hasBom ? fileText.slice(1) : fileText;
+		if (NAIZODB_SCRIPT_RE.test(bodyText)) {
+			const replaced = bodyText.replace(NAIZODB_SCRIPT_RE, (_match, openTag, _inner, closeTag) => `${openTag}${formattedBlock}${closeTag}`);
+			return {
+				ok: true,
+				html: (hasBom ? "﻿" : "") + replaced,
+				missingBlock: false
+			};
+		}
+		if (bodyText.trim() === "") return {
+			ok: true,
+			html: (hasBom ? "﻿" : "") + getCleanHtmlString(),
+			missingBlock: false
+		};
+		return {
+			ok: false,
+			html: fileText,
+			missingBlock: true
+		};
+	}
+	function injectDbScriptIntoHtml(fileText, formattedBlock) {
+		const hasBom = fileText.startsWith("﻿");
+		const bodyText = hasBom ? fileText.slice(1) : fileText;
+		const scriptTag = `\n<script id="${DB_ID}" type="application/json">${formattedBlock}<\/script>`;
+		if (HEAD_OPEN_RE.test(bodyText)) {
+			const injected = bodyText.replace(HEAD_OPEN_RE, (headTag) => `${headTag}${scriptTag}`);
+			return (hasBom ? "﻿" : "") + injected;
+		}
+		return (hasBom ? "﻿" : "") + `${scriptTag}\n${bodyText}`;
+	}
+	function shallowMergeDatabases(baseDb, browserDb, diskDb) {
+		let hasCollision = false;
+		let browserKeptKeys = false;
+		const mergeBucket = (baseBucket, browserBucket, diskBucket) => {
+			const out = {};
+			const allKeys = /* @__PURE__ */ new Set([
+				...baseBucket ? Object.keys(baseBucket) : [],
+				...Object.keys(browserBucket),
+				...Object.keys(diskBucket)
+			]);
+			for (const key of allKeys) {
+				const baseVal = baseBucket && hasOwn(baseBucket, key) ? getOwn(baseBucket, key) : void 0;
+				const browserVal = hasOwn(browserBucket, key) ? getOwn(browserBucket, key) : void 0;
+				const diskVal = hasOwn(diskBucket, key) ? getOwn(diskBucket, key) : void 0;
+				const baseSer = baseVal !== void 0 ? JSON.stringify(baseVal) : void 0;
+				const browserSer = browserVal !== void 0 ? JSON.stringify(browserVal) : void 0;
+				const diskSer = diskVal !== void 0 ? JSON.stringify(diskVal) : void 0;
+				if (browserSer === diskSer) {
+					if (diskVal !== void 0) setOwn(out, key, cloneJsonValue(diskVal));
+					continue;
+				}
+				if (baseDb !== null) {
+					const browserChanged = browserSer !== baseSer;
+					const diskChanged = diskSer !== baseSer;
+					if (browserChanged && !diskChanged) {
+						browserKeptKeys = true;
+						if (browserVal !== void 0) setOwn(out, key, cloneJsonValue(browserVal));
+					} else if (!browserChanged && diskChanged) {
+						if (diskVal !== void 0) setOwn(out, key, cloneJsonValue(diskVal));
+					} else {
+						hasCollision = true;
+						if (diskVal !== void 0) setOwn(out, key, cloneJsonValue(diskVal));
+					}
+				} else {
+					hasCollision = true;
+					if (diskVal !== void 0) setOwn(out, key, cloneJsonValue(diskVal));
+				}
+			}
+			return out;
+		};
+		const mergedFields = mergeBucket(baseDb?.fields ?? null, browserDb.fields, diskDb.fields);
+		const mergedLists = mergeBucket(baseDb?.lists ?? null, browserDb.lists, diskDb.lists);
+		const mergedCustom = mergeBucket(baseDb?.custom ?? null, browserDb.custom, diskDb.custom);
+		return {
+			merged: {
+				_meta: cloneRecord(diskDb._meta),
+				fields: mergedFields,
+				lists: mergedLists,
+				custom: mergedCustom
+			},
+			hasCollision,
+			browserKeptKeys
+		};
+	}
+	function applyExternalDiskUpdate(diskDb, diskRaw, preserveActive) {
+		const currentBrowserDb = cloneDb(ensureStore());
+		const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(lastDiskDb, currentBrowserDb, diskDb);
+		if (hasCollision) safeSetStorage(getBackupKey(), JSON.stringify(currentBrowserDb));
+		store = merged;
+		storeInitialized = true;
+		lastSerializedContent = serializeContentBuckets(store);
+		lastKnownDiskRaw = diskRaw.trim();
+		lastDiskDb = cloneDb(diskDb);
+		safeSetStorage(getSnapshotKey(), lastKnownDiskRaw);
+		hydrateSubtreeFromStore(document, preserveActive);
+		writeStoreToDomScript(store, false);
+		safeSetStorage(getPageKey(), JSON.stringify(store));
+		if (hasCollision) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
+		else if (fileHandle) updateUi(browserKeptKeys ? "cached" : "saved", browserKeptKeys ? "Browser Cache · Pending Sync" : "Synced to Disk");
+		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
+		return {
+			hasCollision,
+			browserKeptKeys
+		};
+	}
+	function restoreConflictBackup() {
+		const backupDb = parseCachedState(safeGetStorage(getBackupKey()));
+		if (!backupDb) return;
+		safeRemoveStorage(getBackupKey());
+		store = cloneDb(backupDb);
+		storeInitialized = true;
+		hydrateSubtreeFromStore(document, false);
+		flushPersistence(true);
+		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
+	}
+	async function checkDiskForExternalChanges() {
+		if (!fileHandle || typeof fileHandle.getFile !== "function" || startupInvalidDb) return false;
+		if (writeInFlightPromise !== null) return false;
+		try {
+			if (await fileHandle.queryPermission({ mode: "readwrite" }) !== "granted") return false;
+			const diskFile = await fileHandle.getFile();
+			if (typeof diskFile.lastModified === "number" && lastObservedModified !== null && diskFile.lastModified === lastObservedModified) return false;
+			const fileText = await readFileTextPreservingBom(diskFile);
+			if (typeof diskFile.lastModified === "number") lastObservedModified = diskFile.lastModified;
+			const diskScriptRaw = extractDbScriptBody(fileText);
+			if (diskScriptRaw === null) return false;
+			if (lastKnownDiskRaw !== null && normalizeJsonComparison(diskScriptRaw) === normalizeJsonComparison(lastKnownDiskRaw)) return false;
+			const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
+			if (!diskDetailed.ok) return false;
+			const { browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+			if (browserKeptKeys) scheduleDiskWrite();
+			return true;
+		} catch {
+			return false;
+		}
+	}
+	function startDiskWatch() {
+		stopDiskWatch();
+		if (!fileHandle || typeof fileHandle.getFile !== "function") return;
+		watchInterval = setInterval(() => {
+			if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+			checkDiskForExternalChanges();
+		}, DISK_WATCH_INTERVAL_MS);
+	}
+	function stopDiskWatch() {
+		if (watchInterval !== null) {
+			clearInterval(watchInterval);
+			watchInterval = null;
+		}
+	}
+	async function performSingleDiskWrite() {
 		if (!fileHandle || startupInvalidDb) return false;
 		try {
 			if (await fileHandle.queryPermission({ mode: "readwrite" }) !== "granted") {
 				updateUi("needs-permission", "Resume Disk Sync");
 				return false;
 			}
-			const htmlString = getCleanHtmlString();
+			if (persistTimeout !== null) flushPersistence(false);
+			let fileTextToWrite;
+			let payloadToWrite;
+			if (typeof fileHandle.getFile === "function") {
+				const diskFile = await fileHandle.getFile();
+				const existingFileText = await readFileTextPreservingBom(diskFile);
+				const diskScriptRaw = extractDbScriptBody(existingFileText);
+				if (diskScriptRaw !== null && lastKnownDiskRaw !== null && normalizeJsonComparison(diskScriptRaw) !== normalizeJsonComparison(lastKnownDiskRaw)) {
+					const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
+					if (diskDetailed.ok) {
+						const { browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+						if (!browserKeptKeys) {
+							if (typeof diskFile.lastModified === "number") lastObservedModified = diskFile.lastModified;
+							return true;
+						}
+					}
+				}
+				payloadToWrite = serializeDbJson(ensureStore());
+				const formattedBlock = "\n" + payloadToWrite + "\n";
+				const replaced = replaceDbScriptInHtml(existingFileText, formattedBlock);
+				if (replaced.missingBlock) {
+					if (!(typeof window !== "undefined" && typeof window.confirm === "function" ? window.confirm("Selected file does not contain <script id=\"naizodb\">. Insert #naizodb into this file?") : false)) {
+						console.warn("[naizo.js] Refusing to overwrite file without #naizodb block.");
+						updateUi("error", "Target file lacks #naizodb");
+						return false;
+					}
+					fileTextToWrite = injectDbScriptIntoHtml(existingFileText, formattedBlock);
+				} else fileTextToWrite = replaced.html;
+			} else {
+				payloadToWrite = serializeDbJson(ensureStore());
+				fileTextToWrite = getCleanHtmlString();
+			}
 			const writable = await fileHandle.createWritable();
-			await writable.write(htmlString);
+			await writable.write(fileTextToWrite);
 			await writable.close();
-			safeSetStorage(getSnapshotKey(), getDbScript().textContent?.trim() ?? "");
-			updateUi("saved", "Saved " + (/* @__PURE__ */ new Date()).toLocaleTimeString([], {
-				hour: "2-digit",
-				minute: "2-digit",
-				second: "2-digit"
-			}));
+			const exactWrittenTrimmed = payloadToWrite.trim();
+			lastKnownDiskRaw = exactWrittenTrimmed;
+			const writtenParsed = parseDbScriptDetailed(exactWrittenTrimmed);
+			if (writtenParsed.ok) lastDiskDb = cloneDb(writtenParsed.db);
+			safeSetStorage(getSnapshotKey(), exactWrittenTrimmed);
+			if (typeof fileHandle.getFile === "function") try {
+				const updatedFile = await fileHandle.getFile();
+				if (typeof updatedFile.lastModified === "number") lastObservedModified = updatedFile.lastModified;
+			} catch {}
+			if (serializeDbJson(ensureStore()).trim() !== exactWrittenTrimmed) {
+				writeQueued = true;
+				updateUi("cached", "Browser Cache · Pending Sync");
+			} else updateUi("saved", "Synced to Disk");
 			return true;
 		} catch (err) {
 			console.warn("[naizo.js] Disk write failed:", err);
-			updateUi("cached", "Cached in Browser · Link Disk");
+			updateUi("cached", "Browser Cache · Click to Link Disk");
 			return false;
 		}
 	}
-	function flushPersistence() {
+	async function writeToDisk() {
+		if (!fileHandle || startupInvalidDb) return false;
+		if (writeInFlightPromise !== null) {
+			writeQueued = true;
+			return writeInFlightPromise;
+		}
+		writeInFlightPromise = (async () => {
+			let lastResult = false;
+			do {
+				writeQueued = false;
+				lastResult = await performSingleDiskWrite();
+			} while (writeQueued && fileHandle && !startupInvalidDb);
+			return lastResult;
+		})();
+		try {
+			return await writeInFlightPromise;
+		} finally {
+			writeInFlightPromise = null;
+		}
+	}
+	function scheduleDiskWrite() {
+		if (!fileHandle || startupInvalidDb) return;
+		updateUi("saving", "Saving...");
+		if (saveTimeout !== null) clearTimeout(saveTimeout);
+		saveTimeout = setTimeout(() => {
+			saveTimeout = null;
+			writeToDisk();
+		}, DISK_DEBOUNCE_MS);
+	}
+	function flushPersistence(scheduleDisk = true) {
 		if (persistTimeout !== null) {
 			clearTimeout(persistTimeout);
 			persistTimeout = null;
 		}
 		if (startupInvalidDb) {
 			updateUi("error", "Invalid #naizodb JSON");
-			return;
+			return false;
 		}
 		const db = ensureStore();
 		writeStoreToDomScript(db, true);
 		const storedOk = safeSetStorage(getPageKey(), JSON.stringify(db));
 		if (!fileHandle) {
-			if (storedOk) updateUi("cached", "Cached in Browser");
+			if (storedOk) updateUi("cached", "Browser Cache · Click to Link Disk");
 			else updateUi("cached", "In-Memory Only · Link Disk");
-			return;
+			return storedOk;
 		}
-		updateUi("saving", "Saving...");
-		if (saveTimeout) clearTimeout(saveTimeout);
-		saveTimeout = setTimeout(() => {
-			writeToDisk();
-		}, DISK_DEBOUNCE_MS);
+		if (scheduleDisk) scheduleDiskWrite();
+		return storedOk;
 	}
 	function schedulePersist() {
 		if (startupInvalidDb) return;
 		if (persistTimeout !== null) clearTimeout(persistTimeout);
 		persistTimeout = setTimeout(() => {
 			persistTimeout = null;
-			flushPersistence();
+			flushPersistence(true);
 		}, PERSIST_DEBOUNCE_MS);
-	}
-	function triggerSave() {
-		flushPersistence();
 	}
 	async function connectOrResumeDisk() {
 		if (fileHandle) {
 			if (await fileHandle.requestPermission({ mode: "readwrite" }) === "granted") {
+				startDiskWatch();
 				await writeToDisk();
 				return;
 			}
@@ -660,6 +987,7 @@
 				}]
 			});
 			saveHandleToIDB(fileHandle);
+			startDiskWatch();
 			await writeToDisk();
 		} catch {}
 		else {
@@ -729,26 +1057,35 @@
     </style>
     <div class="pill">
       <span class="dot" id="dot"></span>
-      <span id="status">naizo.js Ready</span>
+      <span id="status">Browser Cache · Click to Link Disk</span>
       <button id="action">Link Disk</button>
-      <button id="copy" title="Copy #naizodb JSON state">{ } Copy</button>
+      <button id="restore" style="display: none" title="Restore browser state before disk conflict">↺ Restore</button>
+      <button id="copy" title="Copy #naizodb JSON state">📋 Copy</button>
+      <button id="unlink" style="display: none" title="Forget linked disk file">× Unlink</button>
     </div>
   `;
 		statusEl = shadow.getElementById("status");
 		actionBtn = shadow.getElementById("action");
+		restoreBtn = shadow.getElementById("restore");
+		unlinkBtn = shadow.getElementById("unlink");
 		const dotEl = shadow.getElementById("dot");
 		const copyBtn = shadow.getElementById("copy");
 		actionBtn?.addEventListener("click", () => {
 			connectOrResumeDisk();
 		});
+		restoreBtn?.addEventListener("click", () => {
+			restoreConflictBackup();
+		});
 		copyBtn?.addEventListener("click", () => {
-			flushPersistence();
-			const text = "\n" + JSON.stringify(ensureStore(), null, 2) + "\n";
-			navigator.clipboard?.writeText(text.trim());
-			copyBtn.textContent = "✓ Copied";
-			setTimeout(() => {
-				copyBtn.textContent = "{ } Copy";
-			}, 1500);
+			Naizo.copyJSON().then(() => {
+				copyBtn.textContent = "✓ Copied";
+				setTimeout(() => {
+					copyBtn.textContent = "📋 Copy";
+				}, 1500);
+			});
+		});
+		unlinkBtn?.addEventListener("click", () => {
+			Naizo.unlink();
 		});
 		host._setDot = (state) => {
 			if (dotEl) {
@@ -766,10 +1103,16 @@
 		else if (state === "needs-permission") {
 			actionBtn.style.display = "inline-block";
 			actionBtn.textContent = "Resume Disk Sync";
-		} else {
+		} else if (fileHandle) actionBtn.style.display = "none";
+		else {
 			actionBtn.style.display = "inline-block";
 			actionBtn.textContent = "Link Disk";
 		}
+		if (restoreBtn) {
+			const hasBackup = safeGetStorage(getBackupKey()) !== null;
+			restoreBtn.style.display = hasBackup || state === "conflict" ? "inline-block" : "none";
+		}
+		if (unlinkBtn) unlinkBtn.style.display = fileHandle ? "inline-block" : "none";
 	}
 	function handleInputOrChange(e) {
 		const target = e.target;
@@ -819,7 +1162,7 @@
 				if (listName && idx !== -1) Naizo.removeItem(listName, idx);
 				else {
 					itemEl.remove();
-					triggerSave();
+					flushPersistence(true);
 				}
 			}
 			return;
@@ -839,16 +1182,34 @@
 			else if (dir === "down" && idx < rows.length - 1) Naizo.moveItem(listName, idx, idx + 1);
 		}
 	}
+	function handleStorageEvent(e) {
+		if (!e.key || e.key !== getPageKey() || !e.newValue) return;
+		if (writeInFlightPromise !== null || startupInvalidDb) return;
+		const nextDb = parseCachedState(e.newValue);
+		if (!nextDb) return;
+		store = cloneDb(nextDb);
+		storeInitialized = true;
+		lastSerializedContent = serializeContentBuckets(store);
+		hydrateSubtreeFromStore(document, true);
+		writeStoreToDomScript(store, false);
+		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
+	}
 	function attachListeners() {
 		if (listenersAttached) return;
 		document.addEventListener("click", handleListClicks);
 		document.addEventListener("input", handleInputOrChange);
 		document.addEventListener("change", handleInputOrChange);
+		window.addEventListener("storage", handleStorageEvent);
+		window.addEventListener("focus", () => {
+			checkDiskForExternalChanges();
+		});
 		window.addEventListener("pagehide", () => {
-			if (persistTimeout !== null) flushPersistence();
+			if (persistTimeout !== null) flushPersistence(false);
 		});
 		document.addEventListener("visibilitychange", () => {
-			if (document.visibilityState === "hidden" && persistTimeout !== null) flushPersistence();
+			if (document.visibilityState === "hidden") {
+				if (persistTimeout !== null) flushPersistence(false);
+			} else if (document.visibilityState === "visible") checkDiskForExternalChanges();
 		});
 		listenersAttached = true;
 	}
@@ -865,7 +1226,7 @@
 				return;
 			}
 			setOwn(ensureStore().custom, key, cloneJsonValue(value));
-			triggerSave();
+			flushPersistence(true);
 		},
 		getField(key) {
 			return getOwn(ensureStore().fields, key);
@@ -879,14 +1240,14 @@
 			const cloned = cloneJsonValue(value);
 			setOwn(db.fields, key, cloned);
 			propagateStandaloneKey(key, cloned);
-			triggerSave();
+			flushPersistence(true);
 		},
 		deleteField(key) {
 			if (!key) return;
 			const db = ensureStore();
 			if (!hasOwn(db.fields, key)) return;
 			deleteOwn(db.fields, key);
-			triggerSave();
+			flushPersistence(true);
 		},
 		getList(listName) {
 			const arr = getOwn(ensureStore().lists, listName);
@@ -907,7 +1268,7 @@
 			const listEl = findListElement(listName);
 			if (!listEl) {
 				listArr.push(rowObj);
-				triggerSave();
+				flushPersistence(true);
 				return;
 			}
 			ensureListBlueprints(listEl);
@@ -917,7 +1278,7 @@
 				listArr.push(rowObj);
 				decorateListControls(listEl);
 				node.querySelector("input[type=\"text\"], [contenteditable=\"true\"], textarea")?.focus();
-				triggerSave();
+				flushPersistence(true);
 			}
 		},
 		updateItem(listName, index, partialData) {
@@ -936,7 +1297,7 @@
 				setOwn(rowObj, key, val);
 				if (itemEl) propagateItemKey(itemEl, key, val);
 			}
-			triggerSave();
+			flushPersistence(true);
 		},
 		removeItem(listName, index) {
 			const listArr = getOwn(ensureStore().lists, listName);
@@ -946,7 +1307,7 @@
 				const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
 				if (items[index]) items[index].remove();
 			}
-			triggerSave();
+			flushPersistence(true);
 		},
 		moveItem(listName, fromIndex, toIndex) {
 			if (fromIndex === toIndex) return;
@@ -962,18 +1323,46 @@
 				const targetEl = items[toIndex];
 				if (fromEl && targetEl) listEl.insertBefore(fromEl, fromIndex < toIndex ? targetEl.nextSibling : targetEl);
 			}
-			triggerSave();
+			flushPersistence(true);
 		},
 		bind(root = document) {
 			ensureStore();
-			hydrateSubtreeFromStore(root);
+			hydrateSubtreeFromStore(root, false);
 			schedulePersist();
 		},
-		save: triggerSave,
+		async save() {
+			if (saveTimeout !== null) {
+				clearTimeout(saveTimeout);
+				saveTimeout = null;
+			}
+			const cachedOk = flushPersistence(false);
+			if (fileHandle) return await writeToDisk();
+			return cachedOk;
+		},
+		async unlink() {
+			stopDiskWatch();
+			if (saveTimeout !== null) {
+				clearTimeout(saveTimeout);
+				saveTimeout = null;
+			}
+			fileHandle = null;
+			lastObservedModified = null;
+			await deleteHandleFromIDB();
+			updateUi("cached", "Browser Cache · Click to Link Disk");
+		},
+		async copyJSON() {
+			flushPersistence(false);
+			const json = serializeDbJson(ensureStore());
+			try {
+				await navigator.clipboard?.writeText(json);
+			} catch {}
+			return json;
+		},
 		exportHTML: getCleanHtmlString
 	};
 	const NaizoDB = Naizo;
 	async function initNaizo() {
+		stopDiskWatch();
 		if (persistTimeout !== null) {
 			clearTimeout(persistTimeout);
 			persistTimeout = null;
@@ -982,23 +1371,25 @@
 			clearTimeout(saveTimeout);
 			saveTimeout = null;
 		}
+		fileHandle = null;
+		lastObservedModified = null;
 		mountUi();
 		ensureListBlueprints(document);
 		attachListeners();
-		const pageKey = getPageKey();
-		const snapshotKey = getSnapshotKey();
 		const scriptEl = getDbScript();
 		trackedDbScriptEl = scriptEl;
 		const currentDiskRaw = scriptEl.textContent?.trim() ?? "";
-		const lastKnownDiskRaw = safeGetStorage(snapshotKey);
 		const diskDetailed = parseDbScriptDetailed(currentDiskRaw);
+		const pageKey = getPageKey();
+		const snapshotKey = getSnapshotKey();
+		const storedDiskSnapshot = safeGetStorage(snapshotKey);
 		const cachedState = parseCachedState(safeGetStorage(pageKey));
 		if (!diskDetailed.ok) {
 			startupInvalidDb = true;
 			store = cachedState ? cloneDb(cachedState) : createEmptyDb();
 			storeInitialized = true;
 			lastSerializedContent = serializeContentBuckets(store);
-			if (cachedState) hydrateSubtreeFromStore(document);
+			if (cachedState) hydrateSubtreeFromStore(document, false);
 			else document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
 				if (!isIgnoredElement(listEl)) decorateListControls(listEl);
 			});
@@ -1007,32 +1398,60 @@
 			return;
 		}
 		startupInvalidDb = false;
-		if (lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw || !cachedState) {
+		lastKnownDiskRaw = currentDiskRaw;
+		lastDiskDb = cloneDb(diskDetailed.db);
+		const diskModifiedExternally = storedDiskSnapshot !== null && normalizeJsonComparison(currentDiskRaw) !== normalizeJsonComparison(storedDiskSnapshot);
+		let hasBootConflict = false;
+		if (diskModifiedExternally && cachedState) {
+			const { merged, hasCollision } = shallowMergeDatabases(parseCachedState(storedDiskSnapshot), cachedState, diskDetailed.db);
+			if (hasCollision) {
+				safeSetStorage(getBackupKey(), JSON.stringify(cachedState));
+				hasBootConflict = true;
+			}
+			store = merged;
+			storeInitialized = true;
+			lastSerializedContent = serializeContentBuckets(store);
+			hydrateSubtreeFromStore(document, false);
+			writeStoreToDomScript(store, false);
+			const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
+			safeSetStorage(snapshotKey, currentDiskRaw);
+			if (hasBootConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
+			else if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
+			else updateUi("cached", "Browser Cache · Click to Link Disk");
+		} else if (!cachedState) {
 			store = cloneDb(diskDetailed.db);
 			storeInitialized = true;
 			lastSerializedContent = serializeContentBuckets(store);
-			hydrateSubtreeFromStore(document);
+			hydrateSubtreeFromStore(document, false);
 			writeStoreToDomScript(store, false);
 			const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
 			safeSetStorage(snapshotKey, currentDiskRaw);
 			if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
+			else updateUi("cached", "Browser Cache · Click to Link Disk");
 		} else {
 			store = cloneDb(cachedState);
 			storeInitialized = true;
 			lastSerializedContent = serializeContentBuckets(store);
-			hydrateSubtreeFromStore(document);
+			hydrateSubtreeFromStore(document, false);
 			writeStoreToDomScript(store, false);
 			const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-			if (lastKnownDiskRaw === null) safeSetStorage(snapshotKey, currentDiskRaw);
+			if (storedDiskSnapshot === null) safeSetStorage(snapshotKey, currentDiskRaw);
 			if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
+			else updateUi("cached", "Browser Cache · Click to Link Disk");
 		}
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 		fileHandle = await loadHandleFromIDB();
 		if (fileHandle) try {
-			if (await fileHandle.queryPermission({ mode: "readwrite" }) === "granted") updateUi("saved", "Disk Sync Active");
-			else updateUi("needs-permission", "File Remembered");
+			if (await fileHandle.queryPermission({ mode: "readwrite" }) === "granted") {
+				startDiskWatch();
+				await checkDiskForExternalChanges();
+				const isDirtyComparedToDisk = serializeContentBuckets(ensureStore()) !== serializeContentBuckets(lastDiskDb);
+				if (hasBootConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
+				else if (isDirtyComparedToDisk) updateUi("cached", "Browser Cache · Click to Link Disk");
+				else updateUi("saved", "Synced to Disk");
+			} else updateUi("needs-permission", "Resume Disk Sync");
 		} catch {
-			updateUi("needs-permission", "File Remembered");
+			updateUi("needs-permission", "Resume Disk Sync");
 		}
 	}
 	//#endregion

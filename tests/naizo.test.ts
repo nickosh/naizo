@@ -628,4 +628,301 @@ describe('naizo.js v0.1.0 core runtime', () => {
     clickSpy.mockRestore();
     warnSpy.mockRestore();
   });
+
+  it('escapes < as \\u003c, surgically updates #naizodb preserving UTF-8 BOM, and guards non-naizo files (D13, D16, D24, EC08, EC28)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": { "snippet": "Safe" },
+        "lists": {},
+        "custom": {}
+      }
+      </script>
+    `;
+    document.body.innerHTML = `<input type="text" naizo="snippet" value="Safe">`;
+    await initNaizo();
+
+    // 1. \u003c escaping for </script> and <!-- (EC08)
+    Naizo.setField('snippet', '</script><!--<script>alert(1)</script>');
+    const rawScript = document.getElementById('naizodb')?.textContent ?? '';
+    expect(rawScript).not.toContain('</script>');
+    expect(rawScript).toContain('\\u003c/script>');
+    expect(rawScript).toContain('\\u003c!--');
+    expect(parseDbScript().fields.snippet).toBe('</script><!--<script>alert(1)</script>');
+
+    // 2. Surgical #naizodb replacement preserving UTF-8 BOM and surrounding bytes (D16, D24)
+    let diskContent =
+      '\uFEFF<!doctype html>\n<html><head><script type="application/json" id="naizodb">\n{"_meta":{},"fields":{"snippet":"Safe"},"lists":{},"custom":{}}\n</script></head><body class="tailwind-mutated"><p>Exact body bytes</p></body></html>';
+    let diskMtime = 1000;
+
+    window.showSaveFilePicker = vi.fn().mockResolvedValue({
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockImplementation(async () => ({
+        lastModified: diskMtime,
+        arrayBuffer: async () => new TextEncoder().encode(diskContent).buffer,
+        text: async () => diskContent.replace(/^\uFEFF/, ''),
+      })),
+      createWritable: vi.fn().mockImplementation(async () => ({
+        write: async (data: string) => {
+          diskContent = data;
+          diskMtime += 100;
+        },
+        close: async () => {},
+      })),
+    });
+
+    const host = document.getElementById('__naizodb_host__');
+    const actionBtn = host?.shadowRoot?.getElementById('action') as HTMLButtonElement | null;
+    actionBtn?.click();
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(diskContent.startsWith('\uFEFF')).toBe(true);
+    expect(diskContent).toContain('<body class="tailwind-mutated"><p>Exact body bytes</p></body>');
+    expect(diskContent).toContain('\\u003c/script>');
+
+    // 3. Refuse to overwrite non-empty file lacking #naizodb without confirmation (EC28)
+    let unrelatedFile = '<html><head><title>Unrelated</title></head><body>Keep me</body></html>';
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    window.showSaveFilePicker = vi.fn().mockResolvedValue({
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockResolvedValue({
+        lastModified: 2000,
+        text: async () => unrelatedFile,
+      }),
+      createWritable: vi.fn().mockResolvedValue({
+        write: async (data: string) => {
+          unrelatedFile = data;
+        },
+        close: async () => {},
+      }),
+    });
+
+    await Naizo.unlink();
+    actionBtn?.click();
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(unrelatedFile).toBe(
+      '<html><head><title>Unrelated</title></head><body>Keep me</body></html>',
+    );
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
+      'Target file lacks #naizodb',
+    );
+
+    confirmSpy.mockRestore();
+    Reflect.deleteProperty(window, 'showSaveFilePicker');
+    warnSpy.mockRestore();
+  });
+
+  it('queues disk writes single-flight, records exact payload snapshots, and shows truthful status pill UX (D24, D27, EC26, EC36)', async () => {
+    const initialJson = JSON.stringify(
+      {
+        _meta: {},
+        fields: { a: 'zero' },
+        lists: {},
+        custom: {},
+      },
+      null,
+      2,
+    );
+    let diskHtml = `<html><head><script id="naizodb" type="application/json">\n${initialJson}\n</script></head><body></body></html>`;
+    let diskMtime = 1000;
+    const writes: string[] = [];
+    let resolveFirstClose: (() => void) | null = null;
+    let closeCallCount = 0;
+
+    document.head.innerHTML = `<script id="naizodb" type="application/json">\n${initialJson}\n</script>`;
+    document.body.innerHTML = `<input id="a-in" type="text" naizo="a" value="zero">`;
+
+    await initNaizo();
+
+    window.showSaveFilePicker = vi.fn().mockResolvedValue({
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockImplementation(async () => ({
+        lastModified: diskMtime,
+        text: async () => diskHtml,
+      })),
+      createWritable: vi.fn().mockImplementation(async () => {
+        let pendingData = '';
+        return {
+          write: async (data: string) => {
+            pendingData = data;
+          },
+          close: async () => {
+            closeCallCount += 1;
+            if (closeCallCount === 1) {
+              await new Promise<void>((r) => {
+                resolveFirstClose = r;
+              });
+            }
+            diskHtml = pendingData;
+            diskMtime += 100;
+            writes.push(pendingData);
+          },
+        };
+      }),
+    });
+
+    const host = document.getElementById('__naizodb_host__');
+    const statusEl = host?.shadowRoot?.getElementById('status');
+    const dotEl = host?.shadowRoot?.getElementById('dot');
+
+    // Before linking, status pill is amber
+    expect(statusEl?.textContent).toBe('Browser Cache · Click to Link Disk');
+    expect(dotEl?.className).toBe('dot');
+
+    // Link disk (first write starts and pauses at close)
+    Naizo.setField('a', 'one');
+    const actionBtn = host?.shadowRoot?.getElementById('action') as HTMLButtonElement | null;
+    actionBtn?.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Edit 'a' to 'two' while first write is in flight (EC26)
+    Naizo.setField('a', 'two');
+
+    // Finish first write -> single-flight queue automatically executes second write
+    (resolveFirstClose as (() => void) | null)?.();
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(writes.length).toBeGreaterThanOrEqual(2);
+    expect(diskHtml).toContain('"a": "two"');
+    expect(localStorage.getItem('naizodb_disk_hash_/')).toContain('"a": "two"');
+    expect(statusEl?.textContent).toBe('Synced to Disk');
+    expect(dotEl?.className).toBe('dot saved');
+
+    // Test copyJSON() and unlink()
+    const writeTextSpy = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: writeTextSpy },
+    });
+    const copied = await Naizo.copyJSON();
+    expect(copied).toContain('"a": "two"');
+    expect(writeTextSpy).toHaveBeenCalledWith(copied);
+
+    await Naizo.unlink();
+    expect(statusEl?.textContent).toBe('Browser Cache · Click to Link Disk');
+    expect(dotEl?.className).toBe('dot');
+
+    Reflect.deleteProperty(window, 'showSaveFilePicker');
+  });
+
+  it('merges external disk edits across unrelated keys, guards activeElement, and backs up same-key collisions with Restore (D20, D27, EC10, EC11, EC17, EC27)', async () => {
+    vi.useFakeTimers();
+    try {
+      document.documentElement.setAttribute('naizo-id', 'doc-merge');
+      const baseJson = JSON.stringify(
+        {
+          _meta: {},
+          fields: { owner: 'Kenji', status: 'Draft', shared: 'v0' },
+          lists: {},
+          custom: {},
+        },
+        null,
+        2,
+      );
+      let diskHtml = `<html><head><script id="naizodb" type="application/json">\n${baseJson}\n</script></head><body></body></html>`;
+      let diskMtime = 1000;
+
+      document.head.innerHTML = `<script id="naizodb" type="application/json">\n${baseJson}\n</script>`;
+      document.body.innerHTML = `
+        <input id="owner-in" type="text" naizo="owner" value="Kenji">
+        <input id="status-in" type="text" naizo="status" value="Draft">
+        <input id="shared-in" type="text" naizo="shared" value="v0">
+      `;
+
+      await initNaizo();
+      expect(localStorage.getItem('naizodb_state_/::doc-merge')).not.toBeNull();
+
+      window.showSaveFilePicker = vi.fn().mockResolvedValue({
+        queryPermission: vi.fn().mockResolvedValue('granted'),
+        requestPermission: vi.fn().mockResolvedValue('granted'),
+        getFile: vi.fn().mockImplementation(async () => ({
+          lastModified: diskMtime,
+          text: async () => diskHtml,
+        })),
+        createWritable: vi.fn().mockImplementation(async () => ({
+          write: async (data: string) => {
+            diskHtml = data;
+            diskMtime += 100;
+          },
+          close: async () => {},
+        })),
+      });
+
+      const host = document.getElementById('__naizodb_host__');
+      (host?.shadowRoot?.getElementById('action') as HTMLButtonElement | null)?.click();
+      await vi.advanceTimersByTimeAsync(50);
+
+      // Browser edits `owner` and `shared` while focusing `owner-in`
+      const ownerIn = document.getElementById('owner-in') as HTMLInputElement;
+      ownerIn.focus();
+      ownerIn.value = 'Alice (Typing)';
+      Naizo.setField('owner', 'Alice');
+      ownerIn.value = 'Alice (Mid-Keystroke)';
+      Naizo.setField('shared', 'browser-edit');
+
+      // Before debounced disk write fires, external AI agent edits `status` and collides on `shared`
+      const agentJson = JSON.stringify(
+        {
+          _meta: {},
+          fields: { owner: 'Kenji', status: 'Approved by Agent', shared: 'agent-edit' },
+          lists: {},
+          custom: {},
+        },
+        null,
+        2,
+      );
+      diskHtml = `<html><head><script id="naizodb" type="application/json">\n${agentJson}\n</script></head><body></body></html>`;
+      diskMtime += 500;
+
+      // Advance 2s watch interval to trigger live disk watch (EC10)
+      await vi.advanceTimersByTimeAsync(2100);
+
+      // Unrelated browser key `owner` ("Alice") and agent key `status` ("Approved by Agent") both survive!
+      expect(Naizo.getField('owner')).toBe('Alice');
+      expect(Naizo.getField('status')).toBe('Approved by Agent');
+      // Same-key collision on `shared`: disk wins, browser state backed up to naizodb_backup_<key>
+      expect(Naizo.getField('shared')).toBe('agent-edit');
+      // Focused input was not clobbered mid-keystroke (EC10)
+      expect(ownerIn.value).toBe('Alice (Mid-Keystroke)');
+
+      const backupRaw = localStorage.getItem('naizodb_backup_/::doc-merge');
+      expect(backupRaw).not.toBeNull();
+      const restoreBtn = host?.shadowRoot?.getElementById('restore') as HTMLButtonElement | null;
+      expect(restoreBtn?.style.display).toBe('inline-block');
+
+      // Clicking ↺ Restore restores pre-merge browser state (EC17)
+      restoreBtn?.click();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(Naizo.getField('shared')).toBe('browser-edit');
+      expect(restoreBtn?.style.display).toBe('none');
+
+      // Cross-tab storage event refreshes in-memory store (EC27)
+      ownerIn.blur();
+      const crossTabState = JSON.stringify({
+        _meta: {},
+        fields: { owner: 'CrossTabUser', status: 'Approved by Agent', shared: 'browser-edit' },
+        lists: {},
+        custom: {},
+      });
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'naizodb_state_/::doc-merge',
+          newValue: crossTabState,
+        }),
+      );
+      expect(Naizo.getField('owner')).toBe('CrossTabUser');
+    } finally {
+      await Naizo.unlink();
+      document.documentElement.removeAttribute('naizo-id');
+      Reflect.deleteProperty(window, 'showSaveFilePicker');
+      vi.useRealTimers();
+    }
+  });
 });

@@ -30,7 +30,9 @@ export interface NaizoAPI {
   removeItem(listName: string, index: number): void;
   moveItem(listName: string, fromIndex: number, toIndex: number): void;
   bind(root?: ParentNode): void;
-  save(): void;
+  save(): Promise<boolean>;
+  unlink(): Promise<void>;
+  copyJSON(): Promise<string>;
   exportHTML(): string;
 }
 
@@ -43,10 +45,17 @@ interface FileSystemWritableFileStream {
   close(): Promise<void>;
 }
 
+interface NaizoFile {
+  lastModified?: number;
+  text?: () => Promise<string>;
+  arrayBuffer?: () => Promise<ArrayBuffer>;
+}
+
 interface NaizoFileHandle {
   queryPermission(descriptor?: FileSystemPermissionDescriptor): Promise<PermissionState>;
   requestPermission(descriptor?: FileSystemPermissionDescriptor): Promise<PermissionState>;
   createWritable(): Promise<FileSystemWritableFileStream>;
+  getFile?: () => Promise<NaizoFile>;
 }
 
 interface NaizoHostElement extends HTMLDivElement {
@@ -67,6 +76,10 @@ const STYLE_ID = '__naizodb_styles__';
 const IDB_NAME = 'NaizoDB_Handles';
 const PERSIST_DEBOUNCE_MS = 150;
 const DISK_DEBOUNCE_MS = 250;
+const DISK_WATCH_INTERVAL_MS = 2000;
+const NAIZODB_SCRIPT_RE =
+  /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
+const HEAD_OPEN_RE = /(<head\b[^>]*>)/i;
 
 const BOUND_SELECTOR = '[naizo], [data-naizo], [data-naizo-field]';
 const LIST_SELECTOR = '[naizo-list], [data-naizo-list]';
@@ -216,12 +229,55 @@ function validateAndNormalizeDb(parsed: unknown): NaizoDatabase | null {
   };
 }
 
+function normalizePathname(rawPath: string): string {
+  const cleaned = rawPath.replace(/\/index\.html?$/i, '/');
+  return cleaned || '/';
+}
+
+function getDocumentScopeId(): string {
+  if (typeof document === 'undefined') return '';
+  const attrId =
+    document.documentElement?.getAttribute('naizo-id') ??
+    document.documentElement?.getAttribute('data-naizo-id') ??
+    document.body?.getAttribute('naizo-id') ??
+    document.body?.getAttribute('data-naizo-id');
+  if (attrId && attrId.trim()) return attrId.trim();
+
+  if (storeInitialized && typeof store._meta.id === 'string' && store._meta.id.trim()) {
+    return store._meta.id.trim();
+  }
+
+  const raw = document.getElementById(DB_ID)?.textContent ?? '';
+  if (raw.includes('"id"')) {
+    try {
+      const parsed = JSON.parse(raw) as { _meta?: { id?: unknown } };
+      if (typeof parsed?._meta?.id === 'string' && parsed._meta.id.trim()) {
+        return parsed._meta.id.trim();
+      }
+    } catch {
+      // Ignore malformed JSON during scope lookup
+    }
+  }
+  return '';
+}
+
+function getStorageSuffix(): string {
+  const rawPath = typeof location !== 'undefined' && location.pathname ? location.pathname : '/';
+  const normPath = normalizePathname(rawPath);
+  const scopeId = getDocumentScopeId();
+  return scopeId ? `${normPath}::${scopeId}` : normPath;
+}
+
 function getPageKey(): string {
-  return 'naizodb_state_' + (typeof location !== 'undefined' ? location.pathname : '/');
+  return 'naizodb_state_' + getStorageSuffix();
 }
 
 function getSnapshotKey(): string {
-  return 'naizodb_disk_hash_' + (typeof location !== 'undefined' ? location.pathname : '/');
+  return 'naizodb_disk_hash_' + getStorageSuffix();
+}
+
+function getBackupKey(): string {
+  return 'naizodb_backup_' + getStorageSuffix();
 }
 
 function safeGetStorage(key: string): string | null {
@@ -242,6 +298,19 @@ function safeSetStorage(key: string, value: string): boolean {
     console.warn('[naizo.js] localStorage write failed:', e);
     return false;
   }
+}
+
+function safeRemoveStorage(key: string): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore storage removal errors
+  }
+}
+
+function serializeDbJson(db: NaizoDatabase): string {
+  return JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
 }
 
 function getAttr(el: Element, shortName: string): string | null {
@@ -293,12 +362,20 @@ let storeInitialized = false;
 let startupInvalidDb = false;
 let trackedDbScriptEl: HTMLScriptElement | null = null;
 let lastSerializedContent = '';
+let lastKnownDiskRaw: string | null = null;
+let lastDiskDb: NaizoDatabase | null = null;
+let lastObservedModified: number | null = null;
 let itemDataMap = new WeakMap<HTMLElement, Record<string, unknown>>();
 let fileHandle: NaizoFileHandle | null = null;
 let persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+let watchInterval: ReturnType<typeof setInterval> | null = null;
+let writeInFlightPromise: Promise<boolean> | null = null;
+let writeQueued = false;
 let statusEl: HTMLElement | null = null;
 let actionBtn: HTMLButtonElement | null = null;
+let restoreBtn: HTMLButtonElement | null = null;
+let unlinkBtn: HTMLButtonElement | null = null;
 let listenersAttached = false;
 
 // --- 1. IndexedDB Helper for Persisting FileSystemFileHandle ---
@@ -317,7 +394,33 @@ function idbStore(mode: IDBTransactionMode, callback: (store: IDBObjectStore) =>
 }
 
 function saveHandleToIDB(handle: NaizoFileHandle): void {
-  idbStore('readwrite', (store) => store.put(handle, getPageKey()));
+  idbStore('readwrite', (idb) => idb.put(handle, getPageKey()));
+}
+
+function deleteHandleFromIDB(): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === 'undefined') {
+        resolve();
+        return;
+      }
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('handles');
+      req.onsuccess = () => {
+        try {
+          const tx = req.result.transaction('handles', 'readwrite');
+          const delReq = tx.objectStore('handles').delete(getPageKey());
+          delReq.onsuccess = () => resolve();
+          delReq.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      };
+      req.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
 }
 
 function loadHandleFromIDB(): Promise<NaizoFileHandle | null> {
@@ -408,6 +511,21 @@ function serializeContentBuckets(db: NaizoDatabase): string {
     lists: db.lists,
     custom: db.custom,
   });
+}
+
+function normalizeJsonComparison(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    const validated = validateAndNormalizeDb(parsed);
+    if (validated) {
+      return serializeContentBuckets(validated);
+    }
+    return JSON.stringify(parsed);
+  } catch {
+    return trimmed;
+  }
 }
 
 function ensureStore(): NaizoDatabase {
@@ -815,13 +933,22 @@ function syncDomIntoStore(): NaizoDatabase {
   return db;
 }
 
+function isElementActive(el: Element): boolean {
+  if (typeof document === 'undefined') return false;
+  const active = document.activeElement;
+  if (!active || active === document.body || active === document.documentElement) {
+    return false;
+  }
+  return el === active || el.contains(active);
+}
+
 function writeStoreToDomScript(db: NaizoDatabase, allowMetaBump: boolean): string {
   const nextContent = serializeContentBuckets(db);
   if (allowMetaBump && nextContent !== lastSerializedContent) {
     setOwn(db._meta, 'updatedAt', new Date().toISOString());
   }
   lastSerializedContent = nextContent;
-  const formatted = '\n' + JSON.stringify(db, null, 2) + '\n';
+  const formatted = '\n' + serializeDbJson(db) + '\n';
   if (!startupInvalidDb) {
     const scriptEl = getDbScript();
     scriptEl.textContent = formatted;
@@ -836,7 +963,7 @@ export function captureDomToState(): { db: NaizoDatabase; formatted: string } {
   return { db, formatted };
 }
 
-function hydrateSubtreeFromStore(root: ParentNode = document): void {
+function hydrateSubtreeFromStore(root: ParentNode = document, preserveActive = false): void {
   const db = ensureStore();
   ensureListBlueprints(root);
 
@@ -844,6 +971,7 @@ function hydrateSubtreeFromStore(root: ParentNode = document): void {
     const key = getElementKey(el);
     if (!key) return;
     if (hasOwn(db.fields, key)) {
+      if (preserveActive && isElementActive(el)) return;
       writeElementValue(el, getOwn(db.fields, key));
     } else {
       const val = readElementValue(el);
@@ -865,7 +993,24 @@ function hydrateSubtreeFromStore(root: ParentNode = document): void {
     const listName = getAttr(listEl, 'naizo-list');
     if (!listName) return;
     if (hasOwn(db.lists, listName) && Array.isArray(getOwn(db.lists, listName))) {
-      renderListItems(listEl, getOwn(db.lists, listName) as Array<Record<string, unknown>>);
+      const targetItems = getOwn(db.lists, listName) as Array<Record<string, unknown>>;
+      const currentRows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
+      if (preserveActive && isElementActive(listEl) && currentRows.length === targetItems.length) {
+        currentRows.forEach((rowEl, idx) => {
+          const itemObj = targetItems[idx];
+          if (!itemObj) return;
+          itemDataMap.set(rowEl, itemObj);
+          queryItemBoundElements(rowEl).forEach((el) => {
+            if (isElementActive(el)) return;
+            const key = getElementKey(el);
+            if (key && hasOwn(itemObj, key)) {
+              writeElementValue(el, getOwn(itemObj, key));
+            }
+          });
+        });
+      } else {
+        renderListItems(listEl, targetItems);
+      }
     } else {
       const seededItems: Array<Record<string, unknown>> = [];
       listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
@@ -887,14 +1032,14 @@ export function hydrateDomFromState(db: NaizoDatabase | null): void {
   storeInitialized = true;
   lastSerializedContent = serializeContentBuckets(store);
 
-  hydrateSubtreeFromStore(document);
+  hydrateSubtreeFromStore(document, false);
   writeStoreToDomScript(store, false);
   window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
 }
 
-// --- 6. Clean Serialization (Bakes Attributes on Clone & Strips Runtime UI Before Export) ---
+// --- 6. Clean Serialization & Surgical #naizodb Replacement ---
 export function getCleanHtmlString(): string {
-  flushPersistence();
+  flushPersistence(false);
   const clone = document.documentElement.cloneNode(true) as HTMLElement;
 
   const liveBound = Array.from(document.documentElement.querySelectorAll(BOUND_SELECTOR));
@@ -913,8 +1058,256 @@ export function getCleanHtmlString(): string {
   return '<!DOCTYPE html>\n' + clone.outerHTML;
 }
 
-// --- 7. Persistence Engine (localStorage + File System Access API) ---
-async function writeToDisk(): Promise<boolean> {
+async function readFileTextPreservingBom(file: NaizoFile): Promise<string> {
+  if (typeof file.arrayBuffer === 'function') {
+    try {
+      const buf = await file.arrayBuffer();
+      return new TextDecoder('utf-8', { ignoreBOM: true }).decode(buf);
+    } catch {
+      // Fall back to file.text()
+    }
+  }
+  if (typeof file.text === 'function') {
+    return await file.text();
+  }
+  return '';
+}
+
+function extractDbScriptBody(htmlText: string): string | null {
+  const bodyText = htmlText.startsWith('\uFEFF') ? htmlText.slice(1) : htmlText;
+  const match = NAIZODB_SCRIPT_RE.exec(bodyText);
+  return match ? (match[2]?.trim() ?? '') : null;
+}
+
+function replaceDbScriptInHtml(
+  fileText: string,
+  formattedBlock: string,
+): { ok: boolean; html: string; missingBlock: boolean } {
+  const hasBom = fileText.startsWith('\uFEFF');
+  const bodyText = hasBom ? fileText.slice(1) : fileText;
+
+  if (NAIZODB_SCRIPT_RE.test(bodyText)) {
+    const replaced = bodyText.replace(
+      NAIZODB_SCRIPT_RE,
+      (_match, openTag: string, _inner: string, closeTag: string) =>
+        `${openTag}${formattedBlock}${closeTag}`,
+    );
+    return {
+      ok: true,
+      html: (hasBom ? '\uFEFF' : '') + replaced,
+      missingBlock: false,
+    };
+  }
+
+  if (bodyText.trim() === '') {
+    return {
+      ok: true,
+      html: (hasBom ? '\uFEFF' : '') + getCleanHtmlString(),
+      missingBlock: false,
+    };
+  }
+
+  return {
+    ok: false,
+    html: fileText,
+    missingBlock: true,
+  };
+}
+
+function injectDbScriptIntoHtml(fileText: string, formattedBlock: string): string {
+  const hasBom = fileText.startsWith('\uFEFF');
+  const bodyText = hasBom ? fileText.slice(1) : fileText;
+  const scriptTag = `\n<script id="${DB_ID}" type="application/json">${formattedBlock}</script>`;
+  if (HEAD_OPEN_RE.test(bodyText)) {
+    const injected = bodyText.replace(HEAD_OPEN_RE, (headTag) => `${headTag}${scriptTag}`);
+    return (hasBom ? '\uFEFF' : '') + injected;
+  }
+  return (hasBom ? '\uFEFF' : '') + `${scriptTag}\n${bodyText}`;
+}
+
+function shallowMergeDatabases(
+  baseDb: NaizoDatabase | null,
+  browserDb: NaizoDatabase,
+  diskDb: NaizoDatabase,
+): { merged: NaizoDatabase; hasCollision: boolean; browserKeptKeys: boolean } {
+  let hasCollision = false;
+  let browserKeptKeys = false;
+
+  const mergeBucket = (
+    baseBucket: Record<string, unknown> | null,
+    browserBucket: Record<string, unknown>,
+    diskBucket: Record<string, unknown>,
+  ): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    const allKeys = new Set<string>([
+      ...(baseBucket ? Object.keys(baseBucket) : []),
+      ...Object.keys(browserBucket),
+      ...Object.keys(diskBucket),
+    ]);
+
+    for (const key of allKeys) {
+      const baseVal = baseBucket && hasOwn(baseBucket, key) ? getOwn(baseBucket, key) : undefined;
+      const browserVal = hasOwn(browserBucket, key) ? getOwn(browserBucket, key) : undefined;
+      const diskVal = hasOwn(diskBucket, key) ? getOwn(diskBucket, key) : undefined;
+
+      const baseSer = baseVal !== undefined ? JSON.stringify(baseVal) : undefined;
+      const browserSer = browserVal !== undefined ? JSON.stringify(browserVal) : undefined;
+      const diskSer = diskVal !== undefined ? JSON.stringify(diskVal) : undefined;
+
+      if (browserSer === diskSer) {
+        if (diskVal !== undefined) setOwn(out, key, cloneJsonValue(diskVal));
+        continue;
+      }
+
+      if (baseDb !== null) {
+        const browserChanged = browserSer !== baseSer;
+        const diskChanged = diskSer !== baseSer;
+
+        if (browserChanged && !diskChanged) {
+          browserKeptKeys = true;
+          if (browserVal !== undefined) setOwn(out, key, cloneJsonValue(browserVal));
+        } else if (!browserChanged && diskChanged) {
+          if (diskVal !== undefined) setOwn(out, key, cloneJsonValue(diskVal));
+        } else {
+          hasCollision = true;
+          if (diskVal !== undefined) setOwn(out, key, cloneJsonValue(diskVal));
+        }
+      } else {
+        hasCollision = true;
+        if (diskVal !== undefined) setOwn(out, key, cloneJsonValue(diskVal));
+      }
+    }
+    return out;
+  };
+
+  const mergedFields = mergeBucket(baseDb?.fields ?? null, browserDb.fields, diskDb.fields);
+  const mergedLists = mergeBucket(baseDb?.lists ?? null, browserDb.lists, diskDb.lists) as Record<
+    string,
+    Array<Record<string, unknown>>
+  >;
+  const mergedCustom = mergeBucket(baseDb?.custom ?? null, browserDb.custom, diskDb.custom);
+
+  return {
+    merged: {
+      _meta: cloneRecord(diskDb._meta),
+      fields: mergedFields,
+      lists: mergedLists,
+      custom: mergedCustom,
+    },
+    hasCollision,
+    browserKeptKeys,
+  };
+}
+
+function applyExternalDiskUpdate(
+  diskDb: NaizoDatabase,
+  diskRaw: string,
+  preserveActive: boolean,
+): { hasCollision: boolean; browserKeptKeys: boolean } {
+  const currentBrowserDb = cloneDb(ensureStore());
+  const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(
+    lastDiskDb,
+    currentBrowserDb,
+    diskDb,
+  );
+
+  if (hasCollision) {
+    safeSetStorage(getBackupKey(), JSON.stringify(currentBrowserDb));
+  }
+
+  store = merged;
+  storeInitialized = true;
+  lastSerializedContent = serializeContentBuckets(store);
+  lastKnownDiskRaw = diskRaw.trim();
+  lastDiskDb = cloneDb(diskDb);
+  safeSetStorage(getSnapshotKey(), lastKnownDiskRaw);
+
+  hydrateSubtreeFromStore(document, preserveActive);
+  writeStoreToDomScript(store, false);
+  safeSetStorage(getPageKey(), JSON.stringify(store));
+
+  if (hasCollision) {
+    updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
+  } else if (fileHandle) {
+    updateUi(
+      browserKeptKeys ? 'cached' : 'saved',
+      browserKeptKeys ? 'Browser Cache · Pending Sync' : 'Synced to Disk',
+    );
+  }
+
+  window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
+  return { hasCollision, browserKeptKeys };
+}
+
+function restoreConflictBackup(): void {
+  const backupRaw = safeGetStorage(getBackupKey());
+  const backupDb = parseCachedState(backupRaw);
+  if (!backupDb) return;
+  safeRemoveStorage(getBackupKey());
+  store = cloneDb(backupDb);
+  storeInitialized = true;
+  hydrateSubtreeFromStore(document, false);
+  flushPersistence(true);
+  window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
+}
+
+// --- 7. Persistence Engine (localStorage + Surgical File System Access API + Live Watch) ---
+async function checkDiskForExternalChanges(): Promise<boolean> {
+  if (!fileHandle || typeof fileHandle.getFile !== 'function' || startupInvalidDb) return false;
+  if (writeInFlightPromise !== null) return false;
+  try {
+    const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') return false;
+    const diskFile = await fileHandle.getFile();
+    if (
+      typeof diskFile.lastModified === 'number' &&
+      lastObservedModified !== null &&
+      diskFile.lastModified === lastObservedModified
+    ) {
+      return false;
+    }
+    const fileText = await readFileTextPreservingBom(diskFile);
+    if (typeof diskFile.lastModified === 'number') {
+      lastObservedModified = diskFile.lastModified;
+    }
+    const diskScriptRaw = extractDbScriptBody(fileText);
+    if (diskScriptRaw === null) return false;
+    if (
+      lastKnownDiskRaw !== null &&
+      normalizeJsonComparison(diskScriptRaw) === normalizeJsonComparison(lastKnownDiskRaw)
+    ) {
+      return false;
+    }
+    const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
+    if (!diskDetailed.ok) return false;
+
+    const { browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+    if (browserKeptKeys) {
+      scheduleDiskWrite();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function startDiskWatch(): void {
+  stopDiskWatch();
+  if (!fileHandle || typeof fileHandle.getFile !== 'function') return;
+  watchInterval = setInterval(() => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    void checkDiskForExternalChanges();
+  }, DISK_WATCH_INTERVAL_MS);
+}
+
+function stopDiskWatch(): void {
+  if (watchInterval !== null) {
+    clearInterval(watchInterval);
+    watchInterval = null;
+  }
+}
+
+async function performSingleDiskWrite(): Promise<boolean> {
   if (!fileHandle || startupInvalidDb) return false;
   try {
     const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
@@ -922,37 +1315,140 @@ async function writeToDisk(): Promise<boolean> {
       updateUi('needs-permission', 'Resume Disk Sync');
       return false;
     }
-    const htmlString = getCleanHtmlString();
+
+    if (persistTimeout !== null) {
+      flushPersistence(false);
+    }
+
+    let fileTextToWrite: string;
+    let payloadToWrite: string;
+
+    if (typeof fileHandle.getFile === 'function') {
+      const diskFile = await fileHandle.getFile();
+      const existingFileText = await readFileTextPreservingBom(diskFile);
+      const diskScriptRaw = extractDbScriptBody(existingFileText);
+
+      if (
+        diskScriptRaw !== null &&
+        lastKnownDiskRaw !== null &&
+        normalizeJsonComparison(diskScriptRaw) !== normalizeJsonComparison(lastKnownDiskRaw)
+      ) {
+        const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
+        if (diskDetailed.ok) {
+          const { browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+          if (!browserKeptKeys) {
+            if (typeof diskFile.lastModified === 'number') {
+              lastObservedModified = diskFile.lastModified;
+            }
+            return true;
+          }
+        }
+      }
+
+      payloadToWrite = serializeDbJson(ensureStore());
+      const formattedBlock = '\n' + payloadToWrite + '\n';
+      const replaced = replaceDbScriptInHtml(existingFileText, formattedBlock);
+
+      if (replaced.missingBlock) {
+        const confirmed =
+          typeof window !== 'undefined' && typeof window.confirm === 'function'
+            ? window.confirm(
+                'Selected file does not contain <script id="naizodb">. Insert #naizodb into this file?',
+              )
+            : false;
+        if (!confirmed) {
+          console.warn('[naizo.js] Refusing to overwrite file without #naizodb block.');
+          updateUi('error', 'Target file lacks #naizodb');
+          return false;
+        }
+        fileTextToWrite = injectDbScriptIntoHtml(existingFileText, formattedBlock);
+      } else {
+        fileTextToWrite = replaced.html;
+      }
+    } else {
+      payloadToWrite = serializeDbJson(ensureStore());
+      fileTextToWrite = getCleanHtmlString();
+    }
+
     const writable = await fileHandle.createWritable();
-    await writable.write(htmlString);
+    await writable.write(fileTextToWrite);
     await writable.close();
 
-    safeSetStorage(getSnapshotKey(), getDbScript().textContent?.trim() ?? '');
-    updateUi(
-      'saved',
-      'Saved ' +
-        new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }),
-    );
+    const exactWrittenTrimmed = payloadToWrite.trim();
+    lastKnownDiskRaw = exactWrittenTrimmed;
+    const writtenParsed = parseDbScriptDetailed(exactWrittenTrimmed);
+    if (writtenParsed.ok) {
+      lastDiskDb = cloneDb(writtenParsed.db);
+    }
+    safeSetStorage(getSnapshotKey(), exactWrittenTrimmed);
+
+    if (typeof fileHandle.getFile === 'function') {
+      try {
+        const updatedFile = await fileHandle.getFile();
+        if (typeof updatedFile.lastModified === 'number') {
+          lastObservedModified = updatedFile.lastModified;
+        }
+      } catch {
+        // Ignore post-write metadata inspection errors
+      }
+    }
+
+    const currentPayloadTrimmed = serializeDbJson(ensureStore()).trim();
+    if (currentPayloadTrimmed !== exactWrittenTrimmed) {
+      writeQueued = true;
+      updateUi('cached', 'Browser Cache · Pending Sync');
+    } else {
+      updateUi('saved', 'Synced to Disk');
+    }
     return true;
   } catch (err) {
     console.warn('[naizo.js] Disk write failed:', err);
-    updateUi('cached', 'Cached in Browser · Link Disk');
+    updateUi('cached', 'Browser Cache · Click to Link Disk');
     return false;
   }
 }
 
-function flushPersistence(): void {
+async function writeToDisk(): Promise<boolean> {
+  if (!fileHandle || startupInvalidDb) return false;
+  if (writeInFlightPromise !== null) {
+    writeQueued = true;
+    return writeInFlightPromise;
+  }
+
+  writeInFlightPromise = (async () => {
+    let lastResult = false;
+    do {
+      writeQueued = false;
+      lastResult = await performSingleDiskWrite();
+    } while (writeQueued && fileHandle && !startupInvalidDb);
+    return lastResult;
+  })();
+
+  try {
+    return await writeInFlightPromise;
+  } finally {
+    writeInFlightPromise = null;
+  }
+}
+
+function scheduleDiskWrite(): void {
+  if (!fileHandle || startupInvalidDb) return;
+  updateUi('saving', 'Saving...');
+  if (saveTimeout !== null) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    saveTimeout = null;
+    void writeToDisk();
+  }, DISK_DEBOUNCE_MS);
+}
+
+function flushPersistence(scheduleDisk = true): boolean {
   if (persistTimeout !== null) {
     clearTimeout(persistTimeout);
     persistTimeout = null;
   }
   if (startupInvalidDb) {
     updateUi('error', 'Invalid #naizodb JSON');
-    return;
+    return false;
   }
 
   const db = ensureStore();
@@ -961,18 +1457,17 @@ function flushPersistence(): void {
 
   if (!fileHandle) {
     if (storedOk) {
-      updateUi('cached', 'Cached in Browser');
+      updateUi('cached', 'Browser Cache · Click to Link Disk');
     } else {
       updateUi('cached', 'In-Memory Only · Link Disk');
     }
-    return;
+    return storedOk;
   }
 
-  updateUi('saving', 'Saving...');
-  if (saveTimeout) clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => {
-    void writeToDisk();
-  }, DISK_DEBOUNCE_MS);
+  if (scheduleDisk) {
+    scheduleDiskWrite();
+  }
+  return storedOk;
 }
 
 function schedulePersist(): void {
@@ -980,18 +1475,19 @@ function schedulePersist(): void {
   if (persistTimeout !== null) clearTimeout(persistTimeout);
   persistTimeout = setTimeout(() => {
     persistTimeout = null;
-    flushPersistence();
+    flushPersistence(true);
   }, PERSIST_DEBOUNCE_MS);
 }
 
-export function triggerSave(): void {
-  flushPersistence();
+export function triggerSave(): Promise<boolean> {
+  return Naizo.save();
 }
 
 async function connectOrResumeDisk(): Promise<void> {
   if (fileHandle) {
     const perm = await fileHandle.requestPermission({ mode: 'readwrite' });
     if (perm === 'granted') {
+      startDiskWatch();
       await writeToDisk();
       return;
     }
@@ -1004,6 +1500,7 @@ async function connectOrResumeDisk(): Promise<void> {
         types: [{ description: 'HTML Document', accept: { 'text/html': ['.html'] } }],
       });
       saveHandleToIDB(fileHandle);
+      startDiskWatch();
       await writeToDisk();
     } catch {
       // User cancelled file picker
@@ -1080,28 +1577,37 @@ function mountUi(): void {
     </style>
     <div class="pill">
       <span class="dot" id="dot"></span>
-      <span id="status">naizo.js Ready</span>
+      <span id="status">Browser Cache · Click to Link Disk</span>
       <button id="action">Link Disk</button>
-      <button id="copy" title="Copy #naizodb JSON state">{ } Copy</button>
+      <button id="restore" style="display: none" title="Restore browser state before disk conflict">↺ Restore</button>
+      <button id="copy" title="Copy #naizodb JSON state">📋 Copy</button>
+      <button id="unlink" style="display: none" title="Forget linked disk file">× Unlink</button>
     </div>
   `;
 
   statusEl = shadow.getElementById('status');
   actionBtn = shadow.getElementById('action') as HTMLButtonElement | null;
+  restoreBtn = shadow.getElementById('restore') as HTMLButtonElement | null;
+  unlinkBtn = shadow.getElementById('unlink') as HTMLButtonElement | null;
   const dotEl = shadow.getElementById('dot');
   const copyBtn = shadow.getElementById('copy') as HTMLButtonElement | null;
 
   actionBtn?.addEventListener('click', () => {
     void connectOrResumeDisk();
   });
+  restoreBtn?.addEventListener('click', () => {
+    restoreConflictBackup();
+  });
   copyBtn?.addEventListener('click', () => {
-    flushPersistence();
-    const text = '\n' + JSON.stringify(ensureStore(), null, 2) + '\n';
-    void navigator.clipboard?.writeText(text.trim());
-    copyBtn.textContent = '✓ Copied';
-    setTimeout(() => {
-      copyBtn.textContent = '{ } Copy';
-    }, 1500);
+    void Naizo.copyJSON().then(() => {
+      copyBtn.textContent = '✓ Copied';
+      setTimeout(() => {
+        copyBtn.textContent = '📋 Copy';
+      }, 1500);
+    });
+  });
+  unlinkBtn?.addEventListener('click', () => {
+    void Naizo.unlink();
   });
 
   host._setDot = (state: string) => {
@@ -1125,18 +1631,29 @@ function updateUi(state: string, message: string): void {
   if (!statusEl || !actionBtn) return;
   statusEl.textContent = message;
   (document.getElementById(UI_ID) as NaizoHostElement | null)?._setDot?.(state);
+
   if (state === 'saved' || state === 'error') {
     actionBtn.style.display = 'none';
   } else if (state === 'needs-permission') {
     actionBtn.style.display = 'inline-block';
     actionBtn.textContent = 'Resume Disk Sync';
+  } else if (fileHandle) {
+    actionBtn.style.display = 'none';
   } else {
     actionBtn.style.display = 'inline-block';
     actionBtn.textContent = 'Link Disk';
   }
+
+  if (restoreBtn) {
+    const hasBackup = safeGetStorage(getBackupKey()) !== null;
+    restoreBtn.style.display = hasBackup || state === 'conflict' ? 'inline-block' : 'none';
+  }
+  if (unlinkBtn) {
+    unlinkBtn.style.display = fileHandle ? 'inline-block' : 'none';
+  }
 }
 
-// --- 9. Event Delegation for O(1) Input Capture & List Actions ---
+// --- 9. Event Delegation for O(1) Input Capture, List Actions & Cross-Tab/Live Sync ---
 function handleInputOrChange(e: Event): void {
   const target = e.target;
   if (!(target instanceof Element)) return;
@@ -1197,7 +1714,7 @@ function handleListClicks(e: Event): void {
         Naizo.removeItem(listName, idx);
       } else {
         itemEl.remove();
-        triggerSave();
+        flushPersistence(true);
       }
     }
     return;
@@ -1222,17 +1739,36 @@ function handleListClicks(e: Event): void {
   }
 }
 
+function handleStorageEvent(e: StorageEvent): void {
+  if (!e.key || e.key !== getPageKey() || !e.newValue) return;
+  if (writeInFlightPromise !== null || startupInvalidDb) return;
+  const nextDb = parseCachedState(e.newValue);
+  if (!nextDb) return;
+  store = cloneDb(nextDb);
+  storeInitialized = true;
+  lastSerializedContent = serializeContentBuckets(store);
+  hydrateSubtreeFromStore(document, true);
+  writeStoreToDomScript(store, false);
+  window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
+}
+
 function attachListeners(): void {
   if (listenersAttached) return;
   document.addEventListener('click', handleListClicks);
   document.addEventListener('input', handleInputOrChange);
   document.addEventListener('change', handleInputOrChange);
+  window.addEventListener('storage', handleStorageEvent);
+  window.addEventListener('focus', () => {
+    void checkDiskForExternalChanges();
+  });
   window.addEventListener('pagehide', () => {
-    if (persistTimeout !== null) flushPersistence();
+    if (persistTimeout !== null) flushPersistence(false);
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && persistTimeout !== null) {
-      flushPersistence();
+    if (document.visibilityState === 'hidden') {
+      if (persistTimeout !== null) flushPersistence(false);
+    } else if (document.visibilityState === 'visible') {
+      void checkDiskForExternalChanges();
     }
   });
   listenersAttached = true;
@@ -1253,7 +1789,7 @@ export const Naizo: NaizoAPI = {
     }
     const db = ensureStore();
     setOwn(db.custom, key, cloneJsonValue(value));
-    triggerSave();
+    flushPersistence(true);
   },
   getField(key: string): unknown {
     const db = ensureStore();
@@ -1268,14 +1804,14 @@ export const Naizo: NaizoAPI = {
     const cloned = cloneJsonValue(value);
     setOwn(db.fields, key, cloned);
     propagateStandaloneKey(key, cloned);
-    triggerSave();
+    flushPersistence(true);
   },
   deleteField(key: string): void {
     if (!key) return;
     const db = ensureStore();
     if (!hasOwn(db.fields, key)) return;
     deleteOwn(db.fields, key);
-    triggerSave();
+    flushPersistence(true);
   },
   getList(listName: string): Array<Record<string, unknown>> {
     const db = ensureStore();
@@ -1298,7 +1834,7 @@ export const Naizo: NaizoAPI = {
     const listEl = findListElement(listName);
     if (!listEl) {
       listArr.push(rowObj);
-      triggerSave();
+      flushPersistence(true);
       return;
     }
 
@@ -1312,7 +1848,7 @@ export const Naizo: NaizoAPI = {
         'input[type="text"], [contenteditable="true"], textarea',
       );
       firstInput?.focus();
-      triggerSave();
+      flushPersistence(true);
     }
   },
   updateItem(listName: string, index: number, partialData: Record<string, unknown>): void {
@@ -1339,7 +1875,7 @@ export const Naizo: NaizoAPI = {
         propagateItemKey(itemEl, key, val);
       }
     }
-    triggerSave();
+    flushPersistence(true);
   },
   removeItem(listName: string, index: number): void {
     const db = ensureStore();
@@ -1354,7 +1890,7 @@ export const Naizo: NaizoAPI = {
         items[index].remove();
       }
     }
-    triggerSave();
+    flushPersistence(true);
   },
   moveItem(listName: string, fromIndex: number, toIndex: number): void {
     if (fromIndex === toIndex) return;
@@ -1380,14 +1916,45 @@ export const Naizo: NaizoAPI = {
         listEl.insertBefore(fromEl, fromIndex < toIndex ? targetEl.nextSibling : targetEl);
       }
     }
-    triggerSave();
+    flushPersistence(true);
   },
   bind(root: ParentNode = document): void {
     ensureStore();
-    hydrateSubtreeFromStore(root);
+    hydrateSubtreeFromStore(root, false);
     schedulePersist();
   },
-  save: triggerSave,
+  async save(): Promise<boolean> {
+    if (saveTimeout !== null) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    const cachedOk = flushPersistence(false);
+    if (fileHandle) {
+      return await writeToDisk();
+    }
+    return cachedOk;
+  },
+  async unlink(): Promise<void> {
+    stopDiskWatch();
+    if (saveTimeout !== null) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    fileHandle = null;
+    lastObservedModified = null;
+    await deleteHandleFromIDB();
+    updateUi('cached', 'Browser Cache · Click to Link Disk');
+  },
+  async copyJSON(): Promise<string> {
+    flushPersistence(false);
+    const json = serializeDbJson(ensureStore());
+    try {
+      await navigator.clipboard?.writeText(json);
+    } catch {
+      // Ignore clipboard permission errors
+    }
+    return json;
+  },
   exportHTML: getCleanHtmlString,
 };
 
@@ -1395,6 +1962,7 @@ export const NaizoDB: NaizoAPI = Naizo;
 
 // --- 11. Boot & Smart Conflict Resolution (Disk vs Browser Cache) ---
 export async function initNaizo(): Promise<void> {
+  stopDiskWatch();
   if (persistTimeout !== null) {
     clearTimeout(persistTimeout);
     persistTimeout = null;
@@ -1403,18 +1971,21 @@ export async function initNaizo(): Promise<void> {
     clearTimeout(saveTimeout);
     saveTimeout = null;
   }
+  fileHandle = null;
+  lastObservedModified = null;
 
   mountUi();
   ensureListBlueprints(document);
   attachListeners();
 
-  const pageKey = getPageKey();
-  const snapshotKey = getSnapshotKey();
   const scriptEl = getDbScript();
   trackedDbScriptEl = scriptEl;
   const currentDiskRaw = scriptEl.textContent?.trim() ?? '';
-  const lastKnownDiskRaw = safeGetStorage(snapshotKey);
   const diskDetailed = parseDbScriptDetailed(currentDiskRaw);
+
+  const pageKey = getPageKey();
+  const snapshotKey = getSnapshotKey();
+  const storedDiskSnapshot = safeGetStorage(snapshotKey);
   const cachedState = parseCachedState(safeGetStorage(pageKey));
 
   if (!diskDetailed.ok) {
@@ -1423,7 +1994,7 @@ export async function initNaizo(): Promise<void> {
     storeInitialized = true;
     lastSerializedContent = serializeContentBuckets(store);
     if (cachedState) {
-      hydrateSubtreeFromStore(document);
+      hydrateSubtreeFromStore(document, false);
     } else {
       document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
         if (!isIgnoredElement(listEl)) decorateListControls(listEl);
@@ -1435,31 +2006,62 @@ export async function initNaizo(): Promise<void> {
   }
 
   startupInvalidDb = false;
-  const diskModifiedExternally = lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw;
+  lastKnownDiskRaw = currentDiskRaw;
+  lastDiskDb = cloneDb(diskDetailed.db);
 
-  if (diskModifiedExternally || !cachedState) {
+  const diskModifiedExternally =
+    storedDiskSnapshot !== null &&
+    normalizeJsonComparison(currentDiskRaw) !== normalizeJsonComparison(storedDiskSnapshot);
+
+  let hasBootConflict = false;
+  if (diskModifiedExternally && cachedState) {
+    const baseDb = parseCachedState(storedDiskSnapshot);
+    const { merged, hasCollision } = shallowMergeDatabases(baseDb, cachedState, diskDetailed.db);
+    if (hasCollision) {
+      safeSetStorage(getBackupKey(), JSON.stringify(cachedState));
+      hasBootConflict = true;
+    }
+    store = merged;
+    storeInitialized = true;
+    lastSerializedContent = serializeContentBuckets(store);
+    hydrateSubtreeFromStore(document, false);
+    writeStoreToDomScript(store, false);
+    const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
+    safeSetStorage(snapshotKey, currentDiskRaw);
+    if (hasBootConflict) {
+      updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
+    } else if (!storedOk) {
+      updateUi('cached', 'In-Memory Only · Link Disk');
+    } else {
+      updateUi('cached', 'Browser Cache · Click to Link Disk');
+    }
+  } else if (!cachedState) {
     store = cloneDb(diskDetailed.db);
     storeInitialized = true;
     lastSerializedContent = serializeContentBuckets(store);
-    hydrateSubtreeFromStore(document);
+    hydrateSubtreeFromStore(document, false);
     writeStoreToDomScript(store, false);
     const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
     safeSetStorage(snapshotKey, currentDiskRaw);
     if (!storedOk) {
       updateUi('cached', 'In-Memory Only · Link Disk');
+    } else {
+      updateUi('cached', 'Browser Cache · Click to Link Disk');
     }
   } else {
     store = cloneDb(cachedState);
     storeInitialized = true;
     lastSerializedContent = serializeContentBuckets(store);
-    hydrateSubtreeFromStore(document);
+    hydrateSubtreeFromStore(document, false);
     writeStoreToDomScript(store, false);
     const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-    if (lastKnownDiskRaw === null) {
+    if (storedDiskSnapshot === null) {
       safeSetStorage(snapshotKey, currentDiskRaw);
     }
     if (!storedOk) {
       updateUi('cached', 'In-Memory Only · Link Disk');
+    } else {
+      updateUi('cached', 'Browser Cache · Click to Link Disk');
     }
   }
 
@@ -1470,12 +2072,22 @@ export async function initNaizo(): Promise<void> {
     try {
       const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
       if (perm === 'granted') {
-        updateUi('saved', 'Disk Sync Active');
+        startDiskWatch();
+        await checkDiskForExternalChanges();
+        const isDirtyComparedToDisk =
+          serializeContentBuckets(ensureStore()) !== serializeContentBuckets(lastDiskDb);
+        if (hasBootConflict) {
+          updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
+        } else if (isDirtyComparedToDisk) {
+          updateUi('cached', 'Browser Cache · Click to Link Disk');
+        } else {
+          updateUi('saved', 'Synced to Disk');
+        }
       } else {
-        updateUi('needs-permission', 'File Remembered');
+        updateUi('needs-permission', 'Resume Disk Sync');
       }
     } catch {
-      updateUi('needs-permission', 'File Remembered');
+      updateUi('needs-permission', 'Resume Disk Sync');
     }
   }
 }
