@@ -59,7 +59,7 @@ vp dev
 # Opens http://localhost:3000 (serves site/index.html)
 ```
 
-Or copy a starter template from [`examples/starter.html`](examples/starter.html) / [`examples/checklist.html`](examples/checklist.html) and drop `naizo.js` into any HTML file:
+Or copy a starter template from [`examples/starter.html`](examples/starter.html), [`examples/checklist.html`](examples/checklist.html), or [`examples/inventory.html`](examples/inventory.html) and drop `naizo.js` into any HTML file:
 
 ```html
 <head>
