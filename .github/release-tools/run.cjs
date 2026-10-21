@@ -3,8 +3,7 @@ const assert = require('node:assert/strict');
 const { appendFileSync, readFileSync } = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { GitHub, Manifest } = require('release-please');
-const { parseConventionalCommits } = require('release-please/build/src/commit');
-const { client, stableTag, dispatchRelease } = require('./github.cjs');
+const { client, stableTag, dispatchRelease, confirmNpmBootstrap } = require('./github.cjs');
 
 function describeCommits(github) {
   const create = github.createPullRequest.bind(github);
@@ -62,8 +61,10 @@ function pushMessages(event, cwd = process.cwd()) {
 }
 
 function hasReleaseRequest(messages) {
-  // Reject malformed requests even if a non-Conventional subject is ignored by
-  // the parser; use the actual updater's parser to recognize valid footers.
+  // Any Release-As footer line explicitly requests preparation. Release Please
+  // itself decides whether the footer affects the proposed version; avoid its
+  // internal commit parser so updater upgrades cannot silently break triggers.
+  let requested = false;
   for (const message of messages) {
     for (const match of message.matchAll(/^release-as:\s*(.*)$/gim)) {
       assert.match(
@@ -71,18 +72,10 @@ function hasReleaseRequest(messages) {
         stableTag,
         'Release-As must specify a stable version such as 0.2.0',
       );
+      requested = true;
     }
   }
-  const requests = parseConventionalCommits(messages.map((message) => ({ message, sha: '' })))
-    .flatMap((commit) => commit.notes)
-    .filter((note) => note.title === 'RELEASE AS');
-  for (const request of requests)
-    assert.match(
-      `v${request.text}`,
-      stableTag,
-      'Release-As must specify a stable version such as 0.2.0',
-    );
-  return requests.length > 0;
+  return requested;
 }
 
 function shouldPrepareRelease(name, event, readMessages = pushMessages) {
@@ -126,14 +119,7 @@ async function requireBootstrap(releases, fetchMetadata = fetch) {
     ),
     'Complete the manual v0.1.0 npm/GitHub bootstrap first; see docs/PUBLISHING.md',
   );
-  const response = await fetchMetadata('https://registry.npmjs.org/nakajs/0.1.0', {
-    signal: AbortSignal.timeout(30_000),
-  });
-  assert.ok(response.ok, `npm v0.1.0 bootstrap check failed: HTTP ${response.status}`);
-  const metadata = await response.json();
-  assert.equal(metadata.name, 'nakajs');
-  assert.equal(metadata.version, '0.1.0');
-  assert.match(metadata.dist?.integrity || '', /^sha512-/);
+  await confirmNpmBootstrap(fetchMetadata);
 }
 
 async function preparePullRequests(manifest) {

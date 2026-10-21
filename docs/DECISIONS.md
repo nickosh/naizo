@@ -205,6 +205,8 @@ Accepted by the owner on 2026-10-18 (consolidating `D12`–`D26` for `M3` and `M
 
 ## D28 — Advance `M7` (CI/CD & release workflows) before `M4` to cut the initial `v0.1.0` baseline and emit `dist/naka.min.js`
 
+The separate `pages.yml` deployment is superseded by `D37`, which deploys GitHub Pages from CI-verified `main`.
+
 Accepted by the owner on 2026-10-19 (amending milestone sequencing in `D10`, `D12`, `D17`, and `D27`). With `M0`–`M3` complete (`src/index.ts`, `src/iife.ts`, tracked `dist/naka.js`, `site/index.html`, `examples/`, and passing Vite+ checks/tests), execute `M7` (`M7.1`–`M7.2` CI verification, GitHub Pages deployment, and maintainer-controlled release workflows) immediately after `M3` before applying `M4` runtime changes:
 
 - **Why:** Shipping the current working library as the initial `v0.1.0` milestone establishes automated CI (`vp check`, `vp test`, `vp pack`, `dist/naka.js` freshness check), live GitHub Pages deployment for `site/`, and a verified `v0.1.0` tag / npm / CDN baseline (`jsDelivr`, `unpkg`) before `M4` re-architects the core runtime for the next `0.x` release (`v0.2.0`).
@@ -269,6 +271,8 @@ Accepted by the owner on 2026-10-19. Supersedes `D17`'s GitHub-backed consumer C
 
 ## D35 — Generate the tracked browser bundle in explicit release PR preparation
 
+Release-PR freshness enforcement through CI is superseded by `D37`: bot-created release PRs receive no CI run, so the preparation build job is their verification, and tagged publication retains the freshness check.
+
 Accepted by the owner on 2026-10-19. Supersedes `D17` / `D33` / `D34`'s requirement to synchronize the tracked readable bundle in ordinary source changes. Preserve explicit preparation, plain tags, versionless headers, npm-backed CDN distribution, and isolated OIDC publication.
 
 - Keep `dist/naka.js` tracked, but refresh it in the Release Please PR alongside package metadata, manifest, and changelog. Ordinary source changes need no generated bundle commit. Local development, regular CI, and release builds run `vp pack` before tests so browser-bundle tests use current source; local demo commands also build first. Other distribution outputs remain untracked.
@@ -284,3 +288,12 @@ Accepted by the owner on 2026-10-19 after npm rejected `nakajs` as too similar t
 - A registry lookup returning `E404` does not establish permission to register a name; npm can enforce similarity policy when publication is attempted. Authentication success does not establish publication success.
 - Treat this rejection as an external naming-policy dependency. Token changes, version bumps, or CI changes do not resolve it. npm decides whether a review permits the unscoped name; a replacement identity requires an explicit owner choice and coordinated metadata, release-guard, and documentation changes.
 - Bootstrap instructions require successful npm publication and registry confirmation before tagging. Retry from a clean, verified source and newly packed tarball when source or package contents have changed.
+
+## D37 — CI-gated Pages from `main` and accurate release-PR verification
+
+Accepted by the owner on 2026-10-21 after a CI/CD review. Refines `D28`, `D29`, `D32`, and `D35`; preserves the tracked readable bundle refreshed in every Release Please PR, explicit preparation (no PR refresh on ordinary pushes), GitHub Release assets (`naka.js`, `naka.min.js`, tarball), and isolated npm OIDC publication.
+
+- **Pages serves CI-verified `main`.** Deploy from a `ci.yml` job that runs only after verification succeeds on `main` (push or manual dispatch), reusing the bundles CI just built and tested; remove `pages.yml`. Do not deploy Pages from `release.yml`: npm trusts that workflow file, so it keeps the npm publishing job as its only `id-token: write` holder. A released-version site can be reconsidered when the site becomes primary documentation for a stable `1.x`.
+- **Release PRs receive no CI run.** GitHub does not start workflows for events caused by `GITHUB_TOKEN`, so the CI step that compared the release-branch bundle could never run. Remove it; the preparation bundle job (read-only build/check/test at the exact source) verifies the PR, and tagged publication enforces freshness. A GitHub App token would be required for real release-PR checks and is out of scope.
+- **Trim release-job redundancy.** Release tooling tests run in CI only; the preparation bundle and tagged release build jobs verify artifacts. The npm publishing job uses the npm bundled with pinned Node 24.22.0 (npm 11.x, above the 11.5.1 OIDC minimum) instead of installing a floating `npm@11` while holding OIDC identity. The tagged workflow's `tag` input has no default.
+- **Reduce release-tool coupling.** Recognize `Release-As:` footer requests with the existing stable-version regex instead of Release Please's internal commit parser; Release Please still decides whether a footer changes the version. Share the stable-tag pattern, release branch name, and npm bootstrap existence check from the dependency-free `github.cjs` helper.

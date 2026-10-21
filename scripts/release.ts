@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 
-const { verifyArtifacts } = createRequire(import.meta.url)('../.github/release-tools/github.cjs');
+const { verifyArtifacts, stableTag, confirmNpmBootstrap } = createRequire(import.meta.url)(
+  '../.github/release-tools/github.cjs',
+);
 
 export function validateSource(commit: string, workflowCommit: string, expected = '') {
   assert.match(commit, /^[a-f0-9]{40}$/);
@@ -27,11 +29,7 @@ type PackedPackage = {
 };
 
 export function validateReleaseTag(tag: string, version?: string) {
-  assert.match(
-    tag,
-    /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/,
-    'Use a stable vMAJOR.MINOR.PATCH tag',
-  );
+  assert.match(tag, stableTag, 'Use a stable vMAJOR.MINOR.PATCH tag');
   if (version !== undefined)
     assert.equal(tag, `v${version}`, 'Tag must match package.json version');
 }
@@ -75,16 +73,7 @@ export async function publicationStatus(pack: PackedPackage, fetchMetadata: type
 
 export async function confirmBootstrap(tag: string, fetchMetadata: typeof fetch = fetch) {
   assert.equal(tag, 'v0.1.0', 'Disabling npm publishing is only allowed for the v0.1.0 bootstrap');
-  const response = await fetchMetadata('https://registry.npmjs.org/nakajs/0.1.0', {
-    signal: AbortSignal.timeout(30_000),
-  });
-  assert.ok(response.ok, `npm bootstrap check failed: HTTP ${response.status}`);
-  const metadata = await response.json();
-  assert.equal(metadata.name, 'nakajs');
-  assert.equal(metadata.version, '0.1.0');
-  // The local bootstrap tarball may differ from CI; confirm existence without
-  // pretending its integrity matches or that this validates OIDC credentials.
-  assert.match(metadata.dist?.integrity || '', /^sha512-/);
+  await confirmNpmBootstrap(fetchMetadata);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

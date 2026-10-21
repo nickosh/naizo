@@ -7,8 +7,24 @@ const { createHash } = require('node:crypto');
 
 const stableTag = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const commitSha = /^[a-f0-9]{40}$/;
+// Release Please's PR branch for the single root `nakajs` package.
+const releaseBranch = 'release-please--branches--main--components--nakajs';
 function gh(args) {
   return execFileSync('gh', args, { maxBuffer: 32 * 1024 * 1024 });
+}
+
+// The manual first publication must already exist on npm. Its local tarball may
+// differ from CI, so confirm existence without comparing integrity; this does
+// not validate OIDC credentials.
+async function confirmNpmBootstrap(fetchMetadata = fetch) {
+  const response = await fetchMetadata('https://registry.npmjs.org/nakajs/0.1.0', {
+    signal: AbortSignal.timeout(30_000),
+  });
+  assert.ok(response.ok, `npm v0.1.0 bootstrap check failed: HTTP ${response.status}`);
+  const metadata = await response.json();
+  assert.equal(metadata.name, 'nakajs');
+  assert.equal(metadata.version, '0.1.0');
+  assert.match(metadata.dist?.integrity || '', /^sha512-/);
 }
 function client(repository = process.env.GITHUB_REPOSITORY, run = gh) {
   assert.match(repository, /^[\w.-]+\/[\w.-]+$/);
@@ -170,6 +186,8 @@ async function finalizeRelease(api, tag, expected, directory, pack) {
 module.exports = {
   client,
   stableTag,
+  releaseBranch,
+  confirmNpmBootstrap,
   validateSource,
   resolveRelease,
   dispatchRelease,

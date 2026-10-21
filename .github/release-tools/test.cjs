@@ -28,6 +28,8 @@ const {
 } = require('./run.cjs');
 const {
   client,
+  releaseBranch,
+  confirmNpmBootstrap,
   validateSource,
   resolveRelease,
   dispatchRelease,
@@ -89,8 +91,7 @@ for (const [message, expected] of [
     }
     assert.equal(candidates.length, 1);
     const pr = candidates[0];
-    assert.equal(pr.headRefName, 'release-please--branches--main--components--nakajs');
-    assert.ok(read('.github/workflows/ci.yml').includes(`github.head_ref == '${pr.headRefName}'`));
+    assert.equal(pr.headRefName, releaseBranch);
     const outputs = new Map(
       pr.updates
         .filter((update) => existsSync(path.join(root, update.path)))
@@ -289,7 +290,7 @@ void test('GitHub source lookup uses the exact main branch ref', () => {
   assert.deepEqual(calls, [['api', 'repos/nickosh/nakajs/git/ref/heads/main']]);
 });
 
-void test('only manual preparation or a valid Conventional Commit footer prepares', () => {
+void test('only manual preparation or a valid Release-As footer prepares', () => {
   assert.equal(
     hasReleaseRequest(['fix: repair input', 'feat: add binding', 'docs: explain']),
     false,
@@ -297,6 +298,10 @@ void test('only manual preparation or a valid Conventional Commit footer prepare
   assert.equal(hasReleaseRequest([request]), true);
   assert.equal(hasReleaseRequest([request.replace('Release-As', 'release-as')]), true);
   assert.equal(hasReleaseRequest(['feat: later', request, 'fix: latest']), true);
+  // Footer recognition no longer depends on Release Please internals; the
+  // updater still decides whether a non-Conventional footer changes the version.
+  assert.equal(hasReleaseRequest(['Update docs\n\nRelease-As: 0.2.0']), true);
+  assert.equal(hasReleaseRequest(['docs: mention the Release-As: footer inline']), false);
   for (const value of [
     '0.2.0-beta.1',
     '0.2.0+build.1',
@@ -396,6 +401,21 @@ void test('bootstrap requires both the public GitHub release and exact npm packa
   for (const status of [404, 403, 500])
     await assert.rejects(requireBootstrap([baseline], async () => new Response(null, { status })));
   await assert.rejects(requireBootstrap([baseline], async () => Response.json({ name: 'other' })));
+});
+
+void test('shared npm bootstrap check requires the exact published package', async () => {
+  const metadata = { name: 'nakajs', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } };
+  const urls = [];
+  await confirmNpmBootstrap(async (url) => {
+    urls.push(url);
+    return Response.json(metadata);
+  });
+  assert.deepEqual(urls, ['https://registry.npmjs.org/nakajs/0.1.0']);
+  await assert.rejects(
+    confirmNpmBootstrap(async () => new Response(null, { status: 404 })),
+    /HTTP 404/,
+  );
+  await assert.rejects(confirmNpmBootstrap(async () => Response.json({ ...metadata, dist: {} })));
 });
 
 void test('unfinished drafts block preparation, ordinary pushes wait, recovery bypasses preparation', async () => {

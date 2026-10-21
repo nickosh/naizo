@@ -88,8 +88,6 @@ jobs:
       - name: Install and verify source, then build before testing
         run: |
           vp install --frozen-lockfile
-          vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
-          vp node --test .github/release-tools/test.cjs
           vp check
           vp pack
           vp test
