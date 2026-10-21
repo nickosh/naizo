@@ -21,10 +21,15 @@ export interface NaizoAPI {
   init(): Promise<void>;
   get(key?: string): unknown;
   set(key: string, value: unknown): void;
+  getField(key: string): unknown;
+  setField(key: string, value: unknown): void;
+  deleteField(key: string): void;
   getList(listName: string): Array<Record<string, unknown>>;
   addItem(listName: string, itemData?: Record<string, unknown>): void;
+  updateItem(listName: string, index: number, partialData: Record<string, unknown>): void;
   removeItem(listName: string, index: number): void;
   moveItem(listName: string, fromIndex: number, toIndex: number): void;
+  bind(root?: ParentNode): void;
   save(): void;
   exportHTML(): string;
 }
@@ -60,25 +65,156 @@ const DB_ID = 'naizodb';
 const UI_ID = '__naizodb_host__';
 const STYLE_ID = '__naizodb_styles__';
 const IDB_NAME = 'NaizoDB_Handles';
+const PERSIST_DEBOUNCE_MS = 150;
+const DISK_DEBOUNCE_MS = 250;
 
-const NOT_IGNORED = ':not([naizo-ignore]):not([data-naizo-ignore])';
-const TRACKED_SELECTOR = [
-  'input',
-  'textarea',
-  'select',
-  '[contenteditable="true"]',
-  '[naizo]',
-  '[data-naizo]',
-  '[data-naizo-field]',
-]
-  .map((sel) => `${sel}${NOT_IGNORED}`)
-  .join(', ');
-
+const BOUND_SELECTOR = '[naizo], [data-naizo], [data-naizo-field]';
 const LIST_SELECTOR = '[naizo-list], [data-naizo-list]';
 const ITEM_SELECTOR = '[naizo-item], [data-naizo-item]';
 const DIRECT_ITEM_SELECTOR = ':scope > [naizo-item], :scope > [data-naizo-item]';
 const TEMPLATE_SELECTOR = 'template[naizo-template], template[data-naizo-template], template';
 const IGNORE_SELECTOR = '[naizo-ignore], [data-naizo-ignore]';
+const SKIPPED_INPUT_TYPES = new Set(['password', 'file', 'button', 'submit', 'reset', 'image']);
+
+function hasOwn(obj: object, key: string): boolean {
+  return Object.hasOwn(obj, key);
+}
+
+function getOwn(obj: Record<string, unknown>, key: string): unknown {
+  return Object.hasOwn(obj, key) ? obj[key] : undefined;
+}
+
+function setOwn(obj: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(obj, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
+function deleteOwn(obj: Record<string, unknown>, key: string): void {
+  if (Object.hasOwn(obj, key)) {
+    Reflect.deleteProperty(obj, key);
+  }
+}
+
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+  if (val === null || typeof val !== 'object' || Array.isArray(val)) return false;
+  const proto = Object.getPrototypeOf(val) as unknown;
+  return proto === null || proto === Object.prototype;
+}
+
+function isValidJsonValue(val: unknown, seen: Set<object> = new Set()): boolean {
+  if (val === null || typeof val === 'string' || typeof val === 'boolean') return true;
+  if (typeof val === 'number') return Number.isFinite(val);
+  if (
+    typeof val === 'undefined' ||
+    typeof val === 'function' ||
+    typeof val === 'symbol' ||
+    typeof val === 'bigint'
+  ) {
+    return false;
+  }
+  if (Array.isArray(val)) {
+    if (seen.has(val)) return false;
+    seen.add(val);
+    for (let i = 0; i < val.length; i += 1) {
+      if (!(i in val) || !isValidJsonValue(val[i], seen)) return false;
+    }
+    seen.delete(val);
+    return true;
+  }
+  if (isPlainObject(val)) {
+    if (seen.has(val)) return false;
+    seen.add(val);
+    for (const k of Object.keys(val)) {
+      if (!isValidJsonValue(getOwn(val, k), seen)) return false;
+    }
+    seen.delete(val);
+    return true;
+  }
+  return false;
+}
+
+function cloneJsonValue(val: unknown): unknown {
+  if (Array.isArray(val)) {
+    return val.map((item) => cloneJsonValue(item));
+  }
+  if (isPlainObject(val)) {
+    return cloneRecord(val);
+  }
+  return val;
+}
+
+function cloneRecord(rec: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(rec)) {
+    setOwn(out, key, cloneJsonValue(getOwn(rec, key)));
+  }
+  return out;
+}
+
+function createEmptyDb(): NaizoDatabase {
+  return { _meta: {}, fields: {}, lists: {}, custom: {} };
+}
+
+function cloneDb(db: NaizoDatabase): NaizoDatabase {
+  const lists: Record<string, Array<Record<string, unknown>>> = {};
+  for (const listName of Object.keys(db.lists)) {
+    const arr = getOwn(db.lists, listName);
+    if (Array.isArray(arr)) {
+      setOwn(
+        lists,
+        listName,
+        arr.map((item) => (isPlainObject(item) ? cloneRecord(item) : {})),
+      );
+    }
+  }
+  return {
+    _meta: cloneRecord(db._meta),
+    fields: cloneRecord(db.fields),
+    lists,
+    custom: cloneRecord(db.custom),
+  };
+}
+
+function validateAndNormalizeDb(parsed: unknown): NaizoDatabase | null {
+  if (!isPlainObject(parsed)) return null;
+
+  const rawMeta = hasOwn(parsed, '_meta') ? getOwn(parsed, '_meta') : {};
+  const rawFields = hasOwn(parsed, 'fields') ? getOwn(parsed, 'fields') : {};
+  const rawLists = hasOwn(parsed, 'lists') ? getOwn(parsed, 'lists') : {};
+  const rawCustom = hasOwn(parsed, 'custom') ? getOwn(parsed, 'custom') : {};
+
+  if (
+    !isPlainObject(rawMeta) ||
+    !isPlainObject(rawFields) ||
+    !isPlainObject(rawLists) ||
+    !isPlainObject(rawCustom)
+  ) {
+    return null;
+  }
+
+  const lists: Record<string, Array<Record<string, unknown>>> = {};
+  for (const listName of Object.keys(rawLists)) {
+    const rawArr = getOwn(rawLists, listName);
+    if (!Array.isArray(rawArr)) return null;
+    const cleanItems: Array<Record<string, unknown>> = [];
+    for (const item of rawArr) {
+      if (!isPlainObject(item)) return null;
+      cleanItems.push(cloneRecord(item));
+    }
+    setOwn(lists, listName, cleanItems);
+  }
+
+  return {
+    _meta: cloneRecord(rawMeta),
+    fields: cloneRecord(rawFields),
+    lists,
+    custom: cloneRecord(rawCustom),
+  };
+}
 
 function getPageKey(): string {
   return 'naizodb_state_' + (typeof location !== 'undefined' ? location.pathname : '/');
@@ -86,6 +222,26 @@ function getPageKey(): string {
 
 function getSnapshotKey(): string {
   return 'naizodb_disk_hash_' + (typeof location !== 'undefined' ? location.pathname : '/');
+}
+
+function safeGetStorage(key: string): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetStorage(key: string, value: string): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    console.warn('[naizo.js] localStorage write failed:', e);
+    return false;
+  }
 }
 
 function getAttr(el: Element, shortName: string): string | null {
@@ -119,7 +275,27 @@ function toTextValue(val: unknown): string {
   return JSON.stringify(val);
 }
 
+function toBooleanValue(val: unknown): boolean {
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val !== 0 && !Number.isNaN(val);
+  if (typeof val === 'string') {
+    const norm = val.trim().toLowerCase();
+    if (norm === 'false' || norm === '0' || norm === '' || norm === 'no' || norm === 'off') {
+      return false;
+    }
+    return true;
+  }
+  return Boolean(val);
+}
+
+let store: NaizoDatabase = createEmptyDb();
+let storeInitialized = false;
+let startupInvalidDb = false;
+let trackedDbScriptEl: HTMLScriptElement | null = null;
+let lastSerializedContent = '';
+let itemDataMap = new WeakMap<HTMLElement, Record<string, unknown>>();
 let fileHandle: NaizoFileHandle | null = null;
+let persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let statusEl: HTMLElement | null = null;
 let actionBtn: HTMLButtonElement | null = null;
@@ -179,109 +355,191 @@ export function getDbScript(): HTMLScriptElement {
   return el;
 }
 
-export function parseDbScript(): NaizoDatabase {
+function parseDbScriptDetailed(rawText?: string): {
+  ok: boolean;
+  db: NaizoDatabase;
+  raw: string;
+} {
+  const raw = (rawText ?? getDbScript().textContent ?? '').trim();
+  if (!raw) {
+    return { ok: true, db: createEmptyDb(), raw };
+  }
   try {
-    const raw = getDbScript().textContent?.trim() ?? '';
-    const parsed = raw ? (JSON.parse(raw) as Partial<NaizoDatabase>) : {};
-    return {
-      _meta: parsed._meta && typeof parsed._meta === 'object' ? parsed._meta : {},
-      fields: parsed.fields && typeof parsed.fields === 'object' ? parsed.fields : {},
-      lists: parsed.lists && typeof parsed.lists === 'object' ? parsed.lists : {},
-      custom: parsed.custom && typeof parsed.custom === 'object' ? parsed.custom : {},
-    };
+    const parsed: unknown = JSON.parse(raw);
+    const validated = validateAndNormalizeDb(parsed);
+    if (!validated) {
+      console.warn('[naizo.js] Invalid database shape in #naizodb.');
+      return { ok: false, db: createEmptyDb(), raw };
+    }
+    return { ok: true, db: validated, raw };
   } catch (e) {
     console.warn('[naizo.js] Invalid JSON in #naizodb, resetting.', e);
-    return { _meta: {}, fields: {}, lists: {}, custom: {} };
+    return { ok: false, db: createEmptyDb(), raw };
   }
+}
+
+export function parseDbScript(): NaizoDatabase {
+  const currentScript = getDbScript();
+  if (persistTimeout !== null && currentScript === trackedDbScriptEl && !startupInvalidDb) {
+    flushPersistence();
+  }
+  return parseDbScriptDetailed(currentScript.textContent ?? '').db;
 }
 
 function parseCachedState(raw: string | null): NaizoDatabase | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as Partial<NaizoDatabase>;
-    if (!parsed || typeof parsed !== 'object') return null;
-    return {
-      _meta: parsed._meta && typeof parsed._meta === 'object' ? parsed._meta : {},
-      fields: parsed.fields && typeof parsed.fields === 'object' ? parsed.fields : {},
-      lists: parsed.lists && typeof parsed.lists === 'object' ? parsed.lists : {},
-      custom: parsed.custom && typeof parsed.custom === 'object' ? parsed.custom : {},
-    };
+    const parsed: unknown = JSON.parse(raw);
+    const validated = validateAndNormalizeDb(parsed);
+    if (!validated) {
+      console.warn('[naizo.js] Invalid database shape in localStorage cache, ignoring.');
+      return null;
+    }
+    return validated;
   } catch (e) {
     console.warn('[naizo.js] Invalid JSON in localStorage cache, ignoring.', e);
     return null;
   }
 }
 
-// --- 3. Element Value Helpers (Read, Write & Attribute Baking) ---
-function getElementKey(el: Element, idx: number): string {
-  return (
-    getAttr(el, 'naizo') ||
-    el.getAttribute('data-naizo-field') ||
-    el.id ||
-    el.getAttribute('name') ||
-    `field_${idx}`
-  );
+function serializeContentBuckets(db: NaizoDatabase): string {
+  return JSON.stringify({
+    fields: db.fields,
+    lists: db.lists,
+    custom: db.custom,
+  });
 }
 
-function readAndBakeElement(el: Element): unknown {
+function ensureStore(): NaizoDatabase {
+  const currentScript = document.getElementById(DB_ID) as HTMLScriptElement | null;
+  if (!storeInitialized || (currentScript !== null && currentScript !== trackedDbScriptEl)) {
+    const scriptEl = getDbScript();
+    trackedDbScriptEl = scriptEl;
+    const detailed = parseDbScriptDetailed(scriptEl.textContent ?? '');
+    startupInvalidDb = !detailed.ok;
+    store = detailed.db;
+    storeInitialized = true;
+    lastSerializedContent = serializeContentBuckets(store);
+  }
+  return store;
+}
+
+// --- 3. Element Value Helpers (Explicit Binding, Read, Write & Export-Only Attribute Baking) ---
+function getElementKey(el: Element): string | null {
+  const key =
+    el.getAttribute('naizo') ??
+    el.getAttribute('data-naizo') ??
+    el.getAttribute('data-naizo-field');
+  return key && key.length > 0 ? key : null;
+}
+
+function isIgnoredElement(el: Element): boolean {
+  return Boolean(el.closest(`${IGNORE_SELECTOR}, template, #${UI_ID}`));
+}
+
+function isSkippedElement(el: Element, warn = false): boolean {
+  if (el instanceof HTMLInputElement) {
+    const type = (el.getAttribute('type') ?? el.type ?? 'text').toLowerCase();
+    if (SKIPPED_INPUT_TYPES.has(type)) {
+      if (warn) {
+        console.warn(`[naizo.js] Skipping unsupported input[type="${type}"] binding.`);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+function isContentEditableElement(el: Element): boolean {
+  if (!el.hasAttribute('contenteditable')) return false;
+  const attr = (el.getAttribute('contenteditable') ?? '').trim().toLowerCase();
+  return attr !== 'false';
+}
+
+function readElementValue(el: Element): unknown {
+  if (isSkippedElement(el)) return undefined;
   if (el instanceof HTMLInputElement) {
     if (el.type === 'checkbox') {
-      if (el.checked) {
-        el.setAttribute('checked', 'checked');
-      } else {
-        el.removeAttribute('checked');
-      }
       return el.checked;
     }
     if (el.type === 'radio') {
-      if (el.checked) {
-        el.setAttribute('checked', 'checked');
-        return el.value;
-      }
-      el.removeAttribute('checked');
-      return undefined;
+      return el.checked ? el.value : undefined;
     }
-    el.setAttribute('value', el.value);
     return el.value;
   }
   if (el instanceof HTMLSelectElement) {
-    Array.from(el.options).forEach((opt) => {
-      if (opt.selected) {
-        opt.setAttribute('selected', 'selected');
-      } else {
-        opt.removeAttribute('selected');
-      }
-    });
     return el.value;
   }
   if (el instanceof HTMLTextAreaElement) {
-    el.textContent = el.value;
     return el.value;
-  }
-  if (el.hasAttribute('contenteditable')) {
-    return el.innerHTML;
   }
   return el.textContent ?? '';
 }
 
 function writeElementValue(el: Element, val: unknown): void {
+  if (isSkippedElement(el, true)) return;
   const textVal = toTextValue(val);
   if (el instanceof HTMLInputElement) {
     if (el.type === 'checkbox') {
-      el.checked = Boolean(val);
+      el.checked = toBooleanValue(val);
     } else if (el.type === 'radio') {
       el.checked = el.value === textVal;
     } else {
       el.value = textVal;
     }
-  } else if (el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
-    el.value = textVal;
-  } else if (el.hasAttribute('contenteditable')) {
-    el.innerHTML = textVal;
-  } else {
-    el.textContent = textVal;
+    return;
   }
-  readAndBakeElement(el);
+  if (el instanceof HTMLSelectElement) {
+    const hasMatch = Array.from(el.options).some((opt) => opt.value === textVal);
+    if (!hasMatch) {
+      console.warn(
+        `[naizo.js] Stored value "${textVal}" has no matching <option> in <select>; preserving stored value.`,
+      );
+      return;
+    }
+    el.value = textVal;
+    return;
+  }
+  if (el instanceof HTMLTextAreaElement) {
+    el.value = textVal;
+    return;
+  }
+  el.textContent = textVal;
+}
+
+function bakeClonedElementAttributes(liveEl: Element, cloneEl: Element): void {
+  if (isSkippedElement(liveEl)) return;
+  if (liveEl instanceof HTMLInputElement && cloneEl instanceof HTMLInputElement) {
+    if (liveEl.type === 'checkbox' || liveEl.type === 'radio') {
+      if (liveEl.checked) {
+        cloneEl.setAttribute('checked', 'checked');
+      } else {
+        cloneEl.removeAttribute('checked');
+      }
+    } else {
+      cloneEl.setAttribute('value', liveEl.value);
+    }
+    return;
+  }
+  if (liveEl instanceof HTMLSelectElement && cloneEl instanceof HTMLSelectElement) {
+    Array.from(liveEl.options).forEach((opt, idx) => {
+      const cloneOpt = cloneEl.options[idx];
+      if (!cloneOpt) return;
+      if (opt.selected) {
+        cloneOpt.setAttribute('selected', 'selected');
+      } else {
+        cloneOpt.removeAttribute('selected');
+      }
+    });
+    return;
+  }
+  if (liveEl instanceof HTMLTextAreaElement && cloneEl instanceof HTMLTextAreaElement) {
+    cloneEl.textContent = liveEl.value;
+    return;
+  }
+  if (isContentEditableElement(liveEl)) {
+    cloneEl.textContent = liveEl.textContent ?? '';
+  }
 }
 
 function clearElementValue(el: Element): void {
@@ -302,23 +560,94 @@ function clearElementValue(el: Element): void {
   } else if (el instanceof HTMLTextAreaElement) {
     el.value = '';
     el.textContent = '';
-  } else if (el.hasAttribute('contenteditable')) {
-    el.innerHTML = '';
   } else {
     el.textContent = '';
   }
 }
 
+function shouldUpdateStoredValue(prevVal: unknown, nextVal: unknown, exists: boolean): boolean {
+  if (!exists) return true;
+  if (Object.is(prevVal, nextVal)) return false;
+  if (
+    typeof nextVal === 'string' &&
+    (typeof prevVal === 'number' || typeof prevVal === 'boolean') &&
+    String(prevVal) === nextVal
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function selectHasOption(selectEl: HTMLSelectElement, val: unknown): boolean {
+  const textVal = toTextValue(val);
+  return Array.from(selectEl.options).some((opt) => opt.value === textVal);
+}
+
+function queryStandaloneBoundElements(root: ParentNode = document): Element[] {
+  const result: Element[] = [];
+  if (root instanceof Element && root.matches(BOUND_SELECTOR)) {
+    if (!isIgnoredElement(root) && !root.closest(ITEM_SELECTOR) && !isSkippedElement(root, true)) {
+      result.push(root);
+    }
+  }
+  root.querySelectorAll(BOUND_SELECTOR).forEach((el) => {
+    if (isIgnoredElement(el) || el.closest(ITEM_SELECTOR) || isSkippedElement(el, true)) return;
+    result.push(el);
+  });
+  return result;
+}
+
+function queryItemBoundElements(itemEl: HTMLElement): Element[] {
+  const result: Element[] = [];
+  itemEl.querySelectorAll(BOUND_SELECTOR).forEach((el) => {
+    if (el.closest(ITEM_SELECTOR) !== itemEl) return;
+    if (isIgnoredElement(el) || isSkippedElement(el, true)) return;
+    result.push(el);
+  });
+  return result;
+}
+
+function propagateStandaloneKey(key: string, val: unknown, sourceEl?: Element): void {
+  queryStandaloneBoundElements(document).forEach((el) => {
+    if (el === sourceEl) return;
+    if (getElementKey(el) === key) {
+      writeElementValue(el, val);
+    }
+  });
+}
+
+function propagateItemKey(
+  itemEl: HTMLElement,
+  key: string,
+  val: unknown,
+  sourceEl?: Element,
+): void {
+  queryItemBoundElements(itemEl).forEach((el) => {
+    if (el === sourceEl) return;
+    if (getElementKey(el) === key) {
+      writeElementValue(el, val);
+    }
+  });
+}
+
 // --- 4. Declarative List Repeater Engine ([naizo-list] / [data-naizo-list]) ---
-function ensureListBlueprints(): void {
-  document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
+function ensureListBlueprints(root: ParentNode = document): void {
+  const lists: HTMLElement[] = [];
+  if (root instanceof HTMLElement && root.matches(LIST_SELECTOR) && !isIgnoredElement(root)) {
+    lists.push(root);
+  }
+  root.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((el) => {
+    if (!isIgnoredElement(el)) lists.push(el);
+  });
+
+  lists.forEach((listEl) => {
     let tpl = listEl.querySelector<HTMLTemplateElement>(TEMPLATE_SELECTOR);
     if (!tpl) {
       const firstItem = listEl.querySelector<HTMLElement>(ITEM_SELECTOR);
       if (!firstItem) return;
       const cleanClone = firstItem.cloneNode(true) as HTMLElement;
       cleanClone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
-      cleanClone.querySelectorAll(TRACKED_SELECTOR).forEach(clearElementValue);
+      cleanClone.querySelectorAll(BOUND_SELECTOR).forEach(clearElementValue);
 
       tpl = document.createElement('template');
       tpl.setAttribute('naizo-template', '');
@@ -358,6 +687,22 @@ function decorateListControls(listEl: HTMLElement): void {
   }
 }
 
+function bindItemElementToRecord(itemEl: HTMLElement, rowObj: Record<string, unknown>): void {
+  itemDataMap.set(itemEl, rowObj);
+  queryItemBoundElements(itemEl).forEach((el) => {
+    const key = getElementKey(el);
+    if (!key) return;
+    if (hasOwn(rowObj, key)) {
+      writeElementValue(el, getOwn(rowObj, key));
+    } else {
+      const val = readElementValue(el);
+      if (val !== undefined) {
+        setOwn(rowObj, key, val);
+      }
+    }
+  });
+}
+
 function createItemNode(
   listEl: HTMLElement,
   itemData: Record<string, unknown> = {},
@@ -370,12 +715,7 @@ function createItemNode(
     (fragment.firstElementChild as HTMLElement | null);
   if (!itemEl) return null;
 
-  itemEl.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-    const key = getElementKey(el, idx);
-    if (key in itemData) {
-      writeElementValue(el, itemData[key]);
-    }
-  });
+  bindItemElementToRecord(itemEl, itemData);
   return itemEl;
 }
 
@@ -388,69 +728,185 @@ function renderListItems(listEl: HTMLElement, itemsArray: Array<Record<string, u
   decorateListControls(listEl);
 }
 
-// --- 5. Full DOM <-> JSON Synchronization ---
-export function captureDomToState(): { db: NaizoDatabase; formatted: string } {
-  const db = parseDbScript();
-  db._meta.updatedAt = new Date().toISOString();
+function getOrBindItemRecord(itemEl: HTMLElement): Record<string, unknown> | null {
+  const existing = itemDataMap.get(itemEl);
+  if (existing) return existing;
 
-  db.fields = {};
-  document.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-    if (el.closest(`${ITEM_SELECTOR}, template`)) return;
-    const key = getElementKey(el, idx);
-    const val = readAndBakeElement(el);
-    if (val !== undefined) db.fields[key] = val;
+  const listEl = itemEl.closest<HTMLElement>(LIST_SELECTOR);
+  if (!listEl) return null;
+  const listName = getAttr(listEl, 'naizo-list');
+  if (!listName) return null;
+
+  const db = ensureStore();
+  let listArr = getOwn(db.lists, listName) as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(listArr)) {
+    listArr = [];
+    setOwn(db.lists, listName, listArr);
+  }
+
+  const rows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
+  const idx = rows.indexOf(itemEl);
+  if (idx === -1) return null;
+
+  let rowObj = listArr[idx];
+  if (!isPlainObject(rowObj)) {
+    rowObj = {};
+    listArr[idx] = rowObj;
+  }
+  itemDataMap.set(itemEl, rowObj);
+  return rowObj;
+}
+
+// --- 5. Store <-> DOM Synchronization (Merge & Pass-Through Semantics) ---
+function syncDomIntoStore(): NaizoDatabase {
+  const db = ensureStore();
+
+  queryStandaloneBoundElements(document).forEach((el) => {
+    const key = getElementKey(el);
+    if (!key) return;
+    if (
+      el instanceof HTMLSelectElement &&
+      hasOwn(db.fields, key) &&
+      !selectHasOption(el, getOwn(db.fields, key))
+    ) {
+      return;
+    }
+    const val = readElementValue(el);
+    if (val === undefined) return;
+    const exists = hasOwn(db.fields, key);
+    const prevVal = getOwn(db.fields, key);
+    if (shouldUpdateStoredValue(prevVal, val, exists)) {
+      setOwn(db.fields, key, val);
+    }
   });
 
-  db.lists = {};
   document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
+    if (isIgnoredElement(listEl)) return;
     const listName = getAttr(listEl, 'naizo-list');
     if (!listName) return;
     const items: Array<Record<string, unknown>> = [];
     listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
-      const itemObj: Record<string, unknown> = {};
-      itemEl.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-        const key = getElementKey(el, idx);
-        const val = readAndBakeElement(el);
-        if (val !== undefined) itemObj[key] = val;
+      const existingObj = itemDataMap.get(itemEl);
+      const itemObj: Record<string, unknown> = existingObj ? cloneRecord(existingObj) : {};
+      queryItemBoundElements(itemEl).forEach((el) => {
+        const key = getElementKey(el);
+        if (!key) return;
+        if (
+          el instanceof HTMLSelectElement &&
+          hasOwn(itemObj, key) &&
+          !selectHasOption(el, getOwn(itemObj, key))
+        ) {
+          return;
+        }
+        const val = readElementValue(el);
+        if (val === undefined) return;
+        const exists = hasOwn(itemObj, key);
+        const prevVal = getOwn(itemObj, key);
+        if (shouldUpdateStoredValue(prevVal, val, exists)) {
+          setOwn(itemObj, key, val);
+        }
       });
+      itemDataMap.set(itemEl, itemObj);
       items.push(itemObj);
     });
-    db.lists[listName] = items;
+    setOwn(db.lists, listName, items);
   });
 
+  return db;
+}
+
+function writeStoreToDomScript(db: NaizoDatabase, allowMetaBump: boolean): string {
+  const nextContent = serializeContentBuckets(db);
+  if (allowMetaBump && nextContent !== lastSerializedContent) {
+    setOwn(db._meta, 'updatedAt', new Date().toISOString());
+  }
+  lastSerializedContent = nextContent;
   const formatted = '\n' + JSON.stringify(db, null, 2) + '\n';
-  getDbScript().textContent = formatted;
+  if (!startupInvalidDb) {
+    const scriptEl = getDbScript();
+    scriptEl.textContent = formatted;
+    trackedDbScriptEl = scriptEl;
+  }
+  return formatted;
+}
+
+export function captureDomToState(): { db: NaizoDatabase; formatted: string } {
+  const db = syncDomIntoStore();
+  const formatted = writeStoreToDomScript(db, true);
   return { db, formatted };
+}
+
+function hydrateSubtreeFromStore(root: ParentNode = document): void {
+  const db = ensureStore();
+  ensureListBlueprints(root);
+
+  queryStandaloneBoundElements(root).forEach((el) => {
+    const key = getElementKey(el);
+    if (!key) return;
+    if (hasOwn(db.fields, key)) {
+      writeElementValue(el, getOwn(db.fields, key));
+    } else {
+      const val = readElementValue(el);
+      if (val !== undefined) {
+        setOwn(db.fields, key, val);
+      }
+    }
+  });
+
+  const lists: HTMLElement[] = [];
+  if (root instanceof HTMLElement && root.matches(LIST_SELECTOR) && !isIgnoredElement(root)) {
+    lists.push(root);
+  }
+  root.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((el) => {
+    if (!isIgnoredElement(el)) lists.push(el);
+  });
+
+  lists.forEach((listEl) => {
+    const listName = getAttr(listEl, 'naizo-list');
+    if (!listName) return;
+    if (hasOwn(db.lists, listName) && Array.isArray(getOwn(db.lists, listName))) {
+      renderListItems(listEl, getOwn(db.lists, listName) as Array<Record<string, unknown>>);
+    } else {
+      const seededItems: Array<Record<string, unknown>> = [];
+      listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
+        const rowObj: Record<string, unknown> = {};
+        bindItemElementToRecord(itemEl, rowObj);
+        seededItems.push(rowObj);
+      });
+      setOwn(db.lists, listName, seededItems);
+      decorateListControls(listEl);
+    }
+  });
 }
 
 export function hydrateDomFromState(db: NaizoDatabase | null): void {
   if (!db) return;
+  const validated = validateAndNormalizeDb(db);
+  if (!validated) return;
+  store = validated;
+  storeInitialized = true;
+  lastSerializedContent = serializeContentBuckets(store);
 
-  if (db.fields) {
-    document.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-      if (el.closest(`${ITEM_SELECTOR}, template`)) return;
-      const key = getElementKey(el, idx);
-      if (key in db.fields) writeElementValue(el, db.fields[key]);
-    });
-  }
-
-  document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
-    const listName = getAttr(listEl, 'naizo-list');
-    if (listName && db.lists && Array.isArray(db.lists[listName])) {
-      renderListItems(listEl, db.lists[listName]);
-    } else {
-      decorateListControls(listEl);
-    }
-  });
-
-  captureDomToState();
-  window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: db }));
+  hydrateSubtreeFromStore(document);
+  writeStoreToDomScript(store, false);
+  window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
 }
 
-// --- 6. Clean Serialization (Strips Runtime UI Before Disk Save) ---
+// --- 6. Clean Serialization (Bakes Attributes on Clone & Strips Runtime UI Before Export) ---
 export function getCleanHtmlString(): string {
-  captureDomToState();
+  flushPersistence();
   const clone = document.documentElement.cloneNode(true) as HTMLElement;
+
+  const liveBound = Array.from(document.documentElement.querySelectorAll(BOUND_SELECTOR));
+  const cloneBound = Array.from(clone.querySelectorAll(BOUND_SELECTOR));
+  for (let i = 0; i < liveBound.length; i += 1) {
+    const liveEl = liveBound[i];
+    const cloneEl = cloneBound[i];
+    if (liveEl && cloneEl && !isIgnoredElement(liveEl)) {
+      bakeClonedElementAttributes(liveEl, cloneEl);
+    }
+  }
+
   clone
     .querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`)
     .forEach((el) => el.remove());
@@ -459,7 +915,7 @@ export function getCleanHtmlString(): string {
 
 // --- 7. Persistence Engine (localStorage + File System Access API) ---
 async function writeToDisk(): Promise<boolean> {
-  if (!fileHandle) return false;
+  if (!fileHandle || startupInvalidDb) return false;
   try {
     const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
     if (perm !== 'granted') {
@@ -471,7 +927,7 @@ async function writeToDisk(): Promise<boolean> {
     await writable.write(htmlString);
     await writable.close();
 
-    localStorage.setItem(getSnapshotKey(), getDbScript().textContent?.trim() ?? '');
+    safeSetStorage(getSnapshotKey(), getDbScript().textContent?.trim() ?? '');
     updateUi(
       'saved',
       'Saved ' +
@@ -489,16 +945,26 @@ async function writeToDisk(): Promise<boolean> {
   }
 }
 
-export function triggerSave(): void {
-  const { db } = captureDomToState();
-  try {
-    localStorage.setItem(getPageKey(), JSON.stringify(db));
-  } catch {
-    // Ignore storage quota / security errors
+function flushPersistence(): void {
+  if (persistTimeout !== null) {
+    clearTimeout(persistTimeout);
+    persistTimeout = null;
+  }
+  if (startupInvalidDb) {
+    updateUi('error', 'Invalid #naizodb JSON');
+    return;
   }
 
+  const db = ensureStore();
+  writeStoreToDomScript(db, true);
+  const storedOk = safeSetStorage(getPageKey(), JSON.stringify(db));
+
   if (!fileHandle) {
-    updateUi('cached', 'Cached in Browser');
+    if (storedOk) {
+      updateUi('cached', 'Cached in Browser');
+    } else {
+      updateUi('cached', 'In-Memory Only · Link Disk');
+    }
     return;
   }
 
@@ -506,7 +972,20 @@ export function triggerSave(): void {
   if (saveTimeout) clearTimeout(saveTimeout);
   saveTimeout = setTimeout(() => {
     void writeToDisk();
-  }, 250);
+  }, DISK_DEBOUNCE_MS);
+}
+
+function schedulePersist(): void {
+  if (startupInvalidDb) return;
+  if (persistTimeout !== null) clearTimeout(persistTimeout);
+  persistTimeout = setTimeout(() => {
+    persistTimeout = null;
+    flushPersistence();
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+export function triggerSave(): void {
+  flushPersistence();
 }
 
 async function connectOrResumeDisk(): Promise<void> {
@@ -531,10 +1010,12 @@ async function connectOrResumeDisk(): Promise<void> {
     }
   } else {
     const blob = new Blob([getCleanHtmlString()], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = location.pathname.split('/').pop() || 'index.html';
     a.click();
+    URL.revokeObjectURL(url);
     updateUi('saved', 'Downloaded HTML Snapshot');
   }
 }
@@ -590,6 +1071,7 @@ function mountUi(): void {
       .dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
       .dot.saved { background: #10b981; }
       .dot.saving { background: #3b82f6; }
+      .dot.error { background: #ef4444; }
       button {
         background: #1e293b; color: #e2e8f0; border: 1px solid #475569;
         border-radius: 999px; padding: 4px 10px; font: inherit; cursor: pointer;
@@ -613,8 +1095,9 @@ function mountUi(): void {
     void connectOrResumeDisk();
   });
   copyBtn?.addEventListener('click', () => {
-    const { formatted } = captureDomToState();
-    void navigator.clipboard?.writeText(formatted.trim());
+    flushPersistence();
+    const text = '\n' + JSON.stringify(ensureStore(), null, 2) + '\n';
+    void navigator.clipboard?.writeText(text.trim());
     copyBtn.textContent = '✓ Copied';
     setTimeout(() => {
       copyBtn.textContent = '{ } Copy';
@@ -623,7 +1106,15 @@ function mountUi(): void {
 
   host._setDot = (state: string) => {
     if (dotEl) {
-      dotEl.className = 'dot ' + (state === 'saved' ? 'saved' : state === 'saving' ? 'saving' : '');
+      const cls =
+        state === 'saved'
+          ? 'saved'
+          : state === 'saving'
+            ? 'saving'
+            : state === 'error'
+              ? 'error'
+              : '';
+      dotEl.className = cls ? `dot ${cls}` : 'dot';
     }
   };
 
@@ -634,7 +1125,7 @@ function updateUi(state: string, message: string): void {
   if (!statusEl || !actionBtn) return;
   statusEl.textContent = message;
   (document.getElementById(UI_ID) as NaizoHostElement | null)?._setDot?.(state);
-  if (state === 'saved') {
+  if (state === 'saved' || state === 'error') {
     actionBtn.style.display = 'none';
   } else if (state === 'needs-permission') {
     actionBtn.style.display = 'inline-block';
@@ -645,7 +1136,44 @@ function updateUi(state: string, message: string): void {
   }
 }
 
-// --- 9. Event Delegation for List Actions (+ Add, × Remove, ↑/↓ Move) ---
+// --- 9. Event Delegation for O(1) Input Capture & List Actions ---
+function handleInputOrChange(e: Event): void {
+  const target = e.target;
+  if (!(target instanceof Element)) return;
+  if (isIgnoredElement(target)) return;
+
+  const boundEl = target.closest(BOUND_SELECTOR);
+  if (!boundEl || isIgnoredElement(boundEl) || isSkippedElement(boundEl, true)) return;
+  if (boundEl !== target && !isContentEditableElement(boundEl)) return;
+
+  const key = getElementKey(boundEl);
+  if (!key) return;
+
+  const nextVal = readElementValue(boundEl);
+  if (nextVal === undefined) return;
+
+  const db = ensureStore();
+  const itemEl = boundEl.closest<HTMLElement>(ITEM_SELECTOR);
+  if (itemEl) {
+    const rowObj = getOrBindItemRecord(itemEl);
+    if (!rowObj) return;
+    const exists = hasOwn(rowObj, key);
+    const prevVal = getOwn(rowObj, key);
+    if (!shouldUpdateStoredValue(prevVal, nextVal, exists)) return;
+    setOwn(rowObj, key, nextVal);
+    propagateItemKey(itemEl, key, nextVal, boundEl);
+    schedulePersist();
+    return;
+  }
+
+  const exists = hasOwn(db.fields, key);
+  const prevVal = getOwn(db.fields, key);
+  if (!shouldUpdateStoredValue(prevVal, nextVal, exists)) return;
+  setOwn(db.fields, key, nextVal);
+  propagateStandaloneKey(key, nextVal, boundEl);
+  schedulePersist();
+}
+
 function handleListClicks(e: Event): void {
   const target = e.target as Element | null;
   if (!target || typeof target.closest !== 'function') return;
@@ -659,10 +1187,18 @@ function handleListClicks(e: Event): void {
 
   const removeBtn = target.closest('[naizo-remove], [data-naizo-remove]');
   if (removeBtn) {
-    const itemEl = removeBtn.closest(ITEM_SELECTOR);
-    if (itemEl) {
-      itemEl.remove();
-      triggerSave();
+    const itemEl = removeBtn.closest<HTMLElement>(ITEM_SELECTOR);
+    const listEl = itemEl?.closest<HTMLElement>(LIST_SELECTOR);
+    if (itemEl && listEl) {
+      const listName = getAttr(listEl, 'naizo-list');
+      const rows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
+      const idx = rows.indexOf(itemEl);
+      if (listName && idx !== -1) {
+        Naizo.removeItem(listName, idx);
+      } else {
+        itemEl.remove();
+        triggerSave();
+      }
     }
     return;
   }
@@ -670,43 +1206,107 @@ function handleListClicks(e: Event): void {
   const moveBtn = target.closest('[naizo-move], [data-naizo-move]');
   if (moveBtn) {
     const dir = getAttr(moveBtn, 'naizo-move');
-    const itemEl = moveBtn.closest(ITEM_SELECTOR);
-    if (!itemEl || !itemEl.parentNode) return;
-    const prev = itemEl.previousElementSibling;
-    const next = itemEl.nextElementSibling;
-    if (dir === 'up' && prev && hasAttr(prev, 'naizo-item')) {
-      itemEl.parentNode.insertBefore(itemEl, prev);
-      triggerSave();
-    } else if (dir === 'down' && next && hasAttr(next, 'naizo-item')) {
-      itemEl.parentNode.insertBefore(next, itemEl);
-      triggerSave();
+    const itemEl = moveBtn.closest<HTMLElement>(ITEM_SELECTOR);
+    const listEl = itemEl?.closest<HTMLElement>(LIST_SELECTOR);
+    if (!itemEl || !listEl) return;
+    const listName = getAttr(listEl, 'naizo-list');
+    if (!listName) return;
+    const rows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
+    const idx = rows.indexOf(itemEl);
+    if (idx === -1) return;
+    if (dir === 'up' && idx > 0) {
+      Naizo.moveItem(listName, idx, idx - 1);
+    } else if (dir === 'down' && idx < rows.length - 1) {
+      Naizo.moveItem(listName, idx, idx + 1);
     }
   }
+}
+
+function attachListeners(): void {
+  if (listenersAttached) return;
+  document.addEventListener('click', handleListClicks);
+  document.addEventListener('input', handleInputOrChange);
+  document.addEventListener('change', handleInputOrChange);
+  window.addEventListener('pagehide', () => {
+    if (persistTimeout !== null) flushPersistence();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && persistTimeout !== null) {
+      flushPersistence();
+    }
+  });
+  listenersAttached = true;
 }
 
 // --- 10. Public API (window.Naizo & window.NaizoDB alias) ---
 export const Naizo: NaizoAPI = {
   init: initNaizo,
   get(key?: string): unknown {
-    const db = parseDbScript();
-    return key ? db.custom[key] : db;
+    const db = ensureStore();
+    if (key === undefined) return db;
+    return getOwn(db.custom, key);
   },
   set(key: string, value: unknown): void {
-    const db = parseDbScript();
-    db.custom[key] = value;
-    db._meta.updatedAt = new Date().toISOString();
-    getDbScript().textContent = '\n' + JSON.stringify(db, null, 2) + '\n';
+    if (!key || !isValidJsonValue(value)) {
+      console.warn('[naizo.js] Rejected invalid custom key or non-JSON value:', key);
+      return;
+    }
+    const db = ensureStore();
+    setOwn(db.custom, key, cloneJsonValue(value));
+    triggerSave();
+  },
+  getField(key: string): unknown {
+    const db = ensureStore();
+    return getOwn(db.fields, key);
+  },
+  setField(key: string, value: unknown): void {
+    if (!key || !isValidJsonValue(value)) {
+      console.warn('[naizo.js] Rejected invalid field key or non-JSON value:', key);
+      return;
+    }
+    const db = ensureStore();
+    const cloned = cloneJsonValue(value);
+    setOwn(db.fields, key, cloned);
+    propagateStandaloneKey(key, cloned);
+    triggerSave();
+  },
+  deleteField(key: string): void {
+    if (!key) return;
+    const db = ensureStore();
+    if (!hasOwn(db.fields, key)) return;
+    deleteOwn(db.fields, key);
     triggerSave();
   },
   getList(listName: string): Array<Record<string, unknown>> {
-    return parseDbScript().lists[listName] ?? [];
+    const db = ensureStore();
+    const arr = getOwn(db.lists, listName);
+    return Array.isArray(arr) ? (arr as Array<Record<string, unknown>>) : [];
   },
   addItem(listName: string, itemData: Record<string, unknown> = {}): void {
+    if (!listName || !isPlainObject(itemData) || !isValidJsonValue(itemData)) {
+      console.warn('[naizo.js] Rejected invalid list item data for:', listName);
+      return;
+    }
+    const db = ensureStore();
+    const rowObj = cloneRecord(itemData);
+    let listArr = getOwn(db.lists, listName) as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(listArr)) {
+      listArr = [];
+      setOwn(db.lists, listName, listArr);
+    }
+
     const listEl = findListElement(listName);
-    if (!listEl) return;
-    const node = createItemNode(listEl, itemData);
+    if (!listEl) {
+      listArr.push(rowObj);
+      triggerSave();
+      return;
+    }
+
+    ensureListBlueprints(listEl);
+    const node = createItemNode(listEl, rowObj);
     if (node) {
       listEl.appendChild(node);
+      listArr.push(rowObj);
       decorateListControls(listEl);
       const firstInput = node.querySelector<HTMLElement>(
         'input[type="text"], [contenteditable="true"], textarea',
@@ -715,23 +1315,77 @@ export const Naizo: NaizoAPI = {
       triggerSave();
     }
   },
-  removeItem(listName: string, index: number): void {
-    const listEl = findListElement(listName);
-    if (!listEl) return;
-    const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
-    if (items[index]) {
-      items[index].remove();
-      triggerSave();
+  updateItem(listName: string, index: number, partialData: Record<string, unknown>): void {
+    if (!listName || !isPlainObject(partialData) || !isValidJsonValue(partialData)) {
+      console.warn('[naizo.js] Rejected invalid updateItem data for:', listName);
+      return;
     }
+    const db = ensureStore();
+    const listArr = getOwn(db.lists, listName);
+    if (!Array.isArray(listArr) || index < 0 || index >= listArr.length) return;
+    const rowObj = listArr[index] as Record<string, unknown> | undefined;
+    if (!isPlainObject(rowObj)) return;
+
+    const listEl = findListElement(listName);
+    const rows = listEl
+      ? Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR))
+      : [];
+    const itemEl = rows[index];
+
+    for (const key of Object.keys(partialData)) {
+      const val = cloneJsonValue(getOwn(partialData, key));
+      setOwn(rowObj, key, val);
+      if (itemEl) {
+        propagateItemKey(itemEl, key, val);
+      }
+    }
+    triggerSave();
+  },
+  removeItem(listName: string, index: number): void {
+    const db = ensureStore();
+    const listArr = getOwn(db.lists, listName);
+    if (Array.isArray(listArr) && index >= 0 && index < listArr.length) {
+      listArr.splice(index, 1);
+    }
+    const listEl = findListElement(listName);
+    if (listEl) {
+      const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
+      if (items[index]) {
+        items[index].remove();
+      }
+    }
+    triggerSave();
   },
   moveItem(listName: string, fromIndex: number, toIndex: number): void {
+    if (fromIndex === toIndex) return;
+    const db = ensureStore();
+    const listArr = getOwn(db.lists, listName);
+    if (
+      Array.isArray(listArr) &&
+      fromIndex >= 0 &&
+      fromIndex < listArr.length &&
+      toIndex >= 0 &&
+      toIndex < listArr.length
+    ) {
+      const [moved] = listArr.splice(fromIndex, 1);
+      if (moved) listArr.splice(toIndex, 0, moved);
+    }
+
     const listEl = findListElement(listName);
-    if (!listEl) return;
-    const items = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
-    if (!items[fromIndex] || !items[toIndex] || fromIndex === toIndex) return;
-    const target = items[toIndex];
-    listEl.insertBefore(items[fromIndex], fromIndex < toIndex ? target.nextSibling : target);
+    if (listEl) {
+      const items = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
+      const fromEl = items[fromIndex];
+      const targetEl = items[toIndex];
+      if (fromEl && targetEl) {
+        listEl.insertBefore(fromEl, fromIndex < toIndex ? targetEl.nextSibling : targetEl);
+      }
+    }
     triggerSave();
+  },
+  bind(root: ParentNode = document): void {
+    ensureStore();
+    hydrateSubtreeFromStore(root);
+    schedulePersist();
   },
   save: triggerSave,
   exportHTML: getCleanHtmlString,
@@ -741,46 +1395,87 @@ export const NaizoDB: NaizoAPI = Naizo;
 
 // --- 11. Boot & Smart Conflict Resolution (Disk vs Browser Cache) ---
 export async function initNaizo(): Promise<void> {
+  if (persistTimeout !== null) {
+    clearTimeout(persistTimeout);
+    persistTimeout = null;
+  }
+  if (saveTimeout !== null) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+
   mountUi();
-  ensureListBlueprints();
+  ensureListBlueprints(document);
+  attachListeners();
 
   const pageKey = getPageKey();
   const snapshotKey = getSnapshotKey();
-  const currentDiskRaw = getDbScript().textContent?.trim() ?? '';
-  const lastKnownDiskRaw = localStorage.getItem(snapshotKey);
-  const diskState = parseDbScript();
-  const cachedState = parseCachedState(localStorage.getItem(pageKey));
+  const scriptEl = getDbScript();
+  trackedDbScriptEl = scriptEl;
+  const currentDiskRaw = scriptEl.textContent?.trim() ?? '';
+  const lastKnownDiskRaw = safeGetStorage(snapshotKey);
+  const diskDetailed = parseDbScriptDetailed(currentDiskRaw);
+  const cachedState = parseCachedState(safeGetStorage(pageKey));
 
+  if (!diskDetailed.ok) {
+    startupInvalidDb = true;
+    store = cachedState ? cloneDb(cachedState) : createEmptyDb();
+    storeInitialized = true;
+    lastSerializedContent = serializeContentBuckets(store);
+    if (cachedState) {
+      hydrateSubtreeFromStore(document);
+    } else {
+      document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
+        if (!isIgnoredElement(listEl)) decorateListControls(listEl);
+      });
+    }
+    updateUi('error', 'Invalid #naizodb JSON');
+    window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
+    return;
+  }
+
+  startupInvalidDb = false;
   const diskModifiedExternally = lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw;
 
   if (diskModifiedExternally || !cachedState) {
-    hydrateDomFromState(diskState);
-    localStorage.setItem(pageKey, JSON.stringify(parseDbScript()));
-    localStorage.setItem(snapshotKey, getDbScript().textContent?.trim() ?? '');
+    store = cloneDb(diskDetailed.db);
+    storeInitialized = true;
+    lastSerializedContent = serializeContentBuckets(store);
+    hydrateSubtreeFromStore(document);
+    writeStoreToDomScript(store, false);
+    const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
+    safeSetStorage(snapshotKey, currentDiskRaw);
+    if (!storedOk) {
+      updateUi('cached', 'In-Memory Only · Link Disk');
+    }
   } else {
-    hydrateDomFromState(cachedState);
-  }
-
-  fileHandle = await loadHandleFromIDB();
-  if (fileHandle) {
-    const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
-    if (perm === 'granted') {
-      updateUi('saved', 'Disk Sync Active');
-    } else {
-      updateUi('needs-permission', 'File Remembered');
+    store = cloneDb(cachedState);
+    storeInitialized = true;
+    lastSerializedContent = serializeContentBuckets(store);
+    hydrateSubtreeFromStore(document);
+    writeStoreToDomScript(store, false);
+    const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
+    if (lastKnownDiskRaw === null) {
+      safeSetStorage(snapshotKey, currentDiskRaw);
+    }
+    if (!storedOk) {
+      updateUi('cached', 'In-Memory Only · Link Disk');
     }
   }
 
-  if (!listenersAttached) {
-    document.addEventListener('click', handleListClicks);
-    document.addEventListener('input', (e) => {
-      const target = e.target as Element | null;
-      if (!target?.closest?.(`#${UI_ID}`)) triggerSave();
-    });
-    document.addEventListener('change', (e) => {
-      const target = e.target as Element | null;
-      if (!target?.closest?.(`#${UI_ID}`)) triggerSave();
-    });
-    listenersAttached = true;
+  window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
+
+  fileHandle = await loadHandleFromIDB();
+  if (fileHandle) {
+    try {
+      const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
+      if (perm === 'granted') {
+        updateUi('saved', 'Disk Sync Active');
+      } else {
+        updateUi('needs-permission', 'File Remembered');
+      }
+    } catch {
+      updateUi('needs-permission', 'File Remembered');
+    }
   }
 }

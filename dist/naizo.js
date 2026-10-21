@@ -4,26 +4,143 @@
 	const UI_ID = "__naizodb_host__";
 	const STYLE_ID = "__naizodb_styles__";
 	const IDB_NAME = "NaizoDB_Handles";
-	const NOT_IGNORED = ":not([naizo-ignore]):not([data-naizo-ignore])";
-	const TRACKED_SELECTOR = [
-		"input",
-		"textarea",
-		"select",
-		"[contenteditable=\"true\"]",
-		"[naizo]",
-		"[data-naizo]",
-		"[data-naizo-field]"
-	].map((sel) => `${sel}${NOT_IGNORED}`).join(", ");
+	const PERSIST_DEBOUNCE_MS = 150;
+	const DISK_DEBOUNCE_MS = 250;
+	const BOUND_SELECTOR = "[naizo], [data-naizo], [data-naizo-field]";
 	const LIST_SELECTOR = "[naizo-list], [data-naizo-list]";
 	const ITEM_SELECTOR = "[naizo-item], [data-naizo-item]";
 	const DIRECT_ITEM_SELECTOR = ":scope > [naizo-item], :scope > [data-naizo-item]";
 	const TEMPLATE_SELECTOR = "template[naizo-template], template[data-naizo-template], template";
 	const IGNORE_SELECTOR = "[naizo-ignore], [data-naizo-ignore]";
+	const SKIPPED_INPUT_TYPES = /* @__PURE__ */ new Set([
+		"password",
+		"file",
+		"button",
+		"submit",
+		"reset",
+		"image"
+	]);
+	function hasOwn(obj, key) {
+		return Object.hasOwn(obj, key);
+	}
+	function getOwn(obj, key) {
+		return Object.hasOwn(obj, key) ? obj[key] : void 0;
+	}
+	function setOwn(obj, key, value) {
+		Object.defineProperty(obj, key, {
+			value,
+			writable: true,
+			enumerable: true,
+			configurable: true
+		});
+	}
+	function deleteOwn(obj, key) {
+		if (Object.hasOwn(obj, key)) Reflect.deleteProperty(obj, key);
+	}
+	function isPlainObject(val) {
+		if (val === null || typeof val !== "object" || Array.isArray(val)) return false;
+		const proto = Object.getPrototypeOf(val);
+		return proto === null || proto === Object.prototype;
+	}
+	function isValidJsonValue(val, seen = /* @__PURE__ */ new Set()) {
+		if (val === null || typeof val === "string" || typeof val === "boolean") return true;
+		if (typeof val === "number") return Number.isFinite(val);
+		if (typeof val === "undefined" || typeof val === "function" || typeof val === "symbol" || typeof val === "bigint") return false;
+		if (Array.isArray(val)) {
+			if (seen.has(val)) return false;
+			seen.add(val);
+			for (let i = 0; i < val.length; i += 1) if (!(i in val) || !isValidJsonValue(val[i], seen)) return false;
+			seen.delete(val);
+			return true;
+		}
+		if (isPlainObject(val)) {
+			if (seen.has(val)) return false;
+			seen.add(val);
+			for (const k of Object.keys(val)) if (!isValidJsonValue(getOwn(val, k), seen)) return false;
+			seen.delete(val);
+			return true;
+		}
+		return false;
+	}
+	function cloneJsonValue(val) {
+		if (Array.isArray(val)) return val.map((item) => cloneJsonValue(item));
+		if (isPlainObject(val)) return cloneRecord(val);
+		return val;
+	}
+	function cloneRecord(rec) {
+		const out = {};
+		for (const key of Object.keys(rec)) setOwn(out, key, cloneJsonValue(getOwn(rec, key)));
+		return out;
+	}
+	function createEmptyDb() {
+		return {
+			_meta: {},
+			fields: {},
+			lists: {},
+			custom: {}
+		};
+	}
+	function cloneDb(db) {
+		const lists = {};
+		for (const listName of Object.keys(db.lists)) {
+			const arr = getOwn(db.lists, listName);
+			if (Array.isArray(arr)) setOwn(lists, listName, arr.map((item) => isPlainObject(item) ? cloneRecord(item) : {}));
+		}
+		return {
+			_meta: cloneRecord(db._meta),
+			fields: cloneRecord(db.fields),
+			lists,
+			custom: cloneRecord(db.custom)
+		};
+	}
+	function validateAndNormalizeDb(parsed) {
+		if (!isPlainObject(parsed)) return null;
+		const rawMeta = hasOwn(parsed, "_meta") ? getOwn(parsed, "_meta") : {};
+		const rawFields = hasOwn(parsed, "fields") ? getOwn(parsed, "fields") : {};
+		const rawLists = hasOwn(parsed, "lists") ? getOwn(parsed, "lists") : {};
+		const rawCustom = hasOwn(parsed, "custom") ? getOwn(parsed, "custom") : {};
+		if (!isPlainObject(rawMeta) || !isPlainObject(rawFields) || !isPlainObject(rawLists) || !isPlainObject(rawCustom)) return null;
+		const lists = {};
+		for (const listName of Object.keys(rawLists)) {
+			const rawArr = getOwn(rawLists, listName);
+			if (!Array.isArray(rawArr)) return null;
+			const cleanItems = [];
+			for (const item of rawArr) {
+				if (!isPlainObject(item)) return null;
+				cleanItems.push(cloneRecord(item));
+			}
+			setOwn(lists, listName, cleanItems);
+		}
+		return {
+			_meta: cloneRecord(rawMeta),
+			fields: cloneRecord(rawFields),
+			lists,
+			custom: cloneRecord(rawCustom)
+		};
+	}
 	function getPageKey() {
 		return "naizodb_state_" + (typeof location !== "undefined" ? location.pathname : "/");
 	}
 	function getSnapshotKey() {
 		return "naizodb_disk_hash_" + (typeof location !== "undefined" ? location.pathname : "/");
+	}
+	function safeGetStorage(key) {
+		try {
+			if (typeof localStorage === "undefined") return null;
+			return localStorage.getItem(key);
+		} catch {
+			return null;
+		}
+	}
+	function safeSetStorage(key, value) {
+		try {
+			if (typeof localStorage === "undefined") return false;
+			localStorage.setItem(key, value);
+			return true;
+		} catch (e) {
+			console.warn("[naizo.js] localStorage write failed:", e);
+			return false;
+		}
 	}
 	function getAttr(el, shortName) {
 		return el.getAttribute(shortName) ?? el.getAttribute(`data-${shortName}`);
@@ -45,7 +162,24 @@
 		if (typeof val === "number" || typeof val === "boolean" || typeof val === "bigint") return String(val);
 		return JSON.stringify(val);
 	}
+	function toBooleanValue(val) {
+		if (typeof val === "boolean") return val;
+		if (typeof val === "number") return val !== 0 && !Number.isNaN(val);
+		if (typeof val === "string") {
+			const norm = val.trim().toLowerCase();
+			if (norm === "false" || norm === "0" || norm === "" || norm === "no" || norm === "off") return false;
+			return true;
+		}
+		return Boolean(val);
+	}
+	let store = createEmptyDb();
+	let storeInitialized = false;
+	let startupInvalidDb = false;
+	let trackedDbScriptEl = null;
+	let lastSerializedContent = "";
+	let itemDataMap = /* @__PURE__ */ new WeakMap();
 	let fileHandle = null;
+	let persistTimeout = null;
 	let saveTimeout = null;
 	let statusEl = null;
 	let actionBtn = null;
@@ -94,87 +228,149 @@
 		}
 		return el;
 	}
-	function parseDbScript() {
+	function parseDbScriptDetailed(rawText) {
+		const raw = (rawText ?? getDbScript().textContent ?? "").trim();
+		if (!raw) return {
+			ok: true,
+			db: createEmptyDb(),
+			raw
+		};
 		try {
-			const raw = getDbScript().textContent?.trim() ?? "";
-			const parsed = raw ? JSON.parse(raw) : {};
+			const validated = validateAndNormalizeDb(JSON.parse(raw));
+			if (!validated) {
+				console.warn("[naizo.js] Invalid database shape in #naizodb.");
+				return {
+					ok: false,
+					db: createEmptyDb(),
+					raw
+				};
+			}
 			return {
-				_meta: parsed._meta && typeof parsed._meta === "object" ? parsed._meta : {},
-				fields: parsed.fields && typeof parsed.fields === "object" ? parsed.fields : {},
-				lists: parsed.lists && typeof parsed.lists === "object" ? parsed.lists : {},
-				custom: parsed.custom && typeof parsed.custom === "object" ? parsed.custom : {}
+				ok: true,
+				db: validated,
+				raw
 			};
 		} catch (e) {
 			console.warn("[naizo.js] Invalid JSON in #naizodb, resetting.", e);
 			return {
-				_meta: {},
-				fields: {},
-				lists: {},
-				custom: {}
+				ok: false,
+				db: createEmptyDb(),
+				raw
 			};
 		}
 	}
 	function parseCachedState(raw) {
 		if (!raw) return null;
 		try {
-			const parsed = JSON.parse(raw);
-			if (!parsed || typeof parsed !== "object") return null;
-			return {
-				_meta: parsed._meta && typeof parsed._meta === "object" ? parsed._meta : {},
-				fields: parsed.fields && typeof parsed.fields === "object" ? parsed.fields : {},
-				lists: parsed.lists && typeof parsed.lists === "object" ? parsed.lists : {},
-				custom: parsed.custom && typeof parsed.custom === "object" ? parsed.custom : {}
-			};
+			const validated = validateAndNormalizeDb(JSON.parse(raw));
+			if (!validated) {
+				console.warn("[naizo.js] Invalid database shape in localStorage cache, ignoring.");
+				return null;
+			}
+			return validated;
 		} catch (e) {
 			console.warn("[naizo.js] Invalid JSON in localStorage cache, ignoring.", e);
 			return null;
 		}
 	}
-	function getElementKey(el, idx) {
-		return getAttr(el, "naizo") || el.getAttribute("data-naizo-field") || el.id || el.getAttribute("name") || `field_${idx}`;
+	function serializeContentBuckets(db) {
+		return JSON.stringify({
+			fields: db.fields,
+			lists: db.lists,
+			custom: db.custom
+		});
 	}
-	function readAndBakeElement(el) {
+	function ensureStore() {
+		const currentScript = document.getElementById(DB_ID);
+		if (!storeInitialized || currentScript !== null && currentScript !== trackedDbScriptEl) {
+			const scriptEl = getDbScript();
+			trackedDbScriptEl = scriptEl;
+			const detailed = parseDbScriptDetailed(scriptEl.textContent ?? "");
+			startupInvalidDb = !detailed.ok;
+			store = detailed.db;
+			storeInitialized = true;
+			lastSerializedContent = serializeContentBuckets(store);
+		}
+		return store;
+	}
+	function getElementKey(el) {
+		const key = el.getAttribute("naizo") ?? el.getAttribute("data-naizo") ?? el.getAttribute("data-naizo-field");
+		return key && key.length > 0 ? key : null;
+	}
+	function isIgnoredElement(el) {
+		return Boolean(el.closest(`${IGNORE_SELECTOR}, template, #${UI_ID}`));
+	}
+	function isSkippedElement(el, warn = false) {
 		if (el instanceof HTMLInputElement) {
-			if (el.type === "checkbox") {
-				if (el.checked) el.setAttribute("checked", "checked");
-				else el.removeAttribute("checked");
-				return el.checked;
+			const type = (el.getAttribute("type") ?? el.type ?? "text").toLowerCase();
+			if (SKIPPED_INPUT_TYPES.has(type)) {
+				if (warn) console.warn(`[naizo.js] Skipping unsupported input[type="${type}"] binding.`);
+				return true;
 			}
-			if (el.type === "radio") {
-				if (el.checked) {
-					el.setAttribute("checked", "checked");
-					return el.value;
-				}
-				el.removeAttribute("checked");
-				return;
-			}
-			el.setAttribute("value", el.value);
+		}
+		return false;
+	}
+	function isContentEditableElement(el) {
+		if (!el.hasAttribute("contenteditable")) return false;
+		return (el.getAttribute("contenteditable") ?? "").trim().toLowerCase() !== "false";
+	}
+	function readElementValue(el) {
+		if (isSkippedElement(el)) return void 0;
+		if (el instanceof HTMLInputElement) {
+			if (el.type === "checkbox") return el.checked;
+			if (el.type === "radio") return el.checked ? el.value : void 0;
 			return el.value;
 		}
-		if (el instanceof HTMLSelectElement) {
-			Array.from(el.options).forEach((opt) => {
-				if (opt.selected) opt.setAttribute("selected", "selected");
-				else opt.removeAttribute("selected");
-			});
-			return el.value;
-		}
-		if (el instanceof HTMLTextAreaElement) {
-			el.textContent = el.value;
-			return el.value;
-		}
-		if (el.hasAttribute("contenteditable")) return el.innerHTML;
+		if (el instanceof HTMLSelectElement) return el.value;
+		if (el instanceof HTMLTextAreaElement) return el.value;
 		return el.textContent ?? "";
 	}
 	function writeElementValue(el, val) {
+		if (isSkippedElement(el, true)) return;
 		const textVal = toTextValue(val);
 		if (el instanceof HTMLInputElement) {
-			if (el.type === "checkbox") el.checked = Boolean(val);
+			if (el.type === "checkbox") el.checked = toBooleanValue(val);
 			else if (el.type === "radio") el.checked = el.value === textVal;
 			else el.value = textVal;
-		} else if (el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) el.value = textVal;
-		else if (el.hasAttribute("contenteditable")) el.innerHTML = textVal;
-		else el.textContent = textVal;
-		readAndBakeElement(el);
+			return;
+		}
+		if (el instanceof HTMLSelectElement) {
+			if (!Array.from(el.options).some((opt) => opt.value === textVal)) {
+				console.warn(`[naizo.js] Stored value "${textVal}" has no matching <option> in <select>; preserving stored value.`);
+				return;
+			}
+			el.value = textVal;
+			return;
+		}
+		if (el instanceof HTMLTextAreaElement) {
+			el.value = textVal;
+			return;
+		}
+		el.textContent = textVal;
+	}
+	function bakeClonedElementAttributes(liveEl, cloneEl) {
+		if (isSkippedElement(liveEl)) return;
+		if (liveEl instanceof HTMLInputElement && cloneEl instanceof HTMLInputElement) {
+			if (liveEl.type === "checkbox" || liveEl.type === "radio") {
+				if (liveEl.checked) cloneEl.setAttribute("checked", "checked");
+				else cloneEl.removeAttribute("checked");
+			} else cloneEl.setAttribute("value", liveEl.value);
+			return;
+		}
+		if (liveEl instanceof HTMLSelectElement && cloneEl instanceof HTMLSelectElement) {
+			Array.from(liveEl.options).forEach((opt, idx) => {
+				const cloneOpt = cloneEl.options[idx];
+				if (!cloneOpt) return;
+				if (opt.selected) cloneOpt.setAttribute("selected", "selected");
+				else cloneOpt.removeAttribute("selected");
+			});
+			return;
+		}
+		if (liveEl instanceof HTMLTextAreaElement && cloneEl instanceof HTMLTextAreaElement) {
+			cloneEl.textContent = liveEl.value;
+			return;
+		}
+		if (isContentEditableElement(liveEl)) cloneEl.textContent = liveEl.textContent ?? "";
 	}
 	function clearElementValue(el) {
 		if (el instanceof HTMLInputElement) {
@@ -194,18 +390,60 @@
 		} else if (el instanceof HTMLTextAreaElement) {
 			el.value = "";
 			el.textContent = "";
-		} else if (el.hasAttribute("contenteditable")) el.innerHTML = "";
-		else el.textContent = "";
+		} else el.textContent = "";
 	}
-	function ensureListBlueprints() {
-		document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
+	function shouldUpdateStoredValue(prevVal, nextVal, exists) {
+		if (!exists) return true;
+		if (Object.is(prevVal, nextVal)) return false;
+		if (typeof nextVal === "string" && (typeof prevVal === "number" || typeof prevVal === "boolean") && String(prevVal) === nextVal) return false;
+		return true;
+	}
+	function queryStandaloneBoundElements(root = document) {
+		const result = [];
+		if (root instanceof Element && root.matches(BOUND_SELECTOR)) {
+			if (!isIgnoredElement(root) && !root.closest(ITEM_SELECTOR) && !isSkippedElement(root, true)) result.push(root);
+		}
+		root.querySelectorAll(BOUND_SELECTOR).forEach((el) => {
+			if (isIgnoredElement(el) || el.closest(ITEM_SELECTOR) || isSkippedElement(el, true)) return;
+			result.push(el);
+		});
+		return result;
+	}
+	function queryItemBoundElements(itemEl) {
+		const result = [];
+		itemEl.querySelectorAll(BOUND_SELECTOR).forEach((el) => {
+			if (el.closest(ITEM_SELECTOR) !== itemEl) return;
+			if (isIgnoredElement(el) || isSkippedElement(el, true)) return;
+			result.push(el);
+		});
+		return result;
+	}
+	function propagateStandaloneKey(key, val, sourceEl) {
+		queryStandaloneBoundElements(document).forEach((el) => {
+			if (el === sourceEl) return;
+			if (getElementKey(el) === key) writeElementValue(el, val);
+		});
+	}
+	function propagateItemKey(itemEl, key, val, sourceEl) {
+		queryItemBoundElements(itemEl).forEach((el) => {
+			if (el === sourceEl) return;
+			if (getElementKey(el) === key) writeElementValue(el, val);
+		});
+	}
+	function ensureListBlueprints(root = document) {
+		const lists = [];
+		if (root instanceof HTMLElement && root.matches(LIST_SELECTOR) && !isIgnoredElement(root)) lists.push(root);
+		root.querySelectorAll(LIST_SELECTOR).forEach((el) => {
+			if (!isIgnoredElement(el)) lists.push(el);
+		});
+		lists.forEach((listEl) => {
 			let tpl = listEl.querySelector(TEMPLATE_SELECTOR);
 			if (!tpl) {
 				const firstItem = listEl.querySelector(ITEM_SELECTOR);
 				if (!firstItem) return;
 				const cleanClone = firstItem.cloneNode(true);
 				cleanClone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
-				cleanClone.querySelectorAll(TRACKED_SELECTOR).forEach(clearElementValue);
+				cleanClone.querySelectorAll(BOUND_SELECTOR).forEach(clearElementValue);
 				tpl = document.createElement("template");
 				tpl.setAttribute("naizo-template", "");
 				tpl.content.appendChild(cleanClone);
@@ -238,16 +476,25 @@
 			listEl.insertAdjacentElement("afterend", addWrap);
 		}
 	}
+	function bindItemElementToRecord(itemEl, rowObj) {
+		itemDataMap.set(itemEl, rowObj);
+		queryItemBoundElements(itemEl).forEach((el) => {
+			const key = getElementKey(el);
+			if (!key) return;
+			if (hasOwn(rowObj, key)) writeElementValue(el, getOwn(rowObj, key));
+			else {
+				const val = readElementValue(el);
+				if (val !== void 0) setOwn(rowObj, key, val);
+			}
+		});
+	}
 	function createItemNode(listEl, itemData = {}) {
 		const tpl = listEl.querySelector(TEMPLATE_SELECTOR);
 		if (!tpl) return null;
 		const fragment = tpl.content.cloneNode(true);
 		const itemEl = fragment.querySelector(ITEM_SELECTOR) ?? fragment.firstElementChild;
 		if (!itemEl) return null;
-		itemEl.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-			const key = getElementKey(el, idx);
-			if (key in itemData) writeElementValue(el, itemData[key]);
-		});
+		bindItemElementToRecord(itemEl, itemData);
 		return itemEl;
 	}
 	function renderListItems(listEl, itemsArray) {
@@ -258,62 +505,89 @@
 		});
 		decorateListControls(listEl);
 	}
-	function captureDomToState() {
-		const db = parseDbScript();
-		db._meta.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-		db.fields = {};
-		document.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-			if (el.closest(`${ITEM_SELECTOR}, template`)) return;
-			const key = getElementKey(el, idx);
-			const val = readAndBakeElement(el);
-			if (val !== void 0) db.fields[key] = val;
+	function getOrBindItemRecord(itemEl) {
+		const existing = itemDataMap.get(itemEl);
+		if (existing) return existing;
+		const listEl = itemEl.closest(LIST_SELECTOR);
+		if (!listEl) return null;
+		const listName = getAttr(listEl, "naizo-list");
+		if (!listName) return null;
+		const db = ensureStore();
+		let listArr = getOwn(db.lists, listName);
+		if (!Array.isArray(listArr)) {
+			listArr = [];
+			setOwn(db.lists, listName, listArr);
+		}
+		const idx = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR)).indexOf(itemEl);
+		if (idx === -1) return null;
+		let rowObj = listArr[idx];
+		if (!isPlainObject(rowObj)) {
+			rowObj = {};
+			listArr[idx] = rowObj;
+		}
+		itemDataMap.set(itemEl, rowObj);
+		return rowObj;
+	}
+	function writeStoreToDomScript(db, allowMetaBump) {
+		const nextContent = serializeContentBuckets(db);
+		if (allowMetaBump && nextContent !== lastSerializedContent) setOwn(db._meta, "updatedAt", (/* @__PURE__ */ new Date()).toISOString());
+		lastSerializedContent = nextContent;
+		const formatted = "\n" + JSON.stringify(db, null, 2) + "\n";
+		if (!startupInvalidDb) {
+			const scriptEl = getDbScript();
+			scriptEl.textContent = formatted;
+			trackedDbScriptEl = scriptEl;
+		}
+		return formatted;
+	}
+	function hydrateSubtreeFromStore(root = document) {
+		const db = ensureStore();
+		ensureListBlueprints(root);
+		queryStandaloneBoundElements(root).forEach((el) => {
+			const key = getElementKey(el);
+			if (!key) return;
+			if (hasOwn(db.fields, key)) writeElementValue(el, getOwn(db.fields, key));
+			else {
+				const val = readElementValue(el);
+				if (val !== void 0) setOwn(db.fields, key, val);
+			}
 		});
-		db.lists = {};
-		document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
+		const lists = [];
+		if (root instanceof HTMLElement && root.matches(LIST_SELECTOR) && !isIgnoredElement(root)) lists.push(root);
+		root.querySelectorAll(LIST_SELECTOR).forEach((el) => {
+			if (!isIgnoredElement(el)) lists.push(el);
+		});
+		lists.forEach((listEl) => {
 			const listName = getAttr(listEl, "naizo-list");
 			if (!listName) return;
-			const items = [];
-			listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
-				const itemObj = {};
-				itemEl.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-					const key = getElementKey(el, idx);
-					const val = readAndBakeElement(el);
-					if (val !== void 0) itemObj[key] = val;
+			if (hasOwn(db.lists, listName) && Array.isArray(getOwn(db.lists, listName))) renderListItems(listEl, getOwn(db.lists, listName));
+			else {
+				const seededItems = [];
+				listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
+					const rowObj = {};
+					bindItemElementToRecord(itemEl, rowObj);
+					seededItems.push(rowObj);
 				});
-				items.push(itemObj);
-			});
-			db.lists[listName] = items;
+				setOwn(db.lists, listName, seededItems);
+				decorateListControls(listEl);
+			}
 		});
-		const formatted = "\n" + JSON.stringify(db, null, 2) + "\n";
-		getDbScript().textContent = formatted;
-		return {
-			db,
-			formatted
-		};
-	}
-	function hydrateDomFromState(db) {
-		if (!db) return;
-		if (db.fields) document.querySelectorAll(TRACKED_SELECTOR).forEach((el, idx) => {
-			if (el.closest(`${ITEM_SELECTOR}, template`)) return;
-			const key = getElementKey(el, idx);
-			if (key in db.fields) writeElementValue(el, db.fields[key]);
-		});
-		document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
-			const listName = getAttr(listEl, "naizo-list");
-			if (listName && db.lists && Array.isArray(db.lists[listName])) renderListItems(listEl, db.lists[listName]);
-			else decorateListControls(listEl);
-		});
-		captureDomToState();
-		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: db }));
 	}
 	function getCleanHtmlString() {
-		captureDomToState();
+		flushPersistence();
 		const clone = document.documentElement.cloneNode(true);
+		const liveBound = Array.from(document.documentElement.querySelectorAll(BOUND_SELECTOR));
+		const cloneBound = Array.from(clone.querySelectorAll(BOUND_SELECTOR));
+		for (let i = 0; i < liveBound.length; i += 1) {
+			const liveEl = liveBound[i];
+			const cloneEl = cloneBound[i];
+			if (liveEl && cloneEl && !isIgnoredElement(liveEl)) bakeClonedElementAttributes(liveEl, cloneEl);
+		}
 		clone.querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`).forEach((el) => el.remove());
 		return "<!DOCTYPE html>\n" + clone.outerHTML;
 	}
 	async function writeToDisk() {
-		if (!fileHandle) return false;
+		if (!fileHandle || startupInvalidDb) return false;
 		try {
 			if (await fileHandle.queryPermission({ mode: "readwrite" }) !== "granted") {
 				updateUi("needs-permission", "Resume Disk Sync");
@@ -323,7 +597,7 @@
 			const writable = await fileHandle.createWritable();
 			await writable.write(htmlString);
 			await writable.close();
-			localStorage.setItem(getSnapshotKey(), getDbScript().textContent?.trim() ?? "");
+			safeSetStorage(getSnapshotKey(), getDbScript().textContent?.trim() ?? "");
 			updateUi("saved", "Saved " + (/* @__PURE__ */ new Date()).toLocaleTimeString([], {
 				hour: "2-digit",
 				minute: "2-digit",
@@ -336,20 +610,39 @@
 			return false;
 		}
 	}
-	function triggerSave() {
-		const { db } = captureDomToState();
-		try {
-			localStorage.setItem(getPageKey(), JSON.stringify(db));
-		} catch {}
+	function flushPersistence() {
+		if (persistTimeout !== null) {
+			clearTimeout(persistTimeout);
+			persistTimeout = null;
+		}
+		if (startupInvalidDb) {
+			updateUi("error", "Invalid #naizodb JSON");
+			return;
+		}
+		const db = ensureStore();
+		writeStoreToDomScript(db, true);
+		const storedOk = safeSetStorage(getPageKey(), JSON.stringify(db));
 		if (!fileHandle) {
-			updateUi("cached", "Cached in Browser");
+			if (storedOk) updateUi("cached", "Cached in Browser");
+			else updateUi("cached", "In-Memory Only · Link Disk");
 			return;
 		}
 		updateUi("saving", "Saving...");
 		if (saveTimeout) clearTimeout(saveTimeout);
 		saveTimeout = setTimeout(() => {
 			writeToDisk();
-		}, 250);
+		}, DISK_DEBOUNCE_MS);
+	}
+	function schedulePersist() {
+		if (startupInvalidDb) return;
+		if (persistTimeout !== null) clearTimeout(persistTimeout);
+		persistTimeout = setTimeout(() => {
+			persistTimeout = null;
+			flushPersistence();
+		}, PERSIST_DEBOUNCE_MS);
+	}
+	function triggerSave() {
+		flushPersistence();
 	}
 	async function connectOrResumeDisk() {
 		if (fileHandle) {
@@ -371,10 +664,12 @@
 		} catch {}
 		else {
 			const blob = new Blob([getCleanHtmlString()], { type: "text/html" });
+			const url = URL.createObjectURL(blob);
 			const a = document.createElement("a");
-			a.href = URL.createObjectURL(blob);
+			a.href = url;
 			a.download = location.pathname.split("/").pop() || "index.html";
 			a.click();
+			URL.revokeObjectURL(url);
 			updateUi("saved", "Downloaded HTML Snapshot");
 		}
 	}
@@ -425,6 +720,7 @@
       .dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
       .dot.saved { background: #10b981; }
       .dot.saving { background: #3b82f6; }
+      .dot.error { background: #ef4444; }
       button {
         background: #1e293b; color: #e2e8f0; border: 1px solid #475569;
         border-radius: 999px; padding: 4px 10px; font: inherit; cursor: pointer;
@@ -446,15 +742,19 @@
 			connectOrResumeDisk();
 		});
 		copyBtn?.addEventListener("click", () => {
-			const { formatted } = captureDomToState();
-			navigator.clipboard?.writeText(formatted.trim());
+			flushPersistence();
+			const text = "\n" + JSON.stringify(ensureStore(), null, 2) + "\n";
+			navigator.clipboard?.writeText(text.trim());
 			copyBtn.textContent = "✓ Copied";
 			setTimeout(() => {
 				copyBtn.textContent = "{ } Copy";
 			}, 1500);
 		});
 		host._setDot = (state) => {
-			if (dotEl) dotEl.className = "dot " + (state === "saved" ? "saved" : state === "saving" ? "saving" : "");
+			if (dotEl) {
+				const cls = state === "saved" ? "saved" : state === "saving" ? "saving" : state === "error" ? "error" : "";
+				dotEl.className = cls ? `dot ${cls}` : "dot";
+			}
 		};
 		document.body.appendChild(host);
 	}
@@ -462,7 +762,7 @@
 		if (!statusEl || !actionBtn) return;
 		statusEl.textContent = message;
 		document.getElementById(UI_ID)?._setDot?.(state);
-		if (state === "saved") actionBtn.style.display = "none";
+		if (state === "saved" || state === "error") actionBtn.style.display = "none";
 		else if (state === "needs-permission") {
 			actionBtn.style.display = "inline-block";
 			actionBtn.textContent = "Resume Disk Sync";
@@ -470,6 +770,35 @@
 			actionBtn.style.display = "inline-block";
 			actionBtn.textContent = "Link Disk";
 		}
+	}
+	function handleInputOrChange(e) {
+		const target = e.target;
+		if (!(target instanceof Element)) return;
+		if (isIgnoredElement(target)) return;
+		const boundEl = target.closest(BOUND_SELECTOR);
+		if (!boundEl || isIgnoredElement(boundEl) || isSkippedElement(boundEl, true)) return;
+		if (boundEl !== target && !isContentEditableElement(boundEl)) return;
+		const key = getElementKey(boundEl);
+		if (!key) return;
+		const nextVal = readElementValue(boundEl);
+		if (nextVal === void 0) return;
+		const db = ensureStore();
+		const itemEl = boundEl.closest(ITEM_SELECTOR);
+		if (itemEl) {
+			const rowObj = getOrBindItemRecord(itemEl);
+			if (!rowObj) return;
+			const exists = hasOwn(rowObj, key);
+			if (!shouldUpdateStoredValue(getOwn(rowObj, key), nextVal, exists)) return;
+			setOwn(rowObj, key, nextVal);
+			propagateItemKey(itemEl, key, nextVal, boundEl);
+			schedulePersist();
+			return;
+		}
+		const exists = hasOwn(db.fields, key);
+		if (!shouldUpdateStoredValue(getOwn(db.fields, key), nextVal, exists)) return;
+		setOwn(db.fields, key, nextVal);
+		propagateStandaloneKey(key, nextVal, boundEl);
+		schedulePersist();
 	}
 	function handleListClicks(e) {
 		const target = e.target;
@@ -483,9 +812,15 @@
 		const removeBtn = target.closest("[naizo-remove], [data-naizo-remove]");
 		if (removeBtn) {
 			const itemEl = removeBtn.closest(ITEM_SELECTOR);
-			if (itemEl) {
-				itemEl.remove();
-				triggerSave();
+			const listEl = itemEl?.closest(LIST_SELECTOR);
+			if (itemEl && listEl) {
+				const listName = getAttr(listEl, "naizo-list");
+				const idx = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR)).indexOf(itemEl);
+				if (listName && idx !== -1) Naizo.removeItem(listName, idx);
+				else {
+					itemEl.remove();
+					triggerSave();
+				}
 			}
 			return;
 		}
@@ -493,95 +828,211 @@
 		if (moveBtn) {
 			const dir = getAttr(moveBtn, "naizo-move");
 			const itemEl = moveBtn.closest(ITEM_SELECTOR);
-			if (!itemEl || !itemEl.parentNode) return;
-			const prev = itemEl.previousElementSibling;
-			const next = itemEl.nextElementSibling;
-			if (dir === "up" && prev && hasAttr(prev, "naizo-item")) {
-				itemEl.parentNode.insertBefore(itemEl, prev);
-				triggerSave();
-			} else if (dir === "down" && next && hasAttr(next, "naizo-item")) {
-				itemEl.parentNode.insertBefore(next, itemEl);
-				triggerSave();
-			}
+			const listEl = itemEl?.closest(LIST_SELECTOR);
+			if (!itemEl || !listEl) return;
+			const listName = getAttr(listEl, "naizo-list");
+			if (!listName) return;
+			const rows = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
+			const idx = rows.indexOf(itemEl);
+			if (idx === -1) return;
+			if (dir === "up" && idx > 0) Naizo.moveItem(listName, idx, idx - 1);
+			else if (dir === "down" && idx < rows.length - 1) Naizo.moveItem(listName, idx, idx + 1);
 		}
+	}
+	function attachListeners() {
+		if (listenersAttached) return;
+		document.addEventListener("click", handleListClicks);
+		document.addEventListener("input", handleInputOrChange);
+		document.addEventListener("change", handleInputOrChange);
+		window.addEventListener("pagehide", () => {
+			if (persistTimeout !== null) flushPersistence();
+		});
+		document.addEventListener("visibilitychange", () => {
+			if (document.visibilityState === "hidden" && persistTimeout !== null) flushPersistence();
+		});
+		listenersAttached = true;
 	}
 	const Naizo = {
 		init: initNaizo,
 		get(key) {
-			const db = parseDbScript();
-			return key ? db.custom[key] : db;
+			const db = ensureStore();
+			if (key === void 0) return db;
+			return getOwn(db.custom, key);
 		},
 		set(key, value) {
-			const db = parseDbScript();
-			db.custom[key] = value;
-			db._meta.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-			getDbScript().textContent = "\n" + JSON.stringify(db, null, 2) + "\n";
+			if (!key || !isValidJsonValue(value)) {
+				console.warn("[naizo.js] Rejected invalid custom key or non-JSON value:", key);
+				return;
+			}
+			setOwn(ensureStore().custom, key, cloneJsonValue(value));
+			triggerSave();
+		},
+		getField(key) {
+			return getOwn(ensureStore().fields, key);
+		},
+		setField(key, value) {
+			if (!key || !isValidJsonValue(value)) {
+				console.warn("[naizo.js] Rejected invalid field key or non-JSON value:", key);
+				return;
+			}
+			const db = ensureStore();
+			const cloned = cloneJsonValue(value);
+			setOwn(db.fields, key, cloned);
+			propagateStandaloneKey(key, cloned);
+			triggerSave();
+		},
+		deleteField(key) {
+			if (!key) return;
+			const db = ensureStore();
+			if (!hasOwn(db.fields, key)) return;
+			deleteOwn(db.fields, key);
 			triggerSave();
 		},
 		getList(listName) {
-			return parseDbScript().lists[listName] ?? [];
+			const arr = getOwn(ensureStore().lists, listName);
+			return Array.isArray(arr) ? arr : [];
 		},
 		addItem(listName, itemData = {}) {
+			if (!listName || !isPlainObject(itemData) || !isValidJsonValue(itemData)) {
+				console.warn("[naizo.js] Rejected invalid list item data for:", listName);
+				return;
+			}
+			const db = ensureStore();
+			const rowObj = cloneRecord(itemData);
+			let listArr = getOwn(db.lists, listName);
+			if (!Array.isArray(listArr)) {
+				listArr = [];
+				setOwn(db.lists, listName, listArr);
+			}
 			const listEl = findListElement(listName);
-			if (!listEl) return;
-			const node = createItemNode(listEl, itemData);
+			if (!listEl) {
+				listArr.push(rowObj);
+				triggerSave();
+				return;
+			}
+			ensureListBlueprints(listEl);
+			const node = createItemNode(listEl, rowObj);
 			if (node) {
 				listEl.appendChild(node);
+				listArr.push(rowObj);
 				decorateListControls(listEl);
 				node.querySelector("input[type=\"text\"], [contenteditable=\"true\"], textarea")?.focus();
 				triggerSave();
 			}
 		},
-		removeItem(listName, index) {
-			const listEl = findListElement(listName);
-			if (!listEl) return;
-			const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
-			if (items[index]) {
-				items[index].remove();
-				triggerSave();
+		updateItem(listName, index, partialData) {
+			if (!listName || !isPlainObject(partialData) || !isValidJsonValue(partialData)) {
+				console.warn("[naizo.js] Rejected invalid updateItem data for:", listName);
+				return;
 			}
+			const listArr = getOwn(ensureStore().lists, listName);
+			if (!Array.isArray(listArr) || index < 0 || index >= listArr.length) return;
+			const rowObj = listArr[index];
+			if (!isPlainObject(rowObj)) return;
+			const listEl = findListElement(listName);
+			const itemEl = (listEl ? Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR)) : [])[index];
+			for (const key of Object.keys(partialData)) {
+				const val = cloneJsonValue(getOwn(partialData, key));
+				setOwn(rowObj, key, val);
+				if (itemEl) propagateItemKey(itemEl, key, val);
+			}
+			triggerSave();
+		},
+		removeItem(listName, index) {
+			const listArr = getOwn(ensureStore().lists, listName);
+			if (Array.isArray(listArr) && index >= 0 && index < listArr.length) listArr.splice(index, 1);
+			const listEl = findListElement(listName);
+			if (listEl) {
+				const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
+				if (items[index]) items[index].remove();
+			}
+			triggerSave();
 		},
 		moveItem(listName, fromIndex, toIndex) {
+			if (fromIndex === toIndex) return;
+			const listArr = getOwn(ensureStore().lists, listName);
+			if (Array.isArray(listArr) && fromIndex >= 0 && fromIndex < listArr.length && toIndex >= 0 && toIndex < listArr.length) {
+				const [moved] = listArr.splice(fromIndex, 1);
+				if (moved) listArr.splice(toIndex, 0, moved);
+			}
 			const listEl = findListElement(listName);
-			if (!listEl) return;
-			const items = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
-			if (!items[fromIndex] || !items[toIndex] || fromIndex === toIndex) return;
-			const target = items[toIndex];
-			listEl.insertBefore(items[fromIndex], fromIndex < toIndex ? target.nextSibling : target);
+			if (listEl) {
+				const items = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
+				const fromEl = items[fromIndex];
+				const targetEl = items[toIndex];
+				if (fromEl && targetEl) listEl.insertBefore(fromEl, fromIndex < toIndex ? targetEl.nextSibling : targetEl);
+			}
 			triggerSave();
+		},
+		bind(root = document) {
+			ensureStore();
+			hydrateSubtreeFromStore(root);
+			schedulePersist();
 		},
 		save: triggerSave,
 		exportHTML: getCleanHtmlString
 	};
 	const NaizoDB = Naizo;
 	async function initNaizo() {
+		if (persistTimeout !== null) {
+			clearTimeout(persistTimeout);
+			persistTimeout = null;
+		}
+		if (saveTimeout !== null) {
+			clearTimeout(saveTimeout);
+			saveTimeout = null;
+		}
 		mountUi();
-		ensureListBlueprints();
+		ensureListBlueprints(document);
+		attachListeners();
 		const pageKey = getPageKey();
 		const snapshotKey = getSnapshotKey();
-		const currentDiskRaw = getDbScript().textContent?.trim() ?? "";
-		const lastKnownDiskRaw = localStorage.getItem(snapshotKey);
-		const diskState = parseDbScript();
-		const cachedState = parseCachedState(localStorage.getItem(pageKey));
+		const scriptEl = getDbScript();
+		trackedDbScriptEl = scriptEl;
+		const currentDiskRaw = scriptEl.textContent?.trim() ?? "";
+		const lastKnownDiskRaw = safeGetStorage(snapshotKey);
+		const diskDetailed = parseDbScriptDetailed(currentDiskRaw);
+		const cachedState = parseCachedState(safeGetStorage(pageKey));
+		if (!diskDetailed.ok) {
+			startupInvalidDb = true;
+			store = cachedState ? cloneDb(cachedState) : createEmptyDb();
+			storeInitialized = true;
+			lastSerializedContent = serializeContentBuckets(store);
+			if (cachedState) hydrateSubtreeFromStore(document);
+			else document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
+				if (!isIgnoredElement(listEl)) decorateListControls(listEl);
+			});
+			updateUi("error", "Invalid #naizodb JSON");
+			window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
+			return;
+		}
+		startupInvalidDb = false;
 		if (lastKnownDiskRaw !== null && currentDiskRaw !== lastKnownDiskRaw || !cachedState) {
-			hydrateDomFromState(diskState);
-			localStorage.setItem(pageKey, JSON.stringify(parseDbScript()));
-			localStorage.setItem(snapshotKey, getDbScript().textContent?.trim() ?? "");
-		} else hydrateDomFromState(cachedState);
+			store = cloneDb(diskDetailed.db);
+			storeInitialized = true;
+			lastSerializedContent = serializeContentBuckets(store);
+			hydrateSubtreeFromStore(document);
+			writeStoreToDomScript(store, false);
+			const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
+			safeSetStorage(snapshotKey, currentDiskRaw);
+			if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
+		} else {
+			store = cloneDb(cachedState);
+			storeInitialized = true;
+			lastSerializedContent = serializeContentBuckets(store);
+			hydrateSubtreeFromStore(document);
+			writeStoreToDomScript(store, false);
+			const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
+			if (lastKnownDiskRaw === null) safeSetStorage(snapshotKey, currentDiskRaw);
+			if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
+		}
+		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 		fileHandle = await loadHandleFromIDB();
-		if (fileHandle) {
+		if (fileHandle) try {
 			if (await fileHandle.queryPermission({ mode: "readwrite" }) === "granted") updateUi("saved", "Disk Sync Active");
 			else updateUi("needs-permission", "File Remembered");
-		}
-		if (!listenersAttached) {
-			document.addEventListener("click", handleListClicks);
-			document.addEventListener("input", (e) => {
-				if (!e.target?.closest?.(`#${UI_ID}`)) triggerSave();
-			});
-			document.addEventListener("change", (e) => {
-				if (!e.target?.closest?.(`#${UI_ID}`)) triggerSave();
-			});
-			listenersAttached = true;
+		} catch {
+			updateUi("needs-permission", "File Remembered");
 		}
 	}
 	//#endregion

@@ -57,18 +57,31 @@ describe('naizo.js v0.1.0 core runtime', () => {
       'textarea[data-naizo="summary"]',
     ) as HTMLTextAreaElement;
 
-    expect(h1.innerHTML).toBe('Spec v1');
+    expect(h1.textContent).toBe('Spec v1');
     expect(owner.value).toBe('Kenji');
-    expect(owner.getAttribute('value')).toBe('Kenji');
+    expect(owner.getAttribute('value')).toBe('');
     expect(approved.checked).toBe(true);
-    expect(approved.getAttribute('checked')).toBe('checked');
+    expect(approved.hasAttribute('checked')).toBe(false);
     expect(radios[0]?.checked).toBe(false);
     expect(radios[1]?.checked).toBe(true);
-    expect(radios[1]?.getAttribute('checked')).toBe('checked');
+    expect(radios[1]?.hasAttribute('checked')).toBe(false);
     expect(select.value).toBe('Approved');
-    expect(select.options[1]?.getAttribute('selected')).toBe('selected');
+    expect(select.options[1]?.hasAttribute('selected')).toBe(false);
     expect(textarea.value).toBe('Initial notes');
-    expect(textarea.textContent).toBe('Initial notes');
+    expect(textarea.textContent).toBe('');
+
+    const exportDoc = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
+    expect(exportDoc.querySelector('[data-naizo="owner"]')?.getAttribute('value')).toBe('Kenji');
+    expect(exportDoc.querySelector('[naizo="approved"]')?.getAttribute('checked')).toBe('checked');
+    expect(exportDoc.querySelectorAll('input[type="radio"]')[1]?.getAttribute('checked')).toBe(
+      'checked',
+    );
+    expect(
+      exportDoc.querySelectorAll('select[naizo="status"] option')[1]?.getAttribute('selected'),
+    ).toBe('selected');
+    expect(exportDoc.querySelector('textarea[data-naizo="summary"]')?.textContent).toBe(
+      'Initial notes',
+    );
   });
 
   it('supports declarative list repeaters (naizo-list & data-naizo-list) and clears plain text in inferred templates (EC05)', async () => {
@@ -277,5 +290,342 @@ describe('naizo.js v0.1.0 core runtime', () => {
         expect(row.contains(label.control)).toBe(true);
       }
     }
+  });
+
+  it('preserves unbound fields, unbound lists, and extra item keys via the in-memory store and WeakMap (D15, EC14)', async () => {
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": { "version": "1.0" },
+        "fields": { "title": "Spec", "reviewer": "Agent-X" },
+        "lists": {
+          "tasks": [
+            { "id": "t-1", "title": "Task A", "estimate": 5 },
+            { "id": "t-2", "title": "Task B", "estimate": 8 }
+          ],
+          "ghosts": [
+            { "id": "g-1", "note": "Unbound list item" }
+          ]
+        },
+        "custom": { "flag": true }
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <input type="text" naizo="title" value="">
+      <div naizo-list="tasks">
+        <div naizo-item>
+          <input type="text" naizo="title" value="">
+        </div>
+      </div>
+    `;
+
+    await initNaizo();
+
+    expect(Naizo.getField('reviewer')).toBe('Agent-X');
+    expect(Naizo.getList('ghosts')).toEqual([{ id: 'g-1', note: 'Unbound list item' }]);
+    expect(Naizo.getList('tasks')).toEqual([
+      { id: 't-1', title: 'Task A', estimate: 5 },
+      { id: 't-2', title: 'Task B', estimate: 8 },
+    ]);
+
+    // Edit first item's bound input and move items
+    const itemInputs = document.querySelectorAll<HTMLInputElement>('[naizo-item] [naizo="title"]');
+    itemInputs[0]!.value = 'Task A Updated';
+    itemInputs[0]!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    Naizo.moveItem('tasks', 0, 1);
+    expect(Naizo.getList('tasks')).toEqual([
+      { id: 't-2', title: 'Task B', estimate: 8 },
+      { id: 't-1', title: 'Task A Updated', estimate: 5 },
+    ]);
+
+    Naizo.updateItem('tasks', 1, { estimate: 13 });
+    expect(Naizo.getList('tasks')[1]).toEqual({
+      id: 't-1',
+      title: 'Task A Updated',
+      estimate: 13,
+    });
+    expect(Naizo.getField('reviewer')).toBe('Agent-X');
+    expect(Naizo.getList('ghosts')).toEqual([{ id: 'g-1', note: 'Unbound list item' }]);
+  });
+
+  it('enforces explicit binding, skips password/file/button inputs, excludes naizo-ignore subtrees, and uses plain-text contenteditable (EC11, EC18, EC21, EC23)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": {
+          "note": "<img src=x onerror=alert(1)>",
+          "secret_file": "/etc/passwd"
+        },
+        "lists": {},
+        "custom": {}
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <input type="search" id="search-box" name="q" value="unannotated">
+      <input type="password" naizo="api_secret" value="hunter2">
+      <input type="file" naizo="secret_file">
+      <input type="button" naizo="btn_val" value="Click">
+      <div naizo-ignore>
+        <input type="text" naizo="ignored_child" value="should-not-capture">
+      </div>
+      <div contenteditable="true" naizo="note"></div>
+    `;
+
+    await expect(initNaizo()).resolves.toBeUndefined();
+
+    const noteEl = document.querySelector('[naizo="note"]') as HTMLElement;
+    expect(noteEl.textContent).toBe('<img src=x onerror=alert(1)>');
+    expect(noteEl.querySelector('img')).toBeNull();
+
+    const db = Naizo.get() as { fields: Record<string, unknown> };
+    expect(db.fields).not.toHaveProperty('search-box');
+    expect(db.fields).not.toHaveProperty('q');
+    expect(db.fields).not.toHaveProperty('field_0');
+    expect(db.fields).not.toHaveProperty('api_secret');
+    expect(db.fields).not.toHaveProperty('btn_val');
+    expect(db.fields).not.toHaveProperty('ignored_child');
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it('captures synchronously before async IDB, propagates duplicate scalar bindings, and supports Naizo.bind(root) (EC16, EC19, EC20, EC34)', async () => {
+    let resolveIdbGet = () => {};
+    const origIdbDesc = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+    const mockReq: {
+      result: unknown;
+      onsuccess: null | (() => void);
+      onerror: null | (() => void);
+      onupgradeneeded: null | (() => void);
+    } = {
+      result: {
+        createObjectStore: () => ({}),
+        transaction: () => ({
+          objectStore: () => ({
+            get: () => {
+              const getReq: { result: unknown; onsuccess: null | (() => void) } = {
+                result: null,
+                onsuccess: null,
+              };
+              resolveIdbGet = () => {
+                getReq.onsuccess?.();
+              };
+              return getReq;
+            },
+          }),
+        }),
+      },
+      onsuccess: null,
+      onerror: null,
+      onupgradeneeded: null,
+    };
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: {
+        open: () => {
+          queueMicrotask(() => {
+            mockReq.onsuccess?.();
+          });
+          return mockReq;
+        },
+      },
+    });
+
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": { "title": "Initial", "late_field": "Stored Late" },
+        "lists": {},
+        "custom": {}
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <input id="t1" type="text" naizo="title" value="">
+      <input id="t2" type="text" naizo="title" value="">
+      <div id="dynamic-slot"></div>
+    `;
+
+    const initPromise = initNaizo();
+
+    // Before IDB resolves, listeners and hydration are already active (EC34)
+    const t1 = document.getElementById('t1') as HTMLInputElement;
+    const t2 = document.getElementById('t2') as HTMLInputElement;
+    expect(t1.value).toBe('Initial');
+    expect(t2.value).toBe('Initial');
+
+    // Editing first duplicate input updates store and propagates to second (EC19)
+    t1.value = 'Typed During IDB Wait';
+    t1.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(Naizo.getField('title')).toBe('Typed During IDB Wait');
+    expect(t2.value).toBe('Typed During IDB Wait');
+
+    // Dynamically mounted input does not clobber stored late_field, and Naizo.bind hydrates it (EC20)
+    const slot = document.getElementById('dynamic-slot')!;
+    slot.innerHTML = `<input id="late" type="text" naizo="late_field" value="Default Value">`;
+    expect(Naizo.getField('late_field')).toBe('Stored Late');
+    Naizo.bind(slot);
+    expect((document.getElementById('late') as HTMLInputElement).value).toBe('Stored Late');
+
+    // Flush pending persistence on pagehide (EC16)
+    window.dispatchEvent(new Event('pagehide'));
+    expect(parseDbScript().fields.title).toBe('Typed During IDB Wait');
+
+    await Promise.resolve();
+    resolveIdbGet();
+    await initPromise;
+    expect(Naizo.getField('title')).toBe('Typed During IDB Wait');
+
+    if (origIdbDesc) {
+      Object.defineProperty(globalThis, 'indexedDB', origIdbDesc);
+    } else {
+      Reflect.deleteProperty(globalThis, 'indexedDB');
+    }
+  });
+
+  it('preserves unmutated disk snapshot on boot, change-only updatedAt, numeric/boolean types, and unknown select options (EC06, EC15, EC25, EC32)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const rawDisk = `{
+        "_meta": { "updatedAt": "2026-10-18T00:00:00.000Z" },
+        "fields": { "count": 3, "active": "false", "stage": "Shipped" },
+        "lists": {},
+        "custom": { "rate": 120 }
+      }`;
+    document.head.innerHTML = `<script id="naizodb" type="application/json">${rawDisk}</script>`;
+    document.body.innerHTML = `
+      <input id="count-in" type="text" naizo="count" value="">
+      <input id="active-in" type="checkbox" naizo="active" checked>
+      <select id="stage-sel" naizo="stage">
+        <option value="Draft">Draft</option>
+        <option value="Review">Review</option>
+      </select>
+    `;
+
+    await initNaizo();
+
+    // Boot does not bump updatedAt (EC06) and preserves number & unknown select option (EC15, EC25)
+    expect((Naizo.get() as { _meta: { updatedAt: string } })._meta.updatedAt).toBe(
+      '2026-10-18T00:00:00.000Z',
+    );
+    expect(Naizo.getField('count')).toBe(3);
+    expect((document.getElementById('active-in') as HTMLInputElement).checked).toBe(false);
+    expect(Naizo.getField('stage')).toBe('Shipped');
+    expect(warnSpy).toHaveBeenCalled();
+
+    // No-op input event on count-in keeps numeric type 3 (EC25)
+    const countIn = document.getElementById('count-in') as HTMLInputElement;
+    countIn.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(Naizo.getField('count')).toBe(3);
+
+    // Simulate user updating custom rate in browser cache, then reloading with unchanged disk (EC06, EC32)
+    Naizo.set('rate', 250);
+    document.head.innerHTML = `<script id="naizodb" type="application/json">${rawDisk}</script>`;
+    let hydratedRate: unknown;
+    const onHydrate = (e: Event) => {
+      hydratedRate = (e as CustomEvent<{ custom: { rate: unknown } }>).detail.custom.rate;
+    };
+    window.addEventListener('naizo:hydrate', onHydrate, { once: true });
+
+    await initNaizo();
+    expect(hydratedRate).toBe(250);
+    expect(Naizo.get('rate')).toBe(250);
+    expect(parseDbScript().custom.rate).toBe(250);
+
+    warnSpy.mockRestore();
+  });
+
+  it('protects invalid startup #naizodb shapes, guards storage failures, validates JSON values, and preserves __proto__ keys (EC02, EC04, EC22, EC24, EC33, EC35, EC38)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // 1. Invalid startup JSON preserves raw #naizodb text and blocks overwrite (EC04)
+    const brokenRaw = '{"_meta":{},"fields":{},"custom":{"valuable":"KEEP ME"';
+    document.head.innerHTML = `<script id="naizodb" type="application/json">${brokenRaw}</script>`;
+    document.body.innerHTML = `<input type="text" naizo="title" value="Fallback">`;
+    await initNaizo();
+    Naizo.setField('title', 'Attempted Edit');
+    expect(document.getElementById('naizodb')?.textContent).toBe(brokenRaw);
+
+    // 2. Invalid database shape (null list item / array custom) preserves existing DOM rows (EC33)
+    const badShapeRaw = '{"_meta":{},"fields":{},"lists":{"tasks":[null]},"custom":[]}';
+    document.head.innerHTML = `<script id="naizodb" type="application/json">${badShapeRaw}</script>`;
+    document.body.innerHTML = `
+      <div naizo-list="tasks">
+        <div naizo-item><input type="text" naizo="name" value="Survives"></div>
+      </div>
+    `;
+    await initNaizo();
+    expect(document.querySelectorAll('[naizo-item]').length).toBe(1);
+    expect(document.getElementById('naizodb')?.textContent).toBe(badShapeRaw);
+
+    // 3. Valid startup with Object.prototype and __proto__ keys (EC24, EC38) + JSON validation (EC35)
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": {},
+        "lists": {},
+        "custom": {}
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <input id="proto-in" type="text" naizo="__proto__" value="proto-val">
+      <input id="tostring-in" type="text" naizo="toString" value="initial-str">
+    `;
+    await initNaizo();
+
+    expect((document.getElementById('tostring-in') as HTMLInputElement).value).toBe('initial-str');
+    expect(Naizo.getField('__proto__')).toBe('proto-val');
+
+    Naizo.set('__proto__', 'custom-proto');
+    expect(Naizo.get('__proto__')).toBe('custom-proto');
+    expect(document.getElementById('naizodb')?.textContent).toContain(
+      '"__proto__": "custom-proto"',
+    );
+
+    // Reject non-JSON values (EC35)
+    Naizo.set('validKey', 42);
+    Naizo.set('validKey', Number.NaN);
+    Naizo.set('validKey', undefined);
+    Naizo.set('validKey', () => {});
+    Naizo.set('big', BigInt(10));
+    expect(Naizo.get('validKey')).toBe(42);
+    expect(Naizo.get('big')).toBeUndefined();
+
+    // Explicit deleteField (EC35)
+    Naizo.setField('tempField', 'remove-me');
+    expect(Naizo.getField('tempField')).toBe('remove-me');
+    Naizo.deleteField('tempField');
+    expect(Naizo.getField('tempField')).toBeUndefined();
+
+    // 4. Storage quota exception does not break in-memory operation (EC22)
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError');
+    });
+    expect(() => Naizo.set('inMemoryKey', 'works')).not.toThrow();
+    expect(Naizo.get('inMemoryKey')).toBe('works');
+    setItemSpy.mockRestore();
+
+    // 5. Fallback Blob download revokes Object URL (EC02)
+    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url');
+    const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const host = document.getElementById('__naizodb_host__');
+    const actionBtn = host?.shadowRoot?.getElementById('action') as HTMLButtonElement | null;
+    actionBtn?.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(createUrlSpy).toHaveBeenCalled();
+    expect(revokeUrlSpy).toHaveBeenCalledWith('blob:mock-url');
+
+    createUrlSpy.mockRestore();
+    revokeUrlSpy.mockRestore();
+    clickSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });
