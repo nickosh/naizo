@@ -123,8 +123,25 @@ async function requireBootstrap(releases, fetchMetadata = fetch) {
 }
 
 async function preparePullRequests(manifest) {
-  const prs = await manifest.createPullRequests();
-  if (!prs.filter(Boolean).length) console.log('No releasable changes; no release PR prepared.');
+  const prs = (await manifest.createPullRequests()).filter(Boolean);
+  if (!prs.length) console.log('No releasable changes; no release PR prepared.');
+  return prs;
+}
+
+// A release PR prepared before main advanced carries a stale bundle and would
+// fail tagged publication after merge. Keep it unmergeable until refreshed.
+async function draftIfStale(api) {
+  const pr = await api.releasePr();
+  if (!pr || pr.draft || (await api.behindMain()) === 0) return;
+  await api.setDraft(pr.number, true);
+  console.log(
+    `Release PR #${pr.number} is behind main; converted to draft. Run Prepare release to refresh it.`,
+  );
+}
+
+async function markReady(api) {
+  const pr = await api.releasePr();
+  if (pr?.draft) await api.setDraft(pr.number, false);
 }
 
 async function assertPreparationSource(
@@ -153,9 +170,15 @@ async function planPreparation(manifest, assertSource, writeOutput, source) {
   writeOutput(`prepare=true\nsource_sha=${source}\n`);
 }
 
-async function maintainRelease(manifest, requested, prepare = preparePullRequests) {
+async function maintainRelease(
+  manifest,
+  requested,
+  prepare = preparePullRequests,
+  draftStale = async () => {},
+) {
   const releases = (await manifest.createReleases()).filter(Boolean);
   assert.ok(releases.length <= 1, 'Expected one root package release');
+  if (!releases.length) await draftStale();
   if (!releases.length && requested) {
     await prepare(manifest);
   } else if (!releases.length) console.log('Ordinary push: release PR left unchanged.');
@@ -170,6 +193,7 @@ async function run({
   bootstrap = requireBootstrap,
   dispatch = dispatchRelease,
   prepare = preparePullRequests,
+  draftStale = draftIfStale,
   prepareOnly = false,
 }) {
   if (recoveryTag) return dispatch(api, recoveryTag);
@@ -195,7 +219,7 @@ async function run({
     await prepare(manifest);
     return;
   }
-  const releases = await maintainRelease(manifest, requested, prepare);
+  const releases = await maintainRelease(manifest, requested, prepare, () => draftStale(api));
   if (releases.length) await dispatch(api, releases[0].tagName, releases[0].sha);
 }
 
@@ -237,6 +261,8 @@ async function main() {
             await assertSource();
             await preparePullRequests(manifest);
             await assertSource();
+            // Only a refresh verified against current main makes the PR mergeable.
+            await markReady(api);
           },
     getManifest: async () => {
       const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
@@ -262,6 +288,8 @@ module.exports = {
   assertPreparationSource,
   planPreparation,
   requireBootstrap,
+  draftIfStale,
+  markReady,
   maintainRelease,
   run,
 };

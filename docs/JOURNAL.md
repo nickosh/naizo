@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-21 — Fixed CI/CD review findings within the release decisions
+
+- Done (`M7.10`): GitHub Pages now deploys from `ci.yml` after verification on `main` (`pages.yml` removed). Stale release PRs convert to draft on pushes that create no release, and a source-verified refresh marks them ready. Removed the unreachable release-PR CI step, release-job tooling test reruns, the floating `npm@11` install in the OIDC job, the stale `tag` default, and the Release Please internal parser import; shared duplicated release helpers.
+- Decided (`D37`, with the owner keeping the tracked bundle, explicit preparation, and GitHub Release assets): Pages serves CI-verified `main`, so `release.yml` keeps a single OIDC identity. Bot-created release PRs get no CI run; preparation verifies them and tagged publication enforces freshness. Recorded the stale-merge failure as `EC45` (`fix`).
+- Verified: 31 isolated tooling tests, 13 project tests, clean VP format/lint/types, library build, bundle syntax with the tracked bundle unchanged, eight-file package audit, workflow YAML parse, Pages staging dry run, and whitespace. `actionlint` was not run (not installed). Live CI/Pages deployment, `GITHUB_TOKEN` PR draft conversion, OIDC, and publication were not exercised.
+- Next: on the first push, confirm CI deploys Pages; during the first post-bootstrap release, confirm stale → draft → refresh → ready live, then continue `M4.1`.
+
 ## 2026-10-19 — Diagnosed npm package-name similarity rejection
 
 - Done: traced the supplied npm debug log to an `E403` name-similarity rejection after an `E404` lookup and completed browser authentication. Corrected the bootstrap guide's availability/success wording and added a minimal npm Support review request without authentication URLs or identifiers.

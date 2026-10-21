@@ -23,6 +23,8 @@ const {
   assertPreparationSource,
   planPreparation,
   requireBootstrap,
+  draftIfStale,
+  markReady,
   maintainRelease,
   run,
 } = require('./run.cjs');
@@ -390,6 +392,84 @@ void test('ordinary pushes leave PRs untouched, explicit no-op requests succeed,
   manifest.createReleases = async () => [{ tagName: 'v0.2.0', sha }];
   assert.deepEqual(await maintainRelease(manifest, false), [{ tagName: 'v0.2.0', sha }]);
   assert.equal(preparations, 1);
+});
+
+void test('stale release PRs become drafts on pushes that create no release', async () => {
+  const calls = [];
+  const fakeApi = (pr, behind) => ({
+    releasePr: async () => pr,
+    behindMain: async () => {
+      calls.push(['behind']);
+      return behind;
+    },
+    setDraft: async (...args) => calls.push(['draft', ...args]),
+  });
+  await draftIfStale(fakeApi(undefined, 3));
+  await draftIfStale(fakeApi({ number: 7, draft: true }, 3));
+  assert.deepEqual(calls, []);
+  await draftIfStale(fakeApi({ number: 7, draft: false }, 0));
+  assert.deepEqual(calls, [['behind']]);
+  calls.length = 0;
+  await draftIfStale(fakeApi({ number: 7, draft: false }, 2));
+  assert.deepEqual(calls, [['behind'], ['draft', 7, true]]);
+
+  let stale = 0;
+  const draftStale = async () => {
+    stale++;
+  };
+  const manifest = { createReleases: async () => [], createPullRequests: async () => [] };
+  await maintainRelease(manifest, false, undefined, draftStale);
+  await maintainRelease(manifest, true, async () => {}, draftStale);
+  assert.equal(stale, 2);
+  manifest.createReleases = async () => [{ tagName: 'v0.2.0', sha }];
+  await maintainRelease(manifest, false, undefined, draftStale);
+  assert.equal(stale, 2);
+
+  const checked = [];
+  await run({
+    api: { releases: async () => [baseline] },
+    bootstrap: async () => {},
+    getManifest: async () => ({ createReleases: async () => [] }),
+    draftStale: async (api) => checked.push(api),
+    requested: false,
+  });
+  assert.equal(checked.length, 1);
+});
+
+void test('only a verified refresh marks a drafted release PR ready', async () => {
+  const calls = [];
+  const fakeApi = (pr) => ({
+    releasePr: async () => pr,
+    setDraft: async (...args) => calls.push(args),
+  });
+  await markReady(fakeApi(undefined));
+  await markReady(fakeApi({ number: 7, draft: false }));
+  assert.deepEqual(calls, []);
+  await markReady(fakeApi({ number: 7, draft: true }));
+  assert.deepEqual(calls, [[7, false]]);
+});
+
+void test('GitHub client finds, compares, and drafts the release PR branch', () => {
+  const calls = [];
+  const api = client('nickosh/nakajs', (args) => {
+    calls.push(args);
+    if (args[1]?.includes('/pulls?'))
+      return Buffer.from(JSON.stringify([{ number: 7, draft: false, title: 'x' }]));
+    if (args[1]?.includes('/compare/')) return Buffer.from(JSON.stringify({ behind_by: 2 }));
+    return Buffer.from('');
+  });
+  assert.deepEqual(api.releasePr(), { number: 7, draft: false });
+  assert.equal(api.behindMain(), 2);
+  api.setDraft(7, true);
+  api.setDraft(7, false);
+  assert.deepEqual(calls, [
+    ['api', `repos/nickosh/nakajs/pulls?state=open&head=nickosh:${releaseBranch}`],
+    ['api', `repos/nickosh/nakajs/compare/main...${releaseBranch}`],
+    ['pr', 'ready', '7', '--repo', 'nickosh/nakajs', '--undo'],
+    ['pr', 'ready', '7', '--repo', 'nickosh/nakajs'],
+  ]);
+  const empty = client('nickosh/nakajs', () => Buffer.from('[]'));
+  assert.equal(empty.releasePr(), undefined);
 });
 
 void test('bootstrap requires both the public GitHub release and exact npm package', async () => {

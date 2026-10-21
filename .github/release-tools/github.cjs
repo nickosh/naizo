@@ -99,6 +99,21 @@ function client(repository = process.env.GITHUB_REPOSITORY, run = gh) {
         '--generate-notes',
       ]),
     publish: (tag) => run(['release', 'edit', tag, '--repo', repository, '--draft=false']),
+    // Open Release Please PR for the root package, if any.
+    releasePr: () => {
+      const [owner] = repository.split('/');
+      const [pr] = JSON.parse(
+        run([
+          'api',
+          `repos/${repository}/pulls?state=open&head=${owner}:${releaseBranch}`,
+        ]).toString(),
+      );
+      return pr && { number: pr.number, draft: pr.draft };
+    },
+    // Number of main commits missing from the release branch.
+    behindMain: () => api(`compare/main...${releaseBranch}`).behind_by,
+    setDraft: (number, draft) =>
+      run(['pr', 'ready', String(number), '--repo', repository, ...(draft ? ['--undo'] : [])]),
   };
 }
 
