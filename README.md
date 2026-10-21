@@ -25,7 +25,7 @@ In Japanese, **_naizō_ (ないぞう)** carries two homophonous meanings—both
 
 ## The Problem `naizo.js` Solves
 
-AI coding agents (like Antigravity, Claude Code, Gemini CLI, Cursor, and Codex) are shifting from plain Markdown to **rich HTML artifacts** for specs, implementation plans, interactive checklists, code reviews, and custom triage tools.
+AI coding agents (like Codex, Claude Code, OpenCode, Antigravity, and Cursor) are shifting from plain Markdown to **rich HTML artifacts** for specs, implementation plans, interactive checklists, code reviews, and custom triage tools.
 
 HTML is far more expressive than Markdown—until a human wants to interact with it:
 
@@ -36,6 +36,15 @@ HTML is far more expressive than Markdown—until a human wants to interact with
 
 - **`<script id="naizodb" type="application/json">` — 内蔵 (_Built-In Memory_):** The embedded JSON micro-database living right inside the HTML file, directly readable and writable by AI agents on disk and cleanly diffable in Git.
 - **`naizo.js` — 内臓 (_Vital Organs_):** The tiny reactive engine that binds your HTML inputs and dynamic lists (`naizo="key"`, `naizo-list="tasks"`) and keeps **Human edits in the browser** and **AI Agent edits on disk** in two-way sync without a backend server.
+
+---
+
+## Inspiration
+
+`naizo.js` grew out of two ideas:
+
+- **[The Unreasonable Effectiveness of HTML](https://claude.dev/blog/using-claude-code-the-unreasonable-effectiveness-of-html/):** At first, replacing Markdown with HTML felt backwards — raw HTML is noisy to read and tedious to edit by hand, whereas Markdown makes jotting down quick notes effortless. The real friction with HTML wasn't rendering it; it was **persisting edits** without hand-editing tags or asking an AI agent for every small tweak. That sparked the core idea: _what if a self-contained HTML file could save its own state and act like a lightweight app?_
+- **[htmx](https://htmx.org/):** Proof that a tiny, flexible library — just one `<script>` tag and a few declarative attributes — can give plain HTML superpowers. Where `htmx` connects HTML to backends, `naizo.js` turns HTML into a self-persisting document synced between your browser and AI agents on disk.
 
 ---
 
