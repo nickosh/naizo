@@ -5,7 +5,7 @@
 **The Built-In Engine for Self-Persisting HTML & AI Agent Workflows**
 
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#)
-[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~4.7_KB-blue.svg)](#)
+[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~10.8_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 _Turn static HTML files into self-saving apps with built-in JSON state (`#naizodb`) for Human + AI workflows._
@@ -88,37 +88,62 @@ CDN URLs require the package/version to be published to npm. For local developme
 
 `naizo.js` supports both concise **`naizo` / `naizo-*`** attributes (recommended for low token overhead) and HTML5-compliant **`data-naizo` / `data-naizo-*`** attributes (for strict HTML validators):
 
-| Short Attribute         | HTML5 `data-*` Alias         | Target Element                                                  | Description                                                                                                                   |
-| ----------------------- | ---------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `naizo="key"`           | `data-naizo="key"`           | `<input>`, `<textarea>`, `<select>`, `[contenteditable="true"]` | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when inside a `[naizo-item]`).                |
-| `naizo-list="name"`     | `data-naizo-list="name"`     | Container (`<div>`, `<ul>`, `<tbody>`)                          | Declares a repeating list bound to `lists["name"]` in `#naizodb`. Automatically injects a `+ Add Item` button below the list. |
-| `naizo-item`            | `data-naizo-item`            | Child of `[naizo-list]`                                         | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls.                                        |
-| `naizo-template`        | `data-naizo-template`        | `<template>` inside `[naizo-list]`                              | Optional explicit HTML blueprint for new items. Auto-generated from the first `[naizo-item]` if omitted.                      |
-| `naizo-add="name"`      | `data-naizo-add="name"`      | `<button>`                                                      | Appends a new blank item to `[naizo-list="name"]`.                                                                            |
-| `naizo-remove`          | `data-naizo-remove`          | `<button>` inside `[naizo-item]`                                | Removes the enclosing `[naizo-item]`.                                                                                         |
-| `naizo-move="up\|down"` | `data-naizo-move="up\|down"` | `<button>` inside `[naizo-item]`                                | Moves the enclosing `[naizo-item]` up or down.                                                                                |
-| `naizo-no-controls`     | `data-naizo-no-controls`     | `[naizo-list]`                                                  | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list.                                           |
-| `naizo-ignore`          | `data-naizo-ignore`          | Any HTML element                                                | Excludes the element from state tracking and strips it from the HTML clone before writing to disk.                            |
+| Short Attribute         | HTML5 `data-*` Alias                    | Target Element                                                              | Description                                                                                                                   |
+| ----------------------- | --------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `naizo="key"`           | `data-naizo="key"` / `data-naizo-field` | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when on or inside a `[naizo-item]`).          |
+| `naizo-list="name"`     | `data-naizo-list="name"`                | Container (`<div>`, `<ul>`, `<tbody>`)                                      | Declares a repeating list bound to `lists["name"]` in `#naizodb`. Automatically injects a `+ Add Item` button below the list. |
+| `naizo-item`            | `data-naizo-item`                       | Child of `[naizo-list]`                                                     | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls.                                        |
+| `naizo-template`        | `data-naizo-template`                   | `<template>` inside `[naizo-list]`                                          | Optional explicit HTML blueprint for new items. Auto-generated (`data-naizo-auto-template`) from the first item if omitted.   |
+| `naizo-add="name"`      | `data-naizo-add="name"`                 | `<button>`                                                                  | Appends a new blank item to `[naizo-list="name"]` and focuses its first text field.                                           |
+| `naizo-remove`          | `data-naizo-remove`                     | `<button>` inside `[naizo-item]`                                            | Removes the enclosing `[naizo-item]`.                                                                                         |
+| `naizo-move="up\|down"` | `data-naizo-move="up\|down"`            | `<button>` inside `[naizo-item]`                                            | Moves the enclosing `[naizo-item]` up or down.                                                                                |
+| `naizo-no-controls`     | `data-naizo-no-controls`                | `[naizo-list]`                                                              | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list.                                           |
+| `naizo-ignore`          | `data-naizo-ignore`                     | Any HTML element                                                            | Excludes the element and its subtree from state binding while preserving it in exported HTML.                                 |
+| `naizo-id="scope"`      | `data-naizo-id="scope"`                 | `<html>` or `<body>`                                                        | Optional document scope identifier to isolate `localStorage` and IndexedDB file handles on `localhost`.                       |
+| `naizo-manual`          | `data-naizo-manual`                     | `<html>`, `<body>`, or `<script>`                                           | Opts out of automatic `initNaizo()` boot when loading the browser IIFE bundle so you can call `Naizo.init()` manually.        |
 
 ---
 
-## JavaScript API (`window.Naizo`)
+## JavaScript API (`window.Naizo` / `window.NaizoDB`)
 
 ```javascript
-// Custom State Namespace
+// Custom State Namespace (db.custom)
 const rps = Naizo.get('rateLimitRps');
 Naizo.set('rateLimitRps', 250);
+Naizo.delete('obsoleteCustomKey');
 
-// Programmatic List Manipulation
+// Standalone Fields Namespace (db.fields)
+const owner = Naizo.getField('owner');
+Naizo.setField('owner', 'Kenji');
+Naizo.deleteField('obsoleteFlag');
+
+// Programmatic List Manipulation (db.lists)
 const tasks = Naizo.getList('tasks');
 Naizo.addItem('tasks', { done: false, title: 'Write unit tests', priority: 'High' });
+Naizo.updateItem('tasks', 0, { done: true });
 Naizo.moveItem('tasks', 2, 0);
 Naizo.removeItem('tasks', 1);
 
-// Core Utilities
-Naizo.save(); // Manually trigger DOM capture + save cycle
-const html = Naizo.exportHTML(); // Return clean HTML string stripped of runtime UI
+// Dynamic Subtree Binding & Persistence Utilities
+Naizo.bind(document.getElementById('dynamic-panel')); // Hydrate dynamically mounted DOM
+await Naizo.save(); // Flush cache and await single-flight disk write (Promise<boolean>)
+await Naizo.unlink(); // Forget linked FileSystemFileHandle
+const json = await Naizo.copyJSON(); // Copy #naizodb JSON to clipboard and return string
+const html = Naizo.exportHTML(); // Return clean HTML snapshot with baked attributes
+
+// Lifecycle & Mutation Events
+window.addEventListener('naizo:hydrate', (e) => console.log('Hydrated store:', e.detail));
+window.addEventListener('naizo:change', (e) => console.log('State changed:', e.detail));
+window.addEventListener('naizo:item', (e) => console.log('New list row:', e.detail));
 ```
+
+---
+
+## How Disk Sync & Conflict Resolution Work
+
+1. **Body is the template, `#naizodb` is the data:** When linked to a local file via the bottom-right status pill (`showSaveFilePicker`), `naizo.js` surgically updates only the `<script id="naizodb">` block in place (`\u003c`-escaped, UTF-8 BOM preserved) so third-party runtime DOM mutations (Tailwind Play CDN, Lucide, Mermaid) never pollute the file on disk. Edit `#naizodb` to change data; edit `<body>` markup to change the view.
+2. **Pass-through keys:** Unbound fields in `db.fields`, unbound lists in `db.lists`, and extra keys on list item objects (such as agent-authored `id` or `estimate`) pass through untouched in memory and on save.
+3. **Live ~2 s watch & shallow 3-way merge:** While a linked tab is visible (and on window `focus`, before every disk write, and across page reloads), `naizo.js` checks `file.lastModified` and compares `#naizodb` against its per-key FNV-1a snapshot hash manifest (`naizodb_disk_hash_<key>`). Concurrent human edits in the browser and AI agent edits on disk to different top-level keys (`fields[k]`, `lists[k]`, `custom[k]`) both survive without clobbering `document.activeElement`. On same-key collisions, disk wins and the pre-merge browser state is backed up to `naizodb_backup_<key>` with a 1-click **`↺ Restore`** button in the status pill (alongside **`📋 Copy`**, **`× Unlink`**, and **`↺ Repair`** if startup `#naizodb` JSON is malformed).
 
 ---
 
@@ -126,15 +151,15 @@ const html = Naizo.exportHTML(); // Return clean HTML string stripped of runtime
 
 Several tools explore reactive HTML, declarative persistence, or self-saving single-file apps, but each targets a different layer of the stack:
 
-| Feature / Tool                        | **`naizo.js`**                                       | **[ClayJS](https://clayjs.com/) / [HyperclayJS](https://hyperclayjs.com/)** | **[Bento](https://bento.page/) (`.bento.html`)**     | **[Mavo](https://mavo.io/)**                   | **[Alpine.js](https://alpinejs.dev/) + `$persist`** | **[TiddlyWiki](https://tiddlywiki.com/) / [Feather Wiki](https://feather.wiki/)** |
-| :------------------------------------ | :--------------------------------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------- | :--------------------------------------------- | :-------------------------------------------------- | :-------------------------------------------------------------------------------- |
-| **Primary Goal**                      | Drop-in script for custom HTML + AI agent sync       | Malleable HTML apps via save server / host                                  | Pre-built single-file office apps (Slides, etc.)     | Declarative CRUD web apps from HTML            | General frontend reactivity + `localStorage`        | Standalone single-file personal wiki                                              |
-| **Works on Arbitrary Custom HTML**    | **Yes** (any `.html` file)                           | **Yes**                                                                     | No (fixed app shells)                                | **Yes**                                        | **Yes**                                             | No (wiki UI / tiddlers)                                                           |
-| **Canonical In-File JSON (`<head>`)** | **Yes** (`#naizodb` JSON + baked DOM)                | Optional (`clay-data` / `live` plugin; DOM-first)                           | **Yes** (`#bento-doc` JSON)                          | No (external `.json` / cloud / `localStorage`) | No (`localStorage` only)                            | Internal tiddler store                                                            |
-| **Zero-Server Local Disk Save**       | **Yes** (File System Access API + download fallback) | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                |
-| **Two-Way Human ↔ AI Disk Sync**      | **Yes** (disk snapshot diff + handle sync)           | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                |
-| **Declarative List Repeater**         | **Yes** (`naizo-list` / `naizo-item`)                | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    |
-| **Runtime Footprint (Gzip)**          | **~4.7 KB** (0 deps)                                 | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    |
+| Feature / Tool                        | **`naizo.js`**                                                | **[ClayJS](https://clayjs.com/) / [HyperclayJS](https://hyperclayjs.com/)** | **[Bento](https://bento.page/) (`.bento.html`)**     | **[Mavo](https://mavo.io/)**                   | **[Alpine.js](https://alpinejs.dev/) + `$persist`** | **[TiddlyWiki](https://tiddlywiki.com/) / [Feather Wiki](https://feather.wiki/)** |
+| :------------------------------------ | :------------------------------------------------------------ | :-------------------------------------------------------------------------- | :--------------------------------------------------- | :--------------------------------------------- | :-------------------------------------------------- | :-------------------------------------------------------------------------------- |
+| **Primary Goal**                      | Drop-in script for custom HTML + AI agent sync                | Malleable HTML apps via save server / host                                  | Pre-built single-file office apps (Slides, etc.)     | Declarative CRUD web apps from HTML            | General frontend reactivity + `localStorage`        | Standalone single-file personal wiki                                              |
+| **Works on Arbitrary Custom HTML**    | **Yes** (any `.html` file)                                    | **Yes**                                                                     | No (fixed app shells)                                | **Yes**                                        | **Yes**                                             | No (wiki UI / tiddlers)                                                           |
+| **Canonical In-File JSON (`<head>`)** | **Yes** (`#naizodb` JSON; body is template, baked on export)  | Optional (`clay-data` / `live` plugin; DOM-first)                           | **Yes** (`#bento-doc` JSON)                          | No (external `.json` / cloud / `localStorage`) | No (`localStorage` only)                            | Internal tiddler store                                                            |
+| **Zero-Server Local Disk Save**       | **Yes** (surgical `#naizodb` File System API + HTML fallback) | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                |
+| **Two-Way Human ↔ AI Disk Sync**      | **Yes** (~2 s live watch + shallow key merge + restore)       | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                |
+| **Declarative List Repeater**         | **Yes** (`naizo-list` / `naizo-item`)                         | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    |
+| **Runtime Footprint (Gzip)**          | **~10.8 KB** (0 deps)                                         | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    |
 
 ---
 
