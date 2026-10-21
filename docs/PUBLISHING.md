@@ -64,7 +64,7 @@ The commands below use **fish shell** syntax. Run them from the repository root,
 
 ## Package-name rejection
 
-If npm rejects an unscoped package name with an `E403` similarity error (such as the earlier `nakajs` similarity rejection against `kafkajs` that motivated renaming the project to `naizo` in `D38`), changing tokens, clearing the npm cache, changing the version, or moving publication into CI does not address the rejection. npm's [name guidelines](https://docs.npmjs.com/package-name-guidelines/) also apply to unused unscoped names. Either request a similarity review through [npm Support](https://www.npmjs.com/support) or select an available replacement name and update package metadata, release guards, and CDN links together before packing again.
+If npm rejects an unscoped package name with an `E403` similarity error, changing tokens, clearing the npm cache, changing the version, or moving publication into CI does not address the rejection. npm's [name guidelines](https://docs.npmjs.com/package-name-guidelines/) also apply to unused unscoped names. Either request a similarity review through [npm Support](https://www.npmjs.com/support) or select an available replacement name and update package metadata, release guards, and CDN links together before packing again (`D38`).
 
 ## Configure token-free publishing
 
