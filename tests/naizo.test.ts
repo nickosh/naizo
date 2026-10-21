@@ -1399,4 +1399,189 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     Reflect.deleteProperty(window, 'showSaveFilePicker');
   });
+
+  it('covers O(1) key-scoped selector, visibilitychange flush, IDB granted handle dirty cache UX, /index.html normalization, auto-template regeneration, and plain self-bound items (EC09, EC10, EC11, EC12, EC16, EC36, EC46)', async () => {
+    const origIdbDesc = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+    const origPath = location.pathname;
+    window.history.replaceState({}, '', '/specs/index.html');
+
+    const diskInitial = JSON.stringify(
+      {
+        _meta: {},
+        fields: { title: 'Disk v1', falseCe: 'Static text' },
+        lists: {
+          tags: [{ name: 'alpha' }],
+        },
+        custom: {},
+      },
+      null,
+      2,
+    );
+    let diskHtml = `<html><head><script id="naizodb" type="application/json">\n${diskInitial}\n</script></head><body></body></html>`;
+    let diskMtime = 1000;
+
+    // Seed dirty localStorage cache under normalized /specs/ key while disk still has Disk v1 (EC11, EC36)
+    localStorage.setItem(
+      'naizodb_state_/specs/',
+      JSON.stringify({
+        _meta: {},
+        fields: { title: 'Cached Newer v2', falseCe: 'Static text' },
+        lists: { tags: [{ name: 'alpha' }] },
+        custom: {},
+      }),
+    );
+
+    const mockGrantedHandle = {
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockImplementation(async () => ({
+        lastModified: diskMtime,
+        text: async () => diskHtml,
+      })),
+      createWritable: vi.fn().mockImplementation(async () => ({
+        write: async (data: string) => {
+          diskHtml = data;
+          diskMtime += 100;
+        },
+        close: async () => {},
+      })),
+    };
+
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: {
+        open: () => {
+          const req: {
+            result: unknown;
+            onsuccess: null | (() => void);
+            onerror: null | (() => void);
+            onupgradeneeded: null | (() => void);
+          } = {
+            result: {
+              createObjectStore: () => ({}),
+              transaction: () => ({
+                objectStore: () => ({
+                  get: () => {
+                    const getReq: { result: unknown; onsuccess: null | (() => void) } = {
+                      result: mockGrantedHandle,
+                      onsuccess: null,
+                    };
+                    queueMicrotask(() => getReq.onsuccess?.());
+                    return getReq;
+                  },
+                  put: () => ({}),
+                  delete: () => {
+                    const delReq: { onsuccess: null | (() => void) } = { onsuccess: null };
+                    queueMicrotask(() => delReq.onsuccess?.());
+                    return delReq;
+                  },
+                }),
+              }),
+            },
+            onsuccess: null,
+            onerror: null,
+            onupgradeneeded: null,
+          };
+          queueMicrotask(() => req.onsuccess?.());
+          return req;
+        },
+      },
+    });
+
+    document.head.innerHTML = `<script id="naizodb" type="application/json">\n${diskInitial}\n</script>`;
+    // Include a stale data-naizo-auto-template alongside updated [naizo-item] markup (EC09),
+    // a plain non-contenteditable self-bound <li naizo-item naizo="name"> (EC46),
+    // and a contenteditable="false" element (EC12)
+    document.body.innerHTML = `
+      <input id="title-in" type="text" naizo="title" value="">
+      <div id="false-ce" contenteditable="false" naizo="falseCe">Initial</div>
+      <ul naizo-list="tags">
+        <template naizo-template data-naizo-auto-template="true">
+          <li naizo-item class="stale-class" naizo="name"></li>
+        </template>
+        <li naizo-item class="fresh-class" naizo="name">seed</li>
+      </ul>
+    `;
+
+    await initNaizo();
+    await new Promise((r) => setTimeout(r, 20));
+
+    // 1. Granted IDB handle with dirty cache stays amber until Naizo.save() writes to disk (EC36)
+    const host = document.getElementById('__naizodb_host__');
+    const statusEl = host?.shadowRoot?.getElementById('status');
+    const dotEl = host?.shadowRoot?.getElementById('dot');
+    expect(statusEl?.textContent).toBe('Browser Cache · Click to Link Disk');
+    expect(dotEl?.className).toBe('dot');
+
+    const saveOk = await Naizo.save();
+    expect(saveOk).toBe(true);
+    expect(statusEl?.textContent).toBe('Synced to Disk');
+    expect(dotEl?.className).toBe('dot saved');
+    expect(diskHtml).toContain('"title": "Cached Newer v2"');
+
+    // 2. Stale data-naizo-auto-template was regenerated from the fresh [naizo-item] on boot (EC09)
+    // and plain non-contenteditable self-bound <li naizo-item naizo="name"> works with toolbar (EC46)
+    Naizo.addItem('tags', { name: 'beta' });
+    const tagItems = document.querySelectorAll<HTMLElement>('ul[naizo-list="tags"] > li');
+    expect(tagItems.length).toBe(2);
+    expect(tagItems[1]?.classList.contains('fresh-class')).toBe(true);
+    expect(tagItems[1]?.classList.contains('stale-class')).toBe(false);
+    expect(tagItems[1]?.querySelector('.naizo-item-tools')).not.toBeNull();
+    Naizo.updateItem('tags', 1, { name: 'beta-updated' });
+    expect(tagItems[1]?.querySelector('.naizo-item-tools')).not.toBeNull();
+    expect(Naizo.getList('tags')[1]).toEqual({ name: 'beta-updated' });
+    const exported = Naizo.exportHTML();
+    expect(exported).toContain('beta-updated');
+    expect(exported).not.toContain('naizo-item-tools');
+
+    // 3. contenteditable="false" hydrated as plain text leaf and does not capture child input events as contenteditable (EC12)
+    const falseCe = document.getElementById('false-ce') as HTMLElement;
+    expect(falseCe.textContent).toBe('Static text');
+
+    // 4. O(1) key-scoped selector & zero live setAttribute calls on input, plus visibilitychange: hidden flush (EC16)
+    const titleIn = document.getElementById('title-in') as HTMLInputElement;
+    const qsaSpy = vi.spyOn(document, 'querySelectorAll');
+    const setAttrSpy = vi.spyOn(Element.prototype, 'setAttribute');
+
+    titleIn.value = 'Typed O(1)';
+    titleIn.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(qsaSpy).toHaveBeenCalledWith(
+      '[naizo="title"], [data-naizo="title"], [data-naizo-field="title"]',
+    );
+    expect(setAttrSpy).not.toHaveBeenCalled();
+    qsaSpy.mockRestore();
+    setAttrSpy.mockRestore();
+
+    // Flush pending debounced persistence via visibilitychange -> hidden (EC16)
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(parseDbScript().fields.title).toBe('Typed O(1)');
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+    // 5. Window focus event triggers live disk sync (EC10)
+    const focusDiskJson = JSON.stringify(
+      {
+        _meta: {},
+        fields: { title: 'Typed O(1)', falseCe: 'Updated on Focus' },
+        lists: { tags: [{ name: 'alpha' }, { name: 'beta-updated' }] },
+        custom: {},
+      },
+      null,
+      2,
+    );
+    diskHtml = `<html><head><script id="naizodb" type="application/json">\n${focusDiskJson}\n</script></head><body></body></html>`;
+    diskMtime += 500;
+    window.dispatchEvent(new Event('focus'));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(Naizo.getField('falseCe')).toBe('Updated on Focus');
+
+    await Naizo.unlink();
+    window.history.replaceState({}, '', origPath);
+    if (origIdbDesc) {
+      Object.defineProperty(globalThis, 'indexedDB', origIdbDesc);
+    } else {
+      Reflect.deleteProperty(globalThis, 'indexedDB');
+    }
+  });
 });
