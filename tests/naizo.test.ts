@@ -2,6 +2,7 @@ import { runInThisContext } from 'node:vm';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import iifeBundleCode from '../dist/naizo.js?raw';
 import checklistHtml from '../examples/checklist.html?raw';
+import inventoryHtml from '../examples/inventory.html?raw';
 import starterHtml from '../examples/starter.html?raw';
 import pkgJson from '../package.json';
 import siteHtml from '../site/index.html?raw';
@@ -265,7 +266,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
   });
 
   it('hydrates site/index.html and examples/ starter templates with wrapping labels (M3.2, EC39)', async () => {
-    for (const html of [siteHtml, starterHtml, checklistHtml]) {
+    for (const html of [siteHtml, starterHtml, checklistHtml, inventoryHtml]) {
       const parsedDoc = new DOMParser().parseFromString(html, 'text/html');
       const rawJson = parsedDoc.getElementById('naizodb')?.textContent?.trim() ?? '';
       expect(rawJson.length).toBeGreaterThan(0);
@@ -293,6 +294,28 @@ describe('naizo.js v0.1.0 core runtime', () => {
         expect(row.contains(label.control)).toBe(true);
       }
     }
+
+    // Load inventory.html into DOM and verify template hydration, wrapping <label> controls, and extra JSON dict keys (EC39, D15)
+    localStorage.clear();
+    const invDoc = new DOMParser().parseFromString(inventoryHtml, 'text/html');
+    document.head.innerHTML = invDoc.head.innerHTML;
+    document.body.innerHTML = invDoc.body.innerHTML;
+
+    await initNaizo();
+
+    const invCards = Array.from(document.querySelectorAll<HTMLElement>('[naizo-item]'));
+    expect(invCards.length).toBe(6);
+    for (const card of invCards) {
+      const labels = Array.from(card.querySelectorAll('label'));
+      expect(labels.length).toBeGreaterThan(0);
+      for (const label of labels) {
+        expect(label.control).not.toBeNull();
+        expect(card.contains(label.control)).toBe(true);
+      }
+    }
+    const firstCardDict = Naizo.getList('inventory')[0];
+    expect(firstCardDict?.chip).toBe('Apple M4 Max');
+    expect(firstCardDict?.ram).toBe('64GB');
   });
 
   it('preserves unbound fields, unbound lists, and extra item keys via the in-memory store and WeakMap (D15, EC14)', async () => {
