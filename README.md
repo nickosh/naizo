@@ -109,6 +109,7 @@ CDN URLs require the package/version to be published to npm. For local developme
 // Custom State Namespace (db.custom)
 const rps = Naizo.get('rateLimitRps');
 Naizo.set('rateLimitRps', 250);
+Naizo.delete('obsoleteCustomKey');
 
 // Standalone Fields Namespace (db.fields)
 const owner = Naizo.getField('owner');

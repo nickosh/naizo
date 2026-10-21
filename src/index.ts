@@ -21,6 +21,7 @@ export interface NaizoAPI {
   init(): Promise<void>;
   get(key?: string): unknown;
   set(key: string, value: unknown): void;
+  delete(key: string): void;
   getField(key: string): unknown;
   setField(key: string, value: unknown): void;
   deleteField(key: string): void;
@@ -534,20 +535,96 @@ function normalizeJsonComparison(raw: string): string {
   }
 }
 
-function hashCanonicalDb(raw: string): string {
-  const normalized = normalizeJsonComparison(raw);
+interface DiskKeyHashMap {
+  fields: Record<string, string>;
+  lists: Record<string, string>;
+  custom: Record<string, string>;
+}
+
+function fnv1aStringHash(input: string): string {
   let hash = 0x811c9dc5;
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash ^= normalized.charCodeAt(i);
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
   return 'fnv1a:' + (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-function toDiskHash(storedOrRaw: string): string {
+function buildKeyHashesForBucket(bucket: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(bucket)) {
+    const val = getOwn(bucket, key);
+    if (val !== undefined) {
+      setOwn(out, key, fnv1aStringHash(JSON.stringify(val)));
+    }
+  }
+  return out;
+}
+
+function hashCanonicalDb(raw: string): string {
+  const normalized = normalizeJsonComparison(raw);
+  const rootHash = fnv1aStringHash(normalized);
+  try {
+    const parsed: unknown = JSON.parse(raw.trim());
+    const validated = validateAndNormalizeDb(parsed);
+    if (validated) {
+      const keyMap: DiskKeyHashMap = {
+        fields: buildKeyHashesForBucket(validated.fields),
+        lists: buildKeyHashesForBucket(validated.lists),
+        custom: buildKeyHashesForBucket(validated.custom),
+      };
+      return `${rootHash}|${JSON.stringify(keyMap)}`;
+    }
+  } catch {
+    // Fall back to root hash only
+  }
+  return rootHash;
+}
+
+function extractRootDiskHash(storedOrRaw: string): string {
   const trimmed = storedOrRaw.trim();
-  if (trimmed.startsWith('fnv1a:')) return trimmed;
-  return hashCanonicalDb(trimmed);
+  if (trimmed.startsWith('fnv1a:')) {
+    const pipeIdx = trimmed.indexOf('|');
+    return pipeIdx === -1 ? trimmed : trimmed.slice(0, pipeIdx);
+  }
+  return fnv1aStringHash(normalizeJsonComparison(trimmed));
+}
+
+function extractKeyHashManifest(storedSnapshot: string): DiskKeyHashMap | null {
+  const trimmed = storedSnapshot.trim();
+  if (trimmed.startsWith('fnv1a:')) {
+    const pipeIdx = trimmed.indexOf('|');
+    if (pipeIdx === -1) return null;
+    try {
+      const parsed = JSON.parse(trimmed.slice(pipeIdx + 1)) as Partial<DiskKeyHashMap>;
+      if (
+        isPlainObject(parsed) &&
+        isPlainObject(parsed.fields) &&
+        isPlainObject(parsed.lists) &&
+        isPlainObject(parsed.custom)
+      ) {
+        return {
+          fields: parsed.fields as Record<string, string>,
+          lists: parsed.lists as Record<string, string>,
+          custom: parsed.custom as Record<string, string>,
+        };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as Partial<NaizoDatabase>;
+    if (!isPlainObject(parsed)) return null;
+    return {
+      fields: isPlainObject(parsed.fields) ? buildKeyHashesForBucket(parsed.fields) : {},
+      lists: isPlainObject(parsed.lists) ? buildKeyHashesForBucket(parsed.lists) : {},
+      custom: isPlainObject(parsed.custom) ? buildKeyHashesForBucket(parsed.custom) : {},
+    };
+  } catch {
+    return null;
+  }
 }
 
 function ensureStore(): NaizoDatabase {
@@ -1351,7 +1428,7 @@ function injectDbScriptIntoHtml(fileText: string, formattedBlock: string): strin
 }
 
 function shallowMergeDatabases(
-  baseDb: NaizoDatabase | null,
+  baseHashes: DiskKeyHashMap | null,
   browserDb: NaizoDatabase,
   diskDb: NaizoDatabase,
 ): { merged: NaizoDatabase; hasCollision: boolean; browserKeptKeys: boolean } {
@@ -1359,23 +1436,25 @@ function shallowMergeDatabases(
   let browserKeptKeys = false;
 
   const mergeBucket = (
-    baseBucket: Record<string, unknown> | null,
+    baseBucketHashes: Record<string, string> | null,
     browserBucket: Record<string, unknown>,
     diskBucket: Record<string, unknown>,
   ): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
     const allKeys = new Set<string>([
-      ...(baseBucket ? Object.keys(baseBucket) : []),
+      ...(baseBucketHashes ? Object.keys(baseBucketHashes) : []),
       ...Object.keys(browserBucket),
       ...Object.keys(diskBucket),
     ]);
 
     for (const key of allKeys) {
-      const baseVal = baseBucket && hasOwn(baseBucket, key) ? getOwn(baseBucket, key) : undefined;
+      const baseHash =
+        baseBucketHashes && hasOwn(baseBucketHashes, key)
+          ? (getOwn(baseBucketHashes, key) as string | undefined)
+          : undefined;
       const browserVal = hasOwn(browserBucket, key) ? getOwn(browserBucket, key) : undefined;
       const diskVal = hasOwn(diskBucket, key) ? getOwn(diskBucket, key) : undefined;
 
-      const baseSer = baseVal !== undefined ? JSON.stringify(baseVal) : undefined;
       const browserSer = browserVal !== undefined ? JSON.stringify(browserVal) : undefined;
       const diskSer = diskVal !== undefined ? JSON.stringify(diskVal) : undefined;
 
@@ -1384,9 +1463,11 @@ function shallowMergeDatabases(
         continue;
       }
 
-      if (baseDb !== null) {
-        const browserChanged = browserSer !== baseSer;
-        const diskChanged = diskSer !== baseSer;
+      if (baseHashes !== null) {
+        const browserHash = browserSer !== undefined ? fnv1aStringHash(browserSer) : undefined;
+        const diskHash = diskSer !== undefined ? fnv1aStringHash(diskSer) : undefined;
+        const browserChanged = browserHash !== baseHash;
+        const diskChanged = diskHash !== baseHash;
 
         if (browserChanged && !diskChanged) {
           browserKeptKeys = true;
@@ -1405,12 +1486,13 @@ function shallowMergeDatabases(
     return out;
   };
 
-  const mergedFields = mergeBucket(baseDb?.fields ?? null, browserDb.fields, diskDb.fields);
-  const mergedLists = mergeBucket(baseDb?.lists ?? null, browserDb.lists, diskDb.lists) as Record<
-    string,
-    Array<Record<string, unknown>>
-  >;
-  const mergedCustom = mergeBucket(baseDb?.custom ?? null, browserDb.custom, diskDb.custom);
+  const mergedFields = mergeBucket(baseHashes?.fields ?? null, browserDb.fields, diskDb.fields);
+  const mergedLists = mergeBucket(
+    baseHashes?.lists ?? null,
+    browserDb.lists,
+    diskDb.lists,
+  ) as Record<string, Array<Record<string, unknown>>>;
+  const mergedCustom = mergeBucket(baseHashes?.custom ?? null, browserDb.custom, diskDb.custom);
 
   return {
     merged: {
@@ -1430,8 +1512,15 @@ function applyExternalDiskUpdate(
   preserveActive: boolean,
 ): { hasCollision: boolean; browserKeptKeys: boolean } {
   const currentBrowserDb = cloneDb(ensureStore());
+  const baseHashes: DiskKeyHashMap | null = lastDiskDb
+    ? {
+        fields: buildKeyHashesForBucket(lastDiskDb.fields),
+        lists: buildKeyHashesForBucket(lastDiskDb.lists),
+        custom: buildKeyHashesForBucket(lastDiskDb.custom),
+      }
+    : null;
   const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(
-    lastDiskDb,
+    baseHashes,
     currentBrowserDb,
     diskDb,
   );
@@ -1465,6 +1554,13 @@ function applyExternalDiskUpdate(
 }
 
 function restoreConflictBackup(): void {
+  if (startupInvalidDb) {
+    startupInvalidDb = false;
+    hydrateSubtreeFromStore(document, false, true);
+    flushPersistence(true);
+    window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
+    return;
+  }
   const backupRaw = safeGetStorage(getBackupKey());
   const backupDb = parseCachedState(backupRaw);
   if (!backupDb) return;
@@ -1911,8 +2007,14 @@ function updateUi(state: string, message: string): void {
   }
 
   if (restoreBtn) {
-    const hasBackup = safeGetStorage(getBackupKey()) !== null;
-    restoreBtn.style.display = hasBackup || state === 'conflict' ? 'inline-block' : 'none';
+    if (startupInvalidDb) {
+      restoreBtn.textContent = '↺ Repair';
+      restoreBtn.style.display = 'inline-block';
+    } else {
+      restoreBtn.textContent = '↺ Restore';
+      const hasBackup = safeGetStorage(getBackupKey()) !== null;
+      restoreBtn.style.display = hasBackup || state === 'conflict' ? 'inline-block' : 'none';
+    }
   }
   if (unlinkBtn) {
     unlinkBtn.style.display = fileHandle ? 'inline-block' : 'none';
@@ -2205,6 +2307,14 @@ export const Naizo: NaizoAPI = {
     dispatchChangeEvent({ scope: 'custom', key, value: cloned });
     flushPersistence(true);
   },
+  delete(key: string): void {
+    if (!key) return;
+    const db = ensureStore();
+    if (!hasOwn(db.custom, key)) return;
+    deleteOwn(db.custom, key);
+    dispatchChangeEvent({ scope: 'custom', action: 'delete', key });
+    flushPersistence(true);
+  },
   getField(key: string): unknown {
     const db = ensureStore();
     return getOwn(db.fields, key);
@@ -2226,6 +2336,10 @@ export const Naizo: NaizoAPI = {
     const db = ensureStore();
     if (!hasOwn(db.fields, key)) return;
     deleteOwn(db.fields, key);
+    document.querySelectorAll(getKeyBoundSelector(key)).forEach((el) => {
+      if (isIgnoredElement(el) || el.closest(ITEM_SELECTOR) || isSkippedElement(el, true)) return;
+      clearElementValue(el);
+    });
     dispatchChangeEvent({ scope: 'fields', action: 'delete', key });
     flushPersistence(true);
   },
@@ -2409,17 +2523,20 @@ export async function initNaizo(): Promise<void> {
   startupInvalidDb = false;
   lastKnownDiskRaw = currentDiskRaw;
   lastDiskDb = cloneDb(diskDetailed.db);
-  const currentDiskHash = hashCanonicalDb(currentDiskRaw);
+  const currentDiskHashManifest = hashCanonicalDb(currentDiskRaw);
 
   const diskModifiedExternally =
-    storedDiskSnapshot !== null && currentDiskHash !== toDiskHash(storedDiskSnapshot);
+    storedDiskSnapshot !== null &&
+    extractRootDiskHash(currentDiskHashManifest) !== extractRootDiskHash(storedDiskSnapshot);
 
   let hasBootConflict = false;
   if (diskModifiedExternally && cachedState) {
-    const baseDb = storedDiskSnapshot.startsWith('fnv1a:')
-      ? null
-      : parseCachedState(storedDiskSnapshot);
-    const { merged, hasCollision } = shallowMergeDatabases(baseDb, cachedState, diskDetailed.db);
+    const baseHashes = extractKeyHashManifest(storedDiskSnapshot);
+    const { merged, hasCollision } = shallowMergeDatabases(
+      baseHashes,
+      cachedState,
+      diskDetailed.db,
+    );
     if (hasCollision) {
       safeSetStorage(getBackupKey(), JSON.stringify(cachedState));
       hasBootConflict = true;
@@ -2437,7 +2554,7 @@ export async function initNaizo(): Promise<void> {
   writeStoreToDomScript(store, false);
   const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
   if (diskModifiedExternally || !cachedState || storedDiskSnapshot === null) {
-    safeSetStorage(snapshotKey, currentDiskHash);
+    safeSetStorage(snapshotKey, currentDiskHashManifest);
   }
   if (hasBootConflict) {
     updateUi('conflict', 'External Disk Edit · Conflict Backed Up');

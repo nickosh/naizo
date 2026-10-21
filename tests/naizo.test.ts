@@ -794,7 +794,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     expect(writes.length).toBeGreaterThanOrEqual(2);
     expect(diskHtml).toContain('"a": "two"');
-    expect(localStorage.getItem('naizodb_disk_hash_/')).toMatch(/^fnv1a:[0-9a-f]{8}$/);
+    expect(localStorage.getItem('naizodb_disk_hash_/')).toMatch(/^fnv1a:[0-9a-f]{8}\|/);
     expect(statusEl?.textContent).toBe('Synced to Disk');
     expect(dotEl?.className).toBe('dot saved');
 
@@ -1269,9 +1269,9 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     await initNaizo();
 
-    // 1. Compact FNV-1a hash stored in naizodb_disk_hash_/ (D16)
+    // 1. Compact FNV-1a hash manifest stored in naizodb_disk_hash_/ (D16)
     const initialHash = localStorage.getItem('naizodb_disk_hash_/');
-    expect(initialHash).toMatch(/^fnv1a:[0-9a-f]{8}$/);
+    expect(initialHash).toMatch(/^fnv1a:[0-9a-f]{8}\|/);
 
     // 2. Self-bound <li naizo-item contenteditable="true" naizo="label"> excludes .naizo-item-tools text and keeps toolbar on update
     const li = document.querySelector('ul[naizo-list="steps"] > li') as HTMLElement;
@@ -1343,7 +1343,60 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(Naizo.getField('diskOnly')).toBeUndefined();
     expect((document.getElementById('disk-only-in') as HTMLInputElement).value).toBe('');
 
+    // 5. Naizo.delete(key) removes custom key and Naizo.deleteField(key) clears bound DOM input (EC35)
+    Naizo.set('customKey', 'tempVal');
+    expect(Naizo.get('customKey')).toBe('tempVal');
+    Naizo.delete('customKey');
+    expect(Naizo.get('customKey')).toBeUndefined();
+
+    Naizo.setField('owner', 'ToBeCleared');
+    expect((document.getElementById('owner-in') as HTMLInputElement).value).toBe('ToBeCleared');
+    Naizo.deleteField('owner');
+    expect((document.getElementById('owner-in') as HTMLInputElement).value).toBe('');
+
+    // 6. Cold-reload 3-way key merge via per-key FNV-1a hashes + EC04 explicit repair action
     await Naizo.unlink();
+    localStorage.clear();
+    const coldBase = JSON.stringify(
+      { _meta: {}, fields: { author: 'Kenji', status: 'Draft' }, lists: {}, custom: {} },
+      null,
+      2,
+    );
+    document.head.innerHTML = `<script id="naizodb" type="application/json">\n${coldBase}\n</script>`;
+    document.body.innerHTML = `
+      <input id="author-in" type="text" naizo="author" value="Kenji">
+      <input id="status-in" type="text" naizo="status" value="Draft">
+    `;
+    await initNaizo();
+
+    // User edits `author` in browser while unlinked
+    Naizo.setField('author', 'Alice');
+    // External agent edits `status` on disk, then user reloads the page
+    const coldDiskEdited = JSON.stringify(
+      { _meta: {}, fields: { author: 'Kenji', status: 'Approved' }, lists: {}, custom: {} },
+      null,
+      2,
+    );
+    document.head.innerHTML = `<script id="naizodb" type="application/json">\n${coldDiskEdited}\n</script>`;
+    await initNaizo();
+
+    // Both unrelated edits survive cold page reload with no collision!
+    expect(Naizo.getField('author')).toBe('Alice');
+    expect(Naizo.getField('status')).toBe('Approved');
+    expect(localStorage.getItem('naizodb_backup_/')).toBeNull();
+
+    // Explicit repair button on broken startup JSON (EC04)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    document.head.innerHTML = `<script id="naizodb" type="application/json">{broken</script>`;
+    await initNaizo();
+    const pillHost = document.getElementById('__naizodb_host__');
+    const repairBtn = pillHost?.shadowRoot?.getElementById('restore') as HTMLButtonElement | null;
+    expect(repairBtn?.style.display).toBe('inline-block');
+    expect(repairBtn?.textContent).toBe('↺ Repair');
+    repairBtn?.click();
+    expect(parseDbScript().fields.author).toBe('Alice');
+    warnSpy.mockRestore();
+
     Reflect.deleteProperty(window, 'showSaveFilePicker');
   });
 });

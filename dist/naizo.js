@@ -363,19 +363,73 @@
 			return trimmed;
 		}
 	}
-	function hashCanonicalDb(raw) {
-		const normalized = normalizeJsonComparison(raw);
+	function fnv1aStringHash(input) {
 		let hash = 2166136261;
-		for (let i = 0; i < normalized.length; i += 1) {
-			hash ^= normalized.charCodeAt(i);
+		for (let i = 0; i < input.length; i += 1) {
+			hash ^= input.charCodeAt(i);
 			hash = Math.imul(hash, 16777619);
 		}
 		return "fnv1a:" + (hash >>> 0).toString(16).padStart(8, "0");
 	}
-	function toDiskHash(storedOrRaw) {
+	function buildKeyHashesForBucket(bucket) {
+		const out = {};
+		for (const key of Object.keys(bucket)) {
+			const val = getOwn(bucket, key);
+			if (val !== void 0) setOwn(out, key, fnv1aStringHash(JSON.stringify(val)));
+		}
+		return out;
+	}
+	function hashCanonicalDb(raw) {
+		const rootHash = fnv1aStringHash(normalizeJsonComparison(raw));
+		try {
+			const validated = validateAndNormalizeDb(JSON.parse(raw.trim()));
+			if (validated) {
+				const keyMap = {
+					fields: buildKeyHashesForBucket(validated.fields),
+					lists: buildKeyHashesForBucket(validated.lists),
+					custom: buildKeyHashesForBucket(validated.custom)
+				};
+				return `${rootHash}|${JSON.stringify(keyMap)}`;
+			}
+		} catch {}
+		return rootHash;
+	}
+	function extractRootDiskHash(storedOrRaw) {
 		const trimmed = storedOrRaw.trim();
-		if (trimmed.startsWith("fnv1a:")) return trimmed;
-		return hashCanonicalDb(trimmed);
+		if (trimmed.startsWith("fnv1a:")) {
+			const pipeIdx = trimmed.indexOf("|");
+			return pipeIdx === -1 ? trimmed : trimmed.slice(0, pipeIdx);
+		}
+		return fnv1aStringHash(normalizeJsonComparison(trimmed));
+	}
+	function extractKeyHashManifest(storedSnapshot) {
+		const trimmed = storedSnapshot.trim();
+		if (trimmed.startsWith("fnv1a:")) {
+			const pipeIdx = trimmed.indexOf("|");
+			if (pipeIdx === -1) return null;
+			try {
+				const parsed = JSON.parse(trimmed.slice(pipeIdx + 1));
+				if (isPlainObject(parsed) && isPlainObject(parsed.fields) && isPlainObject(parsed.lists) && isPlainObject(parsed.custom)) return {
+					fields: parsed.fields,
+					lists: parsed.lists,
+					custom: parsed.custom
+				};
+			} catch {
+				return null;
+			}
+			return null;
+		}
+		try {
+			const parsed = JSON.parse(trimmed);
+			if (!isPlainObject(parsed)) return null;
+			return {
+				fields: isPlainObject(parsed.fields) ? buildKeyHashesForBucket(parsed.fields) : {},
+				lists: isPlainObject(parsed.lists) ? buildKeyHashesForBucket(parsed.lists) : {},
+				custom: isPlainObject(parsed.custom) ? buildKeyHashesForBucket(parsed.custom) : {}
+			};
+		} catch {
+			return null;
+		}
 	}
 	function ensureStore() {
 		const currentScript = document.getElementById(DB_ID);
@@ -876,30 +930,31 @@
 		}
 		return (hasBom ? "﻿" : "") + `${scriptTag}\n${bodyText}`;
 	}
-	function shallowMergeDatabases(baseDb, browserDb, diskDb) {
+	function shallowMergeDatabases(baseHashes, browserDb, diskDb) {
 		let hasCollision = false;
 		let browserKeptKeys = false;
-		const mergeBucket = (baseBucket, browserBucket, diskBucket) => {
+		const mergeBucket = (baseBucketHashes, browserBucket, diskBucket) => {
 			const out = {};
 			const allKeys = /* @__PURE__ */ new Set([
-				...baseBucket ? Object.keys(baseBucket) : [],
+				...baseBucketHashes ? Object.keys(baseBucketHashes) : [],
 				...Object.keys(browserBucket),
 				...Object.keys(diskBucket)
 			]);
 			for (const key of allKeys) {
-				const baseVal = baseBucket && hasOwn(baseBucket, key) ? getOwn(baseBucket, key) : void 0;
+				const baseHash = baseBucketHashes && hasOwn(baseBucketHashes, key) ? getOwn(baseBucketHashes, key) : void 0;
 				const browserVal = hasOwn(browserBucket, key) ? getOwn(browserBucket, key) : void 0;
 				const diskVal = hasOwn(diskBucket, key) ? getOwn(diskBucket, key) : void 0;
-				const baseSer = baseVal !== void 0 ? JSON.stringify(baseVal) : void 0;
 				const browserSer = browserVal !== void 0 ? JSON.stringify(browserVal) : void 0;
 				const diskSer = diskVal !== void 0 ? JSON.stringify(diskVal) : void 0;
 				if (browserSer === diskSer) {
 					if (diskVal !== void 0) setOwn(out, key, cloneJsonValue(diskVal));
 					continue;
 				}
-				if (baseDb !== null) {
-					const browserChanged = browserSer !== baseSer;
-					const diskChanged = diskSer !== baseSer;
+				if (baseHashes !== null) {
+					const browserHash = browserSer !== void 0 ? fnv1aStringHash(browserSer) : void 0;
+					const diskHash = diskSer !== void 0 ? fnv1aStringHash(diskSer) : void 0;
+					const browserChanged = browserHash !== baseHash;
+					const diskChanged = diskHash !== baseHash;
 					if (browserChanged && !diskChanged) {
 						browserKeptKeys = true;
 						if (browserVal !== void 0) setOwn(out, key, cloneJsonValue(browserVal));
@@ -916,9 +971,9 @@
 			}
 			return out;
 		};
-		const mergedFields = mergeBucket(baseDb?.fields ?? null, browserDb.fields, diskDb.fields);
-		const mergedLists = mergeBucket(baseDb?.lists ?? null, browserDb.lists, diskDb.lists);
-		const mergedCustom = mergeBucket(baseDb?.custom ?? null, browserDb.custom, diskDb.custom);
+		const mergedFields = mergeBucket(baseHashes?.fields ?? null, browserDb.fields, diskDb.fields);
+		const mergedLists = mergeBucket(baseHashes?.lists ?? null, browserDb.lists, diskDb.lists);
+		const mergedCustom = mergeBucket(baseHashes?.custom ?? null, browserDb.custom, diskDb.custom);
 		return {
 			merged: {
 				_meta: cloneRecord(diskDb._meta),
@@ -932,7 +987,11 @@
 	}
 	function applyExternalDiskUpdate(diskDb, diskRaw, preserveActive) {
 		const currentBrowserDb = cloneDb(ensureStore());
-		const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(lastDiskDb, currentBrowserDb, diskDb);
+		const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(lastDiskDb ? {
+			fields: buildKeyHashesForBucket(lastDiskDb.fields),
+			lists: buildKeyHashesForBucket(lastDiskDb.lists),
+			custom: buildKeyHashesForBucket(lastDiskDb.custom)
+		} : null, currentBrowserDb, diskDb);
 		if (hasCollision) safeSetStorage(getBackupKey(), JSON.stringify(currentBrowserDb));
 		store = merged;
 		storeInitialized = true;
@@ -952,6 +1011,13 @@
 		};
 	}
 	function restoreConflictBackup() {
+		if (startupInvalidDb) {
+			startupInvalidDb = false;
+			hydrateSubtreeFromStore(document, false, true);
+			flushPersistence(true);
+			window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
+			return;
+		}
 		const backupDb = parseCachedState(safeGetStorage(getBackupKey()));
 		if (!backupDb) return;
 		safeRemoveStorage(getBackupKey());
@@ -1283,8 +1349,14 @@
 			actionBtn.textContent = "Link Disk";
 		}
 		if (restoreBtn) {
-			const hasBackup = safeGetStorage(getBackupKey()) !== null;
-			restoreBtn.style.display = hasBackup || state === "conflict" ? "inline-block" : "none";
+			if (startupInvalidDb) {
+				restoreBtn.textContent = "↺ Repair";
+				restoreBtn.style.display = "inline-block";
+			} else {
+				restoreBtn.textContent = "↺ Restore";
+				const hasBackup = safeGetStorage(getBackupKey()) !== null;
+				restoreBtn.style.display = hasBackup || state === "conflict" ? "inline-block" : "none";
+			}
 		}
 		if (unlinkBtn) unlinkBtn.style.display = fileHandle ? "inline-block" : "none";
 	}
@@ -1530,6 +1602,18 @@
 			});
 			flushPersistence(true);
 		},
+		delete(key) {
+			if (!key) return;
+			const db = ensureStore();
+			if (!hasOwn(db.custom, key)) return;
+			deleteOwn(db.custom, key);
+			dispatchChangeEvent({
+				scope: "custom",
+				action: "delete",
+				key
+			});
+			flushPersistence(true);
+		},
 		getField(key) {
 			return getOwn(ensureStore().fields, key);
 		},
@@ -1554,6 +1638,10 @@
 			const db = ensureStore();
 			if (!hasOwn(db.fields, key)) return;
 			deleteOwn(db.fields, key);
+			document.querySelectorAll(getKeyBoundSelector(key)).forEach((el) => {
+				if (isIgnoredElement(el) || el.closest(ITEM_SELECTOR) || isSkippedElement(el, true)) return;
+				clearElementValue(el);
+			});
 			dispatchChangeEvent({
 				scope: "fields",
 				action: "delete",
@@ -1707,11 +1795,11 @@
 		startupInvalidDb = false;
 		lastKnownDiskRaw = currentDiskRaw;
 		lastDiskDb = cloneDb(diskDetailed.db);
-		const currentDiskHash = hashCanonicalDb(currentDiskRaw);
-		const diskModifiedExternally = storedDiskSnapshot !== null && currentDiskHash !== toDiskHash(storedDiskSnapshot);
+		const currentDiskHashManifest = hashCanonicalDb(currentDiskRaw);
+		const diskModifiedExternally = storedDiskSnapshot !== null && extractRootDiskHash(currentDiskHashManifest) !== extractRootDiskHash(storedDiskSnapshot);
 		let hasBootConflict = false;
 		if (diskModifiedExternally && cachedState) {
-			const { merged, hasCollision } = shallowMergeDatabases(storedDiskSnapshot.startsWith("fnv1a:") ? null : parseCachedState(storedDiskSnapshot), cachedState, diskDetailed.db);
+			const { merged, hasCollision } = shallowMergeDatabases(extractKeyHashManifest(storedDiskSnapshot), cachedState, diskDetailed.db);
 			if (hasCollision) {
 				safeSetStorage(getBackupKey(), JSON.stringify(cachedState));
 				hasBootConflict = true;
@@ -1724,7 +1812,7 @@
 		hydrateSubtreeFromStore(document, false, true);
 		writeStoreToDomScript(store, false);
 		const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-		if (diskModifiedExternally || !cachedState || storedDiskSnapshot === null) safeSetStorage(snapshotKey, currentDiskHash);
+		if (diskModifiedExternally || !cachedState || storedDiskSnapshot === null) safeSetStorage(snapshotKey, currentDiskHashManifest);
 		if (hasBootConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
 		else if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
 		else updateUi("cached", "Browser Cache · Click to Link Disk");
