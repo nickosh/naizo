@@ -534,6 +534,22 @@ function normalizeJsonComparison(raw: string): string {
   }
 }
 
+function hashCanonicalDb(raw: string): string {
+  const normalized = normalizeJsonComparison(raw);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return 'fnv1a:' + (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function toDiskHash(storedOrRaw: string): string {
+  const trimmed = storedOrRaw.trim();
+  if (trimmed.startsWith('fnv1a:')) return trimmed;
+  return hashCanonicalDb(trimmed);
+}
+
 function ensureStore(): NaizoDatabase {
   const currentScript = document.getElementById(DB_ID) as HTMLScriptElement | null;
   if (!storeInitialized || (currentScript !== null && currentScript !== trackedDbScriptEl)) {
@@ -578,7 +594,25 @@ function isNonLeafElement(el: Element): boolean {
   ) {
     return false;
   }
-  return el.children.length > 0;
+  return Array.from(el.children).some((child) => !child.matches(IGNORE_SELECTOR));
+}
+
+function readCleanTextContent(el: Element): string {
+  if (!el.querySelector(IGNORE_SELECTOR)) {
+    return el.textContent ?? '';
+  }
+  const clone = el.cloneNode(true) as Element;
+  clone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
+  return clone.textContent ?? '';
+}
+
+function writeCleanTextContent(el: Element, text: string): void {
+  const runtimeChildren = Array.from(el.children).filter((child) =>
+    child.hasAttribute('data-naizo-runtime'),
+  );
+  runtimeChildren.forEach((child) => child.remove());
+  el.textContent = text;
+  runtimeChildren.forEach((child) => el.appendChild(child));
 }
 
 function isSkippedElement(el: Element, warn = false): boolean {
@@ -641,7 +675,7 @@ function readElementValue(el: Element): unknown {
   if (isDetailsElement(el)) {
     return Boolean(el.open);
   }
-  return el.textContent ?? '';
+  return readCleanTextContent(el);
 }
 
 function writeElementValue(el: Element, val: unknown): void {
@@ -695,7 +729,7 @@ function writeElementValue(el: Element, val: unknown): void {
     el.open = toBooleanValue(val);
     return;
   }
-  el.textContent = textVal;
+  writeCleanTextContent(el, textVal);
 }
 
 function bakeClonedElementAttributes(liveEl: Element, cloneEl: Element): void {
@@ -742,7 +776,7 @@ function bakeClonedElementAttributes(liveEl: Element, cloneEl: Element): void {
     return;
   }
   if (isContentEditableElement(liveEl)) {
-    cloneEl.textContent = liveEl.textContent ?? '';
+    writeCleanTextContent(cloneEl, readCleanTextContent(liveEl));
   }
 }
 
@@ -775,7 +809,7 @@ function clearElementValue(el: Element): void {
     el.open = false;
     el.removeAttribute('open');
   } else if (!isNonLeafElement(el)) {
-    el.textContent = '';
+    writeCleanTextContent(el, '');
   }
 }
 
@@ -837,12 +871,16 @@ function queryItemBoundElements(itemEl: HTMLElement): Element[] {
   return result;
 }
 
+function getKeyBoundSelector(key: string): string {
+  const escaped = escapeSelectorAttr(key);
+  return `[naizo="${escaped}"], [data-naizo="${escaped}"], [data-naizo-field="${escaped}"]`;
+}
+
 function propagateStandaloneKey(key: string, val: unknown, sourceEl?: Element): void {
-  queryStandaloneBoundElements(document).forEach((el) => {
+  document.querySelectorAll(getKeyBoundSelector(key)).forEach((el) => {
     if (el === sourceEl) return;
-    if (getElementKey(el) === key) {
-      writeElementValue(el, val);
-    }
+    if (isIgnoredElement(el) || el.closest(ITEM_SELECTOR) || isSkippedElement(el, true)) return;
+    writeElementValue(el, val);
   });
 }
 
@@ -852,11 +890,19 @@ function propagateItemKey(
   val: unknown,
   sourceEl?: Element,
 ): void {
-  queryItemBoundElements(itemEl).forEach((el) => {
-    if (el === sourceEl) return;
-    if (getElementKey(el) === key) {
-      writeElementValue(el, val);
-    }
+  const selector = getKeyBoundSelector(key);
+  if (
+    itemEl !== sourceEl &&
+    itemEl.matches(selector) &&
+    !isIgnoredElement(itemEl) &&
+    !isSkippedElement(itemEl, true)
+  ) {
+    writeElementValue(itemEl, val);
+  }
+  itemEl.querySelectorAll(selector).forEach((el) => {
+    if (el === sourceEl || el.closest(ITEM_SELECTOR) !== itemEl) return;
+    if (isIgnoredElement(el) || isSkippedElement(el, true)) return;
+    writeElementValue(el, val);
   });
 }
 
@@ -1054,27 +1100,26 @@ function getOrBindItemRecord(itemEl: HTMLElement): Record<string, unknown> | nul
 }
 
 // --- 5. Store <-> DOM Synchronization (Merge & Pass-Through Semantics) ---
+function applyDomElementToRecord(el: Element, record: Record<string, unknown>): void {
+  const key = getElementKey(el);
+  if (!key) return;
+  if (
+    el instanceof HTMLSelectElement &&
+    hasOwn(record, key) &&
+    !selectHasOption(el, getOwn(record, key))
+  ) {
+    return;
+  }
+  const val = readElementValue(el);
+  if (val === undefined) return;
+  if (shouldUpdateStoredValue(getOwn(record, key), val, hasOwn(record, key))) {
+    setOwn(record, key, val);
+  }
+}
+
 function syncDomIntoStore(): NaizoDatabase {
   const db = ensureStore();
-
-  queryStandaloneBoundElements(document).forEach((el) => {
-    const key = getElementKey(el);
-    if (!key) return;
-    if (
-      el instanceof HTMLSelectElement &&
-      hasOwn(db.fields, key) &&
-      !selectHasOption(el, getOwn(db.fields, key))
-    ) {
-      return;
-    }
-    const val = readElementValue(el);
-    if (val === undefined) return;
-    const exists = hasOwn(db.fields, key);
-    const prevVal = getOwn(db.fields, key);
-    if (shouldUpdateStoredValue(prevVal, val, exists)) {
-      setOwn(db.fields, key, val);
-    }
-  });
+  queryStandaloneBoundElements(document).forEach((el) => applyDomElementToRecord(el, db.fields));
 
   document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
     if (isIgnoredElement(listEl)) return;
@@ -1084,24 +1129,7 @@ function syncDomIntoStore(): NaizoDatabase {
     listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
       const existingObj = itemDataMap.get(itemEl);
       const itemObj: Record<string, unknown> = existingObj ? cloneRecord(existingObj) : {};
-      queryItemBoundElements(itemEl).forEach((el) => {
-        const key = getElementKey(el);
-        if (!key) return;
-        if (
-          el instanceof HTMLSelectElement &&
-          hasOwn(itemObj, key) &&
-          !selectHasOption(el, getOwn(itemObj, key))
-        ) {
-          return;
-        }
-        const val = readElementValue(el);
-        if (val === undefined) return;
-        const exists = hasOwn(itemObj, key);
-        const prevVal = getOwn(itemObj, key);
-        if (shouldUpdateStoredValue(prevVal, val, exists)) {
-          setOwn(itemObj, key, val);
-        }
-      });
+      queryItemBoundElements(itemEl).forEach((el) => applyDomElementToRecord(el, itemObj));
       itemDataMap.set(itemEl, itemObj);
       items.push(itemObj);
     });
@@ -1141,7 +1169,11 @@ export function captureDomToState(): { db: NaizoDatabase; formatted: string } {
   return { db, formatted };
 }
 
-function hydrateSubtreeFromStore(root: ParentNode = document, preserveActive = false): void {
+function hydrateSubtreeFromStore(
+  root: ParentNode = document,
+  preserveActive = false,
+  seedMissingFromDom = true,
+): void {
   const db = ensureStore();
   ensureListBlueprints(root);
 
@@ -1151,11 +1183,13 @@ function hydrateSubtreeFromStore(root: ParentNode = document, preserveActive = f
     if (hasOwn(db.fields, key)) {
       if (preserveActive && isElementActive(el)) return;
       writeElementValue(el, getOwn(db.fields, key));
-    } else {
+    } else if (seedMissingFromDom) {
       const val = readElementValue(el);
       if (val !== undefined) {
         setOwn(db.fields, key, val);
       }
+    } else if (!preserveActive || !isElementActive(el)) {
+      clearElementValue(el);
     }
   });
 
@@ -1189,7 +1223,7 @@ function hydrateSubtreeFromStore(root: ParentNode = document, preserveActive = f
       } else {
         renderListItems(listEl, targetItems);
       }
-    } else {
+    } else if (seedMissingFromDom) {
       const seededItems: Array<Record<string, unknown>> = [];
       listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
         const rowObj: Record<string, unknown> = {};
@@ -1198,6 +1232,8 @@ function hydrateSubtreeFromStore(root: ParentNode = document, preserveActive = f
       });
       setOwn(db.lists, listName, seededItems);
       decorateListControls(listEl);
+    } else {
+      renderListItems(listEl, []);
     }
   });
 }
@@ -1210,7 +1246,7 @@ export function hydrateDomFromState(db: NaizoDatabase | null): void {
   storeInitialized = true;
   lastSerializedContent = serializeContentBuckets(store);
 
-  hydrateSubtreeFromStore(document, false);
+  hydrateSubtreeFromStore(document, false, false);
   writeStoreToDomScript(store, false);
   window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
 }
@@ -1409,9 +1445,9 @@ function applyExternalDiskUpdate(
   lastSerializedContent = serializeContentBuckets(store);
   lastKnownDiskRaw = diskRaw.trim();
   lastDiskDb = cloneDb(diskDb);
-  safeSetStorage(getSnapshotKey(), lastKnownDiskRaw);
+  safeSetStorage(getSnapshotKey(), hashCanonicalDb(lastKnownDiskRaw));
 
-  hydrateSubtreeFromStore(document, preserveActive);
+  hydrateSubtreeFromStore(document, preserveActive, false);
   writeStoreToDomScript(store, false);
   safeSetStorage(getPageKey(), JSON.stringify(store));
 
@@ -1435,7 +1471,7 @@ function restoreConflictBackup(): void {
   safeRemoveStorage(getBackupKey());
   store = cloneDb(backupDb);
   storeInitialized = true;
-  hydrateSubtreeFromStore(document, false);
+  hydrateSubtreeFromStore(document, false, false);
   flushPersistence(true);
   window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
 }
@@ -1511,6 +1547,7 @@ async function performSingleDiskWrite(): Promise<boolean> {
 
     let fileTextToWrite: string;
     let payloadToWrite: string;
+    let preWriteHadCollision = false;
 
     if (typeof fileHandle.getFile === 'function') {
       const diskFile = await fileHandle.getFile();
@@ -1524,7 +1561,12 @@ async function performSingleDiskWrite(): Promise<boolean> {
       ) {
         const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
         if (diskDetailed.ok) {
-          const { browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+          const { hasCollision, browserKeptKeys } = applyExternalDiskUpdate(
+            diskDetailed.db,
+            diskScriptRaw,
+            true,
+          );
+          preWriteHadCollision = hasCollision;
           if (!browserKeptKeys) {
             if (typeof diskFile.lastModified === 'number') {
               lastObservedModified = diskFile.lastModified;
@@ -1569,7 +1611,7 @@ async function performSingleDiskWrite(): Promise<boolean> {
     if (writtenParsed.ok) {
       lastDiskDb = cloneDb(writtenParsed.db);
     }
-    safeSetStorage(getSnapshotKey(), exactWrittenTrimmed);
+    safeSetStorage(getSnapshotKey(), hashCanonicalDb(exactWrittenTrimmed));
 
     if (typeof fileHandle.getFile === 'function') {
       try {
@@ -1586,6 +1628,8 @@ async function performSingleDiskWrite(): Promise<boolean> {
     if (currentPayloadTrimmed !== exactWrittenTrimmed) {
       writeQueued = true;
       updateUi('cached', 'Browser Cache · Pending Sync');
+    } else if (preWriteHadCollision) {
+      updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
     } else {
       updateUi('saved', 'Synced to Disk');
     }
@@ -2075,7 +2119,7 @@ function handleStorageEvent(e: StorageEvent): void {
   store = cloneDb(nextDb);
   storeInitialized = true;
   lastSerializedContent = serializeContentBuckets(store);
-  hydrateSubtreeFromStore(document, true);
+  hydrateSubtreeFromStore(document, true, false);
   writeStoreToDomScript(store, false);
   window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
 }
@@ -2365,61 +2409,42 @@ export async function initNaizo(): Promise<void> {
   startupInvalidDb = false;
   lastKnownDiskRaw = currentDiskRaw;
   lastDiskDb = cloneDb(diskDetailed.db);
+  const currentDiskHash = hashCanonicalDb(currentDiskRaw);
 
   const diskModifiedExternally =
-    storedDiskSnapshot !== null &&
-    normalizeJsonComparison(currentDiskRaw) !== normalizeJsonComparison(storedDiskSnapshot);
+    storedDiskSnapshot !== null && currentDiskHash !== toDiskHash(storedDiskSnapshot);
 
   let hasBootConflict = false;
   if (diskModifiedExternally && cachedState) {
-    const baseDb = parseCachedState(storedDiskSnapshot);
+    const baseDb = storedDiskSnapshot.startsWith('fnv1a:')
+      ? null
+      : parseCachedState(storedDiskSnapshot);
     const { merged, hasCollision } = shallowMergeDatabases(baseDb, cachedState, diskDetailed.db);
     if (hasCollision) {
       safeSetStorage(getBackupKey(), JSON.stringify(cachedState));
       hasBootConflict = true;
     }
     store = merged;
-    storeInitialized = true;
-    lastSerializedContent = serializeContentBuckets(store);
-    hydrateSubtreeFromStore(document, false);
-    writeStoreToDomScript(store, false);
-    const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-    safeSetStorage(snapshotKey, currentDiskRaw);
-    if (hasBootConflict) {
-      updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
-    } else if (!storedOk) {
-      updateUi('cached', 'In-Memory Only · Link Disk');
-    } else {
-      updateUi('cached', 'Browser Cache · Click to Link Disk');
-    }
   } else if (!cachedState) {
     store = cloneDb(diskDetailed.db);
-    storeInitialized = true;
-    lastSerializedContent = serializeContentBuckets(store);
-    hydrateSubtreeFromStore(document, false);
-    writeStoreToDomScript(store, false);
-    const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-    safeSetStorage(snapshotKey, currentDiskRaw);
-    if (!storedOk) {
-      updateUi('cached', 'In-Memory Only · Link Disk');
-    } else {
-      updateUi('cached', 'Browser Cache · Click to Link Disk');
-    }
   } else {
     store = cloneDb(cachedState);
-    storeInitialized = true;
-    lastSerializedContent = serializeContentBuckets(store);
-    hydrateSubtreeFromStore(document, false);
-    writeStoreToDomScript(store, false);
-    const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-    if (storedDiskSnapshot === null) {
-      safeSetStorage(snapshotKey, currentDiskRaw);
-    }
-    if (!storedOk) {
-      updateUi('cached', 'In-Memory Only · Link Disk');
-    } else {
-      updateUi('cached', 'Browser Cache · Click to Link Disk');
-    }
+  }
+
+  storeInitialized = true;
+  lastSerializedContent = serializeContentBuckets(store);
+  hydrateSubtreeFromStore(document, false, true);
+  writeStoreToDomScript(store, false);
+  const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
+  if (diskModifiedExternally || !cachedState || storedDiskSnapshot === null) {
+    safeSetStorage(snapshotKey, currentDiskHash);
+  }
+  if (hasBootConflict) {
+    updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
+  } else if (!storedOk) {
+    updateUi('cached', 'In-Memory Only · Link Disk');
+  } else {
+    updateUi('cached', 'Browser Cache · Click to Link Disk');
   }
 
   window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));

@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-21 — Fixed post-M4 audit findings and deduplicated boot/sync flows (`EC46`)
+
+- Done: fixed all five post-`M4` audit findings in `src/index.ts` and `dist/naizo.js` — isolated self-bound `[naizo-item]` text reads/writes from injected `.naizo-item-tools` controls (`EC46`), scoped `propagateStandaloneKey` and `propagateItemKey` selectors by key (`O(1)`), preserved the `'conflict'` pill status after pre-write disk merges, disabled DOM re-seeding (`seedMissingFromDom = false`) during `restoreConflictBackup()` and external state hydration (`EC46`), and stored a compact `fnv1a:` hash in `naizodb_disk_hash_<key>` (`D16`) while deduplicating `initNaizo()` boot branches and `syncDomIntoStore()`.
+- Verified: `vp pack`, `vp check` (0 warnings, 0 errors across 33 files), `vp test` (25/25 project tests passing across `tests/naizo.test.ts` and `tests/release.test.ts`), `node --check dist/naizo.js`, `node --check dist/naizo.min.js`, JSON validation of `package.json` and embedded `#naizodb` blocks, and `git diff --check`. Isolated `.github/release-tools` tests, live browser File System Access API, and remote GitHub/npm workflows were not run.
+- Next: proceed with `M5` (`M5.1` comprehensive usage reference `docs/USAGE.md` and `M5.2` distributable `naizo` AI skill `skills/naizo/SKILL.md`).
+
 ## 2026-10-21 — Completed M4.4 behavioral parity verification and closed all M4 edge cases
 
 - Done (`M4.4`, completing `M4`): added `AbortController` listener cleanup (`window.__naizoCleanup`) in `src/index.ts` and `dist/naizo.js` so re-initialization cleanly replaces document/window listeners, added behavioral parity tests in `tests/naizo.test.ts` executing the shipped `dist/naizo.js` IIFE bundle (`EC30`), and promoted `EC30` to `fix` so all `EC01`–`EC45` entries in `docs/EDGE_CASES.md` are resolved (`fix`, `ADR`, or `doc`).

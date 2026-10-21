@@ -794,7 +794,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     expect(writes.length).toBeGreaterThanOrEqual(2);
     expect(diskHtml).toContain('"a": "two"');
-    expect(localStorage.getItem('naizodb_disk_hash_/')).toContain('"a": "two"');
+    expect(localStorage.getItem('naizodb_disk_hash_/')).toMatch(/^fnv1a:[0-9a-f]{8}$/);
     expect(statusEl?.textContent).toBe('Synced to Disk');
     expect(dotEl?.className).toBe('dot saved');
 
@@ -1239,5 +1239,111 @@ describe('naizo.js v0.1.0 core runtime', () => {
     window.Naizo = Naizo;
     window.NaizoDB = NaizoDB;
     warnSpy.mockRestore();
+  });
+
+  it('prevents self-bound item toolbar text pollution, preserves pre-write conflict status, and avoids DOM re-seeding on restore', async () => {
+    const baseJson = JSON.stringify(
+      {
+        _meta: {},
+        fields: { owner: 'Kenji', shared: 'v0', diskOnly: '' },
+        lists: {
+          steps: [{ label: 'Step One' }],
+        },
+        custom: {},
+      },
+      null,
+      2,
+    );
+    let diskHtml = `<html><head><script id="naizodb" type="application/json">\n${baseJson}\n</script></head><body></body></html>`;
+    let diskMtime = 1000;
+
+    document.head.innerHTML = `<script id="naizodb" type="application/json">\n${baseJson}\n</script>`;
+    document.body.innerHTML = `
+      <input id="owner-in" type="text" naizo="owner" value="Kenji">
+      <input id="shared-in" type="text" naizo="shared" value="v0">
+      <input id="disk-only-in" type="text" naizo="diskOnly" value="">
+      <ul naizo-list="steps">
+        <li naizo-item contenteditable="true" naizo="label">Seed</li>
+      </ul>
+    `;
+
+    await initNaizo();
+
+    // 1. Compact FNV-1a hash stored in naizodb_disk_hash_/ (D16)
+    const initialHash = localStorage.getItem('naizodb_disk_hash_/');
+    expect(initialHash).toMatch(/^fnv1a:[0-9a-f]{8}$/);
+
+    // 2. Self-bound <li naizo-item contenteditable="true" naizo="label"> excludes .naizo-item-tools text and keeps toolbar on update
+    const li = document.querySelector('ul[naizo-list="steps"] > li') as HTMLElement;
+    expect(li.querySelector('.naizo-item-tools')).not.toBeNull();
+    expect(Naizo.getList('steps')).toEqual([{ label: 'Step One' }]);
+
+    // Simulate user typing into self-bound <li> while .naizo-item-tools is mounted inside it
+    const textNode = Array.from(li.childNodes).find((n) => n.nodeType === Node.TEXT_NODE);
+    if (textNode) textNode.nodeValue = 'Step One Edited';
+    li.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(Naizo.getList('steps')).toEqual([{ label: 'Step One Edited' }]);
+
+    // Programmatic updateItem preserves .naizo-item-tools child inside self-bound <li>
+    Naizo.updateItem('steps', 0, { label: 'Step One Programmatic' });
+    expect(li.querySelector('.naizo-item-tools')).not.toBeNull();
+    expect(Naizo.getList('steps')).toEqual([{ label: 'Step One Programmatic' }]);
+
+    // 3. Pre-write merge with both browserKeptKeys and hasCollision preserves conflict pill status
+    Naizo.deleteField('diskOnly');
+    Naizo.setField('owner', 'Alice');
+    Naizo.setField('shared', 'browser-v1');
+
+    const agentJson = JSON.stringify(
+      {
+        _meta: {},
+        fields: { owner: 'Kenji', shared: 'agent-v1', diskOnly: 'AddedByAgent' },
+        lists: {
+          steps: [{ label: 'Step One Programmatic' }],
+        },
+        custom: {},
+      },
+      null,
+      2,
+    );
+    diskHtml = `<html><head><script id="naizodb" type="application/json">\n${agentJson}\n</script></head><body></body></html>`;
+    diskMtime += 500;
+
+    window.showSaveFilePicker = vi.fn().mockResolvedValue({
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockImplementation(async () => ({
+        lastModified: diskMtime,
+        text: async () => diskHtml,
+      })),
+      createWritable: vi.fn().mockImplementation(async () => ({
+        write: async (data: string) => {
+          diskHtml = data;
+          diskMtime += 100;
+        },
+        close: async () => {},
+      })),
+    });
+
+    const host = document.getElementById('__naizodb_host__');
+    (host?.shadowRoot?.getElementById('action') as HTMLButtonElement | null)?.click();
+    await new Promise((r) => setTimeout(r, 30));
+
+    // Conflict status is preserved in pill even after merged write completes
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
+      'External Disk Edit · Conflict Backed Up',
+    );
+    expect(Naizo.getField('diskOnly')).toBe('AddedByAgent');
+
+    // 4. Clicking Restore restores pre-merge browser state without re-seeding diskOnly from DOM
+    const restoreBtn = host?.shadowRoot?.getElementById('restore') as HTMLButtonElement | null;
+    restoreBtn?.click();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(Naizo.getField('shared')).toBe('browser-v1');
+    expect(Naizo.getField('diskOnly')).toBeUndefined();
+    expect((document.getElementById('disk-only-in') as HTMLInputElement).value).toBe('');
+
+    await Naizo.unlink();
+    Reflect.deleteProperty(window, 'showSaveFilePicker');
   });
 });

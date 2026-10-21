@@ -363,6 +363,20 @@
 			return trimmed;
 		}
 	}
+	function hashCanonicalDb(raw) {
+		const normalized = normalizeJsonComparison(raw);
+		let hash = 2166136261;
+		for (let i = 0; i < normalized.length; i += 1) {
+			hash ^= normalized.charCodeAt(i);
+			hash = Math.imul(hash, 16777619);
+		}
+		return "fnv1a:" + (hash >>> 0).toString(16).padStart(8, "0");
+	}
+	function toDiskHash(storedOrRaw) {
+		const trimmed = storedOrRaw.trim();
+		if (trimmed.startsWith("fnv1a:")) return trimmed;
+		return hashCanonicalDb(trimmed);
+	}
 	function ensureStore() {
 		const currentScript = document.getElementById(DB_ID);
 		if (!storeInitialized || currentScript !== null && currentScript !== trackedDbScriptEl) {
@@ -388,7 +402,19 @@
 	}
 	function isNonLeafElement(el) {
 		if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement || isDetailsElement(el) || isContentEditableElement(el)) return false;
-		return el.children.length > 0;
+		return Array.from(el.children).some((child) => !child.matches(IGNORE_SELECTOR));
+	}
+	function readCleanTextContent(el) {
+		if (!el.querySelector(IGNORE_SELECTOR)) return el.textContent ?? "";
+		const clone = el.cloneNode(true);
+		clone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
+		return clone.textContent ?? "";
+	}
+	function writeCleanTextContent(el, text) {
+		const runtimeChildren = Array.from(el.children).filter((child) => child.hasAttribute("data-naizo-runtime"));
+		runtimeChildren.forEach((child) => child.remove());
+		el.textContent = text;
+		runtimeChildren.forEach((child) => el.appendChild(child));
 	}
 	function isSkippedElement(el, warn = false) {
 		if (el instanceof HTMLInputElement) {
@@ -430,7 +456,7 @@
 		}
 		if (el instanceof HTMLTextAreaElement) return el.value;
 		if (isDetailsElement(el)) return Boolean(el.open);
-		return el.textContent ?? "";
+		return readCleanTextContent(el);
 	}
 	function writeElementValue(el, val) {
 		if (isSkippedElement(el, true)) return;
@@ -468,7 +494,7 @@
 			el.open = toBooleanValue(val);
 			return;
 		}
-		el.textContent = textVal;
+		writeCleanTextContent(el, textVal);
 	}
 	function bakeClonedElementAttributes(liveEl, cloneEl) {
 		if (isSkippedElement(liveEl)) return;
@@ -502,7 +528,7 @@
 			else cloneEl.removeAttribute("open");
 			return;
 		}
-		if (isContentEditableElement(liveEl)) cloneEl.textContent = liveEl.textContent ?? "";
+		if (isContentEditableElement(liveEl)) writeCleanTextContent(cloneEl, readCleanTextContent(liveEl));
 	}
 	function clearElementValue(el) {
 		if (el instanceof HTMLInputElement) {
@@ -531,7 +557,7 @@
 		} else if (isDetailsElement(el)) {
 			el.open = false;
 			el.removeAttribute("open");
-		} else if (!isNonLeafElement(el)) el.textContent = "";
+		} else if (!isNonLeafElement(el)) writeCleanTextContent(el, "");
 	}
 	function shouldUpdateStoredValue(prevVal, nextVal, exists) {
 		if (!exists) return true;
@@ -561,16 +587,24 @@
 		});
 		return result;
 	}
+	function getKeyBoundSelector(key) {
+		const escaped = escapeSelectorAttr(key);
+		return `[naizo="${escaped}"], [data-naizo="${escaped}"], [data-naizo-field="${escaped}"]`;
+	}
 	function propagateStandaloneKey(key, val, sourceEl) {
-		queryStandaloneBoundElements(document).forEach((el) => {
+		document.querySelectorAll(getKeyBoundSelector(key)).forEach((el) => {
 			if (el === sourceEl) return;
-			if (getElementKey(el) === key) writeElementValue(el, val);
+			if (isIgnoredElement(el) || el.closest(ITEM_SELECTOR) || isSkippedElement(el, true)) return;
+			writeElementValue(el, val);
 		});
 	}
 	function propagateItemKey(itemEl, key, val, sourceEl) {
-		queryItemBoundElements(itemEl).forEach((el) => {
-			if (el === sourceEl) return;
-			if (getElementKey(el) === key) writeElementValue(el, val);
+		const selector = getKeyBoundSelector(key);
+		if (itemEl !== sourceEl && itemEl.matches(selector) && !isIgnoredElement(itemEl) && !isSkippedElement(itemEl, true)) writeElementValue(itemEl, val);
+		itemEl.querySelectorAll(selector).forEach((el) => {
+			if (el === sourceEl || el.closest(ITEM_SELECTOR) !== itemEl) return;
+			if (isIgnoredElement(el) || isSkippedElement(el, true)) return;
+			writeElementValue(el, val);
 		});
 	}
 	function scopeRowRadioInputs(itemEl, listName) {
@@ -728,7 +762,7 @@
 		}
 		return formatted;
 	}
-	function hydrateSubtreeFromStore(root = document, preserveActive = false) {
+	function hydrateSubtreeFromStore(root = document, preserveActive = false, seedMissingFromDom = true) {
 		const db = ensureStore();
 		ensureListBlueprints(root);
 		queryStandaloneBoundElements(root).forEach((el) => {
@@ -737,10 +771,10 @@
 			if (hasOwn(db.fields, key)) {
 				if (preserveActive && isElementActive(el)) return;
 				writeElementValue(el, getOwn(db.fields, key));
-			} else {
+			} else if (seedMissingFromDom) {
 				const val = readElementValue(el);
 				if (val !== void 0) setOwn(db.fields, key, val);
-			}
+			} else if (!preserveActive || !isElementActive(el)) clearElementValue(el);
 		});
 		const lists = [];
 		if (root instanceof HTMLElement && root.matches(LIST_SELECTOR) && !isIgnoredElement(root)) lists.push(root);
@@ -764,7 +798,7 @@
 					});
 				});
 				else renderListItems(listEl, targetItems);
-			} else {
+			} else if (seedMissingFromDom) {
 				const seededItems = [];
 				listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
 					const rowObj = {};
@@ -773,7 +807,7 @@
 				});
 				setOwn(db.lists, listName, seededItems);
 				decorateListControls(listEl);
-			}
+			} else renderListItems(listEl, []);
 		});
 	}
 	function getCleanHtmlString() {
@@ -905,8 +939,8 @@
 		lastSerializedContent = serializeContentBuckets(store);
 		lastKnownDiskRaw = diskRaw.trim();
 		lastDiskDb = cloneDb(diskDb);
-		safeSetStorage(getSnapshotKey(), lastKnownDiskRaw);
-		hydrateSubtreeFromStore(document, preserveActive);
+		safeSetStorage(getSnapshotKey(), hashCanonicalDb(lastKnownDiskRaw));
+		hydrateSubtreeFromStore(document, preserveActive, false);
 		writeStoreToDomScript(store, false);
 		safeSetStorage(getPageKey(), JSON.stringify(store));
 		if (hasCollision) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
@@ -923,7 +957,7 @@
 		safeRemoveStorage(getBackupKey());
 		store = cloneDb(backupDb);
 		storeInitialized = true;
-		hydrateSubtreeFromStore(document, false);
+		hydrateSubtreeFromStore(document, false, false);
 		flushPersistence(true);
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 	}
@@ -972,6 +1006,7 @@
 			if (persistTimeout !== null) flushPersistence(false);
 			let fileTextToWrite;
 			let payloadToWrite;
+			let preWriteHadCollision = false;
 			if (typeof fileHandle.getFile === "function") {
 				const diskFile = await fileHandle.getFile();
 				const existingFileText = await readFileTextPreservingBom(diskFile);
@@ -979,7 +1014,8 @@
 				if (diskScriptRaw !== null && lastKnownDiskRaw !== null && normalizeJsonComparison(diskScriptRaw) !== normalizeJsonComparison(lastKnownDiskRaw)) {
 					const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
 					if (diskDetailed.ok) {
-						const { browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+						const { hasCollision, browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+						preWriteHadCollision = hasCollision;
 						if (!browserKeptKeys) {
 							if (typeof diskFile.lastModified === "number") lastObservedModified = diskFile.lastModified;
 							return true;
@@ -1008,7 +1044,7 @@
 			lastKnownDiskRaw = exactWrittenTrimmed;
 			const writtenParsed = parseDbScriptDetailed(exactWrittenTrimmed);
 			if (writtenParsed.ok) lastDiskDb = cloneDb(writtenParsed.db);
-			safeSetStorage(getSnapshotKey(), exactWrittenTrimmed);
+			safeSetStorage(getSnapshotKey(), hashCanonicalDb(exactWrittenTrimmed));
 			if (typeof fileHandle.getFile === "function") try {
 				const updatedFile = await fileHandle.getFile();
 				if (typeof updatedFile.lastModified === "number") lastObservedModified = updatedFile.lastModified;
@@ -1016,7 +1052,8 @@
 			if (serializeDbJson(ensureStore()).trim() !== exactWrittenTrimmed) {
 				writeQueued = true;
 				updateUi("cached", "Browser Cache · Pending Sync");
-			} else updateUi("saved", "Synced to Disk");
+			} else if (preWriteHadCollision) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
+			else updateUi("saved", "Synced to Disk");
 			return true;
 		} catch (err) {
 			console.warn("[naizo.js] Disk write failed:", err);
@@ -1424,7 +1461,7 @@
 		store = cloneDb(nextDb);
 		storeInitialized = true;
 		lastSerializedContent = serializeContentBuckets(store);
-		hydrateSubtreeFromStore(document, true);
+		hydrateSubtreeFromStore(document, true, false);
 		writeStoreToDomScript(store, false);
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 	}
@@ -1670,45 +1707,27 @@
 		startupInvalidDb = false;
 		lastKnownDiskRaw = currentDiskRaw;
 		lastDiskDb = cloneDb(diskDetailed.db);
-		const diskModifiedExternally = storedDiskSnapshot !== null && normalizeJsonComparison(currentDiskRaw) !== normalizeJsonComparison(storedDiskSnapshot);
+		const currentDiskHash = hashCanonicalDb(currentDiskRaw);
+		const diskModifiedExternally = storedDiskSnapshot !== null && currentDiskHash !== toDiskHash(storedDiskSnapshot);
 		let hasBootConflict = false;
 		if (diskModifiedExternally && cachedState) {
-			const { merged, hasCollision } = shallowMergeDatabases(parseCachedState(storedDiskSnapshot), cachedState, diskDetailed.db);
+			const { merged, hasCollision } = shallowMergeDatabases(storedDiskSnapshot.startsWith("fnv1a:") ? null : parseCachedState(storedDiskSnapshot), cachedState, diskDetailed.db);
 			if (hasCollision) {
 				safeSetStorage(getBackupKey(), JSON.stringify(cachedState));
 				hasBootConflict = true;
 			}
 			store = merged;
-			storeInitialized = true;
-			lastSerializedContent = serializeContentBuckets(store);
-			hydrateSubtreeFromStore(document, false);
-			writeStoreToDomScript(store, false);
-			const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-			safeSetStorage(snapshotKey, currentDiskRaw);
-			if (hasBootConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
-			else if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
-			else updateUi("cached", "Browser Cache · Click to Link Disk");
-		} else if (!cachedState) {
-			store = cloneDb(diskDetailed.db);
-			storeInitialized = true;
-			lastSerializedContent = serializeContentBuckets(store);
-			hydrateSubtreeFromStore(document, false);
-			writeStoreToDomScript(store, false);
-			const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-			safeSetStorage(snapshotKey, currentDiskRaw);
-			if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
-			else updateUi("cached", "Browser Cache · Click to Link Disk");
-		} else {
-			store = cloneDb(cachedState);
-			storeInitialized = true;
-			lastSerializedContent = serializeContentBuckets(store);
-			hydrateSubtreeFromStore(document, false);
-			writeStoreToDomScript(store, false);
-			const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
-			if (storedDiskSnapshot === null) safeSetStorage(snapshotKey, currentDiskRaw);
-			if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
-			else updateUi("cached", "Browser Cache · Click to Link Disk");
-		}
+		} else if (!cachedState) store = cloneDb(diskDetailed.db);
+		else store = cloneDb(cachedState);
+		storeInitialized = true;
+		lastSerializedContent = serializeContentBuckets(store);
+		hydrateSubtreeFromStore(document, false, true);
+		writeStoreToDomScript(store, false);
+		const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
+		if (diskModifiedExternally || !cachedState || storedDiskSnapshot === null) safeSetStorage(snapshotKey, currentDiskHash);
+		if (hasBootConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
+		else if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
+		else updateUi("cached", "Browser Cache · Click to Link Disk");
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 		fileHandle = await loadHandleFromIDB();
 		if (fileHandle) try {
