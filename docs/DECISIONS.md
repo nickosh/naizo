@@ -303,6 +303,8 @@ Accepted by the owner on 2026-10-21 after a CI/CD review. Refines `D28`, `D29`, 
 
 ## D38 — Rename project, package, and runtime contracts to `naizo` / `naizo.js`
 
+The npm package name and npm-backed CDN package segment in this decision are superseded by `D39` (`naizojs`); the project, repository, browser bundle filenames, and runtime contracts remain unchanged.
+
 Accepted by the owner on 2026-10-21. Supersedes `D36` and updates the naming across `D01`–`D37` while preserving all architectural, persistence, build, and release invariants.
 
 - **Name & Japanese dual meaning:** Rename the project to **`naizo`** (`naizo.js`), from the Japanese **_naizō_ (ないぞう)**, uniting its two homophonous meanings in the README and product documentation:
@@ -310,3 +312,11 @@ Accepted by the owner on 2026-10-21. Supersedes `D36` and updates the naming acr
   - **内臓 (_naizō_ — internal organs / viscera):** the reactive runtime bindings, list repeater, and two-way disk synchronization that give static HTML markup living internal organs.
 - **Package, repository, and bundle identity:** Set npm package name to `naizo` (`https://github.com/nickosh/naizo`), tracked readable browser bundle to `dist/naizo.js`, minified bundle to `dist/naizo.min.js`, and npm-backed CDN URLs to `https://cdn.jsdelivr.net/npm/naizo@latest/dist/naizo.js` and `https://unpkg.com/naizo@latest/dist/naizo.js`.
 - **Runtime, DOM, and API contracts:** Use `#naizodb`, attributes `naizo` / `naizo-*` and `data-naizo` / `data-naizo-*`, global API `window.Naizo` / `window.NaizoDB` (`initNaizo`, `NaizoDatabase`, `NaizoAPI`, `naizo:hydrate`), runtime DOM/storage identifiers (`__naizodb_host__`, `__naizodb_styles__`, `NaizoDB_Handles`, `naizodb_state_*`, `naizodb_disk_hash_*`), and the maintainer closeout skill `.agents/skills/naizo-closeout/SKILL.md`.
+
+## D39 — Use `naizojs` as the unscoped npm package name while keeping the project, repository, and bundle names as `naizo`
+
+Accepted by the owner on 2026-10-21 after npm rejected `PUT https://registry.npmjs.org/naizo` with an `E403` similarity error against `nano`. Supersedes the npm package name and npm-backed CDN package segment in `D34` and `D38`; preserves the project name (`naizo`), repository (`nickosh/naizo`), browser bundle filenames (`dist/naizo.js`, `dist/naizo.min.js`), and all runtime/DOM/API contracts from `D38`.
+
+- **npm package & CDN URLs:** Set `package.json#name` to `naizojs`, generating `naizojs-<version>.tgz` tarballs and serving npm-backed CDN bundles from `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js` and `https://unpkg.com/naizojs@latest/dist/naizo.js` (with `dist/naizo.min.js` for the prebuilt minified bundle). `naizojs` is unoccupied on npm and avoids the `nano*` similarity collision because `nanojs` does not exist on the registry.
+- **Release tooling alignment:** Update `confirmNpmBootstrap` (`https://registry.npmjs.org/naizojs/0.1.0`) and `releaseBranch` (`release-please--branches--main--components--naizojs`) in `.github/release-tools/github.cjs` to match Release Please's root Node package branch derivation.
+- **Project and runtime identity unchanged:** Keep the project and GitHub repository named `naizo` (`https://github.com/nickosh/naizo`), emitted bundle paths `dist/naizo.js` and `dist/naizo.min.js`, `#naizodb`, `naizo` / `data-naizo` attributes, and `window.Naizo` / `window.NaizoDB`.

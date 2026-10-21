@@ -2,6 +2,13 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-21 — Renamed npm package to `naizojs` while keeping project and bundles as `naizo` (D39)
+
+- Done: updated `package.json` (`"name": "naizojs"`), `.github/release-tools/github.cjs` (`confirmNpmBootstrap` URL and `releaseBranch`), `.github/release-tools/test.cjs`, `tests/release.test.ts`, `tests/naizo.test.ts`, starter templates (`examples/starter.html`, `examples/checklist.html`), `README.md`, `AGENTS.md`, `docs/PUBLISHING.md`, and project memory documents (`docs/PRODUCT.md`, `docs/DECISIONS.md`, `docs/EDGE_CASES.md`, `docs/PLAN.md`) to use `naizojs` as the npm package and CDN package segment while keeping the project, repository (`nickosh/naizo`), and browser bundle filenames (`dist/naizo.js`, `dist/naizo.min.js`) as `naizo`.
+- Decided (`D39`, superseding the npm package name in `D38` and updating `EC44`): use `naizojs` on npm after `PUT https://registry.npmjs.org/naizo` was rejected as too similar to `nano` (`naizojs` and `nanojs` are both unoccupied on npm).
+- Verified: `vp check`, `vp pack`, `vp test` (13/13 project tests passing), `vp node --test .github/release-tools/test.cjs` (31/31 release-tooling tests passing), `node --check dist/naizo.js`, `node --check dist/naizo.min.js`, `git diff --exit-code dist/naizo.js`, eight-file `npm pack` manifest audit (`naizojs-0.1.0.tgz`), fish syntax check on `docs/PUBLISHING.md`, and `git diff --check`. Live npm publication was not run.
+- Next: publish `naizojs@0.1.0` following `docs/PUBLISHING.md`, then proceed with `M4.1`.
+
 ## 2026-10-21 — Simplified package description and reviewed release readiness
 
 - Done: reviewed CI/CD workflows, isolated Release Please tooling, and `docs/PUBLISHING.md` against the `v0.1.0` bootstrap procedure; updated `package.json` `"description"` and `README.md` subtitle to `"Turn static HTML files into self-saving apps with built-in JSON state for Human + AI workflows."` for clearer discovery on npm and GitHub.

@@ -1,5 +1,5 @@
 {
-  "name": "naizo",
+  "name": "naizojs",
   "version": "0.1.0",
   "description": "Turn static HTML files into self-saving apps with built-in JSON state for Human + AI workflows.",
   "keywords": [
@@ -10,6 +10,7 @@
     "micro-db",
     "naizo",
     "naizodb",
+    "naizojs",
     "self-saving-html"
   ],
   "homepage": "https://github.com/nickosh/naizo#readme",

@@ -9,9 +9,9 @@ import {
 } from '../scripts/release';
 
 const pack = {
-  name: 'naizo',
+  name: 'naizojs',
   version: '0.1.0',
-  filename: 'naizo-0.1.0.tgz',
+  filename: 'naizojs-0.1.0.tgz',
   integrity: 'sha512-YWJjZA==',
   files: [
     'CHANGELOG.md',
@@ -27,7 +27,7 @@ const pack = {
 
 describe('release guards', () => {
   it('permits the no-publish bootstrap only after npm v0.1.0 exists', async () => {
-    const metadata = { name: 'naizo', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } };
+    const metadata = { name: 'naizojs', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } };
     await expect(
       confirmBootstrap('v0.1.0', async () => Response.json(metadata)),
     ).resolves.toBeUndefined();

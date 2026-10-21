@@ -57,7 +57,7 @@ Or copy a starter template from [`examples/starter.html`](examples/starter.html)
   <script id="naizodb" type="application/json">
     { "_meta": {}, "fields": {}, "lists": {}, "custom": {} }
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/naizo@latest/dist/naizo.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 </head>
 ```
 
@@ -66,7 +66,7 @@ Edits are cached immediately in `localStorage` and written back to the local `.h
 You can use unpkg instead of jsDelivr (load one provider):
 
 ```html
-<script src="https://unpkg.com/naizo@latest/dist/naizo.js" defer></script>
+<script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer></script>
 ```
 
 Both providers serve the published npm package. The `@latest` URLs follow new npm releases as CDN caches refresh; no separate CDN deployment is needed. Use `dist/naizo.min.js` in either URL for the prebuilt minified bundle. To keep an HTML artifact on a fixed version, replace `@latest` with an exact version such as `@0.1.0`.

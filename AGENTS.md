@@ -2,7 +2,7 @@
 
 ## What this project is
 
-**`naizo.js`** (`naizo` `v0.1.0`) — zero-dependency, self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) for Human + AI Agent workflows. Its name comes from the Japanese **_naizō_ (ないぞう)**: both **内蔵 (_built-in / embedded_)** and **内臓 (_internal organs_)**. It turns static `.html` artifacts (specs, plans, checklists, triage boards, custom tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="naizodb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
+**`naizo.js`** (`naizo` project, npm package `naizojs` `v0.1.0`) — zero-dependency, self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) for Human + AI Agent workflows. Its name comes from the Japanese **_naizō_ (ないぞう)**: both **内蔵 (_built-in / embedded_)** and **内臓 (_internal organs_)**. It turns static `.html` artifacts (specs, plans, checklists, triage boards, custom tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="naizodb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
 
 See [docs/PRODUCT.md](docs/PRODUCT.md) for product vision, target users, and scope boundaries.
 
@@ -29,7 +29,7 @@ Whenever you generate or update an interactive HTML file (plans, specs, checklis
      "custom": {}
    }
    ```
-2. **Load `naizo.js`:** Include `<script src="./dist/naizo.js" defer></script>` for a local copy, or use one npm-backed CDN URL: `https://cdn.jsdelivr.net/npm/naizo@latest/dist/naizo.js` / `https://unpkg.com/naizo@latest/dist/naizo.js`. Use `dist/naizo.min.js` for the prebuilt minified bundle. `@latest` follows npm releases as caches refresh; use an exact version such as `@0.1.0` for a fixed artifact. CDN URLs require a published npm package/version. Prefer these npm-backed URLs when authoring CDN examples (`D34`, `D38`).
+2. **Load `naizo.js`:** Include `<script src="./dist/naizo.js" defer></script>` for a local copy, or use one npm-backed CDN URL: `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js` / `https://unpkg.com/naizojs@latest/dist/naizo.js`. Use `dist/naizo.min.js` for the prebuilt minified bundle. `@latest` follows npm releases as caches refresh; use an exact version such as `@0.1.0` for a fixed artifact. CDN URLs require a published npm package/version. Prefer these npm-backed URLs when authoring CDN examples (`D34`, `D38`, `D39`).
 3. **Standalone Fields (`naizo` or `data-naizo`):** Bind inputs, checkboxes, radios, selects, and `contenteditable="true"` blocks using `naizo="key_name"` (or `data-naizo="key_name"`).
 4. **Dynamic Lists (`naizo-list` or `data-naizo-list`):** For checklists, tables, or cards where the user may add, edit, reorder, or delete items, wrap the container in `naizo-list="list_name"` (or `data-naizo-list="list_name"`) and each repeating row/card in `naizo-item` (or `data-naizo-item`), using `naizo="prop_name"` on fields inside the item and wrapping `<label>` elements around inputs (`EC39`).
 5. **Custom Widgets (`window.Naizo`):** Persist custom JavaScript state via `Naizo.get('key')` and `Naizo.set('key', value)`. Listen to the `'naizo:hydrate'` window event to sync custom UI on load.

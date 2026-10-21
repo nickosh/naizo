@@ -204,6 +204,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(typeof Naizo.init).toBe('function');
 
     // Package entrypoints agree: ESM for main/module/exports["."], IIFE for unpkg/jsdelivr
+    expect(pkgJson.name).toBe('naizojs');
     expect(pkgJson.main).toBe('./dist/index.mjs');
     expect(pkgJson.module).toBe('./dist/index.mjs');
     expect(pkgJson.types).toBe('./dist/index.d.mts');

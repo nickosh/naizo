@@ -474,7 +474,7 @@ void test('GitHub client finds, compares, and drafts the release PR branch', () 
 
 void test('bootstrap requires both the public GitHub release and exact npm package', async () => {
   const ok = async () =>
-    Response.json({ name: 'naizo', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } });
+    Response.json({ name: 'naizojs', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } });
   await requireBootstrap([baseline], ok);
   await assert.rejects(requireBootstrap([], ok), /bootstrap first/);
   await assert.rejects(requireBootstrap([{ ...baseline, draft: true }], ok));
@@ -484,13 +484,13 @@ void test('bootstrap requires both the public GitHub release and exact npm packa
 });
 
 void test('shared npm bootstrap check requires the exact published package', async () => {
-  const metadata = { name: 'naizo', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } };
+  const metadata = { name: 'naizojs', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } };
   const urls = [];
   await confirmNpmBootstrap(async (url) => {
     urls.push(url);
     return Response.json(metadata);
   });
-  assert.deepEqual(urls, ['https://registry.npmjs.org/naizo/0.1.0']);
+  assert.deepEqual(urls, ['https://registry.npmjs.org/naizojs/0.1.0']);
   await assert.rejects(
     confirmNpmBootstrap(async () => new Response(null, { status: 404 })),
     /HTTP 404/,
@@ -614,10 +614,10 @@ function artifacts() {
     writeFileSync(path.join(directory, name), name);
     writeFileSync(path.join(directory, 'package/dist', name), name);
   }
-  const filename = 'naizo-0.2.0.tgz';
+  const filename = 'naizojs-0.2.0.tgz';
   execFileSync('tar', ['-czf', path.join(directory, filename), '-C', directory, 'package']);
   const pack = {
-    name: 'naizo',
+    name: 'naizojs',
     version: '0.2.0',
     filename,
     integrity: `sha512-${createHash('sha512')
