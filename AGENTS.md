@@ -1,26 +1,26 @@
-# AGENTS.md — nakajs
+# AGENTS.md — naizo
 
 ## What this project is
 
-**`naka.js`** (`nakajs` `v0.1.0`) — zero-dependency, self-persisting HTML inner database (`#nakadb`) and declarative list repeater (`[naka-list]` / `[data-naka-list]`) for Human + AI Agent workflows. It turns static `.html` artifacts (specs, plans, checklists, triage boards, custom tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="nakadb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
+**`naizo.js`** (`naizo` `v0.1.0`) — zero-dependency, self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) for Human + AI Agent workflows. Its name comes from the Japanese **_naizō_ (ないぞう)**: both **内蔵 (_built-in / embedded_)** and **内臓 (_internal organs_)**. It turns static `.html` artifacts (specs, plans, checklists, triage boards, custom tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="naizodb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
 
 See [docs/PRODUCT.md](docs/PRODUCT.md) for product vision, target users, and scope boundaries.
 
 Core promises (never compromise these):
 
-1. **In-file canonical state (`#nakadb`)**: `<script id="nakadb" type="application/json">` in `<head>` holds `{ _meta, fields, lists, custom }` in human- and agent-readable JSON (`2`-space indented) alongside baked HTML input attributes.
-2. **Two-way Human ↔ AI Agent sync**: On boot, before disk writes, on tab focus, and via a lightweight ~2 s `file.lastModified` watch while a linked tab is visible, `naka.js` compares `#nakadb` on disk against its last known disk state. External edits on disk (e.g., by a CLI/IDE AI agent) merge cleanly across unrelated top-level keys (`fields`, `lists`, `custom`) without clobbering `document.activeElement`, and back up same-key collisions to `nakadb_backup_<key>` with a 1-click `↺ Restore` action in the status pill (`D16`, `D20`, `D27`).
-3. **Surgical disk sync & clean HTML export**: Writing to a linked file via the File System Access API (`showSaveFilePicker` with handle persisted in IndexedDB `NakaDB_Handles`) surgically updates only the `<script id="nakadb">` block in place so third-party runtime DOM mutations (e.g., Tailwind CDN, Lucide, Mermaid) never pollute the file on disk (`D16`, `D24`). Full-HTML export (`Naka.exportHTML()` and Blob download fallback) bakes form attributes on a cloned document and strips `[data-naka-runtime]` UI (`#__nakadb_host__` Shadow DOM pill, `#__nakadb_styles__`, injected list controls) while keeping user `[naka-ignore]` elements intact (`D12`, `D23`).
-4. **Dual attribute syntax**: Both short attributes (`naka="key"`, `naka-list="name"`, `naka-item`, `naka-ignore`, etc.) and HTML5-compliant `data-*` aliases (`data-naka="key"`, `data-naka-list="name"`, `data-naka-item`, `data-naka-ignore`, etc.) are supported everywhere (D08).
-5. **Zero-dependency drop-in**: `naka.js` is a standalone vanilla JavaScript IIFE (`dist/naka.js`) with no runtime dependencies, loadable locally or via CDN (`jsDelivr` / `unpkg`), authored in TypeScript (`src/index.ts` and `src/iife.ts`) and managed with the [Vite+](https://viteplus.dev/) (`vp`) toolchain.
+1. **In-file canonical state (`#naizodb`)**: `<script id="naizodb" type="application/json">` in `<head>` holds `{ _meta, fields, lists, custom }` in human- and agent-readable JSON (`2`-space indented) alongside baked HTML input attributes.
+2. **Two-way Human ↔ AI Agent sync**: On boot, before disk writes, on tab focus, and via a lightweight ~2 s `file.lastModified` watch while a linked tab is visible, `naizo.js` compares `#naizodb` on disk against its last known disk state. External edits on disk (e.g., by a CLI/IDE AI agent) merge cleanly across unrelated top-level keys (`fields`, `lists`, `custom`) without clobbering `document.activeElement`, and back up same-key collisions to `naizodb_backup_<key>` with a 1-click `↺ Restore` action in the status pill (`D16`, `D20`, `D27`).
+3. **Surgical disk sync & clean HTML export**: Writing to a linked file via the File System Access API (`showSaveFilePicker` with handle persisted in IndexedDB `NaizoDB_Handles`) surgically updates only the `<script id="naizodb">` block in place so third-party runtime DOM mutations (e.g., Tailwind CDN, Lucide, Mermaid) never pollute the file on disk (`D16`, `D24`). Full-HTML export (`Naizo.exportHTML()` and Blob download fallback) bakes form attributes on a cloned document and strips `[data-naizo-runtime]` UI (`#__naizodb_host__` Shadow DOM pill, `#__naizodb_styles__`, injected list controls) while keeping user `[naizo-ignore]` elements intact (`D12`, `D23`).
+4. **Dual attribute syntax**: Both short attributes (`naizo="key"`, `naizo-list="name"`, `naizo-item`, `naizo-ignore`, etc.) and HTML5-compliant `data-*` aliases (`data-naizo="key"`, `data-naizo-list="name"`, `data-naizo-item`, `data-naizo-ignore`, etc.) are supported everywhere (D08).
+5. **Zero-dependency drop-in**: `naizo.js` is a standalone vanilla JavaScript IIFE (`dist/naizo.js`) with no runtime dependencies, loadable locally or via CDN (`jsDelivr` / `unpkg`), authored in TypeScript (`src/index.ts` and `src/iife.ts`) and managed with the [Vite+](https://viteplus.dev/) (`vp`) toolchain.
 
 License: MIT ([LICENSE](LICENSE)).
 
-## Authoring HTML with `naka.js` (AI Agent Instructions)
+## Authoring HTML with `naizo.js` (AI Agent Instructions)
 
-Whenever you generate or update an interactive HTML file (plans, specs, checklists, triage boards, or custom editors), make it self-persisting using **`naka.js`** (see starter templates in `examples/starter.html` and `examples/checklist.html`):
+Whenever you generate or update an interactive HTML file (plans, specs, checklists, triage boards, or custom editors), make it self-persisting using **`naizo.js`** (see starter templates in `examples/starter.html` and `examples/checklist.html`):
 
-1. **Embed `#nakadb` in `<head>`:** Include `<script id="nakadb" type="application/json">` at the top of `<head>` initialized with:
+1. **Embed `#naizodb` in `<head>`:** Include `<script id="naizodb" type="application/json">` at the top of `<head>` initialized with:
    ```json
    {
      "_meta": {},
@@ -29,11 +29,11 @@ Whenever you generate or update an interactive HTML file (plans, specs, checklis
      "custom": {}
    }
    ```
-2. **Load `naka.js`:** Include `<script src="./dist/naka.js" defer></script>` for a local copy, or use one npm-backed CDN URL: `https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js` / `https://unpkg.com/nakajs@latest/dist/naka.js`. Use `dist/naka.min.js` for the prebuilt minified bundle. `@latest` follows npm releases as caches refresh; use an exact version such as `@0.1.0` for a fixed artifact. CDN URLs require a published npm package/version. Prefer these npm-backed URLs when authoring CDN examples (`D34`).
-3. **Standalone Fields (`naka` or `data-naka`):** Bind inputs, checkboxes, radios, selects, and `contenteditable="true"` blocks using `naka="key_name"` (or `data-naka="key_name"`).
-4. **Dynamic Lists (`naka-list` or `data-naka-list`):** For checklists, tables, or cards where the user may add, edit, reorder, or delete items, wrap the container in `naka-list="list_name"` (or `data-naka-list="list_name"`) and each repeating row/card in `naka-item` (or `data-naka-item`), using `naka="prop_name"` on fields inside the item and wrapping `<label>` elements around inputs (`EC39`).
-5. **Custom Widgets (`window.Naka`):** Persist custom JavaScript state via `Naka.get('key')` and `Naka.set('key', value)`. Listen to the `'naka:hydrate'` window event to sync custom UI on load.
-6. **Reading & Updating Files on Disk:** When inspecting or modifying an existing HTML file on disk, read or edit `<script id="nakadb">` directly—`naka.js` automatically hydrates the DOM and renders list items from `#nakadb` when opened in the browser.
+2. **Load `naizo.js`:** Include `<script src="./dist/naizo.js" defer></script>` for a local copy, or use one npm-backed CDN URL: `https://cdn.jsdelivr.net/npm/naizo@latest/dist/naizo.js` / `https://unpkg.com/naizo@latest/dist/naizo.js`. Use `dist/naizo.min.js` for the prebuilt minified bundle. `@latest` follows npm releases as caches refresh; use an exact version such as `@0.1.0` for a fixed artifact. CDN URLs require a published npm package/version. Prefer these npm-backed URLs when authoring CDN examples (`D34`, `D38`).
+3. **Standalone Fields (`naizo` or `data-naizo`):** Bind inputs, checkboxes, radios, selects, and `contenteditable="true"` blocks using `naizo="key_name"` (or `data-naizo="key_name"`).
+4. **Dynamic Lists (`naizo-list` or `data-naizo-list`):** For checklists, tables, or cards where the user may add, edit, reorder, or delete items, wrap the container in `naizo-list="list_name"` (or `data-naizo-list="list_name"`) and each repeating row/card in `naizo-item` (or `data-naizo-item`), using `naizo="prop_name"` on fields inside the item and wrapping `<label>` elements around inputs (`EC39`).
+5. **Custom Widgets (`window.Naizo`):** Persist custom JavaScript state via `Naizo.get('key')` and `Naizo.set('key', value)`. Listen to the `'naizo:hydrate'` window event to sync custom UI on load.
+6. **Reading & Updating Files on Disk:** When inspecting or modifying an existing HTML file on disk, read or edit `<script id="naizodb">` directly—`naizo.js` automatically hydrates the DOM and renders list items from `#naizodb` when opened in the browser.
 
 ## Start here — authoritative project memory
 
@@ -51,7 +51,7 @@ Versions in documentation and memory identify feature targets and compatibility 
 
 ## Project memory and closeout
 
-At the end of each state-changing session, independently useful development slice, milestone, or durable handoff, use the repository-scoped [nakajs-closeout](.agents/skills/nakajs-closeout/SKILL.md) skill to reconcile project memory from evidence. Read the skill file directly if the host has not registered repository skills; do not invent a slash command.
+At the end of each state-changing session, independently useful development slice, milestone, or durable handoff, use the repository-scoped [naizo-closeout](.agents/skills/naizo-closeout/SKILL.md) skill to reconcile project memory from evidence. Read the skill file directly if the host has not registered repository skills; do not invent a slash command.
 
 - Update affected contracts and specs in the same change as behavior.
 - Mark tasks or milestones done in `docs/PLAN.md` only when their acceptance criteria and verification evidence are satisfied. Keep blocked and not-run checks explicit.
@@ -75,13 +75,13 @@ Release preparation is explicit: ordinary pushes only check merged release PRs. 
 - `vp install` — install dependencies
 - `vp check` — format (`Oxfmt`), lint (`Oxlint`), and type-check (`tsgolint`) in one pass
 - `vp test` — run Vitest suite (`tests/**/*.test.ts`) after `vp pack`, because tests load generated browser output
-- `vp pack` — build library outputs (`dist/naka.js`, `dist/naka.min.js`, `dist/index.mjs`, `dist/index.d.mts`) via `tsdown`
+- `vp pack` — build library outputs (`dist/naizo.js`, `dist/naizo.min.js`, `dist/index.mjs`, `dist/index.d.mts`) via `tsdown`
 - `vp dev` — start local playground server (`http://localhost:3000`, serving `site/index.html`)
 
 Use proportional verification:
 
 - Documentation edits require link/reference review and whitespace checks (`git diff --check`).
-- Code or behavior changes in `src/`, `dist/naka.js`, `site/index.html`, or `examples/` require `vp check`, `vp test`, and `vp pack` (when `vite-plus` is installed), syntax checks (`node --check dist/naka.js`), and JSON validation of `package.json` and embedded `#nakadb` blocks. Run `vp pack` before `vp test` and before using the local demo. Ordinary source changes do not require a generated bundle commit: explicit release preparation builds `dist/naka.js` in a read-only job and includes it in the Release Please PR (`D35`). The bot-created release PR receives no CI run; the preparation job's build/test verifies its bundle, and tagged publication enforces tracked-bundle freshness. Ordinary CI tests freshly built outputs and deploys GitHub Pages from verified `main` (`D37`). Only the readable bundle is tracked.
+- Code or behavior changes in `src/`, `dist/naizo.js`, `site/index.html`, or `examples/` require `vp check`, `vp test`, and `vp pack` (when `vite-plus` is installed), syntax checks (`node --check dist/naizo.js`), and JSON validation of `package.json` and embedded `#naizodb` blocks. Run `vp pack` before `vp test` and before using the local demo. Ordinary source changes do not require a generated bundle commit: explicit release preparation builds `dist/naizo.js` in a read-only job and includes it in the Release Please PR (`D35`). The bot-created release PR receives no CI run; the preparation job's build/test verifies its bundle, and tagged publication enforces tracked-bundle freshness. Ordinary CI tests freshly built outputs and deploys GitHub Pages from verified `main` (`D37`). Only the readable bundle is tracked.
 - Rerun checks when changes or unresolved concerns justify it, not only at closeout. Do not claim unrun checks passed or treat plans/fixtures as proof of passing behavior.
 
 ## Git workflow

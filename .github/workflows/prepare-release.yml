@@ -91,15 +91,15 @@ jobs:
           vp check
           vp pack
           vp test
-          node --check dist/naka.js
-          node --check dist/naka.min.js
+          node --check dist/naizo.js
+          node --check dist/naizo.min.js
 
       - name: Transfer only the readable release PR bundle
         id: artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-pr-bundle
-          path: dist/naka.js
+          path: dist/naizo.js
           if-no-files-found: error
           retention-days: 1
 
@@ -142,5 +142,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_SHA: ${{ needs.check.outputs.source_sha }}
-          BUNDLE_PATH: ${{ runner.temp }}/release-pr-bundle/naka.js
+          BUNDLE_PATH: ${{ runner.temp }}/release-pr-bundle/naizo.js
         run: vp node .github/release-tools/run.cjs prepare

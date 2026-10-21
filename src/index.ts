@@ -1,23 +1,23 @@
 /**
- * naka.js — Self-Persisting HTML Inner Database (#nakadb) & List Repeater
- * Syncs DOM State & Lists <-> <script id="nakadb" type="application/json"> <-> Local Disk
- * Supports both short `naka` / `naka-*` and HTML5 `data-naka` / `data-naka-*` attributes.
+ * naizo.js — Self-Persisting HTML Built-In Database (#naizodb) & List Repeater
+ * Syncs DOM State & Lists <-> <script id="naizodb" type="application/json"> <-> Local Disk
+ * Supports both short `naizo` / `naizo-*` and HTML5 `data-naizo` / `data-naizo-*` attributes.
  * License: MIT
  */
 
-export interface NakaMeta {
+export interface NaizoMeta {
   updatedAt?: string;
   [key: string]: unknown;
 }
 
-export interface NakaDatabase {
-  _meta: NakaMeta;
+export interface NaizoDatabase {
+  _meta: NaizoMeta;
   fields: Record<string, unknown>;
   lists: Record<string, Array<Record<string, unknown>>>;
   custom: Record<string, unknown>;
 }
 
-export interface NakaAPI {
+export interface NaizoAPI {
   init(): Promise<void>;
   get(key?: string): unknown;
   set(key: string, value: unknown): void;
@@ -38,54 +38,54 @@ interface FileSystemWritableFileStream {
   close(): Promise<void>;
 }
 
-interface NakaFileHandle {
+interface NaizoFileHandle {
   queryPermission(descriptor?: FileSystemPermissionDescriptor): Promise<PermissionState>;
   requestPermission(descriptor?: FileSystemPermissionDescriptor): Promise<PermissionState>;
   createWritable(): Promise<FileSystemWritableFileStream>;
 }
 
-interface NakaHostElement extends HTMLDivElement {
+interface NaizoHostElement extends HTMLDivElement {
   _setDot?: (state: string) => void;
 }
 
 declare global {
   interface Window {
-    Naka: NakaAPI;
-    NakaDB: NakaAPI;
-    showSaveFilePicker?: (options?: Record<string, unknown>) => Promise<NakaFileHandle>;
+    Naizo: NaizoAPI;
+    NaizoDB: NaizoAPI;
+    showSaveFilePicker?: (options?: Record<string, unknown>) => Promise<NaizoFileHandle>;
   }
 }
 
-const DB_ID = 'nakadb';
-const UI_ID = '__nakadb_host__';
-const STYLE_ID = '__nakadb_styles__';
-const IDB_NAME = 'NakaDB_Handles';
+const DB_ID = 'naizodb';
+const UI_ID = '__naizodb_host__';
+const STYLE_ID = '__naizodb_styles__';
+const IDB_NAME = 'NaizoDB_Handles';
 
-const NOT_IGNORED = ':not([naka-ignore]):not([data-naka-ignore])';
+const NOT_IGNORED = ':not([naizo-ignore]):not([data-naizo-ignore])';
 const TRACKED_SELECTOR = [
   'input',
   'textarea',
   'select',
   '[contenteditable="true"]',
-  '[naka]',
-  '[data-naka]',
-  '[data-naka-field]',
+  '[naizo]',
+  '[data-naizo]',
+  '[data-naizo-field]',
 ]
   .map((sel) => `${sel}${NOT_IGNORED}`)
   .join(', ');
 
-const LIST_SELECTOR = '[naka-list], [data-naka-list]';
-const ITEM_SELECTOR = '[naka-item], [data-naka-item]';
-const DIRECT_ITEM_SELECTOR = ':scope > [naka-item], :scope > [data-naka-item]';
-const TEMPLATE_SELECTOR = 'template[naka-template], template[data-naka-template], template';
-const IGNORE_SELECTOR = '[naka-ignore], [data-naka-ignore]';
+const LIST_SELECTOR = '[naizo-list], [data-naizo-list]';
+const ITEM_SELECTOR = '[naizo-item], [data-naizo-item]';
+const DIRECT_ITEM_SELECTOR = ':scope > [naizo-item], :scope > [data-naizo-item]';
+const TEMPLATE_SELECTOR = 'template[naizo-template], template[data-naizo-template], template';
+const IGNORE_SELECTOR = '[naizo-ignore], [data-naizo-ignore]';
 
 function getPageKey(): string {
-  return 'nakadb_state_' + (typeof location !== 'undefined' ? location.pathname : '/');
+  return 'naizodb_state_' + (typeof location !== 'undefined' ? location.pathname : '/');
 }
 
 function getSnapshotKey(): string {
-  return 'nakadb_disk_hash_' + (typeof location !== 'undefined' ? location.pathname : '/');
+  return 'naizodb_disk_hash_' + (typeof location !== 'undefined' ? location.pathname : '/');
 }
 
 function getAttr(el: Element, shortName: string): string | null {
@@ -106,7 +106,7 @@ function escapeSelectorAttr(val: string): string {
 function findListElement(listName: string): HTMLElement | null {
   const escaped = escapeSelectorAttr(listName);
   return document.querySelector<HTMLElement>(
-    `[naka-list="${escaped}"], [data-naka-list="${escaped}"]`,
+    `[naizo-list="${escaped}"], [data-naizo-list="${escaped}"]`,
   );
 }
 
@@ -119,7 +119,7 @@ function toTextValue(val: unknown): string {
   return JSON.stringify(val);
 }
 
-let fileHandle: NakaFileHandle | null = null;
+let fileHandle: NaizoFileHandle | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let statusEl: HTMLElement | null = null;
 let actionBtn: HTMLButtonElement | null = null;
@@ -140,11 +140,11 @@ function idbStore(mode: IDBTransactionMode, callback: (store: IDBObjectStore) =>
   }
 }
 
-function saveHandleToIDB(handle: NakaFileHandle): void {
+function saveHandleToIDB(handle: NaizoFileHandle): void {
   idbStore('readwrite', (store) => store.put(handle, getPageKey()));
 }
 
-function loadHandleFromIDB(): Promise<NakaFileHandle | null> {
+function loadHandleFromIDB(): Promise<NaizoFileHandle | null> {
   return new Promise((resolve) => {
     try {
       if (typeof indexedDB === 'undefined') {
@@ -156,7 +156,7 @@ function loadHandleFromIDB(): Promise<NakaFileHandle | null> {
       req.onsuccess = () => {
         const tx = req.result.transaction('handles', 'readonly');
         const getReq = tx.objectStore('handles').get(getPageKey());
-        getReq.onsuccess = () => resolve((getReq.result as NakaFileHandle | undefined) ?? null);
+        getReq.onsuccess = () => resolve((getReq.result as NaizoFileHandle | undefined) ?? null);
         getReq.onerror = () => resolve(null);
       };
       req.onerror = () => resolve(null);
@@ -166,7 +166,7 @@ function loadHandleFromIDB(): Promise<NakaFileHandle | null> {
   });
 }
 
-// --- 2. Ensure <script id="nakadb" type="application/json"> Exists ---
+// --- 2. Ensure <script id="naizodb" type="application/json"> Exists ---
 export function getDbScript(): HTMLScriptElement {
   let el = document.getElementById(DB_ID) as HTMLScriptElement | null;
   if (!el) {
@@ -179,10 +179,10 @@ export function getDbScript(): HTMLScriptElement {
   return el;
 }
 
-export function parseDbScript(): NakaDatabase {
+export function parseDbScript(): NaizoDatabase {
   try {
     const raw = getDbScript().textContent?.trim() ?? '';
-    const parsed = raw ? (JSON.parse(raw) as Partial<NakaDatabase>) : {};
+    const parsed = raw ? (JSON.parse(raw) as Partial<NaizoDatabase>) : {};
     return {
       _meta: parsed._meta && typeof parsed._meta === 'object' ? parsed._meta : {},
       fields: parsed.fields && typeof parsed.fields === 'object' ? parsed.fields : {},
@@ -190,15 +190,15 @@ export function parseDbScript(): NakaDatabase {
       custom: parsed.custom && typeof parsed.custom === 'object' ? parsed.custom : {},
     };
   } catch (e) {
-    console.warn('[naka.js] Invalid JSON in #nakadb, resetting.', e);
+    console.warn('[naizo.js] Invalid JSON in #naizodb, resetting.', e);
     return { _meta: {}, fields: {}, lists: {}, custom: {} };
   }
 }
 
-function parseCachedState(raw: string | null): NakaDatabase | null {
+function parseCachedState(raw: string | null): NaizoDatabase | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as Partial<NakaDatabase>;
+    const parsed = JSON.parse(raw) as Partial<NaizoDatabase>;
     if (!parsed || typeof parsed !== 'object') return null;
     return {
       _meta: parsed._meta && typeof parsed._meta === 'object' ? parsed._meta : {},
@@ -207,7 +207,7 @@ function parseCachedState(raw: string | null): NakaDatabase | null {
       custom: parsed.custom && typeof parsed.custom === 'object' ? parsed.custom : {},
     };
   } catch (e) {
-    console.warn('[naka.js] Invalid JSON in localStorage cache, ignoring.', e);
+    console.warn('[naizo.js] Invalid JSON in localStorage cache, ignoring.', e);
     return null;
   }
 }
@@ -215,8 +215,8 @@ function parseCachedState(raw: string | null): NakaDatabase | null {
 // --- 3. Element Value Helpers (Read, Write & Attribute Baking) ---
 function getElementKey(el: Element, idx: number): string {
   return (
-    getAttr(el, 'naka') ||
-    el.getAttribute('data-naka-field') ||
+    getAttr(el, 'naizo') ||
+    el.getAttribute('data-naizo-field') ||
     el.id ||
     el.getAttribute('name') ||
     `field_${idx}`
@@ -309,7 +309,7 @@ function clearElementValue(el: Element): void {
   }
 }
 
-// --- 4. Declarative List Repeater Engine ([naka-list] / [data-naka-list]) ---
+// --- 4. Declarative List Repeater Engine ([naizo-list] / [data-naizo-list]) ---
 function ensureListBlueprints(): void {
   document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
     let tpl = listEl.querySelector<HTMLTemplateElement>(TEMPLATE_SELECTOR);
@@ -321,39 +321,39 @@ function ensureListBlueprints(): void {
       cleanClone.querySelectorAll(TRACKED_SELECTOR).forEach(clearElementValue);
 
       tpl = document.createElement('template');
-      tpl.setAttribute('naka-template', '');
+      tpl.setAttribute('naizo-template', '');
       tpl.content.appendChild(cleanClone);
       listEl.prepend(tpl);
-    } else if (!hasAttr(tpl, 'naka-template')) {
-      tpl.setAttribute('naka-template', '');
+    } else if (!hasAttr(tpl, 'naizo-template')) {
+      tpl.setAttribute('naizo-template', '');
     }
   });
 }
 
 function decorateListControls(listEl: HTMLElement): void {
-  if (hasAttr(listEl, 'naka-no-controls')) return;
-  const listName = getAttr(listEl, 'naka-list');
+  if (hasAttr(listEl, 'naizo-no-controls')) return;
+  const listName = getAttr(listEl, 'naizo-list');
   if (!listName) return;
 
   listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
-    if (itemEl.querySelector('[naka-remove], [data-naka-remove]')) return;
+    if (itemEl.querySelector('[naizo-remove], [data-naizo-remove]')) return;
     const tools = document.createElement('span');
-    tools.className = 'naka-item-tools';
-    tools.setAttribute('naka-ignore', 'true');
+    tools.className = 'naizo-item-tools';
+    tools.setAttribute('naizo-ignore', 'true');
     tools.innerHTML = `
-      <button type="button" naka-move="up" title="Move up">↑</button>
-      <button type="button" naka-move="down" title="Move down">↓</button>
-      <button type="button" naka-remove title="Delete item">×</button>
+      <button type="button" naizo-move="up" title="Move up">↑</button>
+      <button type="button" naizo-move="down" title="Move down">↓</button>
+      <button type="button" naizo-remove title="Delete item">×</button>
     `;
     itemEl.appendChild(tools);
   });
 
   const escaped = escapeSelectorAttr(listName);
-  if (!document.querySelector(`[naka-add="${escaped}"], [data-naka-add="${escaped}"]`)) {
+  if (!document.querySelector(`[naizo-add="${escaped}"], [data-naizo-add="${escaped}"]`)) {
     const addWrap = document.createElement('div');
-    addWrap.className = 'naka-list-footer';
-    addWrap.setAttribute('naka-ignore', 'true');
-    addWrap.innerHTML = `<button type="button" class="naka-add-btn" naka-add="${listName}">+ Add Item</button>`;
+    addWrap.className = 'naizo-list-footer';
+    addWrap.setAttribute('naizo-ignore', 'true');
+    addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}">+ Add Item</button>`;
     listEl.insertAdjacentElement('afterend', addWrap);
   }
 }
@@ -389,7 +389,7 @@ function renderListItems(listEl: HTMLElement, itemsArray: Array<Record<string, u
 }
 
 // --- 5. Full DOM <-> JSON Synchronization ---
-export function captureDomToState(): { db: NakaDatabase; formatted: string } {
+export function captureDomToState(): { db: NaizoDatabase; formatted: string } {
   const db = parseDbScript();
   db._meta.updatedAt = new Date().toISOString();
 
@@ -403,7 +403,7 @@ export function captureDomToState(): { db: NakaDatabase; formatted: string } {
 
   db.lists = {};
   document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
-    const listName = getAttr(listEl, 'naka-list');
+    const listName = getAttr(listEl, 'naizo-list');
     if (!listName) return;
     const items: Array<Record<string, unknown>> = [];
     listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
@@ -423,7 +423,7 @@ export function captureDomToState(): { db: NakaDatabase; formatted: string } {
   return { db, formatted };
 }
 
-export function hydrateDomFromState(db: NakaDatabase | null): void {
+export function hydrateDomFromState(db: NaizoDatabase | null): void {
   if (!db) return;
 
   if (db.fields) {
@@ -435,7 +435,7 @@ export function hydrateDomFromState(db: NakaDatabase | null): void {
   }
 
   document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
-    const listName = getAttr(listEl, 'naka-list');
+    const listName = getAttr(listEl, 'naizo-list');
     if (listName && db.lists && Array.isArray(db.lists[listName])) {
       renderListItems(listEl, db.lists[listName]);
     } else {
@@ -444,7 +444,7 @@ export function hydrateDomFromState(db: NakaDatabase | null): void {
   });
 
   captureDomToState();
-  window.dispatchEvent(new CustomEvent('naka:hydrate', { detail: db }));
+  window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: db }));
 }
 
 // --- 6. Clean Serialization (Strips Runtime UI Before Disk Save) ---
@@ -483,7 +483,7 @@ async function writeToDisk(): Promise<boolean> {
     );
     return true;
   } catch (err) {
-    console.warn('[naka.js] Disk write failed:', err);
+    console.warn('[naizo.js] Disk write failed:', err);
     updateUi('cached', 'Cached in Browser · Link Disk');
     return false;
   }
@@ -544,28 +544,28 @@ function mountUi(): void {
   if (!document.getElementById(STYLE_ID)) {
     const style = document.createElement('style');
     style.id = STYLE_ID;
-    style.setAttribute('naka-ignore', 'true');
+    style.setAttribute('naizo-ignore', 'true');
     style.textContent = `
-      [naka-item], [data-naka-item] { position: relative; }
-      .naka-item-tools {
+      [naizo-item], [data-naizo-item] { position: relative; }
+      .naizo-item-tools {
         display: inline-flex; gap: 3px; margin-left: auto; padding-left: 8px; opacity: 0.3;
         transition: opacity 0.15s; vertical-align: middle;
       }
-      [naka-item]:hover .naka-item-tools, [data-naka-item]:hover .naka-item-tools { opacity: 1; }
-      .naka-item-tools button {
+      [naizo-item]:hover .naizo-item-tools, [data-naizo-item]:hover .naizo-item-tools { opacity: 1; }
+      .naizo-item-tools button {
         background: transparent; border: 1px solid #cbd5e1; color: #475569;
         border-radius: 4px; padding: 1px 6px; font: 11px/1.4 system-ui; cursor: pointer;
       }
-      .naka-item-tools button:hover { background: #f1f5f9; color: #0f172a; }
-      .naka-item-tools button[naka-remove]:hover, .naka-item-tools button[data-naka-remove]:hover {
+      .naizo-item-tools button:hover { background: #f1f5f9; color: #0f172a; }
+      .naizo-item-tools button[naizo-remove]:hover, .naizo-item-tools button[data-naizo-remove]:hover {
         background: #fee2e2; color: #b91c1c; border-color: #fca5a5;
       }
-      .naka-list-footer { margin: 10px 0 16px; }
-      .naka-add-btn {
+      .naizo-list-footer { margin: 10px 0 16px; }
+      .naizo-add-btn {
         background: #f8fafc; border: 1px dashed #94a3b8; color: #334155;
         border-radius: 6px; padding: 6px 12px; font: 500 12px system-ui; cursor: pointer;
       }
-      .naka-add-btn:hover { background: #f1f5f9; border-color: #64748b; color: #0f172a; }
+      .naizo-add-btn:hover { background: #f1f5f9; border-color: #64748b; color: #0f172a; }
     `;
     document.head.appendChild(style);
   }
@@ -573,9 +573,9 @@ function mountUi(): void {
   const existingHost = document.getElementById(UI_ID);
   if (existingHost) existingHost.remove();
 
-  const host = document.createElement('div') as NakaHostElement;
+  const host = document.createElement('div') as NaizoHostElement;
   host.id = UI_ID;
-  host.setAttribute('naka-ignore', 'true');
+  host.setAttribute('naizo-ignore', 'true');
   const shadow = host.attachShadow({ mode: 'open' });
 
   shadow.innerHTML = `
@@ -598,9 +598,9 @@ function mountUi(): void {
     </style>
     <div class="pill">
       <span class="dot" id="dot"></span>
-      <span id="status">naka.js Ready</span>
+      <span id="status">naizo.js Ready</span>
       <button id="action">Link Disk</button>
-      <button id="copy" title="Copy #nakadb JSON state">{ } Copy</button>
+      <button id="copy" title="Copy #naizodb JSON state">{ } Copy</button>
     </div>
   `;
 
@@ -633,7 +633,7 @@ function mountUi(): void {
 function updateUi(state: string, message: string): void {
   if (!statusEl || !actionBtn) return;
   statusEl.textContent = message;
-  (document.getElementById(UI_ID) as NakaHostElement | null)?._setDot?.(state);
+  (document.getElementById(UI_ID) as NaizoHostElement | null)?._setDot?.(state);
   if (state === 'saved') {
     actionBtn.style.display = 'none';
   } else if (state === 'needs-permission') {
@@ -650,14 +650,14 @@ function handleListClicks(e: Event): void {
   const target = e.target as Element | null;
   if (!target || typeof target.closest !== 'function') return;
 
-  const addBtn = target.closest('[naka-add], [data-naka-add]');
+  const addBtn = target.closest('[naizo-add], [data-naizo-add]');
   if (addBtn) {
-    const listName = getAttr(addBtn, 'naka-add');
-    if (listName) Naka.addItem(listName, {});
+    const listName = getAttr(addBtn, 'naizo-add');
+    if (listName) Naizo.addItem(listName, {});
     return;
   }
 
-  const removeBtn = target.closest('[naka-remove], [data-naka-remove]');
+  const removeBtn = target.closest('[naizo-remove], [data-naizo-remove]');
   if (removeBtn) {
     const itemEl = removeBtn.closest(ITEM_SELECTOR);
     if (itemEl) {
@@ -667,26 +667,26 @@ function handleListClicks(e: Event): void {
     return;
   }
 
-  const moveBtn = target.closest('[naka-move], [data-naka-move]');
+  const moveBtn = target.closest('[naizo-move], [data-naizo-move]');
   if (moveBtn) {
-    const dir = getAttr(moveBtn, 'naka-move');
+    const dir = getAttr(moveBtn, 'naizo-move');
     const itemEl = moveBtn.closest(ITEM_SELECTOR);
     if (!itemEl || !itemEl.parentNode) return;
     const prev = itemEl.previousElementSibling;
     const next = itemEl.nextElementSibling;
-    if (dir === 'up' && prev && hasAttr(prev, 'naka-item')) {
+    if (dir === 'up' && prev && hasAttr(prev, 'naizo-item')) {
       itemEl.parentNode.insertBefore(itemEl, prev);
       triggerSave();
-    } else if (dir === 'down' && next && hasAttr(next, 'naka-item')) {
+    } else if (dir === 'down' && next && hasAttr(next, 'naizo-item')) {
       itemEl.parentNode.insertBefore(next, itemEl);
       triggerSave();
     }
   }
 }
 
-// --- 10. Public API (window.Naka & window.NakaDB alias) ---
-export const Naka: NakaAPI = {
-  init: initNaka,
+// --- 10. Public API (window.Naizo & window.NaizoDB alias) ---
+export const Naizo: NaizoAPI = {
+  init: initNaizo,
   get(key?: string): unknown {
     const db = parseDbScript();
     return key ? db.custom[key] : db;
@@ -737,10 +737,10 @@ export const Naka: NakaAPI = {
   exportHTML: getCleanHtmlString,
 };
 
-export const NakaDB: NakaAPI = Naka;
+export const NaizoDB: NaizoAPI = Naizo;
 
 // --- 11. Boot & Smart Conflict Resolution (Disk vs Browser Cache) ---
-export async function initNaka(): Promise<void> {
+export async function initNaizo(): Promise<void> {
   mountUi();
   ensureListBlueprints();
 

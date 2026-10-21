@@ -1,4 +1,4 @@
-# nakajs — Decision Log (ADR-style)
+# naizo — Decision Log (ADR-style)
 
 Record durable architectural and owner decisions and their rationale. Allocate the next `Dxx` ID for new decisions; supersede an old decision explicitly rather than silently rewriting its history.
 
@@ -283,6 +283,8 @@ Accepted by the owner on 2026-10-19. Supersedes `D17` / `D33` / `D34`'s requirem
 
 ## D36 — Retain the unscoped package name and request npm review
 
+Superseded by `D38`, which renames the project, package, and runtime contracts from `nakajs` / `naka.js` to `naizo` / `naizo.js`.
+
 Accepted by the owner on 2026-10-19 after npm rejected `nakajs` as too similar to `kafkajs`. Retain the intended `nakajs` package identity and its CDN URLs; request npm Support review before considering a rename. This does not supersede the release automation or authentication decisions.
 
 - A registry lookup returning `E404` does not establish permission to register a name; npm can enforce similarity policy when publication is attempted. Authentication success does not establish publication success.
@@ -298,3 +300,13 @@ Accepted by the owner on 2026-10-21 after a CI/CD review. Refines `D28`, `D29`, 
 - **Trim release-job redundancy.** Release tooling tests run in CI only; the preparation bundle and tagged release build jobs verify artifacts. The npm publishing job uses the npm bundled with pinned Node 24.22.0 (npm 11.x, above the 11.5.1 OIDC minimum) instead of installing a floating `npm@11` while holding OIDC identity. The tagged workflow's `tag` input has no default.
 - **Reduce release-tool coupling.** Recognize `Release-As:` footer requests with the existing stable-version regex instead of Release Please's internal commit parser; Release Please still decides whether a footer changes the version. Share the stable-tag pattern, release branch name, and npm bootstrap existence check from the dependency-free `github.cjs` helper.
 - **Draft stale release PRs.** Because no CI runs on the release PR, nothing prevented merging a PR prepared before `main` advanced; its stale bundle then failed tagged publication after the tag existed (`EC45`). On pushes that create no release, preparation compares `main` with the release branch and converts a behind PR to draft using the existing `pull-requests: write` permission. Only an explicit refresh that passes the source guards marks it ready. This keeps explicit preparation (content is never refreshed by ordinary pushes) and needs no PAT, status check, or branch protection. Manually readying a drafted PR is a deliberate override; recovery then requires a new version rather than moving the tag.
+
+## D38 — Rename project, package, and runtime contracts from `nakajs` / `naka.js` to `naizo` / `naizo.js`
+
+Accepted by the owner on 2026-10-21. Supersedes `D36` and updates the naming across `D01`–`D37` while preserving all architectural, persistence, build, and release invariants.
+
+- **Name & Japanese dual meaning:** Rename the project to **`naizo`** (`naizo.js`), from the Japanese **_naizō_ (ないぞう)**, uniting its two homophonous meanings in the README and product documentation:
+  - **内蔵 (_naizō_ — built-in / embedded / housed within):** the canonical in-file JSON micro-database `<script id="naizodb" type="application/json">` embedded inside `<head>`.
+  - **内臓 (_naizō_ — internal organs / viscera):** the reactive runtime bindings, list repeater, and two-way disk synchronization that give static HTML markup living internal organs.
+- **Package, repository, and bundle identity:** Set npm package name to `naizo` (`https://github.com/nickosh/naizo`), tracked readable browser bundle to `dist/naizo.js`, minified bundle to `dist/naizo.min.js`, and npm-backed CDN URLs to `https://cdn.jsdelivr.net/npm/naizo@latest/dist/naizo.js` and `https://unpkg.com/naizo@latest/dist/naizo.js`.
+- **Runtime, DOM, and API contracts:** Rename `#nakadb` to `#naizodb`, attributes `naka` / `naka-*` and `data-naka` / `data-naka-*` to `naizo` / `naizo-*` and `data-naizo` / `data-naizo-*`, global API `window.Naka` / `window.NakaDB` (`initNaka`, `NakaDatabase`, `NakaAPI`, `naka:hydrate`) to `window.Naizo` / `window.NaizoDB` (`initNaizo`, `NaizoDatabase`, `NaizoAPI`, `naizo:hydrate`), runtime DOM/storage identifiers (`__naizodb_host__`, `__naizodb_styles__`, `NaizoDB_Handles`, `naizodb_state_*`, `naizodb_disk_hash_*`), and the maintainer closeout skill to `.agents/skills/naizo-closeout/SKILL.md`.

@@ -1,29 +1,29 @@
 (function() {
 	//#region src/index.ts
-	const DB_ID = "nakadb";
-	const UI_ID = "__nakadb_host__";
-	const STYLE_ID = "__nakadb_styles__";
-	const IDB_NAME = "NakaDB_Handles";
-	const NOT_IGNORED = ":not([naka-ignore]):not([data-naka-ignore])";
+	const DB_ID = "naizodb";
+	const UI_ID = "__naizodb_host__";
+	const STYLE_ID = "__naizodb_styles__";
+	const IDB_NAME = "NaizoDB_Handles";
+	const NOT_IGNORED = ":not([naizo-ignore]):not([data-naizo-ignore])";
 	const TRACKED_SELECTOR = [
 		"input",
 		"textarea",
 		"select",
 		"[contenteditable=\"true\"]",
-		"[naka]",
-		"[data-naka]",
-		"[data-naka-field]"
+		"[naizo]",
+		"[data-naizo]",
+		"[data-naizo-field]"
 	].map((sel) => `${sel}${NOT_IGNORED}`).join(", ");
-	const LIST_SELECTOR = "[naka-list], [data-naka-list]";
-	const ITEM_SELECTOR = "[naka-item], [data-naka-item]";
-	const DIRECT_ITEM_SELECTOR = ":scope > [naka-item], :scope > [data-naka-item]";
-	const TEMPLATE_SELECTOR = "template[naka-template], template[data-naka-template], template";
-	const IGNORE_SELECTOR = "[naka-ignore], [data-naka-ignore]";
+	const LIST_SELECTOR = "[naizo-list], [data-naizo-list]";
+	const ITEM_SELECTOR = "[naizo-item], [data-naizo-item]";
+	const DIRECT_ITEM_SELECTOR = ":scope > [naizo-item], :scope > [data-naizo-item]";
+	const TEMPLATE_SELECTOR = "template[naizo-template], template[data-naizo-template], template";
+	const IGNORE_SELECTOR = "[naizo-ignore], [data-naizo-ignore]";
 	function getPageKey() {
-		return "nakadb_state_" + (typeof location !== "undefined" ? location.pathname : "/");
+		return "naizodb_state_" + (typeof location !== "undefined" ? location.pathname : "/");
 	}
 	function getSnapshotKey() {
-		return "nakadb_disk_hash_" + (typeof location !== "undefined" ? location.pathname : "/");
+		return "naizodb_disk_hash_" + (typeof location !== "undefined" ? location.pathname : "/");
 	}
 	function getAttr(el, shortName) {
 		return el.getAttribute(shortName) ?? el.getAttribute(`data-${shortName}`);
@@ -37,7 +37,7 @@
 	}
 	function findListElement(listName) {
 		const escaped = escapeSelectorAttr(listName);
-		return document.querySelector(`[naka-list="${escaped}"], [data-naka-list="${escaped}"]`);
+		return document.querySelector(`[naizo-list="${escaped}"], [data-naizo-list="${escaped}"]`);
 	}
 	function toTextValue(val) {
 		if (val == null) return "";
@@ -105,7 +105,7 @@
 				custom: parsed.custom && typeof parsed.custom === "object" ? parsed.custom : {}
 			};
 		} catch (e) {
-			console.warn("[naka.js] Invalid JSON in #nakadb, resetting.", e);
+			console.warn("[naizo.js] Invalid JSON in #naizodb, resetting.", e);
 			return {
 				_meta: {},
 				fields: {},
@@ -126,12 +126,12 @@
 				custom: parsed.custom && typeof parsed.custom === "object" ? parsed.custom : {}
 			};
 		} catch (e) {
-			console.warn("[naka.js] Invalid JSON in localStorage cache, ignoring.", e);
+			console.warn("[naizo.js] Invalid JSON in localStorage cache, ignoring.", e);
 			return null;
 		}
 	}
 	function getElementKey(el, idx) {
-		return getAttr(el, "naka") || el.getAttribute("data-naka-field") || el.id || el.getAttribute("name") || `field_${idx}`;
+		return getAttr(el, "naizo") || el.getAttribute("data-naizo-field") || el.id || el.getAttribute("name") || `field_${idx}`;
 	}
 	function readAndBakeElement(el) {
 		if (el instanceof HTMLInputElement) {
@@ -207,34 +207,34 @@
 				cleanClone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
 				cleanClone.querySelectorAll(TRACKED_SELECTOR).forEach(clearElementValue);
 				tpl = document.createElement("template");
-				tpl.setAttribute("naka-template", "");
+				tpl.setAttribute("naizo-template", "");
 				tpl.content.appendChild(cleanClone);
 				listEl.prepend(tpl);
-			} else if (!hasAttr(tpl, "naka-template")) tpl.setAttribute("naka-template", "");
+			} else if (!hasAttr(tpl, "naizo-template")) tpl.setAttribute("naizo-template", "");
 		});
 	}
 	function decorateListControls(listEl) {
-		if (hasAttr(listEl, "naka-no-controls")) return;
-		const listName = getAttr(listEl, "naka-list");
+		if (hasAttr(listEl, "naizo-no-controls")) return;
+		const listName = getAttr(listEl, "naizo-list");
 		if (!listName) return;
 		listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
-			if (itemEl.querySelector("[naka-remove], [data-naka-remove]")) return;
+			if (itemEl.querySelector("[naizo-remove], [data-naizo-remove]")) return;
 			const tools = document.createElement("span");
-			tools.className = "naka-item-tools";
-			tools.setAttribute("naka-ignore", "true");
+			tools.className = "naizo-item-tools";
+			tools.setAttribute("naizo-ignore", "true");
 			tools.innerHTML = `
-      <button type="button" naka-move="up" title="Move up">↑</button>
-      <button type="button" naka-move="down" title="Move down">↓</button>
-      <button type="button" naka-remove title="Delete item">×</button>
+      <button type="button" naizo-move="up" title="Move up">↑</button>
+      <button type="button" naizo-move="down" title="Move down">↓</button>
+      <button type="button" naizo-remove title="Delete item">×</button>
     `;
 			itemEl.appendChild(tools);
 		});
 		const escaped = escapeSelectorAttr(listName);
-		if (!document.querySelector(`[naka-add="${escaped}"], [data-naka-add="${escaped}"]`)) {
+		if (!document.querySelector(`[naizo-add="${escaped}"], [data-naizo-add="${escaped}"]`)) {
 			const addWrap = document.createElement("div");
-			addWrap.className = "naka-list-footer";
-			addWrap.setAttribute("naka-ignore", "true");
-			addWrap.innerHTML = `<button type="button" class="naka-add-btn" naka-add="${listName}">+ Add Item</button>`;
+			addWrap.className = "naizo-list-footer";
+			addWrap.setAttribute("naizo-ignore", "true");
+			addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}">+ Add Item</button>`;
 			listEl.insertAdjacentElement("afterend", addWrap);
 		}
 	}
@@ -270,7 +270,7 @@
 		});
 		db.lists = {};
 		document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
-			const listName = getAttr(listEl, "naka-list");
+			const listName = getAttr(listEl, "naizo-list");
 			if (!listName) return;
 			const items = [];
 			listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
@@ -299,12 +299,12 @@
 			if (key in db.fields) writeElementValue(el, db.fields[key]);
 		});
 		document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
-			const listName = getAttr(listEl, "naka-list");
+			const listName = getAttr(listEl, "naizo-list");
 			if (listName && db.lists && Array.isArray(db.lists[listName])) renderListItems(listEl, db.lists[listName]);
 			else decorateListControls(listEl);
 		});
 		captureDomToState();
-		window.dispatchEvent(new CustomEvent("naka:hydrate", { detail: db }));
+		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: db }));
 	}
 	function getCleanHtmlString() {
 		captureDomToState();
@@ -331,7 +331,7 @@
 			}));
 			return true;
 		} catch (err) {
-			console.warn("[naka.js] Disk write failed:", err);
+			console.warn("[naizo.js] Disk write failed:", err);
 			updateUi("cached", "Cached in Browser · Link Disk");
 			return false;
 		}
@@ -382,28 +382,28 @@
 		if (!document.getElementById(STYLE_ID)) {
 			const style = document.createElement("style");
 			style.id = STYLE_ID;
-			style.setAttribute("naka-ignore", "true");
+			style.setAttribute("naizo-ignore", "true");
 			style.textContent = `
-      [naka-item], [data-naka-item] { position: relative; }
-      .naka-item-tools {
+      [naizo-item], [data-naizo-item] { position: relative; }
+      .naizo-item-tools {
         display: inline-flex; gap: 3px; margin-left: auto; padding-left: 8px; opacity: 0.3;
         transition: opacity 0.15s; vertical-align: middle;
       }
-      [naka-item]:hover .naka-item-tools, [data-naka-item]:hover .naka-item-tools { opacity: 1; }
-      .naka-item-tools button {
+      [naizo-item]:hover .naizo-item-tools, [data-naizo-item]:hover .naizo-item-tools { opacity: 1; }
+      .naizo-item-tools button {
         background: transparent; border: 1px solid #cbd5e1; color: #475569;
         border-radius: 4px; padding: 1px 6px; font: 11px/1.4 system-ui; cursor: pointer;
       }
-      .naka-item-tools button:hover { background: #f1f5f9; color: #0f172a; }
-      .naka-item-tools button[naka-remove]:hover, .naka-item-tools button[data-naka-remove]:hover {
+      .naizo-item-tools button:hover { background: #f1f5f9; color: #0f172a; }
+      .naizo-item-tools button[naizo-remove]:hover, .naizo-item-tools button[data-naizo-remove]:hover {
         background: #fee2e2; color: #b91c1c; border-color: #fca5a5;
       }
-      .naka-list-footer { margin: 10px 0 16px; }
-      .naka-add-btn {
+      .naizo-list-footer { margin: 10px 0 16px; }
+      .naizo-add-btn {
         background: #f8fafc; border: 1px dashed #94a3b8; color: #334155;
         border-radius: 6px; padding: 6px 12px; font: 500 12px system-ui; cursor: pointer;
       }
-      .naka-add-btn:hover { background: #f1f5f9; border-color: #64748b; color: #0f172a; }
+      .naizo-add-btn:hover { background: #f1f5f9; border-color: #64748b; color: #0f172a; }
     `;
 			document.head.appendChild(style);
 		}
@@ -411,7 +411,7 @@
 		if (existingHost) existingHost.remove();
 		const host = document.createElement("div");
 		host.id = UI_ID;
-		host.setAttribute("naka-ignore", "true");
+		host.setAttribute("naizo-ignore", "true");
 		const shadow = host.attachShadow({ mode: "open" });
 		shadow.innerHTML = `
     <style>
@@ -433,9 +433,9 @@
     </style>
     <div class="pill">
       <span class="dot" id="dot"></span>
-      <span id="status">naka.js Ready</span>
+      <span id="status">naizo.js Ready</span>
       <button id="action">Link Disk</button>
-      <button id="copy" title="Copy #nakadb JSON state">{ } Copy</button>
+      <button id="copy" title="Copy #naizodb JSON state">{ } Copy</button>
     </div>
   `;
 		statusEl = shadow.getElementById("status");
@@ -474,13 +474,13 @@
 	function handleListClicks(e) {
 		const target = e.target;
 		if (!target || typeof target.closest !== "function") return;
-		const addBtn = target.closest("[naka-add], [data-naka-add]");
+		const addBtn = target.closest("[naizo-add], [data-naizo-add]");
 		if (addBtn) {
-			const listName = getAttr(addBtn, "naka-add");
-			if (listName) Naka.addItem(listName, {});
+			const listName = getAttr(addBtn, "naizo-add");
+			if (listName) Naizo.addItem(listName, {});
 			return;
 		}
-		const removeBtn = target.closest("[naka-remove], [data-naka-remove]");
+		const removeBtn = target.closest("[naizo-remove], [data-naizo-remove]");
 		if (removeBtn) {
 			const itemEl = removeBtn.closest(ITEM_SELECTOR);
 			if (itemEl) {
@@ -489,24 +489,24 @@
 			}
 			return;
 		}
-		const moveBtn = target.closest("[naka-move], [data-naka-move]");
+		const moveBtn = target.closest("[naizo-move], [data-naizo-move]");
 		if (moveBtn) {
-			const dir = getAttr(moveBtn, "naka-move");
+			const dir = getAttr(moveBtn, "naizo-move");
 			const itemEl = moveBtn.closest(ITEM_SELECTOR);
 			if (!itemEl || !itemEl.parentNode) return;
 			const prev = itemEl.previousElementSibling;
 			const next = itemEl.nextElementSibling;
-			if (dir === "up" && prev && hasAttr(prev, "naka-item")) {
+			if (dir === "up" && prev && hasAttr(prev, "naizo-item")) {
 				itemEl.parentNode.insertBefore(itemEl, prev);
 				triggerSave();
-			} else if (dir === "down" && next && hasAttr(next, "naka-item")) {
+			} else if (dir === "down" && next && hasAttr(next, "naizo-item")) {
 				itemEl.parentNode.insertBefore(next, itemEl);
 				triggerSave();
 			}
 		}
 	}
-	const Naka = {
-		init: initNaka,
+	const Naizo = {
+		init: initNaizo,
 		get(key) {
 			const db = parseDbScript();
 			return key ? db.custom[key] : db;
@@ -553,8 +553,8 @@
 		save: triggerSave,
 		exportHTML: getCleanHtmlString
 	};
-	const NakaDB = Naka;
-	async function initNaka() {
+	const NaizoDB = Naizo;
+	async function initNaizo() {
 		mountUi();
 		ensureListBlueprints();
 		const pageKey = getPageKey();
@@ -587,8 +587,8 @@
 	//#endregion
 	//#region src/iife.ts
 	/**
-	* naka.js — Browser IIFE Entrypoint
-	* Attaches window.Naka / window.NakaDB and auto-initializes unless opted out via data-naka-manual / naka-manual.
+	* naizo.js — Browser IIFE Entrypoint
+	* Attaches window.Naizo / window.NaizoDB and auto-initializes unless opted out via data-naizo-manual / naizo-manual.
 	* License: MIT
 	*/
 	function hasManualOptOut() {
@@ -596,13 +596,13 @@
 		const docEl = document.documentElement;
 		const bodyEl = document.body;
 		const currentScript = document.currentScript;
-		return Boolean(docEl?.hasAttribute("data-naka-manual") || docEl?.hasAttribute("naka-manual") || bodyEl?.hasAttribute("data-naka-manual") || bodyEl?.hasAttribute("naka-manual") || currentScript?.hasAttribute("data-naka-manual") || currentScript?.hasAttribute("naka-manual") || document.querySelector("script[data-naka-manual], script[naka-manual]"));
+		return Boolean(docEl?.hasAttribute("data-naizo-manual") || docEl?.hasAttribute("naizo-manual") || bodyEl?.hasAttribute("data-naizo-manual") || bodyEl?.hasAttribute("naizo-manual") || currentScript?.hasAttribute("data-naizo-manual") || currentScript?.hasAttribute("naizo-manual") || document.querySelector("script[data-naizo-manual], script[naizo-manual]"));
 	}
 	if (typeof window !== "undefined" && typeof document !== "undefined") {
-		window.Naka = Naka;
-		window.NakaDB = NakaDB;
+		window.Naizo = Naizo;
+		window.NaizoDB = NaizoDB;
 		const start = () => {
-			if (!hasManualOptOut()) initNaka();
+			if (!hasManualOptOut()) initNaizo();
 		};
 		if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
 		else start();

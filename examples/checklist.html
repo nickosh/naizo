@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Release Checklist — naka.js Example</title>
+    <title>Release Checklist — naizo.js Example</title>
 
-    <!-- 1. Canonical #nakadb JSON state (readable & editable by humans and AI agents) -->
-    <script id="nakadb" type="application/json">
+    <!-- 1. Canonical #naizodb JSON state (readable & editable by humans and AI agents) -->
+    <script id="naizodb" type="application/json">
       {
         "_meta": {},
         "fields": {
@@ -39,9 +39,9 @@
       }
     </script>
 
-    <!-- 2. Load naka.js locally or via CDN:
-         <script src="https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js" defer></script> -->
-    <script src="../dist/naka.js" defer></script>
+    <!-- 2. Load naizo.js locally or via CDN:
+         <script src="https://cdn.jsdelivr.net/npm/naizo@latest/dist/naizo.js" defer></script> -->
+    <script src="../dist/naizo.js" defer></script>
 
     <style>
       :root {
@@ -162,25 +162,25 @@
     </style>
   </head>
   <body>
-    <h1 contenteditable="true" naka="checklist_title">Pre-Release Verification Checklist</h1>
+    <h1 contenteditable="true" naizo="checklist_title">Pre-Release Verification Checklist</h1>
 
     <section class="card">
       <h2>Release Metadata</h2>
       <div class="meta-row">
         <label>
           Reviewer
-          <input type="text" naka="reviewer" value="Jordan" />
+          <input type="text" naizo="reviewer" value="Jordan" />
         </label>
         <label>
           Target Environment
-          <select naka="environment">
+          <select naizo="environment">
             <option value="Local">Local</option>
             <option value="Staging" selected>Staging</option>
             <option value="Production">Production</option>
           </select>
         </label>
         <label class="ready-toggle">
-          <input type="checkbox" naka="ready_for_release" />
+          <input type="checkbox" naizo="ready_for_release" />
           <span>Ready for Release</span>
         </label>
       </div>
@@ -188,19 +188,19 @@
 
     <section class="card">
       <h2>Verification Items</h2>
-      <div naka-list="checks">
-        <div class="check-row" naka-item>
+      <div naizo-list="checks">
+        <div class="check-row" naizo-item>
           <label class="check-box">
-            <input type="checkbox" naka="done" />
+            <input type="checkbox" naizo="done" />
             <span class="sr-only">Done</span>
           </label>
           <label class="check-task">
             <span class="sr-only">Verification item</span>
-            <input type="text" naka="task" placeholder="Add verification step..." />
+            <input type="text" naizo="task" placeholder="Add verification step..." />
           </label>
           <label class="check-priority">
             <span class="sr-only">Priority</span>
-            <select naka="priority">
+            <select naizo="priority">
               <option value="High">High</option>
               <option value="Med">Med</option>
               <option value="Low">Low</option>
@@ -214,7 +214,7 @@
       <h2>Sign-Off Notes</h2>
       <label>
         Notes &amp; Blockers
-        <textarea naka="signoff_notes">
+        <textarea naizo="signoff_notes">
 All unit and DOM integration checks must pass before tagging.</textarea>
       </label>
     </section>

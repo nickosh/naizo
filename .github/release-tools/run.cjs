@@ -97,11 +97,11 @@ function guardManifest(manifest, bundle) {
       );
       if (bundle !== undefined) {
         assert.ok(
-          !pr.updates.some((update) => update.path === 'dist/naka.js'),
+          !pr.updates.some((update) => update.path === 'dist/naizo.js'),
           'Duplicate bundle updater',
         );
         pr.updates.push({
-          path: 'dist/naka.js',
+          path: 'dist/naizo.js',
           createIfMissing: true,
           updater: { updateContent: () => bundle },
         });

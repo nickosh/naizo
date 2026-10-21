@@ -1,10 +1,10 @@
 /**
- * naka.js — Browser IIFE Entrypoint
- * Attaches window.Naka / window.NakaDB and auto-initializes unless opted out via data-naka-manual / naka-manual.
+ * naizo.js — Browser IIFE Entrypoint
+ * Attaches window.Naizo / window.NaizoDB and auto-initializes unless opted out via data-naizo-manual / naizo-manual.
  * License: MIT
  */
 
-import { initNaka, Naka, NakaDB } from './index';
+import { initNaizo, Naizo, NaizoDB } from './index';
 
 function hasManualOptOut(): boolean {
   if (typeof document === 'undefined') return true;
@@ -12,23 +12,23 @@ function hasManualOptOut(): boolean {
   const bodyEl = document.body;
   const currentScript = document.currentScript;
   return Boolean(
-    docEl?.hasAttribute('data-naka-manual') ||
-    docEl?.hasAttribute('naka-manual') ||
-    bodyEl?.hasAttribute('data-naka-manual') ||
-    bodyEl?.hasAttribute('naka-manual') ||
-    currentScript?.hasAttribute('data-naka-manual') ||
-    currentScript?.hasAttribute('naka-manual') ||
-    document.querySelector('script[data-naka-manual], script[naka-manual]'),
+    docEl?.hasAttribute('data-naizo-manual') ||
+    docEl?.hasAttribute('naizo-manual') ||
+    bodyEl?.hasAttribute('data-naizo-manual') ||
+    bodyEl?.hasAttribute('naizo-manual') ||
+    currentScript?.hasAttribute('data-naizo-manual') ||
+    currentScript?.hasAttribute('naizo-manual') ||
+    document.querySelector('script[data-naizo-manual], script[naizo-manual]'),
   );
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  window.Naka = Naka;
-  window.NakaDB = NakaDB;
+  window.Naizo = Naizo;
+  window.NaizoDB = NaizoDB;
 
   const start = (): void => {
     if (!hasManualOptOut()) {
-      void initNaka();
+      void initNaizo();
     }
   };
 

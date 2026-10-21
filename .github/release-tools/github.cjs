@@ -7,8 +7,8 @@ const { createHash } = require('node:crypto');
 
 const stableTag = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const commitSha = /^[a-f0-9]{40}$/;
-// Release Please's PR branch for the single root `nakajs` package.
-const releaseBranch = 'release-please--branches--main--components--nakajs';
+// Release Please's PR branch for the single root `naizo` package.
+const releaseBranch = 'release-please--branches--main--components--naizo';
 function gh(args) {
   return execFileSync('gh', args, { maxBuffer: 32 * 1024 * 1024 });
 }
@@ -17,12 +17,12 @@ function gh(args) {
 // differ from CI, so confirm existence without comparing integrity; this does
 // not validate OIDC credentials.
 async function confirmNpmBootstrap(fetchMetadata = fetch) {
-  const response = await fetchMetadata('https://registry.npmjs.org/nakajs/0.1.0', {
+  const response = await fetchMetadata('https://registry.npmjs.org/naizo/0.1.0', {
     signal: AbortSignal.timeout(30_000),
   });
   assert.ok(response.ok, `npm v0.1.0 bootstrap check failed: HTTP ${response.status}`);
   const metadata = await response.json();
-  assert.equal(metadata.name, 'nakajs');
+  assert.equal(metadata.name, 'naizo');
   assert.equal(metadata.version, '0.1.0');
   assert.match(metadata.dist?.integrity || '', /^sha512-/);
 }
@@ -162,7 +162,7 @@ function verifyArtifacts(directory, pkg) {
   const tarball = path.join(directory, pack.filename);
   const integrity = `sha512-${createHash('sha512').update(readFileSync(tarball)).digest('base64')}`;
   assert.equal(integrity, pack.integrity, 'Tarball integrity differs from verified manifest');
-  for (const name of ['naka.js', 'naka.min.js']) {
+  for (const name of ['naizo.js', 'naizo.min.js']) {
     const bundled = execFileSync('tar', ['-xOf', tarball, `package/dist/${name}`]);
     assert.deepEqual(
       readFileSync(path.join(directory, name)),
@@ -180,7 +180,7 @@ async function finalizeRelease(api, tag, expected, directory, pack) {
     await api.create(tag, expected);
   }
   const { release } = await resolveRelease(api, tag, expected);
-  const paths = ['naka.js', 'naka.min.js', pack.filename];
+  const paths = ['naizo.js', 'naizo.min.js', pack.filename];
   // Compare every existing asset before making any upload, and never clobber.
   for (const name of paths) {
     const asset = release.assets.find((item) => item.name === name);

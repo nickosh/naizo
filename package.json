@@ -1,30 +1,30 @@
 {
-  "name": "nakajs",
+  "name": "naizo",
   "version": "0.1.0",
-  "description": "Self-persisting HTML inner database (#nakadb) and declarative list repeater for Human + AI Agent workflows.",
+  "description": "Self-persisting HTML built-in database (#naizodb) and declarative list repeater for Human + AI Agent workflows.",
   "keywords": [
     "ai-agents",
     "file-system-access-api",
     "html",
     "local-first",
     "micro-db",
-    "nakadb",
-    "nakajs",
+    "naizo",
+    "naizodb",
     "self-saving-html"
   ],
-  "homepage": "https://github.com/nickosh/nakajs#readme",
+  "homepage": "https://github.com/nickosh/naizo#readme",
   "bugs": {
-    "url": "https://github.com/nickosh/nakajs/issues"
+    "url": "https://github.com/nickosh/naizo/issues"
   },
   "license": "MIT",
   "author": "Nikolay Shishov (https://github.com/nickosh)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nickosh/nakajs.git"
+    "url": "git+https://github.com/nickosh/naizo.git"
   },
   "files": [
-    "dist/naka.js",
-    "dist/naka.min.js",
+    "dist/naizo.js",
+    "dist/naizo.min.js",
     "dist/index.mjs",
     "dist/index.d.mts",
     "README.md",
@@ -34,25 +34,25 @@
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
-  "unpkg": "./dist/naka.js",
-  "jsdelivr": "./dist/naka.js",
+  "unpkg": "./dist/naizo.js",
+  "jsdelivr": "./dist/naizo.js",
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
     },
-    "./naka.js": "./dist/naka.js",
-    "./naka.min.js": "./dist/naka.min.js",
-    "./dist/naka.js": "./dist/naka.js",
-    "./dist/naka.min.js": "./dist/naka.min.js",
+    "./naizo.js": "./dist/naizo.js",
+    "./dist/naizo.js": "./dist/naizo.js",
+    "./naizo.min.js": "./dist/naizo.min.js",
+    "./dist/naizo.min.js": "./dist/naizo.min.js",
     "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "vp dev",
     "check": "vp check",
-    "lint": "vp lint",
     "fmt": "vp fmt",
+    "lint": "vp lint",
     "test": "vp test",
     "pack": "vp pack",
     "prepublishOnly": "vp pack"

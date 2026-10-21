@@ -77,16 +77,16 @@ jobs:
           vp check
           vp pack
           vp test
-          node --check dist/naka.js
-          node --check dist/naka.min.js
-          git diff --exit-code dist/naka.js
+          node --check dist/naizo.js
+          node --check dist/naizo.min.js
+          git diff --exit-code dist/naizo.js
 
       - name: Pack and validate exact publishable files
         run: |
           mkdir release-assets
           npm pack --ignore-scripts --json --pack-destination release-assets > release-assets/pack.json
           vp node scripts/release.ts package release-assets/pack.json
-          cp dist/naka.js dist/naka.min.js release-assets/
+          cp dist/naizo.js dist/naizo.min.js release-assets/
           vp node scripts/release.ts artifacts release-assets
 
       - name: Upload verified release artifacts

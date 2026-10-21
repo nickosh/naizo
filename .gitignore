@@ -1,7 +1,8 @@
 node_modules/
 dist/*
-!dist/naka.js
+!dist/naizo.js
 coverage/
 .vite-plus/
+.ori/
 .DS_Store
 *.log

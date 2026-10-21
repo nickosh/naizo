@@ -1,6 +1,13 @@
-# nakajs — Working Journal
+# naizo — Working Journal
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
+
+## 2026-10-21 — Renamed project from `nakajs` to `naizo` and recrafted README around 内蔵 & 内臓 (D38)
+
+- Done: renamed the project, package (`naizo`), browser bundles (`dist/naizo.js`, `dist/naizo.min.js`), canonical JSON script (`#naizodb`), declarative attributes (`naizo` / `naizo-*` and `data-naizo` / `data-naizo-*`), global API (`window.Naizo` / `window.NaizoDB`, `initNaizo`, `naizo:hydrate`), playground (`site/index.html`), starter templates (`examples/`), tests (`tests/naizo.test.ts`, `tests/release.test.ts`), release tooling/workflows, and the closeout skill (`.agents/skills/naizo-closeout/SKILL.md`); rewrote `README.md` and `docs/PRODUCT.md` around both meanings of Japanese _naizō_ (ないぞう): **内蔵** (_built-in / embedded_) and **内臓** (_internal organs / viscera_).
+- Decided (`D38`, superseding `D36` and resolving `EC44`): adopt the unscoped package and repository identity `naizo` (`nickosh/naizo`) and unify all runtime, DOM, and API contracts under `naizo` / `naizo.js` / `#naizodb`.
+- Verified: `vp pack`, `vp fmt`, `vp check` (0 warnings, 0 errors across 21 files), `vp test` (13/13 project tests passing), `vp node --test .github/release-tools/test.cjs` (31/31 release-tooling tests passing), `node --check dist/naizo.js`, `node --check dist/naizo.min.js`, eight-file `npm pack` manifest audit, and `git diff --check`. Live GitHub/npm publication was not run.
+- Next: publish `naizo@0.1.0` following `docs/PUBLISHING.md`, or proceed with `M4.1` in-memory store and synchronous boot implementation.
 
 ## 2026-10-21 — Fixed CI/CD review findings within the release decisions
 

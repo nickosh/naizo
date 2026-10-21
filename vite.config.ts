@@ -3,7 +3,7 @@ import { defineConfig } from 'vite-plus';
 export default defineConfig({
   plugins: [
     {
-      name: 'naka-site-root',
+      name: 'naizo-site-root',
       configureServer(server) {
         server.middlewares.use((req: { url?: string }, _res: unknown, next: () => void) => {
           if (req.url === '/' || req.url === '/index.html') {
@@ -49,24 +49,24 @@ export default defineConfig({
       outDir: 'dist',
     },
     {
-      entry: { naka: 'src/iife.ts' },
+      entry: { naizo: 'src/iife.ts' },
       format: ['iife'],
       platform: 'browser',
       dts: false,
       outDir: 'dist',
       outputOptions: {
-        entryFileNames: 'naka.js',
+        entryFileNames: 'naizo.js',
       },
     },
     {
-      entry: { 'naka.min': 'src/iife.ts' },
+      entry: { 'naizo.min': 'src/iife.ts' },
       format: ['iife'],
       platform: 'browser',
       dts: false,
       minify: true,
       outDir: 'dist',
       outputOptions: {
-        entryFileNames: 'naka.min.js',
+        entryFileNames: 'naizo.min.js',
       },
     },
   ],

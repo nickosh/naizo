@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Project Spec — naka.js Starter</title>
+    <title>Project Spec — naizo.js Starter</title>
 
-    <!-- 1. Canonical #nakadb JSON state (readable & editable by humans and AI agents) -->
-    <script id="nakadb" type="application/json">
+    <!-- 1. Canonical #naizodb JSON state (readable & editable by humans and AI agents) -->
+    <script id="naizodb" type="application/json">
       {
         "_meta": {},
         "fields": {
@@ -33,9 +33,9 @@
       }
     </script>
 
-    <!-- 2. Load naka.js locally or via CDN:
-         <script src="https://cdn.jsdelivr.net/npm/nakajs@latest/dist/naka.js" defer></script> -->
-    <script src="../dist/naka.js" defer></script>
+    <!-- 2. Load naizo.js locally or via CDN:
+         <script src="https://cdn.jsdelivr.net/npm/naizo@latest/dist/naizo.js" defer></script> -->
+    <script src="../dist/naizo.js" defer></script>
 
     <style>
       :root {
@@ -146,18 +146,18 @@
     </style>
   </head>
   <body>
-    <h1 contenteditable="true" naka="title">Feature Proposal & Implementation Plan</h1>
+    <h1 contenteditable="true" naizo="title">Feature Proposal & Implementation Plan</h1>
 
     <section class="card">
       <h2>Overview</h2>
       <div class="grid">
         <label>
           Owner
-          <input type="text" naka="owner" value="Alex" />
+          <input type="text" naizo="owner" value="Alex" />
         </label>
         <label>
           Status
-          <select naka="status">
+          <select naizo="status">
             <option value="Draft" selected>Draft</option>
             <option value="In Review">In Review</option>
             <option value="Approved">Approved</option>
@@ -166,26 +166,26 @@
       </div>
       <label>
         Summary &amp; Context
-        <textarea naka="summary">
+        <textarea naizo="summary">
 Outline the problem statement, key constraints, and rollout plan.</textarea>
       </label>
     </section>
 
     <section class="card">
       <h2>Milestones</h2>
-      <div naka-list="milestones">
-        <div class="item-row" naka-item>
+      <div naizo-list="milestones">
+        <div class="item-row" naizo-item>
           <label class="item-check">
-            <input type="checkbox" naka="done" />
+            <input type="checkbox" naizo="done" />
             <span class="sr-only">Completed</span>
           </label>
           <label class="item-task">
             <span class="sr-only">Milestone task</span>
-            <input type="text" naka="task" placeholder="Describe milestone..." />
+            <input type="text" naizo="task" placeholder="Describe milestone..." />
           </label>
           <label class="item-owner">
             <span class="sr-only">Assignee</span>
-            <input type="text" naka="owner" placeholder="Owner" />
+            <input type="text" naizo="owner" placeholder="Owner" />
           </label>
         </div>
       </div>

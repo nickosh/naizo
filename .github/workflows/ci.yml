@@ -53,15 +53,15 @@ jobs:
 
       - name: Verify bundle syntax and outputs
         run: |
-          node --check dist/naka.js
-          node --check dist/naka.min.js
+          node --check dist/naizo.js
+          node --check dist/naizo.min.js
           test -f dist/index.mjs
           test -f dist/index.d.mts
 
       - name: Audit npm package contents
         run: |
-          npm pack --ignore-scripts --dry-run --json > "$RUNNER_TEMP/nakajs-pack.json"
-          vp node scripts/release.ts package "$RUNNER_TEMP/nakajs-pack.json"
+          npm pack --ignore-scripts --dry-run --json > "$RUNNER_TEMP/naizo-pack.json"
+          vp node scripts/release.ts package "$RUNNER_TEMP/naizo-pack.json"
 
       - name: Stage GitHub Pages site from verified bundles
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -70,7 +70,7 @@ jobs:
           mkdir -p _site/dist
           cp -R site examples _site/
           sed 's#\.\./dist/#./dist/#g' site/index.html > _site/index.html
-          cp dist/naka.js dist/naka.min.js _site/dist/
+          cp dist/naizo.js dist/naizo.min.js _site/dist/
           touch _site/.nojekyll
 
       - name: Upload Pages artifact

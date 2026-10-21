@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>naka.js — Interactive Spec & Playground</title>
+    <title>naizo.js — Interactive Spec & Playground</title>
 
-    <!-- 1. Embedded #nakadb JSON State (Readable & Editable by AI Agents on Disk) -->
-    <script id="nakadb" type="application/json">
+    <!-- 1. Embedded #naizodb JSON State (Readable & Editable by AI Agents on Disk) -->
+    <script id="naizodb" type="application/json">
       {
         "_meta": {
           "updatedAt": "2026-10-18T08:00:00.000Z"
@@ -42,8 +42,8 @@
       }
     </script>
 
-    <!-- 2. Load naka.js -->
-    <script src="../dist/naka.js" defer></script>
+    <!-- 2. Load naizo.js -->
+    <script src="../dist/naizo.js" defer></script>
 
     <style>
       :root {
@@ -176,21 +176,21 @@
   </head>
   <body>
     <header>
-      <span class="badge">naka.js + #nakadb Demo</span>
-      <h1 contenteditable="true" naka="feature_title">OAuth2 & Rate-Limiting Spec</h1>
+      <span class="badge">naizo.js + #naizodb Demo</span>
+      <h1 contenteditable="true" naizo="feature_title">OAuth2 & Rate-Limiting Spec</h1>
     </header>
 
     <!-- 1. Standalone Bound Inputs -->
     <section class="card">
-      <h2>1. Standalone Fields (<code>naka</code> / <code>data-naka</code>)</h2>
+      <h2>1. Standalone Fields (<code>naizo</code> / <code>data-naizo</code>)</h2>
       <div class="meta-grid">
         <label>
           Spec Owner
-          <input type="text" naka="owner" />
+          <input type="text" naizo="owner" />
         </label>
         <label>
           Approval Status
-          <select naka="status">
+          <select naizo="status">
             <option value="Draft">Draft</option>
             <option value="In Review">In Review</option>
             <option value="Approved">Approved</option>
@@ -201,12 +201,12 @@
 
     <!-- 2. Declarative List Repeater -->
     <section class="card">
-      <h2>2. Dynamic Checklist Repeater (<code>naka-list="tasks"</code>)</h2>
-      <div naka-list="tasks">
-        <div class="task-row" naka-item>
-          <input type="checkbox" naka="done" />
-          <span class="task-title" contenteditable="true" naka="title">New task...</span>
-          <select naka="priority">
+      <h2>2. Dynamic Checklist Repeater (<code>naizo-list="tasks"</code>)</h2>
+      <div naizo-list="tasks">
+        <div class="task-row" naizo-item>
+          <input type="checkbox" naizo="done" />
+          <span class="task-title" contenteditable="true" naizo="title">New task...</span>
+          <select naizo="priority">
             <option value="High">High</option>
             <option value="Med">Med</option>
             <option value="Low">Low</option>
@@ -218,14 +218,14 @@
     <!-- 3. Freeform Editable Notes -->
     <section class="card">
       <h2>3. Editable Notes (<code>contenteditable="true"</code>)</h2>
-      <div class="notes-box" contenteditable="true" naka="notes"></div>
+      <div class="notes-box" contenteditable="true" naizo="notes"></div>
     </section>
 
-    <!-- 4. Custom Widget using window.Naka API -->
+    <!-- 4. Custom Widget using window.Naizo API -->
     <section class="card">
-      <h2>4. Custom JS Widget (<code>Naka.get</code> / <code>Naka.set</code>)</h2>
+      <h2>4. Custom JS Widget (<code>Naizo.get</code> / <code>Naizo.set</code>)</h2>
       <div class="slider-wrap">
-        <input type="range" id="rps-slider" min="10" max="500" step="10" naka-ignore />
+        <input type="range" id="rps-slider" min="10" max="500" step="10" naizo-ignore />
         <span class="rps-badge"><span id="rps-val">120</span> req/sec</span>
       </div>
     </section>
@@ -235,18 +235,18 @@
       const label = document.getElementById('rps-val');
 
       function syncCustomWidget() {
-        const rps = window.Naka?.get('rateLimitRps') ?? 120;
+        const rps = window.Naizo?.get('rateLimitRps') ?? 120;
         slider.value = rps;
         label.textContent = rps;
       }
 
-      window.addEventListener('naka:hydrate', syncCustomWidget);
+      window.addEventListener('naizo:hydrate', syncCustomWidget);
       window.addEventListener('DOMContentLoaded', syncCustomWidget);
 
       slider.addEventListener('input', () => {
         const val = Number(slider.value);
         label.textContent = val;
-        window.Naka.set('rateLimitRps', val);
+        window.Naizo.set('rateLimitRps', val);
       });
     </script>
   </body>

@@ -63,7 +63,7 @@ for (const [message, expected] of [
 ]) {
   void test(`actual pinned Manifest updater: ${message.split('\n')[0]}`, async () => {
     const github = {
-      repository: { owner: 'nickosh', repo: 'nakajs', defaultBranch: 'main' },
+      repository: { owner: 'nickosh', repo: 'naizo', defaultBranch: 'main' },
       getFileJson: async (path) => JSON.parse(read(path)),
       getFileContentsOnBranch: async (path) => ({ parsedContent: read(path) }),
       findFilesByFilenameAndRef: async () => [],
@@ -104,7 +104,7 @@ for (const [message, expected] of [
     assert.ok(outputs.get('CHANGELOG.md').includes(expected));
     assert.ok(outputs.get('CHANGELOG.md').includes('## 0.1.0'));
     assert.ok(!outputs.has('.github/release-tools/package.json'));
-    assert.equal(outputs.get('dist/naka.js'), bundle);
+    assert.equal(outputs.get('dist/naizo.js'), bundle);
     const changes = await GitHub.prototype.buildChangeSet.call(
       {
         getFileContentsOnBranch: async () => ({
@@ -113,11 +113,11 @@ for (const [message, expected] of [
           mode: '100644',
         }),
       },
-      [pr.updates.find((update) => update.path === 'dist/naka.js')],
+      [pr.updates.find((update) => update.path === 'dist/naizo.js')],
       'main',
     );
-    assert.equal(changes.get('dist/naka.js').content, bundle);
-    assert.ok(!pr.updates.some((update) => update.path === 'dist/naka.min.js'));
+    assert.equal(changes.get('dist/naizo.js').content, bundle);
+    assert.ok(!pr.updates.some((update) => update.path === 'dist/naizo.min.js'));
     // An explicit refresh must update the bundle even when release notes are unchanged.
     assert.equal(manifest.alwaysUpdate, true);
     let refreshed;
@@ -132,7 +132,7 @@ for (const [message, expected] of [
     );
     assert.equal(
       refreshed.updates
-        .find((update) => update.path === 'dist/naka.js')
+        .find((update) => update.path === 'dist/naizo.js')
         .updater.updateContent('stale'),
       bundle,
     );
@@ -144,7 +144,7 @@ for (const [message, expected] of [
 void test('creation and refresh retain descriptive Conventional Commit bodies', async () => {
   const calls = [];
   const github = describeCommits({ createPullRequest: async (...args) => calls.push(args) });
-  const bundle = { path: 'dist/naka.js', updater: { updateContent: () => 'updated bundle' } };
+  const bundle = { path: 'dist/naizo.js', updater: { updateContent: () => 'updated bundle' } };
   await github.createPullRequest({}, 'main', 'chore(main): release 0.2.0', [bundle], {});
   await github.updatePullRequest(
     7,
@@ -284,12 +284,12 @@ void test('bundle updater refuses an empty artifact and does not generate a PR f
 
 void test('GitHub source lookup uses the exact main branch ref', () => {
   const calls = [];
-  const api = client('nickosh/nakajs', (args) => {
+  const api = client('nickosh/naizo', (args) => {
     calls.push(args);
     return Buffer.from(JSON.stringify({ ref: 'refs/heads/main', object: { type: 'commit', sha } }));
   });
   assert.equal(api.head(), sha);
-  assert.deepEqual(calls, [['api', 'repos/nickosh/nakajs/git/ref/heads/main']]);
+  assert.deepEqual(calls, [['api', 'repos/nickosh/naizo/git/ref/heads/main']]);
 });
 
 void test('only manual preparation or a valid Release-As footer prepares', () => {
@@ -331,7 +331,7 @@ void test('only manual preparation or a valid Release-As footer prepares', () =>
 });
 
 void test('push parsing excludes old footers, includes the entire pushed range, and handles a new branch', () => {
-  const directory = mkdtempSync(path.join(tmpdir(), 'naka-push-'));
+  const directory = mkdtempSync(path.join(tmpdir(), 'naizo-push-'));
   const git = (...args) =>
     execFileSync(
       'git',
@@ -451,7 +451,7 @@ void test('only a verified refresh marks a drafted release PR ready', async () =
 
 void test('GitHub client finds, compares, and drafts the release PR branch', () => {
   const calls = [];
-  const api = client('nickosh/nakajs', (args) => {
+  const api = client('nickosh/naizo', (args) => {
     calls.push(args);
     if (args[1]?.includes('/pulls?'))
       return Buffer.from(JSON.stringify([{ number: 7, draft: false, title: 'x' }]));
@@ -463,18 +463,18 @@ void test('GitHub client finds, compares, and drafts the release PR branch', () 
   api.setDraft(7, true);
   api.setDraft(7, false);
   assert.deepEqual(calls, [
-    ['api', `repos/nickosh/nakajs/pulls?state=open&head=nickosh:${releaseBranch}`],
-    ['api', `repos/nickosh/nakajs/compare/main...${releaseBranch}`],
-    ['pr', 'ready', '7', '--repo', 'nickosh/nakajs', '--undo'],
-    ['pr', 'ready', '7', '--repo', 'nickosh/nakajs'],
+    ['api', `repos/nickosh/naizo/pulls?state=open&head=nickosh:${releaseBranch}`],
+    ['api', `repos/nickosh/naizo/compare/main...${releaseBranch}`],
+    ['pr', 'ready', '7', '--repo', 'nickosh/naizo', '--undo'],
+    ['pr', 'ready', '7', '--repo', 'nickosh/naizo'],
   ]);
-  const empty = client('nickosh/nakajs', () => Buffer.from('[]'));
+  const empty = client('nickosh/naizo', () => Buffer.from('[]'));
   assert.equal(empty.releasePr(), undefined);
 });
 
 void test('bootstrap requires both the public GitHub release and exact npm package', async () => {
   const ok = async () =>
-    Response.json({ name: 'nakajs', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } });
+    Response.json({ name: 'naizo', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } });
   await requireBootstrap([baseline], ok);
   await assert.rejects(requireBootstrap([], ok), /bootstrap first/);
   await assert.rejects(requireBootstrap([{ ...baseline, draft: true }], ok));
@@ -484,13 +484,13 @@ void test('bootstrap requires both the public GitHub release and exact npm packa
 });
 
 void test('shared npm bootstrap check requires the exact published package', async () => {
-  const metadata = { name: 'nakajs', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } };
+  const metadata = { name: 'naizo', version: '0.1.0', dist: { integrity: 'sha512-YWJj' } };
   const urls = [];
   await confirmNpmBootstrap(async (url) => {
     urls.push(url);
     return Response.json(metadata);
   });
-  assert.deepEqual(urls, ['https://registry.npmjs.org/nakajs/0.1.0']);
+  assert.deepEqual(urls, ['https://registry.npmjs.org/naizo/0.1.0']);
   await assert.rejects(
     confirmNpmBootstrap(async () => new Response(null, { status: 404 })),
     /HTTP 404/,
@@ -561,7 +561,7 @@ void test('recovery checks tag, existing release, SHA, target, and ancestry befo
 
 void test('GitHub client explicitly dispatches release.yml at the tag with expected SHA', () => {
   const calls = [];
-  client('nickosh/nakajs', (args) => {
+  client('nickosh/naizo', (args) => {
     calls.push(args);
     return Buffer.from('');
   }).dispatch('v0.2.0', sha);
@@ -570,7 +570,7 @@ void test('GitHub client explicitly dispatches release.yml at the tag with expec
     'run',
     'release.yml',
     '--repo',
-    'nickosh/nakajs',
+    'nickosh/naizo',
     '--ref',
     'v0.2.0',
     '-f',
@@ -584,7 +584,7 @@ void test('GitHub client explicitly dispatches release.yml at the tag with expec
 
 void test('tag resolution explicitly uses tag refs and peels annotated tags', () => {
   const calls = [];
-  const api = client('nickosh/nakajs', (args) => {
+  const api = client('nickosh/naizo', (args) => {
     calls.push(args);
     const response = args[1].includes('/git/ref/tags/')
       ? { ref: 'refs/tags/v0.2.0', object: { type: 'tag', sha: oldSha } }
@@ -592,11 +592,11 @@ void test('tag resolution explicitly uses tag refs and peels annotated tags', ()
     return Buffer.from(JSON.stringify(response));
   });
   assert.equal(api.resolve('v0.2.0'), sha);
-  assert.equal(calls[0][1], 'repos/nickosh/nakajs/git/ref/tags/v0.2.0');
-  assert.equal(calls[1][1], `repos/nickosh/nakajs/git/tags/${oldSha}`);
+  assert.equal(calls[0][1], 'repos/nickosh/naizo/git/ref/tags/v0.2.0');
+  assert.equal(calls[1][1], `repos/nickosh/naizo/git/tags/${oldSha}`);
   assert.throws(() => api.resolve('main'));
   assert.equal(calls.length, 2);
-  const invalid = client('nickosh/nakajs', () =>
+  const invalid = client('nickosh/naizo', () =>
     Buffer.from(
       JSON.stringify({
         ref: 'refs/tags/v0.2.0',
@@ -608,16 +608,16 @@ void test('tag resolution explicitly uses tag refs and peels annotated tags', ()
 });
 
 function artifacts() {
-  const directory = mkdtempSync(path.join(tmpdir(), 'naka-assets-'));
+  const directory = mkdtempSync(path.join(tmpdir(), 'naizo-assets-'));
   mkdirSync(path.join(directory, 'package/dist'), { recursive: true });
-  for (const name of ['naka.js', 'naka.min.js']) {
+  for (const name of ['naizo.js', 'naizo.min.js']) {
     writeFileSync(path.join(directory, name), name);
     writeFileSync(path.join(directory, 'package/dist', name), name);
   }
-  const filename = 'nakajs-0.2.0.tgz';
+  const filename = 'naizo-0.2.0.tgz';
   execFileSync('tar', ['-czf', path.join(directory, filename), '-C', directory, 'package']);
   const pack = {
-    name: 'nakajs',
+    name: 'naizo',
     version: '0.2.0',
     filename,
     integrity: `sha512-${createHash('sha512')
@@ -632,7 +632,7 @@ void test('actual tarball integrity and bundle bytes must match before publicati
   const { directory, pack } = artifacts();
   try {
     assert.deepEqual(verifyArtifacts(directory, pack), pack);
-    writeFileSync(path.join(directory, 'naka.min.js'), 'changed');
+    writeFileSync(path.join(directory, 'naizo.min.js'), 'changed');
     assert.throws(() => verifyArtifacts(directory, pack), /differs from tarball/);
     writeFileSync(path.join(directory, pack.filename), 'changed');
     assert.throws(() => verifyArtifacts(directory, pack), /integrity differs/);
@@ -645,11 +645,11 @@ void test('partial publication recovery reuses matching assets, adds missing one
   const { directory, pack } = artifacts();
   const uploaded = [];
   let published = 0;
-  const release = { ...draft, body: 'Release Please notes', assets: [{ name: 'naka.js', id: 1 }] };
+  const release = { ...draft, body: 'Release Please notes', assets: [{ name: 'naizo.js', id: 1 }] };
   const api = {
     resolve: async () => sha,
     releases: async () => [release],
-    download: async () => readFileSync(path.join(directory, 'naka.js')),
+    download: async () => readFileSync(path.join(directory, 'naizo.js')),
     upload: async (tag, path) => {
       uploaded.push(path);
     },
@@ -662,7 +662,7 @@ void test('partial publication recovery reuses matching assets, adds missing one
     assert.equal(uploaded.length, 2);
     assert.equal(published, 1);
     assert.equal(release.body, 'Release Please notes');
-    release.assets = ['naka.js', 'naka.min.js', pack.filename].map((name, id) => ({ name, id }));
+    release.assets = ['naizo.js', 'naizo.min.js', pack.filename].map((name, id) => ({ name, id }));
     api.download = async (id) => readFileSync(path.join(directory, release.assets[id].name));
     release.draft = false;
     await finalizeRelease(api, 'v0.2.0', sha, directory, pack);
