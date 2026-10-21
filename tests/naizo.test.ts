@@ -145,14 +145,15 @@ describe('naizo.js v0.1.0 core runtime', () => {
     window.removeEventListener('naizo:hydrate', hydrateSpy);
   });
 
-  it('strips runtime UI and naizo-ignore / data-naizo-ignore elements in exportHTML (EC03)', async () => {
+  it('strips [data-naizo-runtime] UI while preserving user [naizo-ignore] elements in exportHTML (D12, EC03, EC07)', async () => {
     document.body.innerHTML = `
       <input type="text" naizo="project" value="naizo">
       <div naizo-list="items">
         <div naizo-item><input type="text" naizo="name" value="One"></div>
       </div>
-      <div naizo-ignore>Runtime temp</div>
-      <div data-naizo-ignore>Legacy runtime temp</div>
+      <div naizo-ignore><input type="range" id="user-widget" value="50">User widget</div>
+      <div data-naizo-ignore>Legacy user widget</div>
+      <div data-naizo-runtime="true">Ephemeral runtime overlay</div>
     `;
 
     await initNaizo();
@@ -162,8 +163,9 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(exported).not.toContain('__naizodb_styles__');
     expect(exported).not.toContain('naizo-item-tools');
     expect(exported).not.toContain('naizo-list-footer');
-    expect(exported).not.toContain('Runtime temp');
-    expect(exported).not.toContain('Legacy runtime temp');
+    expect(exported).not.toContain('Ephemeral runtime overlay');
+    expect(exported).toContain('User widget');
+    expect(exported).toContain('Legacy user widget');
     expect(exported).toContain('"project": "naizo"');
   });
 
@@ -924,5 +926,201 @@ describe('naizo.js v0.1.0 core runtime', () => {
       Reflect.deleteProperty(window, 'showSaveFilePicker');
       vi.useRealTimers();
     }
+  });
+
+  it('supports number/range coercion, <details>, <select multiple>, contenteditable variants, non-leaf guard, and form.reset() (D14, EC12)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": {
+          "points": 8,
+          "volume": 75,
+          "expanded": true,
+          "tags": ["core", "ux"],
+          "plain": "Plain text block",
+          "non_leaf": "Should not wipe children"
+        },
+        "lists": {},
+        "custom": {}
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <form id="spec-form">
+        <input id="points-in" type="number" naizo="points" value="1">
+        <input id="vol-in" type="range" min="0" max="100" naizo="volume" value="20">
+        <details id="det" naizo="expanded"><summary>Details</summary><p>Inner</p></details>
+        <select id="tags-sel" naizo="tags" multiple>
+          <option value="core">Core</option>
+          <option value="docs">Docs</option>
+          <option value="ux">UX</option>
+        </select>
+        <div id="plain-ce" contenteditable="plaintext-only" naizo="plain"></div>
+        <div id="non-leaf" naizo="non_leaf"><span class="child-keep">Child survives</span></div>
+      </form>
+    `;
+
+    await initNaizo();
+
+    const pointsIn = document.getElementById('points-in') as HTMLInputElement;
+    const volIn = document.getElementById('vol-in') as HTMLInputElement;
+    const det = document.getElementById('det') as HTMLDetailsElement;
+    const tagsSel = document.getElementById('tags-sel') as HTMLSelectElement;
+    const plainCe = document.getElementById('plain-ce') as HTMLElement;
+    const nonLeaf = document.getElementById('non-leaf') as HTMLElement;
+
+    expect(pointsIn.value).toBe('8');
+    expect(volIn.value).toBe('75');
+    expect(det.open).toBe(true);
+    expect(
+      Array.from(tagsSel.options)
+        .filter((o) => o.selected)
+        .map((o) => o.value),
+    ).toEqual(['core', 'ux']);
+    expect(plainCe.textContent).toBe('Plain text block');
+    expect(nonLeaf.querySelector('.child-keep')?.textContent).toBe('Child survives');
+
+    // Numeric input coercion: number and empty -> null
+    pointsIn.value = '13';
+    pointsIn.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(Naizo.getField('points')).toBe(13);
+
+    pointsIn.value = '';
+    pointsIn.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(Naizo.getField('points')).toBeNull();
+
+    // <details> toggle event capture
+    det.open = false;
+    det.dispatchEvent(new Event('toggle'));
+    expect(Naizo.getField('expanded')).toBe(false);
+
+    // <select multiple> change capture
+    tagsSel.options[0]!.selected = false;
+    tagsSel.options[1]!.selected = true;
+    tagsSel.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(Naizo.getField('tags')).toEqual(['docs', 'ux']);
+
+    // Native form.reset() restores defaultValue ("1" -> 1) into store (EC12)
+    const form = document.getElementById('spec-form') as HTMLFormElement;
+    form.reset();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(Naizo.getField('points')).toBe(1);
+    expect(Naizo.getField('volume')).toBe(20);
+
+    warnSpy.mockRestore();
+  });
+
+  it('handles auto-template lifecycle, self-bound [naizo-item], per-row radio scoping, table controls, @media print, user-only focus, and events (EC09, EC13, EC29, EC31, EC40)', async () => {
+    const changeEvents: Array<Record<string, unknown>> = [];
+    const itemEvents: Array<Record<string, unknown>> = [];
+    const onChange = (e: Event) => changeEvents.push((e as CustomEvent).detail);
+    const onItem = (e: Event) => itemEvents.push((e as CustomEvent).detail);
+    window.addEventListener('naizo:change', onChange);
+    window.addEventListener('naizo:item', onItem);
+
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": {},
+        "lists": {
+          "bullets": [
+            { "label": "First bullet" },
+            { "label": "Second bullet" }
+          ],
+          "matrix": [
+            { "title": "Row 1", "level": "high" },
+            { "title": "Row 2", "level": "low" }
+          ]
+        },
+        "custom": {}
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <input id="outside-focus" type="text" value="keep focus">
+      <ul naizo-list="bullets">
+        <li naizo-item contenteditable="true" naizo="label">Seed</li>
+      </ul>
+      <table>
+        <tbody naizo-list="matrix">
+          <tr naizo-item>
+            <td><input type="text" naizo="title" value=""></td>
+            <td>
+              <input type="radio" name="lvl" naizo="level" value="high">
+              <input type="radio" name="lvl" naizo="level" value="low">
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    await initNaizo();
+
+    // 1. Self-bound <li naizo-item naizo="label"> hydrated (EC13)
+    const bulletItems = document.querySelectorAll<HTMLElement>('ul[naizo-list="bullets"] > li');
+    expect(bulletItems.length).toBe(2);
+    expect(bulletItems[0]?.textContent).toContain('First bullet');
+    expect(bulletItems[1]?.textContent).toContain('Second bullet');
+
+    // 2. Table controls placed inside last <td> and footer placed after <table> (EC13)
+    const rows = document.querySelectorAll<HTMLTableRowElement>('tbody[naizo-list="matrix"] > tr');
+    expect(rows.length).toBe(2);
+    expect(rows[0]?.querySelector('td:last-child .naizo-item-tools')).not.toBeNull();
+    const table = document.querySelector('table')!;
+    expect(table.nextElementSibling?.classList.contains('naizo-list-footer')).toBe(true);
+
+    // 3. Per-row radio name scoping keeps row 1 ("high") and row 2 ("low") checked simultaneously (EC13)
+    const row1High = rows[0]?.querySelector<HTMLInputElement>('input[value="high"]');
+    const row2Low = rows[1]?.querySelector<HTMLInputElement>('input[value="low"]');
+    expect(row1High?.checked).toBe(true);
+    expect(row2Low?.checked).toBe(true);
+    expect(row1High?.name).not.toBe(row2Low?.name);
+
+    // 4. @media print hiding rule exists in #__naizodb_styles__ and Shadow DOM (EC29)
+    const styleEl = document.getElementById('__naizodb_styles__');
+    expect(styleEl?.textContent).toContain('@media print');
+    const hostShadow = document.getElementById('__naizodb_host__')?.shadowRoot;
+    expect(hostShadow?.innerHTML).toContain('@media print');
+    expect(hostShadow?.getElementById('status')?.getAttribute('aria-live')).toBe('polite');
+
+    // 5. Programmatic addItem does NOT steal focus (EC31) and emits naizo:item & naizo:change (EC40)
+    const outsideInput = document.getElementById('outside-focus') as HTMLInputElement;
+    outsideInput.focus();
+    expect(document.activeElement).toBe(outsideInput);
+
+    Naizo.addItem('matrix', { title: 'Row 3', level: 'high' });
+    expect(document.activeElement).toBe(outsideInput);
+    expect(itemEvents.length).toBe(1);
+    expect(itemEvents[0]?.list).toBe('matrix');
+    expect(itemEvents[0]?.index).toBe(2);
+    expect(changeEvents.some((ev) => ev.scope === 'lists' && ev.action === 'add')).toBe(true);
+
+    // User-clicked [naizo-add] DOES focus the first text input of the new row (EC31)
+    const addMatrixBtn = document.querySelector<HTMLButtonElement>('[naizo-add="matrix"]');
+    addMatrixBtn?.click();
+    const allMatrixRows = document.querySelectorAll<HTMLTableRowElement>(
+      'tbody[naizo-list="matrix"] > tr',
+    );
+    expect(allMatrixRows.length).toBe(4);
+    expect(document.activeElement).toBe(
+      allMatrixRows[3]?.querySelector<HTMLInputElement>('input[type="text"]'),
+    );
+
+    // 6. Auto-template stripped on export when list has >= 1 item, kept when 0 items (EC09)
+    const exportedWithItems = Naizo.exportHTML();
+    expect(exportedWithItems).not.toContain('data-naizo-auto-template');
+    expect(exportedWithItems).toContain('name="lvl"');
+
+    // Remove all items from `bullets` -> auto-template is kept on export (EC09)
+    Naizo.removeItem('bullets', 1);
+    Naizo.removeItem('bullets', 0);
+    const exportedEmptyList = Naizo.exportHTML();
+    expect(exportedEmptyList).toContain('data-naizo-auto-template="true"');
+
+    window.removeEventListener('naizo:change', onChange);
+    window.removeEventListener('naizo:item', onItem);
   });
 });

@@ -14,7 +14,10 @@
 	const ITEM_SELECTOR = "[naizo-item], [data-naizo-item]";
 	const DIRECT_ITEM_SELECTOR = ":scope > [naizo-item], :scope > [data-naizo-item]";
 	const TEMPLATE_SELECTOR = "template[naizo-template], template[data-naizo-template], template";
-	const IGNORE_SELECTOR = "[naizo-ignore], [data-naizo-ignore]";
+	const AUTHORED_TEMPLATE_SELECTOR = ":scope > template[naizo-template]:not([data-naizo-auto-template]), :scope > template[data-naizo-template]:not([data-naizo-auto-template]), :scope > template:not([data-naizo-auto-template])";
+	const AUTO_TEMPLATE_SELECTOR = ":scope > template[data-naizo-auto-template]";
+	const IGNORE_SELECTOR = "[naizo-ignore], [data-naizo-ignore], [data-naizo-runtime]";
+	const RUNTIME_STRIP_SELECTOR = `[data-naizo-runtime], #${UI_ID}, #${STYLE_ID}`;
 	const SKIPPED_INPUT_TYPES = /* @__PURE__ */ new Set([
 		"password",
 		"file",
@@ -23,6 +26,7 @@
 		"reset",
 		"image"
 	]);
+	let radioScopeCounter = 0;
 	function hasOwn(obj, key) {
 		return Object.hasOwn(obj, key);
 	}
@@ -379,6 +383,13 @@
 	function isIgnoredElement(el) {
 		return Boolean(el.closest(`${IGNORE_SELECTOR}, template, #${UI_ID}`));
 	}
+	function isDetailsElement(el) {
+		return typeof HTMLDetailsElement !== "undefined" && el instanceof HTMLDetailsElement || el.tagName.toLowerCase() === "details";
+	}
+	function isNonLeafElement(el) {
+		if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement || isDetailsElement(el) || isContentEditableElement(el)) return false;
+		return el.children.length > 0;
+	}
 	function isSkippedElement(el, warn = false) {
 		if (el instanceof HTMLInputElement) {
 			const type = (el.getAttribute("type") ?? el.type ?? "text").toLowerCase();
@@ -386,34 +397,62 @@
 				if (warn) console.warn(`[naizo.js] Skipping unsupported input[type="${type}"] binding.`);
 				return true;
 			}
+			return false;
+		}
+		if (isNonLeafElement(el)) {
+			if (warn) console.warn("[naizo.js] Skipping non-leaf element binding with child elements to avoid wiping children.");
+			return true;
 		}
 		return false;
 	}
 	function isContentEditableElement(el) {
 		if (!el.hasAttribute("contenteditable")) return false;
-		return (el.getAttribute("contenteditable") ?? "").trim().toLowerCase() !== "false";
+		const attr = (el.getAttribute("contenteditable") ?? "").trim().toLowerCase();
+		return attr === "" || attr === "true" || attr === "plaintext-only";
 	}
 	function readElementValue(el) {
 		if (isSkippedElement(el)) return void 0;
 		if (el instanceof HTMLInputElement) {
-			if (el.type === "checkbox") return el.checked;
-			if (el.type === "radio") return el.checked ? el.value : void 0;
+			const type = (el.getAttribute("type") ?? el.type ?? "text").toLowerCase();
+			if (type === "checkbox") return el.checked;
+			if (type === "radio") return el.checked ? el.value : void 0;
+			if (type === "number" || type === "range") {
+				const raw = el.value.trim();
+				if (raw === "") return null;
+				const num = Number(raw);
+				return Number.isFinite(num) ? num : null;
+			}
 			return el.value;
 		}
-		if (el instanceof HTMLSelectElement) return el.value;
+		if (el instanceof HTMLSelectElement) {
+			if (el.multiple) return Array.from(el.options).filter((opt) => opt.selected).map((opt) => opt.value);
+			return el.value;
+		}
 		if (el instanceof HTMLTextAreaElement) return el.value;
+		if (isDetailsElement(el)) return Boolean(el.open);
 		return el.textContent ?? "";
 	}
 	function writeElementValue(el, val) {
 		if (isSkippedElement(el, true)) return;
 		const textVal = toTextValue(val);
 		if (el instanceof HTMLInputElement) {
-			if (el.type === "checkbox") el.checked = toBooleanValue(val);
-			else if (el.type === "radio") el.checked = el.value === textVal;
+			const type = (el.getAttribute("type") ?? el.type ?? "text").toLowerCase();
+			if (type === "checkbox") el.checked = toBooleanValue(val);
+			else if (type === "radio") el.checked = el.value === textVal;
+			else if (type === "number" || type === "range") el.value = val == null ? "" : textVal;
 			else el.value = textVal;
 			return;
 		}
 		if (el instanceof HTMLSelectElement) {
+			if (el.multiple) {
+				const values = Array.isArray(val) ? val.map((v) => toTextValue(v)) : [textVal];
+				const valSet = new Set(values);
+				if (values.some((v) => v !== "" && !Array.from(el.options).some((opt) => opt.value === v))) console.warn("[naizo.js] Stored value in <select multiple> has no matching <option>; preserving stored value.");
+				Array.from(el.options).forEach((opt) => {
+					opt.selected = valSet.has(opt.value);
+				});
+				return;
+			}
 			if (!Array.from(el.options).some((opt) => opt.value === textVal)) {
 				console.warn(`[naizo.js] Stored value "${textVal}" has no matching <option> in <select>; preserving stored value.`);
 				return;
@@ -425,11 +464,20 @@
 			el.value = textVal;
 			return;
 		}
+		if (isDetailsElement(el)) {
+			el.open = toBooleanValue(val);
+			return;
+		}
 		el.textContent = textVal;
 	}
 	function bakeClonedElementAttributes(liveEl, cloneEl) {
 		if (isSkippedElement(liveEl)) return;
 		if (liveEl instanceof HTMLInputElement && cloneEl instanceof HTMLInputElement) {
+			const origRadioName = liveEl.getAttribute("data-naizo-radio-name");
+			if (origRadioName !== null) {
+				cloneEl.setAttribute("name", origRadioName);
+				cloneEl.removeAttribute("data-naizo-radio-name");
+			}
 			if (liveEl.type === "checkbox" || liveEl.type === "radio") {
 				if (liveEl.checked) cloneEl.setAttribute("checked", "checked");
 				else cloneEl.removeAttribute("checked");
@@ -449,6 +497,11 @@
 			cloneEl.textContent = liveEl.value;
 			return;
 		}
+		if (isDetailsElement(liveEl) && isDetailsElement(cloneEl)) {
+			if (liveEl.open) cloneEl.setAttribute("open", "");
+			else cloneEl.removeAttribute("open");
+			return;
+		}
 		if (isContentEditableElement(liveEl)) cloneEl.textContent = liveEl.textContent ?? "";
 	}
 	function clearElementValue(el) {
@@ -461,19 +514,29 @@
 				el.removeAttribute("value");
 			}
 		} else if (el instanceof HTMLSelectElement) {
-			if (el.options.length) el.selectedIndex = 0;
-			Array.from(el.options).forEach((opt, i) => {
-				if (i === 0) opt.setAttribute("selected", "selected");
-				else opt.removeAttribute("selected");
+			if (el.multiple) Array.from(el.options).forEach((opt) => {
+				opt.selected = false;
+				opt.removeAttribute("selected");
 			});
+			else {
+				if (el.options.length) el.selectedIndex = 0;
+				Array.from(el.options).forEach((opt, i) => {
+					if (i === 0) opt.setAttribute("selected", "selected");
+					else opt.removeAttribute("selected");
+				});
+			}
 		} else if (el instanceof HTMLTextAreaElement) {
 			el.value = "";
 			el.textContent = "";
-		} else el.textContent = "";
+		} else if (isDetailsElement(el)) {
+			el.open = false;
+			el.removeAttribute("open");
+		} else if (!isNonLeafElement(el)) el.textContent = "";
 	}
 	function shouldUpdateStoredValue(prevVal, nextVal, exists) {
 		if (!exists) return true;
 		if (Object.is(prevVal, nextVal)) return false;
+		if (Array.isArray(prevVal) && Array.isArray(nextVal)) return JSON.stringify(prevVal) !== JSON.stringify(nextVal);
 		if (typeof nextVal === "string" && (typeof prevVal === "number" || typeof prevVal === "boolean") && String(prevVal) === nextVal) return false;
 		return true;
 	}
@@ -490,6 +553,7 @@
 	}
 	function queryItemBoundElements(itemEl) {
 		const result = [];
+		if (itemEl.matches(BOUND_SELECTOR) && !isIgnoredElement(itemEl) && !isSkippedElement(itemEl, true)) result.push(itemEl);
 		itemEl.querySelectorAll(BOUND_SELECTOR).forEach((el) => {
 			if (el.closest(ITEM_SELECTOR) !== itemEl) return;
 			if (isIgnoredElement(el) || isSkippedElement(el, true)) return;
@@ -509,25 +573,49 @@
 			if (getElementKey(el) === key) writeElementValue(el, val);
 		});
 	}
-	function ensureListBlueprints(root = document) {
+	function scopeRowRadioInputs(itemEl, listName) {
+		const radios = Array.from(itemEl.querySelectorAll("input[type=\"radio\"]"));
+		if (radios.length === 0) return;
+		radioScopeCounter += 1;
+		const scopeId = radioScopeCounter;
+		radios.forEach((radio) => {
+			if (radio.closest(ITEM_SELECTOR) !== itemEl) return;
+			const baseName = radio.getAttribute("data-naizo-radio-name") ?? radio.getAttribute("name") ?? getElementKey(radio) ?? "radio";
+			radio.setAttribute("data-naizo-radio-name", baseName);
+			radio.name = `__naizo_${listName}_${scopeId}_${baseName}`;
+		});
+	}
+	function ensureListBlueprints(root = document, forceRegenerateAuto = false) {
 		const lists = [];
 		if (root instanceof HTMLElement && root.matches(LIST_SELECTOR) && !isIgnoredElement(root)) lists.push(root);
 		root.querySelectorAll(LIST_SELECTOR).forEach((el) => {
 			if (!isIgnoredElement(el)) lists.push(el);
 		});
 		lists.forEach((listEl) => {
-			let tpl = listEl.querySelector(TEMPLATE_SELECTOR);
-			if (!tpl) {
-				const firstItem = listEl.querySelector(ITEM_SELECTOR);
-				if (!firstItem) return;
-				const cleanClone = firstItem.cloneNode(true);
-				cleanClone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
-				cleanClone.querySelectorAll(BOUND_SELECTOR).forEach(clearElementValue);
-				tpl = document.createElement("template");
-				tpl.setAttribute("naizo-template", "");
-				tpl.content.appendChild(cleanClone);
-				listEl.prepend(tpl);
-			} else if (!hasAttr(tpl, "naizo-template")) tpl.setAttribute("naizo-template", "");
+			const authoredTpl = listEl.querySelector(AUTHORED_TEMPLATE_SELECTOR);
+			if (authoredTpl) {
+				if (!hasAttr(authoredTpl, "naizo-template")) authoredTpl.setAttribute("naizo-template", "");
+				return;
+			}
+			const firstItem = listEl.querySelector(DIRECT_ITEM_SELECTOR);
+			const existingAutoTpl = listEl.querySelector(AUTO_TEMPLATE_SELECTOR);
+			if (existingAutoTpl && (!forceRegenerateAuto || !firstItem)) return;
+			if (existingAutoTpl && firstItem) existingAutoTpl.remove();
+			if (!firstItem) return;
+			const cleanClone = firstItem.cloneNode(true);
+			cleanClone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
+			cleanClone.querySelectorAll("input[data-naizo-radio-name]").forEach((r) => {
+				const orig = r.getAttribute("data-naizo-radio-name");
+				if (orig !== null) r.setAttribute("name", orig);
+				r.removeAttribute("data-naizo-radio-name");
+			});
+			if (cleanClone.matches(BOUND_SELECTOR)) clearElementValue(cleanClone);
+			cleanClone.querySelectorAll(BOUND_SELECTOR).forEach(clearElementValue);
+			const tpl = document.createElement("template");
+			tpl.setAttribute("naizo-template", "");
+			tpl.setAttribute("data-naizo-auto-template", "true");
+			tpl.content.appendChild(cleanClone);
+			listEl.prepend(tpl);
 		});
 	}
 	function decorateListControls(listEl) {
@@ -539,23 +627,38 @@
 			const tools = document.createElement("span");
 			tools.className = "naizo-item-tools";
 			tools.setAttribute("naizo-ignore", "true");
+			tools.setAttribute("data-naizo-runtime", "true");
 			tools.innerHTML = `
-      <button type="button" naizo-move="up" title="Move up">↑</button>
-      <button type="button" naizo-move="down" title="Move down">↓</button>
-      <button type="button" naizo-remove title="Delete item">×</button>
+      <button type="button" naizo-move="up" title="Move up" aria-label="Move item up">↑</button>
+      <button type="button" naizo-move="down" title="Move down" aria-label="Move item down">↓</button>
+      <button type="button" naizo-remove title="Delete item" aria-label="Delete item">×</button>
     `;
-			itemEl.appendChild(tools);
+			if (itemEl.tagName.toLowerCase() === "tr") {
+				const cells = itemEl.querySelectorAll(":scope > td, :scope > th");
+				const lastCell = cells[cells.length - 1];
+				if (lastCell) lastCell.appendChild(tools);
+				else {
+					const td = document.createElement("td");
+					td.setAttribute("naizo-ignore", "true");
+					td.setAttribute("data-naizo-runtime", "true");
+					td.appendChild(tools);
+					itemEl.appendChild(td);
+				}
+			} else itemEl.appendChild(tools);
 		});
 		const escaped = escapeSelectorAttr(listName);
 		if (!document.querySelector(`[naizo-add="${escaped}"], [data-naizo-add="${escaped}"]`)) {
 			const addWrap = document.createElement("div");
 			addWrap.className = "naizo-list-footer";
 			addWrap.setAttribute("naizo-ignore", "true");
-			addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}">+ Add Item</button>`;
-			listEl.insertAdjacentElement("afterend", addWrap);
+			addWrap.setAttribute("data-naizo-runtime", "true");
+			addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}" aria-label="Add item to ${listName}">+ Add Item</button>`;
+			const tag = listEl.tagName.toLowerCase();
+			(tag === "tbody" || tag === "thead" || tag === "tfoot" ? listEl.closest("table") ?? listEl : listEl).insertAdjacentElement("afterend", addWrap);
 		}
 	}
-	function bindItemElementToRecord(itemEl, rowObj) {
+	function bindItemElementToRecord(itemEl, rowObj, listName) {
+		if (listName) scopeRowRadioInputs(itemEl, listName);
 		itemDataMap.set(itemEl, rowObj);
 		queryItemBoundElements(itemEl).forEach((el) => {
 			const key = getElementKey(el);
@@ -573,7 +676,7 @@
 		const fragment = tpl.content.cloneNode(true);
 		const itemEl = fragment.querySelector(ITEM_SELECTOR) ?? fragment.firstElementChild;
 		if (!itemEl) return null;
-		bindItemElementToRecord(itemEl, itemData);
+		bindItemElementToRecord(itemEl, itemData, getAttr(listEl, "naizo-list") ?? "list");
 		return itemEl;
 	}
 	function renderListItems(listEl, itemsArray) {
@@ -665,7 +768,7 @@
 				const seededItems = [];
 				listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
 					const rowObj = {};
-					bindItemElementToRecord(itemEl, rowObj);
+					bindItemElementToRecord(itemEl, rowObj, listName);
 					seededItems.push(rowObj);
 				});
 				setOwn(db.lists, listName, seededItems);
@@ -683,7 +786,15 @@
 			const cloneEl = cloneBound[i];
 			if (liveEl && cloneEl && !isIgnoredElement(liveEl)) bakeClonedElementAttributes(liveEl, cloneEl);
 		}
-		clone.querySelectorAll(`${IGNORE_SELECTOR}, #${UI_ID}, #${STYLE_ID}`).forEach((el) => el.remove());
+		clone.querySelectorAll("input[data-naizo-radio-name]").forEach((r) => {
+			const orig = r.getAttribute("data-naizo-radio-name");
+			if (orig !== null) r.setAttribute("name", orig);
+			r.removeAttribute("data-naizo-radio-name");
+		});
+		clone.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
+			if (listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).length >= 1) listEl.querySelectorAll(AUTO_TEMPLATE_SELECTOR).forEach((tpl) => tpl.remove());
+		});
+		clone.querySelectorAll(RUNTIME_STRIP_SELECTOR).forEach((el) => el.remove());
 		return "<!DOCTYPE html>\n" + clone.outerHTML;
 	}
 	async function readFileTextPreservingBom(file) {
@@ -1001,11 +1112,28 @@
 			updateUi("saved", "Downloaded HTML Snapshot");
 		}
 	}
+	function dispatchChangeEvent(detail) {
+		if (typeof window === "undefined") return;
+		window.dispatchEvent(new CustomEvent("naizo:change", { detail: {
+			...detail,
+			db: store
+		} }));
+	}
+	function dispatchItemEvent(listName, itemEl, rowObj, index) {
+		if (typeof window === "undefined") return;
+		window.dispatchEvent(new CustomEvent("naizo:item", { detail: {
+			list: listName,
+			item: itemEl,
+			data: rowObj,
+			index
+		} }));
+	}
 	function mountUi() {
 		if (!document.getElementById(STYLE_ID)) {
 			const style = document.createElement("style");
 			style.id = STYLE_ID;
 			style.setAttribute("naizo-ignore", "true");
+			style.setAttribute("data-naizo-runtime", "true");
 			style.textContent = `
       [naizo-item], [data-naizo-item] { position: relative; }
       .naizo-item-tools {
@@ -1027,6 +1155,11 @@
         border-radius: 6px; padding: 6px 12px; font: 500 12px system-ui; cursor: pointer;
       }
       .naizo-add-btn:hover { background: #f1f5f9; border-color: #64748b; color: #0f172a; }
+      @media print {
+        [data-naizo-runtime], #__naizodb_host__, .naizo-item-tools, .naizo-list-footer {
+          display: none !important;
+        }
+      }
     `;
 			document.head.appendChild(style);
 		}
@@ -1035,6 +1168,7 @@
 		const host = document.createElement("div");
 		host.id = UI_ID;
 		host.setAttribute("naizo-ignore", "true");
+		host.setAttribute("data-naizo-runtime", "true");
 		const shadow = host.attachShadow({ mode: "open" });
 		shadow.innerHTML = `
     <style>
@@ -1054,14 +1188,17 @@
         border-radius: 999px; padding: 4px 10px; font: inherit; cursor: pointer;
       }
       button:hover { background: #334155; color: #fff; }
+      @media print {
+        .pill { display: none !important; }
+      }
     </style>
-    <div class="pill">
-      <span class="dot" id="dot"></span>
-      <span id="status">Browser Cache · Click to Link Disk</span>
-      <button id="action">Link Disk</button>
-      <button id="restore" style="display: none" title="Restore browser state before disk conflict">↺ Restore</button>
-      <button id="copy" title="Copy #naizodb JSON state">📋 Copy</button>
-      <button id="unlink" style="display: none" title="Forget linked disk file">× Unlink</button>
+    <div class="pill" role="region" aria-label="naizo.js sync status">
+      <span class="dot" id="dot" aria-hidden="true"></span>
+      <span id="status" role="status" aria-live="polite">Browser Cache · Click to Link Disk</span>
+      <button id="action" type="button" aria-label="Link disk file">Link Disk</button>
+      <button id="restore" type="button" style="display: none" title="Restore browser state before disk conflict" aria-label="Restore conflict backup">↺ Restore</button>
+      <button id="copy" type="button" title="Copy #naizodb JSON state" aria-label="Copy #naizodb JSON">📋 Copy</button>
+      <button id="unlink" type="button" style="display: none" title="Forget linked disk file" aria-label="Unlink disk file">× Unlink</button>
     </div>
   `;
 		statusEl = shadow.getElementById("status");
@@ -1118,6 +1255,7 @@
 		const target = e.target;
 		if (!(target instanceof Element)) return;
 		if (isIgnoredElement(target)) return;
+		if (e.type === "toggle" && !isDetailsElement(target)) return;
 		const boundEl = target.closest(BOUND_SELECTOR);
 		if (!boundEl || isIgnoredElement(boundEl) || isSkippedElement(boundEl, true)) return;
 		if (boundEl !== target && !isContentEditableElement(boundEl)) return;
@@ -1134,6 +1272,13 @@
 			if (!shouldUpdateStoredValue(getOwn(rowObj, key), nextVal, exists)) return;
 			setOwn(rowObj, key, nextVal);
 			propagateItemKey(itemEl, key, nextVal, boundEl);
+			const listEl = itemEl.closest(LIST_SELECTOR);
+			dispatchChangeEvent({
+				scope: "lists",
+				list: listEl ? getAttr(listEl, "naizo-list") : null,
+				key,
+				value: nextVal
+			});
 			schedulePersist();
 			return;
 		}
@@ -1141,7 +1286,96 @@
 		if (!shouldUpdateStoredValue(getOwn(db.fields, key), nextVal, exists)) return;
 		setOwn(db.fields, key, nextVal);
 		propagateStandaloneKey(key, nextVal, boundEl);
+		dispatchChangeEvent({
+			scope: "fields",
+			key,
+			value: nextVal
+		});
 		schedulePersist();
+	}
+	function handleFormReset(e) {
+		const form = e.target;
+		if (!(form instanceof Element)) return;
+		setTimeout(() => {
+			const db = ensureStore();
+			let changed = false;
+			queryStandaloneBoundElements(form).forEach((el) => {
+				const key = getElementKey(el);
+				if (!key) return;
+				const nextVal = readElementValue(el);
+				if (nextVal === void 0) return;
+				if (shouldUpdateStoredValue(getOwn(db.fields, key), nextVal, hasOwn(db.fields, key))) {
+					setOwn(db.fields, key, nextVal);
+					propagateStandaloneKey(key, nextVal, el);
+					changed = true;
+				}
+			});
+			form.querySelectorAll(ITEM_SELECTOR).forEach((itemEl) => {
+				if (isIgnoredElement(itemEl)) return;
+				const rowObj = getOrBindItemRecord(itemEl);
+				if (!rowObj) return;
+				queryItemBoundElements(itemEl).forEach((el) => {
+					const key = getElementKey(el);
+					if (!key) return;
+					const nextVal = readElementValue(el);
+					if (nextVal === void 0) return;
+					if (shouldUpdateStoredValue(getOwn(rowObj, key), nextVal, hasOwn(rowObj, key))) {
+						setOwn(rowObj, key, nextVal);
+						propagateItemKey(itemEl, key, nextVal, el);
+						changed = true;
+					}
+				});
+			});
+			if (changed) {
+				dispatchChangeEvent({ scope: "reset" });
+				flushPersistence(true);
+			}
+		}, 0);
+	}
+	function addItemInternal(listName, itemData, focusFirstInput) {
+		if (!listName || !isPlainObject(itemData) || !isValidJsonValue(itemData)) {
+			console.warn("[naizo.js] Rejected invalid list item data for:", listName);
+			return;
+		}
+		const db = ensureStore();
+		const rowObj = cloneRecord(itemData);
+		let listArr = getOwn(db.lists, listName);
+		if (!Array.isArray(listArr)) {
+			listArr = [];
+			setOwn(db.lists, listName, listArr);
+		}
+		const listEl = findListElement(listName);
+		if (!listEl) {
+			listArr.push(rowObj);
+			dispatchChangeEvent({
+				scope: "lists",
+				action: "add",
+				list: listName,
+				index: listArr.length - 1,
+				value: rowObj
+			});
+			flushPersistence(true);
+			return;
+		}
+		ensureListBlueprints(listEl, false);
+		const node = createItemNode(listEl, rowObj);
+		if (node) {
+			listEl.appendChild(node);
+			listArr.push(rowObj);
+			const index = listArr.length - 1;
+			decorateListControls(listEl);
+			Naizo.bind(node);
+			dispatchItemEvent(listName, node, rowObj, index);
+			dispatchChangeEvent({
+				scope: "lists",
+				action: "add",
+				list: listName,
+				index,
+				value: rowObj
+			});
+			if (focusFirstInput) node.querySelector("input[type=\"text\"], [contenteditable=\"true\"], [contenteditable=\"\"], [contenteditable=\"plaintext-only\"], textarea")?.focus();
+			flushPersistence(true);
+		}
 	}
 	function handleListClicks(e) {
 		const target = e.target;
@@ -1149,7 +1383,7 @@
 		const addBtn = target.closest("[naizo-add], [data-naizo-add]");
 		if (addBtn) {
 			const listName = getAttr(addBtn, "naizo-add");
-			if (listName) Naizo.addItem(listName, {});
+			if (listName) addItemInternal(listName, {}, true);
 			return;
 		}
 		const removeBtn = target.closest("[naizo-remove], [data-naizo-remove]");
@@ -1199,6 +1433,8 @@
 		document.addEventListener("click", handleListClicks);
 		document.addEventListener("input", handleInputOrChange);
 		document.addEventListener("change", handleInputOrChange);
+		document.addEventListener("toggle", handleInputOrChange, true);
+		document.addEventListener("reset", handleFormReset);
 		window.addEventListener("storage", handleStorageEvent);
 		window.addEventListener("focus", () => {
 			checkDiskForExternalChanges();
@@ -1225,7 +1461,14 @@
 				console.warn("[naizo.js] Rejected invalid custom key or non-JSON value:", key);
 				return;
 			}
-			setOwn(ensureStore().custom, key, cloneJsonValue(value));
+			const db = ensureStore();
+			const cloned = cloneJsonValue(value);
+			setOwn(db.custom, key, cloned);
+			dispatchChangeEvent({
+				scope: "custom",
+				key,
+				value: cloned
+			});
 			flushPersistence(true);
 		},
 		getField(key) {
@@ -1240,6 +1483,11 @@
 			const cloned = cloneJsonValue(value);
 			setOwn(db.fields, key, cloned);
 			propagateStandaloneKey(key, cloned);
+			dispatchChangeEvent({
+				scope: "fields",
+				key,
+				value: cloned
+			});
 			flushPersistence(true);
 		},
 		deleteField(key) {
@@ -1247,6 +1495,11 @@
 			const db = ensureStore();
 			if (!hasOwn(db.fields, key)) return;
 			deleteOwn(db.fields, key);
+			dispatchChangeEvent({
+				scope: "fields",
+				action: "delete",
+				key
+			});
 			flushPersistence(true);
 		},
 		getList(listName) {
@@ -1254,32 +1507,7 @@
 			return Array.isArray(arr) ? arr : [];
 		},
 		addItem(listName, itemData = {}) {
-			if (!listName || !isPlainObject(itemData) || !isValidJsonValue(itemData)) {
-				console.warn("[naizo.js] Rejected invalid list item data for:", listName);
-				return;
-			}
-			const db = ensureStore();
-			const rowObj = cloneRecord(itemData);
-			let listArr = getOwn(db.lists, listName);
-			if (!Array.isArray(listArr)) {
-				listArr = [];
-				setOwn(db.lists, listName, listArr);
-			}
-			const listEl = findListElement(listName);
-			if (!listEl) {
-				listArr.push(rowObj);
-				flushPersistence(true);
-				return;
-			}
-			ensureListBlueprints(listEl);
-			const node = createItemNode(listEl, rowObj);
-			if (node) {
-				listEl.appendChild(node);
-				listArr.push(rowObj);
-				decorateListControls(listEl);
-				node.querySelector("input[type=\"text\"], [contenteditable=\"true\"], textarea")?.focus();
-				flushPersistence(true);
-			}
+			addItemInternal(listName, itemData, false);
 		},
 		updateItem(listName, index, partialData) {
 			if (!listName || !isPlainObject(partialData) || !isValidJsonValue(partialData)) {
@@ -1297,6 +1525,13 @@
 				setOwn(rowObj, key, val);
 				if (itemEl) propagateItemKey(itemEl, key, val);
 			}
+			dispatchChangeEvent({
+				scope: "lists",
+				action: "update",
+				list: listName,
+				index,
+				value: rowObj
+			});
 			flushPersistence(true);
 		},
 		removeItem(listName, index) {
@@ -1307,6 +1542,12 @@
 				const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
 				if (items[index]) items[index].remove();
 			}
+			dispatchChangeEvent({
+				scope: "lists",
+				action: "remove",
+				list: listName,
+				index
+			});
 			flushPersistence(true);
 		},
 		moveItem(listName, fromIndex, toIndex) {
@@ -1323,6 +1564,13 @@
 				const targetEl = items[toIndex];
 				if (fromEl && targetEl) listEl.insertBefore(fromEl, fromIndex < toIndex ? targetEl.nextSibling : targetEl);
 			}
+			dispatchChangeEvent({
+				scope: "lists",
+				action: "move",
+				list: listName,
+				fromIndex,
+				toIndex
+			});
 			flushPersistence(true);
 		},
 		bind(root = document) {
@@ -1374,7 +1622,7 @@
 		fileHandle = null;
 		lastObservedModified = null;
 		mountUi();
-		ensureListBlueprints(document);
+		ensureListBlueprints(document, true);
 		attachListeners();
 		const scriptEl = getDbScript();
 		trackedDbScriptEl = scriptEl;

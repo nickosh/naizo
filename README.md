@@ -88,36 +88,51 @@ CDN URLs require the package/version to be published to npm. For local developme
 
 `naizo.js` supports both concise **`naizo` / `naizo-*`** attributes (recommended for low token overhead) and HTML5-compliant **`data-naizo` / `data-naizo-*`** attributes (for strict HTML validators):
 
-| Short Attribute         | HTML5 `data-*` Alias         | Target Element                                                  | Description                                                                                                                   |
-| ----------------------- | ---------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `naizo="key"`           | `data-naizo="key"`           | `<input>`, `<textarea>`, `<select>`, `[contenteditable="true"]` | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when inside a `[naizo-item]`).                |
-| `naizo-list="name"`     | `data-naizo-list="name"`     | Container (`<div>`, `<ul>`, `<tbody>`)                          | Declares a repeating list bound to `lists["name"]` in `#naizodb`. Automatically injects a `+ Add Item` button below the list. |
-| `naizo-item`            | `data-naizo-item`            | Child of `[naizo-list]`                                         | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls.                                        |
-| `naizo-template`        | `data-naizo-template`        | `<template>` inside `[naizo-list]`                              | Optional explicit HTML blueprint for new items. Auto-generated from the first `[naizo-item]` if omitted.                      |
-| `naizo-add="name"`      | `data-naizo-add="name"`      | `<button>`                                                      | Appends a new blank item to `[naizo-list="name"]`.                                                                            |
-| `naizo-remove`          | `data-naizo-remove`          | `<button>` inside `[naizo-item]`                                | Removes the enclosing `[naizo-item]`.                                                                                         |
-| `naizo-move="up\|down"` | `data-naizo-move="up\|down"` | `<button>` inside `[naizo-item]`                                | Moves the enclosing `[naizo-item]` up or down.                                                                                |
-| `naizo-no-controls`     | `data-naizo-no-controls`     | `[naizo-list]`                                                  | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list.                                           |
-| `naizo-ignore`          | `data-naizo-ignore`          | Any HTML element                                                | Excludes the element from state tracking and strips it from the HTML clone before writing to disk.                            |
+| Short Attribute         | HTML5 `data-*` Alias         | Target Element                                                              | Description                                                                                                                   |
+| ----------------------- | ---------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `naizo="key"`           | `data-naizo="key"`           | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when on or inside a `[naizo-item]`).          |
+| `naizo-list="name"`     | `data-naizo-list="name"`     | Container (`<div>`, `<ul>`, `<tbody>`)                                      | Declares a repeating list bound to `lists["name"]` in `#naizodb`. Automatically injects a `+ Add Item` button below the list. |
+| `naizo-item`            | `data-naizo-item`            | Child of `[naizo-list]`                                                     | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls.                                        |
+| `naizo-template`        | `data-naizo-template`        | `<template>` inside `[naizo-list]`                                          | Optional explicit HTML blueprint for new items. Auto-generated (`data-naizo-auto-template`) from the first item if omitted.   |
+| `naizo-add="name"`      | `data-naizo-add="name"`      | `<button>`                                                                  | Appends a new blank item to `[naizo-list="name"]` and focuses its first text field.                                           |
+| `naizo-remove`          | `data-naizo-remove`          | `<button>` inside `[naizo-item]`                                            | Removes the enclosing `[naizo-item]`.                                                                                         |
+| `naizo-move="up\|down"` | `data-naizo-move="up\|down"` | `<button>` inside `[naizo-item]`                                            | Moves the enclosing `[naizo-item]` up or down.                                                                                |
+| `naizo-no-controls`     | `data-naizo-no-controls`     | `[naizo-list]`                                                              | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list.                                           |
+| `naizo-ignore`          | `data-naizo-ignore`          | Any HTML element                                                            | Excludes the element and its subtree from state binding while preserving it in exported HTML.                                 |
+| `naizo-id="scope"`      | `data-naizo-id="scope"`      | `<html>` or `<body>`                                                        | Optional document scope identifier to isolate `localStorage` and IndexedDB file handles on `localhost`.                       |
 
 ---
 
-## JavaScript API (`window.Naizo`)
+## JavaScript API (`window.Naizo` / `window.NaizoDB`)
 
 ```javascript
-// Custom State Namespace
+// Custom State Namespace (db.custom)
 const rps = Naizo.get('rateLimitRps');
 Naizo.set('rateLimitRps', 250);
 
-// Programmatic List Manipulation
+// Standalone Fields Namespace (db.fields)
+const owner = Naizo.getField('owner');
+Naizo.setField('owner', 'Kenji');
+Naizo.deleteField('obsoleteFlag');
+
+// Programmatic List Manipulation (db.lists)
 const tasks = Naizo.getList('tasks');
 Naizo.addItem('tasks', { done: false, title: 'Write unit tests', priority: 'High' });
+Naizo.updateItem('tasks', 0, { done: true });
 Naizo.moveItem('tasks', 2, 0);
 Naizo.removeItem('tasks', 1);
 
-// Core Utilities
-Naizo.save(); // Manually trigger DOM capture + save cycle
-const html = Naizo.exportHTML(); // Return clean HTML string stripped of runtime UI
+// Dynamic Subtree Binding & Persistence Utilities
+Naizo.bind(document.getElementById('dynamic-panel')); // Hydrate dynamically mounted DOM
+await Naizo.save(); // Flush cache and await single-flight disk write (Promise<boolean>)
+await Naizo.unlink(); // Forget linked FileSystemFileHandle
+const json = await Naizo.copyJSON(); // Copy #naizodb JSON to clipboard and return string
+const html = Naizo.exportHTML(); // Return clean HTML snapshot with baked attributes
+
+// Lifecycle & Mutation Events
+window.addEventListener('naizo:hydrate', (e) => console.log('Hydrated store:', e.detail));
+window.addEventListener('naizo:change', (e) => console.log('State changed:', e.detail));
+window.addEventListener('naizo:item', (e) => console.log('New list row:', e.detail));
 ```
 
 ---
