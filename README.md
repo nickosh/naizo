@@ -8,7 +8,7 @@
 [![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~4.7_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
-_Give any static `.html` file a built-in JSON database (`#naizodb`) and vital internal organs that turn passive markup into a living, self-persisting application synced directly to disk._
+_Turn static HTML files into self-saving apps with built-in JSON state (`#naizodb`) for Human + AI workflows._
 
 </div>
 

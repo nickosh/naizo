@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-21 — Simplified package description and reviewed release readiness
+
+- Done: reviewed CI/CD workflows, isolated Release Please tooling, and `docs/PUBLISHING.md` against the `v0.1.0` bootstrap procedure; updated `package.json` `"description"` and `README.md` subtitle to `"Turn static HTML files into self-saving apps with built-in JSON state for Human + AI workflows."` for clearer discovery on npm and GitHub.
+- Verified: `vp check`, `vp pack`, `vp test` (13/13 project tests passing), `vp node --test .github/release-tools/test.cjs` (31/31 release-tooling tests passing), `node --check dist/naizo.js`, `node --check dist/naizo.min.js`, `git diff --exit-code dist/naizo.js`, eight-file `npm pack` manifest audit, all 8 fish blocks in `docs/PUBLISHING.md`, and `git diff --check`. Live GitHub Pages deployment, Actions PR permissions, and npm publication remain remote rollout steps.
+- Next: enable GitHub Pages and Actions PR creation permissions in repository settings, publish `naizo@0.1.0` following `docs/PUBLISHING.md`, then proceed with `M4.1`.
+
 ## 2026-10-21 — Renamed project to `naizo` across code, tests, tooling, and all documentation (D38)
 
 - Done: renamed the project, package (`naizo`), browser bundles (`dist/naizo.js`, `dist/naizo.min.js`), canonical JSON script (`#naizodb`), declarative attributes (`naizo` / `naizo-*` and `data-naizo` / `data-naizo-*`), global API (`window.Naizo` / `window.NaizoDB`, `initNaizo`, `naizo:hydrate`), playground (`site/index.html`), starter templates (`examples/`), tests (`tests/naizo.test.ts`, `tests/release.test.ts`), release tooling/workflows, closeout skill (`.agents/skills/naizo-closeout/SKILL.md`), and all project memory documents (`docs/EDGE_CASES.md`, `docs/PLAN.md`, `docs/DECISIONS.md`, `docs/PRODUCT.md`, `docs/PUBLISHING.md`, `docs/JOURNAL.md`); rewrote `README.md` around both meanings of Japanese _naizō_ (ないぞう): **内蔵** (_built-in / embedded_) and **内臓** (_internal organs / viscera_).

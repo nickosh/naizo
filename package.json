@@ -1,7 +1,7 @@
 {
   "name": "naizo",
   "version": "0.1.0",
-  "description": "Self-persisting HTML built-in database (#naizodb) and declarative list repeater for Human + AI Agent workflows.",
+  "description": "Turn static HTML files into self-saving apps with built-in JSON state for Human + AI workflows.",
   "keywords": [
     "ai-agents",
     "file-system-access-api",
