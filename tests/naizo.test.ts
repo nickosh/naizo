@@ -147,11 +147,14 @@ describe('naizo.js v0.1.0 core runtime', () => {
     window.removeEventListener('naizo:hydrate', hydrateSpy);
   });
 
-  it('strips [data-naizo-runtime] UI while preserving user [naizo-ignore] elements in exportHTML (D12, EC03, EC07)', async () => {
+  it('strips [data-naizo-runtime] UI while preserving user [naizo-ignore] elements in auto-templates and exportHTML (D12, EC03, EC07)', async () => {
     document.body.innerHTML = `
       <input type="text" naizo="project" value="naizo">
       <div naizo-list="items">
-        <div naizo-item><input type="text" naizo="name" value="One"></div>
+        <div naizo-item>
+          <input type="text" naizo="name" value="One">
+          <span class="item-custom-widget" naizo-ignore>Item custom badge</span>
+        </div>
       </div>
       <div naizo-ignore><input type="range" id="user-widget" value="50">User widget</div>
       <div data-naizo-ignore>Legacy user widget</div>
@@ -159,6 +162,12 @@ describe('naizo.js v0.1.0 core runtime', () => {
     `;
 
     await initNaizo();
+    Naizo.addItem('items', { name: 'Two' });
+
+    const rows = document.querySelectorAll('[naizo-list="items"] > [naizo-item]');
+    expect(rows.length).toBe(2);
+    expect(rows[0]?.querySelector('.item-custom-widget')?.textContent).toBe('Item custom badge');
+    expect(rows[1]?.querySelector('.item-custom-widget')?.textContent).toBe('Item custom badge');
 
     const exported = Naizo.exportHTML();
     expect(exported).not.toContain('__naizodb_host__');
@@ -166,6 +175,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(exported).not.toContain('naizo-item-tools');
     expect(exported).not.toContain('naizo-list-footer');
     expect(exported).not.toContain('Ephemeral runtime overlay');
+    expect(exported).toContain('Item custom badge');
     expect(exported).toContain('User widget');
     expect(exported).toContain('Legacy user widget');
     expect(exported).toContain('"project": "naizo"');

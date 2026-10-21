@@ -18,7 +18,7 @@
           "filter_type": "all",
           "filter_status": "all",
           "filter_location": "all",
-          "sort_by": "name"
+          "sort_by": "default"
         },
         "lists": {
           "inventory": [
@@ -645,7 +645,7 @@
           </p>
         </div>
 
-        <div class="topbar-actions" naizo-ignore>
+        <div class="topbar-actions">
           <button
             type="button"
             id="theme-toggle-btn"
@@ -723,7 +723,7 @@
       </header>
 
       <!-- Live KPI Summary Row -->
-      <section class="kpi-grid" aria-label="Inventory metrics" naizo-ignore>
+      <section class="kpi-grid" aria-label="Inventory metrics">
         <div class="card kpi-card" data-size="sm">
           <header>
             <span class="kpi-label">Global Card Pool</span>
@@ -811,7 +811,6 @@
               data-variant="ghost"
               data-size="icon-xs"
               aria-label="Clear search"
-              naizo-ignore
               hidden
             >
               <svg
@@ -871,20 +870,29 @@
               </select>
             </label>
 
+            <label class="filter-label">
+              <span>Sort</span>
+              <select id="sort-by-select" class="select" data-size="sm" naizo="sort_by">
+                <option value="default">Pool Order</option>
+                <option value="name">Name (A–Z)</option>
+                <option value="value-desc">Value (High → Low)</option>
+                <option value="qty-asc">Qty (Low → High)</option>
+              </select>
+            </label>
+
             <button
               type="button"
               id="reset-filters-btn"
               class="btn"
               data-variant="ghost"
               data-size="sm"
-              naizo-ignore
             >
               Reset
             </button>
           </div>
         </div>
 
-        <div class="toolbar-row" naizo-ignore>
+        <div class="toolbar-row">
           <div
             class="category-pills"
             id="type-pill-bar"
@@ -1068,7 +1076,7 @@
         </div>
 
         <!-- Empty Filter State -->
-        <div id="empty-state" class="card empty-state" naizo-ignore hidden>
+        <div id="empty-state" class="card empty-state" hidden>
           <div class="empty-icon" aria-hidden="true">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -1113,7 +1121,6 @@
       class="dialog"
       aria-labelledby="create-dialog-title"
       aria-describedby="create-dialog-desc"
-      naizo-ignore
     >
       <div class="dialog-box-lg">
         <header>
@@ -1285,7 +1292,7 @@
     </dialog>
 
     <!-- Pop-Up Modal: Add Custom Key-Value to Existing Card -->
-    <dialog id="add-prop-dialog" class="dialog" aria-labelledby="add-prop-title" naizo-ignore>
+    <dialog id="add-prop-dialog" class="dialog" aria-labelledby="add-prop-title">
       <div>
         <header>
           <h2 id="add-prop-title">Add Custom JSON Field</h2>
@@ -1350,12 +1357,7 @@
     </dialog>
 
     <!-- Pop-Up Modal: Inspect Live #naizodb JSON -->
-    <dialog
-      id="inspect-json-dialog"
-      class="dialog"
-      aria-labelledby="inspect-json-title"
-      naizo-ignore
-    >
+    <dialog id="inspect-json-dialog" class="dialog" aria-labelledby="inspect-json-title">
       <div class="dialog-box-lg">
         <header>
           <h2 id="inspect-json-title">Live #naizodb Canonical State</h2>
@@ -1421,9 +1423,11 @@
         const filterTypeSelect = document.getElementById('filter-type-select');
         const filterStatusSelect = document.getElementById('filter-status-select');
         const filterLocationSelect = document.getElementById('filter-location-select');
+        const sortBySelect = document.getElementById('sort-by-select');
         const resetFiltersBtn = document.getElementById('reset-filters-btn');
         const resultsCounter = document.getElementById('results-counter');
         const typePillBar = document.getElementById('type-pill-bar');
+        const BASE_LOCATIONS = ['Tokyo HQ', 'San Francisco', 'Berlin Lab', 'Cloud / Remote'];
 
         // Modals
         const createDialog = document.getElementById('create-card-dialog');
@@ -1503,10 +1507,12 @@
                 delBtn.setAttribute('aria-label', `Remove ${key}`);
                 delBtn.textContent = '×';
                 delBtn.addEventListener('click', () => {
+                  const currentCards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
+                  const currentIdx = currentCards.indexOf(cardEl);
                   const fullDb = Naizo.get();
                   const list = fullDb?.lists?.inventory;
-                  if (Array.isArray(list) && list[index]) {
-                    delete list[index][key];
+                  if (currentIdx !== -1 && Array.isArray(list) && list[currentIdx]) {
+                    delete list[currentIdx][key];
                     void Naizo.save();
                     refreshInventoryView();
                   }
@@ -1519,10 +1525,43 @@
           }
         }
 
+        function syncLocationFilterOptions(items) {
+          const storedLoc = String(Naizo.getField('filter_location') || 'all');
+          const locations = new Set(BASE_LOCATIONS);
+          items.forEach((item) => {
+            const loc = String(item?.location || '').trim();
+            if (loc) locations.add(loc);
+          });
+          if (storedLoc && storedLoc !== 'all') {
+            locations.add(storedLoc);
+          }
+
+          const existingValues = Array.from(filterLocationSelect.options).map((o) => o.value);
+          const desiredValues = ['all', ...locations];
+          if (existingValues.join('\n') !== desiredValues.join('\n')) {
+            filterLocationSelect.innerHTML = '';
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All Locations';
+            filterLocationSelect.appendChild(allOpt);
+            locations.forEach((loc) => {
+              const opt = document.createElement('option');
+              opt.value = loc;
+              opt.textContent = loc;
+              filterLocationSelect.appendChild(opt);
+            });
+          }
+          if (filterLocationSelect.value !== storedLoc) {
+            filterLocationSelect.value = storedLoc;
+          }
+        }
+
         function refreshInventoryView() {
           syncThemeFromStore();
 
           const items = Naizo.getList('inventory');
+          syncLocationFilterOptions(items);
+
           const cards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
           const query = String(searchInput.value || '')
             .trim()
@@ -1530,6 +1569,7 @@
           const typeFilter = filterTypeSelect.value || 'all';
           const statusFilter = filterStatusSelect.value || 'all';
           const locationFilter = filterLocationSelect.value || 'all';
+          const sortBy = sortBySelect.value || 'default';
 
           clearSearchBtn.hidden = query.length === 0;
 
@@ -1540,6 +1580,29 @@
               btn.removeAttribute('data-variant');
             } else {
               btn.setAttribute('data-variant', 'outline');
+            }
+          });
+
+          // Visually sort cards via CSS Grid order without altering DOM/#naizodb array indices
+          const orderIndices = items.map((_, i) => i);
+          if (sortBy === 'name') {
+            orderIndices.sort((a, b) =>
+              String(items[a]?.name || '').localeCompare(String(items[b]?.name || '')),
+            );
+          } else if (sortBy === 'value-desc') {
+            orderIndices.sort((a, b) => {
+              const valA = (Number(items[a]?.qty) || 0) * (Number(items[a]?.unitCost) || 0);
+              const valB = (Number(items[b]?.qty) || 0) * (Number(items[b]?.unitCost) || 0);
+              return valB - valA;
+            });
+          } else if (sortBy === 'qty-asc') {
+            orderIndices.sort(
+              (a, b) => (Number(items[a]?.qty) || 0) - (Number(items[b]?.qty) || 0),
+            );
+          }
+          orderIndices.forEach((cardIdx, visualRank) => {
+            if (cards[cardIdx]) {
+              cards[cardIdx].style.order = String(visualRank);
             }
           });
 
@@ -1601,6 +1664,7 @@
           Naizo.setField('filter_type', 'all');
           Naizo.setField('filter_status', 'all');
           Naizo.setField('filter_location', 'all');
+          Naizo.setField('sort_by', 'default');
           refreshInventoryView();
         }
 
@@ -1635,6 +1699,7 @@
         filterTypeSelect.addEventListener('change', refreshInventoryView);
         filterStatusSelect.addEventListener('change', refreshInventoryView);
         filterLocationSelect.addEventListener('change', refreshInventoryView);
+        sortBySelect.addEventListener('change', refreshInventoryView);
 
         clearSearchBtn.addEventListener('click', () => {
           Naizo.setField('search_query', '');
@@ -1650,7 +1715,11 @@
           const btn = e.target.closest('[data-type-pill]');
           if (!btn) return;
           const selectedType = btn.getAttribute('data-type-pill') || 'all';
-          Naizo.setField('filter_type', selectedType);
+          const nextType =
+            selectedType !== 'all' && filterTypeSelect.value === selectedType
+              ? 'all'
+              : selectedType;
+          Naizo.setField('filter_type', nextType);
           refreshInventoryView();
         });
 
