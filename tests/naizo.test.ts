@@ -398,7 +398,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(Object.hasOwn(createdCard ?? {}, '__proto__')).toBe(true);
       expect(createdCard?.['__proto__']).toBe('1e309');
 
-      // 5. Form modals ignore backdrop clicks, preserve draft state across Cancel/X, and reset via Reset button
+      // 5. Form modals guard against drag-select backdrop clicks, close on true backdrop clicks while preserving drafts, and reset via Reset button
       const createDialog = document.getElementById('create-card-dialog') as HTMLDialogElement;
       document.getElementById('open-create-modal-btn')?.click();
       expect(createDialog.open || createDialog.hasAttribute('open')).toBe(true);
@@ -411,12 +411,14 @@ describe('naizo.js v0.1.0 core runtime', () => {
       const kvRows = document.querySelectorAll('#modal-kv-container .custom-kv-row');
       expect(kvRows.length).toBe(2);
 
-      // Clicking backdrop of #create-card-dialog must NOT close it
+      // Drag-select starting inside an input and ending on #create-card-dialog backdrop must NOT close it
+      nameIn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       createDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       expect(createDialog.open || createDialog.hasAttribute('open')).toBe(true);
 
-      // Closing via Cancel and reopening preserves draft text and extra custom KV rows
-      document.getElementById('cancel-create-btn')?.click();
+      // True backdrop click (mousedown + click on #create-card-dialog) closes it AND preserves draft text/KV rows on reopen
+      createDialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      createDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       expect(createDialog.open || createDialog.hasAttribute('open')).toBe(false);
       document.getElementById('open-create-modal-btn')?.click();
       expect(nameIn.value).toBe('Draft Workstation');
@@ -431,16 +433,19 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(document.querySelectorAll('#modal-kv-container .custom-kv-row').length).toBe(1);
       document.getElementById('close-create-x-btn')?.click();
 
-      // Add Property modal also ignores backdrop click, preserves draft for the same card, and resets on Reset or different card
+      // Add Property modal also guards against drag-select backdrop click, closes on true backdrop click while preserving draft for the same card, and resets on Reset or different card
       const addPropDialog = document.getElementById('add-prop-dialog') as HTMLDialogElement;
       const currentCards = Array.from(document.querySelectorAll<HTMLElement>('[naizo-item]'));
       currentCards[0]?.querySelector<HTMLButtonElement>('[data-add-card-prop]')?.click();
       propKeyIn.value = 'draftKey';
       propValIn.value = 'draftValue';
+      propKeyIn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       addPropDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       expect(addPropDialog.open || addPropDialog.hasAttribute('open')).toBe(true);
 
-      document.getElementById('cancel-prop-btn')?.click();
+      addPropDialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      addPropDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(addPropDialog.open || addPropDialog.hasAttribute('open')).toBe(false);
       currentCards[0]?.querySelector<HTMLButtonElement>('[data-add-card-prop]')?.click();
       expect(propKeyIn.value).toBe('draftKey');
       expect(propValIn.value).toBe('draftValue');

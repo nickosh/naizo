@@ -1520,6 +1520,19 @@
           return Boolean(dialogEl.open || dialogEl.hasAttribute('open'));
         }
 
+        function bindBackdropDismiss(dialogEl, onDismiss = () => closeModalDialog(dialogEl)) {
+          let backdropMouseDown = false;
+          dialogEl.addEventListener('mousedown', (e) => {
+            backdropMouseDown = e.target === dialogEl;
+          });
+          dialogEl.addEventListener('click', (e) => {
+            if (e.target === dialogEl && backdropMouseDown) {
+              onDismiss();
+            }
+            backdropMouseDown = false;
+          });
+        }
+
         function syncJsonInspector() {
           const db = Naizo.get();
           jsonPreviewBox.textContent = JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
@@ -1812,7 +1825,7 @@
           refreshInventoryView();
         });
 
-        // Event bindings: Create Card Modal (no backdrop-click close; draft preserved across Cancel/X)
+        // Event bindings: Create Card Modal (drag-safe backdrop close; draft preserved across close/reopen)
         document.getElementById('open-create-modal-btn').addEventListener('click', openCreateModal);
         document.getElementById('reset-create-btn').addEventListener('click', () => {
           resetCreateForm();
@@ -1824,6 +1837,7 @@
         document
           .getElementById('close-create-x-btn')
           .addEventListener('click', () => closeModalDialog(createDialog));
+        bindBackdropDismiss(createDialog);
 
         document.getElementById('add-modal-kv-btn').addEventListener('click', () => {
           appendModalKvRow();
@@ -1872,7 +1886,7 @@
           refreshInventoryView();
         });
 
-        // Event bindings: Add Custom Property to an Existing Card (no backdrop-click close; draft preserved per card)
+        // Event bindings: Add Custom Property to an Existing Card (drag-safe backdrop close; draft preserved per card)
         gridEl.addEventListener('click', (e) => {
           const addPropBtn = e.target.closest('[data-add-card-prop]');
           if (!addPropBtn) return;
@@ -1908,6 +1922,7 @@
         });
         document.getElementById('cancel-prop-btn').addEventListener('click', dismissAddPropModal);
         document.getElementById('close-prop-x-btn').addEventListener('click', dismissAddPropModal);
+        bindBackdropDismiss(addPropDialog, dismissAddPropModal);
         addPropDialog.addEventListener('close', () => {
           activeCardIdForProp = null;
           activeCardRefForProp = null;
@@ -1939,7 +1954,6 @@
         });
 
         // Event bindings: Inspect #naizodb JSON Modal
-        let inspectBackdropMouseDown = false;
         document.getElementById('inspect-json-btn').addEventListener('click', () => {
           syncJsonInspector();
           showModalDialog(inspectDialog);
@@ -1950,15 +1964,7 @@
         document
           .getElementById('close-json-x-btn')
           .addEventListener('click', () => closeModalDialog(inspectDialog));
-        inspectDialog.addEventListener('mousedown', (e) => {
-          inspectBackdropMouseDown = e.target === inspectDialog;
-        });
-        inspectDialog.addEventListener('click', (e) => {
-          if (e.target === inspectDialog && inspectBackdropMouseDown) {
-            closeModalDialog(inspectDialog);
-          }
-          inspectBackdropMouseDown = false;
-        });
+        bindBackdropDismiss(inspectDialog);
         document.getElementById('copy-json-modal-btn').addEventListener('click', (e) => {
           const btn = e.currentTarget;
           void Naizo.copyJSON().then(() => {
