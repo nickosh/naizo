@@ -2,6 +2,7 @@ import { runInThisContext } from 'node:vm';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import iifeBundleCode from '../dist/naizo.js?raw';
 import checklistHtml from '../examples/checklist.html?raw';
+import inventoryHtml from '../examples/inventory.html?raw';
 import starterHtml from '../examples/starter.html?raw';
 import pkgJson from '../package.json';
 import siteHtml from '../site/index.html?raw';
@@ -146,11 +147,14 @@ describe('naizo.js v0.1.0 core runtime', () => {
     window.removeEventListener('naizo:hydrate', hydrateSpy);
   });
 
-  it('strips [data-naizo-runtime] UI while preserving user [naizo-ignore] elements in exportHTML (D12, EC03, EC07)', async () => {
+  it('strips [data-naizo-runtime] UI while preserving user [naizo-ignore] elements in auto-templates and exportHTML (D12, EC03, EC07)', async () => {
     document.body.innerHTML = `
       <input type="text" naizo="project" value="naizo">
       <div naizo-list="items">
-        <div naizo-item><input type="text" naizo="name" value="One"></div>
+        <div naizo-item>
+          <input type="text" naizo="name" value="One">
+          <span class="item-custom-widget" naizo-ignore>Item custom badge</span>
+        </div>
       </div>
       <div naizo-ignore><input type="range" id="user-widget" value="50">User widget</div>
       <div data-naizo-ignore>Legacy user widget</div>
@@ -158,6 +162,12 @@ describe('naizo.js v0.1.0 core runtime', () => {
     `;
 
     await initNaizo();
+    Naizo.addItem('items', { name: 'Two' });
+
+    const rows = document.querySelectorAll('[naizo-list="items"] > [naizo-item]');
+    expect(rows.length).toBe(2);
+    expect(rows[0]?.querySelector('.item-custom-widget')?.textContent).toBe('Item custom badge');
+    expect(rows[1]?.querySelector('.item-custom-widget')?.textContent).toBe('Item custom badge');
 
     const exported = Naizo.exportHTML();
     expect(exported).not.toContain('__naizodb_host__');
@@ -165,6 +175,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(exported).not.toContain('naizo-item-tools');
     expect(exported).not.toContain('naizo-list-footer');
     expect(exported).not.toContain('Ephemeral runtime overlay');
+    expect(exported).toContain('Item custom badge');
     expect(exported).toContain('User widget');
     expect(exported).toContain('Legacy user widget');
     expect(exported).toContain('"project": "naizo"');
@@ -265,7 +276,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
   });
 
   it('hydrates site/index.html and examples/ starter templates with wrapping labels (M3.2, EC39)', async () => {
-    for (const html of [siteHtml, starterHtml, checklistHtml]) {
+    for (const html of [siteHtml, starterHtml, checklistHtml, inventoryHtml]) {
       const parsedDoc = new DOMParser().parseFromString(html, 'text/html');
       const rawJson = parsedDoc.getElementById('naizodb')?.textContent?.trim() ?? '';
       expect(rawJson.length).toBeGreaterThan(0);
@@ -291,6 +302,186 @@ describe('naizo.js v0.1.0 core runtime', () => {
       for (const label of labels) {
         expect(label.control).not.toBeNull();
         expect(row.contains(label.control)).toBe(true);
+      }
+    }
+
+    // Load inventory.html into DOM and verify template hydration, wrapping <label> controls, and extra JSON dict keys (EC39, D15)
+    localStorage.clear();
+    const invDoc = new DOMParser().parseFromString(inventoryHtml, 'text/html');
+    document.head.innerHTML = invDoc.head.innerHTML;
+    document.body.innerHTML = invDoc.body.innerHTML;
+
+    await initNaizo();
+
+    const invCards = Array.from(document.querySelectorAll<HTMLElement>('[naizo-item]'));
+    expect(invCards.length).toBe(6);
+    for (const card of invCards) {
+      const labels = Array.from(card.querySelectorAll('label'));
+      expect(labels.length).toBeGreaterThan(0);
+      for (const label of labels) {
+        expect(label.control).not.toBeNull();
+        expect(card.contains(label.control)).toBe(true);
+      }
+    }
+    const firstCardDict = Naizo.getList('inventory')[0];
+    expect(firstCardDict?.chip).toBe('Apple M4 Max');
+    expect(firstCardDict?.ram).toBe('64GB');
+
+    // Execute inventory.html application script and verify modal/filter edge cases
+    const registeredWinListeners: Array<{
+      type: string;
+      listener: EventListenerOrEventListenerObject;
+    }> = [];
+    const origWinAdd = window.addEventListener.bind(window);
+    const addSpy = vi
+      .spyOn(window, 'addEventListener')
+      .mockImplementation(
+        (
+          type: string,
+          listener: EventListenerOrEventListenerObject,
+          options?: boolean | AddEventListenerOptions,
+        ) => {
+          registeredWinListeners.push({ type, listener });
+          origWinAdd(type, listener, options);
+        },
+      );
+
+    try {
+      const appScript = invDoc.body.querySelector('script')?.textContent || '';
+      runInThisContext(appScript);
+      window.dispatchEvent(new Event('DOMContentLoaded'));
+
+      // 1. Opening + Key on inv-101, reordering cards before submit, and submitting updates inv-101 by stable ID
+      const firstAddPropBtn = invCards[0]?.querySelector<HTMLButtonElement>('[data-add-card-prop]');
+      firstAddPropBtn?.click();
+      Naizo.moveItem('inventory', 0, 1);
+
+      const propKeyIn = document.getElementById('prop-key-input') as HTMLInputElement;
+      const propValIn = document.getElementById('prop-val-input') as HTMLInputElement;
+      const addPropForm = document.getElementById('add-prop-form') as HTMLFormElement;
+      propKeyIn.value = 'maxWatts';
+      propValIn.value = 'Infinity';
+      addPropForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+      // 2. Non-finite numeric input ("Infinity") is preserved as text on inv-101 (now at index 1), not applied to inv-102 (index 0)
+      const listAfterProp = Naizo.getList('inventory');
+      expect(listAfterProp[0]?.id).toBe('inv-102');
+      expect(listAfterProp[0]?.maxWatts).toBeUndefined();
+      expect(listAfterProp[1]?.id).toBe('inv-101');
+      expect(listAfterProp[1]?.maxWatts).toBe('Infinity');
+
+      // 3. Trailing space in a card's Location field still matches trimmed location filter option
+      const locInput = document
+        .querySelectorAll<HTMLElement>('[naizo-item]')[1]
+        ?.querySelector<HTMLInputElement>('input[naizo="location"]');
+      expect(locInput).not.toBeNull();
+      locInput!.value = 'Tokyo HQ ';
+      locInput!.dispatchEvent(new Event('input', { bubbles: true }));
+
+      Naizo.setField('filter_location', 'Tokyo HQ');
+      const movedInv101Card = document.querySelectorAll<HTMLElement>('[naizo-item]')[1];
+      expect(movedInv101Card?.hidden).toBe(false);
+      Naizo.setField('filter_location', 'all');
+
+      // 4. Creating a card with custom "__proto__" key defines an own enumerable property
+      document.getElementById('open-create-modal-btn')?.click();
+      const createForm = document.getElementById('create-card-form') as HTMLFormElement;
+      (createForm.elements.namedItem('name') as HTMLInputElement).value = 'Proto Test Unit';
+      const kvKey = document.querySelector<HTMLInputElement>('#modal-kv-container [data-kv-key]')!;
+      const kvVal = document.querySelector<HTMLInputElement>('#modal-kv-container [data-kv-val]')!;
+      kvKey.value = '__proto__';
+      kvVal.value = '1e309';
+      createForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+      const createdCard = Naizo.getList('inventory').at(-1);
+      expect(createdCard?.name).toBe('Proto Test Unit');
+      expect(Object.hasOwn(createdCard ?? {}, '__proto__')).toBe(true);
+      expect(createdCard?.['__proto__']).toBe('1e309');
+
+      // 5. Form modals guard against drag-select backdrop clicks, close on true backdrop clicks while preserving drafts, and reset via Reset button
+      const createDialog = document.getElementById('create-card-dialog') as HTMLDialogElement;
+      document.getElementById('open-create-modal-btn')?.click();
+      expect(createDialog.open || createDialog.hasAttribute('open')).toBe(true);
+
+      const nameIn = createForm.elements.namedItem('name') as HTMLInputElement;
+      const notesIn = createForm.elements.namedItem('notes') as HTMLTextAreaElement;
+      nameIn.value = 'Draft Workstation';
+      notesIn.value = 'Carefully typed specification notes';
+      document.getElementById('add-modal-kv-btn')?.click();
+      const kvRows = document.querySelectorAll('#modal-kv-container .custom-kv-row');
+      expect(kvRows.length).toBe(2);
+
+      // Drag-select starting inside an input and ending on #create-card-dialog backdrop must NOT close it
+      nameIn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      createDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(createDialog.open || createDialog.hasAttribute('open')).toBe(true);
+
+      // True backdrop click (mousedown + click on #create-card-dialog) closes it AND preserves draft text/KV rows on reopen
+      createDialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      createDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(createDialog.open || createDialog.hasAttribute('open')).toBe(false);
+      document.getElementById('open-create-modal-btn')?.click();
+      expect(nameIn.value).toBe('Draft Workstation');
+      expect(notesIn.value).toBe('Carefully typed specification notes');
+      expect(document.querySelectorAll('#modal-kv-container .custom-kv-row').length).toBe(2);
+
+      // Reset button clears draft text and restores default single custom KV row while keeping dialog open
+      document.getElementById('reset-create-btn')?.click();
+      expect(createDialog.open || createDialog.hasAttribute('open')).toBe(true);
+      expect(nameIn.value).toBe('');
+      expect(notesIn.value).toBe('');
+      expect(document.querySelectorAll('#modal-kv-container .custom-kv-row').length).toBe(1);
+      document.getElementById('close-create-x-btn')?.click();
+
+      // Add Property modal also guards against drag-select backdrop click, closes on true backdrop click while preserving draft for the same card, and resets on Reset or different card
+      const addPropDialog = document.getElementById('add-prop-dialog') as HTMLDialogElement;
+      const currentCards = Array.from(document.querySelectorAll<HTMLElement>('[naizo-item]'));
+      currentCards[0]?.querySelector<HTMLButtonElement>('[data-add-card-prop]')?.click();
+      propKeyIn.value = 'draftKey';
+      propValIn.value = 'draftValue';
+      propKeyIn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      addPropDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(addPropDialog.open || addPropDialog.hasAttribute('open')).toBe(true);
+
+      addPropDialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      addPropDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(addPropDialog.open || addPropDialog.hasAttribute('open')).toBe(false);
+      currentCards[0]?.querySelector<HTMLButtonElement>('[data-add-card-prop]')?.click();
+      expect(propKeyIn.value).toBe('draftKey');
+      expect(propValIn.value).toBe('draftValue');
+
+      document.getElementById('reset-prop-btn')?.click();
+      expect(propKeyIn.value).toBe('');
+      expect(propValIn.value).toBe('');
+      document.getElementById('close-prop-x-btn')?.click();
+
+      // 6. Inspect JSON modal serializes live store immediately before 150ms #naizodb debounce fires
+      // and only closes on true backdrop click (mousedown + click on dialog backdrop)
+      const ownerInput = document
+        .querySelectorAll<HTMLElement>('[naizo-item]')[0]
+        ?.querySelector<HTMLInputElement>('input[naizo="owner"]');
+      ownerInput!.value = 'Live Immediate Preview Owner';
+      ownerInput!.dispatchEvent(new Event('input', { bubbles: true }));
+
+      const inspectDialog = document.getElementById('inspect-json-dialog') as HTMLDialogElement;
+      document.getElementById('inspect-json-btn')?.click();
+      const previewBox = document.getElementById('json-preview-box') as HTMLElement;
+      const previewText = previewBox.textContent || '';
+      expect(previewText).toContain('Live Immediate Preview Owner');
+
+      // Drag-select starting inside #json-preview-box and ending on backdrop does NOT close inspectDialog
+      previewBox.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      inspectDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(inspectDialog.open || inspectDialog.hasAttribute('open')).toBe(true);
+
+      // True backdrop click (mousedown + click on inspectDialog) closes it
+      inspectDialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      inspectDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(inspectDialog.open || inspectDialog.hasAttribute('open')).toBe(false);
+    } finally {
+      addSpy.mockRestore();
+      for (const { type, listener } of registeredWinListeners) {
+        window.removeEventListener(type, listener);
       }
     }
   });

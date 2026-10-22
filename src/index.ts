@@ -1030,16 +1030,18 @@ function ensureListBlueprints(root: ParentNode = document, forceRegenerateAuto =
     if (!firstItem) return;
 
     const cleanClone = firstItem.cloneNode(true) as HTMLElement;
-    cleanClone.querySelectorAll(IGNORE_SELECTOR).forEach((n) => n.remove());
+    cleanClone.querySelectorAll(RUNTIME_STRIP_SELECTOR).forEach((n) => n.remove());
     cleanClone.querySelectorAll<HTMLInputElement>('input[data-naizo-radio-name]').forEach((r) => {
       const orig = r.getAttribute('data-naizo-radio-name');
       if (orig !== null) r.setAttribute('name', orig);
       r.removeAttribute('data-naizo-radio-name');
     });
-    if (cleanClone.matches(BOUND_SELECTOR)) {
+    if (cleanClone.matches(BOUND_SELECTOR) && !isIgnoredElement(cleanClone)) {
       clearElementValue(cleanClone);
     }
-    cleanClone.querySelectorAll(BOUND_SELECTOR).forEach(clearElementValue);
+    cleanClone.querySelectorAll(BOUND_SELECTOR).forEach((el) => {
+      if (!isIgnoredElement(el)) clearElementValue(el);
+    });
 
     const tpl = document.createElement('template');
     tpl.setAttribute('naizo-template', '');

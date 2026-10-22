@@ -1,0 +1,1985 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asset &amp; Inventory Studio — naizo.js + Basecoat UI</title>
+
+    <!-- 1. Canonical #naizodb JSON state (readable & editable by humans and AI agents) -->
+    <script id="naizodb" type="application/json">
+      {
+        "_meta": {
+          "id": "naizo-inventory-studio"
+        },
+        "fields": {
+          "inventory_title": "Asset & Inventory Studio",
+          "inventory_subtitle": "Single-file self-persisting inventory powered by #naizodb and Basecoat UI.",
+          "search_query": "",
+          "filter_type": "all",
+          "filter_status": "all",
+          "filter_location": "all",
+          "sort_by": "default"
+        },
+        "lists": {
+          "inventory": [
+            {
+              "id": "inv-101",
+              "sku": "HW-MBP16-M4",
+              "name": "MacBook Pro 16\" M4 Max",
+              "type": "Hardware",
+              "status": "Assigned",
+              "location": "Tokyo HQ",
+              "owner": "Kenji Sato",
+              "qty": 4,
+              "unitCost": 3499,
+              "notes": "Engineering workstation build with 64GB unified memory and 2TB SSD.",
+              "chip": "Apple M4 Max",
+              "ram": "64GB",
+              "warrantyUntil": "2028-11"
+            },
+            {
+              "id": "inv-102",
+              "sku": "LIC-JB-ALL",
+              "name": "JetBrains All Products Pack",
+              "type": "License",
+              "status": "In Stock",
+              "location": "Cloud / Remote",
+              "owner": "Platform Org",
+              "qty": 25,
+              "unitCost": 289,
+              "notes": "Annual floating seat pool managed via JetBrains Account portal.",
+              "billingCycle": "Annual",
+              "renewalDate": "2027-02-15",
+              "ssoEnabled": true
+            },
+            {
+              "id": "inv-103",
+              "sku": "INF-UPS-3000",
+              "name": "APC Smart-UPS 3000VA Rackmount",
+              "type": "Infrastructure",
+              "status": "Maintenance",
+              "location": "Berlin Lab",
+              "owner": "NetOps Team",
+              "qty": 2,
+              "unitCost": 1850,
+              "notes": "Rack B2 battery cartridge replacement scheduled for next maintenance window.",
+              "rackUnit": "2U",
+              "voltage": "230V"
+            },
+            {
+              "id": "inv-104",
+              "sku": "PER-DELL-U27",
+              "name": "Dell UltraSharp 27\" 4K USB-C Hub",
+              "type": "Peripheral",
+              "status": "In Stock",
+              "location": "San Francisco",
+              "owner": "IT Depot",
+              "qty": 9,
+              "unitCost": 619,
+              "notes": "90W USB-C power delivery + RJ45 Ethernet pass-through.",
+              "resolution": "3840x2160",
+              "panel": "IPS Black"
+            },
+            {
+              "id": "inv-105",
+              "sku": "CON-YUBI-5C",
+              "name": "YubiKey 5C Nano FIPS",
+              "type": "Consumable",
+              "status": "Low Stock",
+              "location": "Tokyo HQ",
+              "owner": "SecOps",
+              "qty": 3,
+              "unitCost": 85,
+              "notes": "Hardware FIDO2 security keys for new engineer onboarding kits.",
+              "protocol": "FIDO2 / WebAuthn",
+              "reorderThreshold": 10
+            },
+            {
+              "id": "inv-106",
+              "sku": "HW-H100-NODE",
+              "name": "Inference Dev Box (2x RTX 5090)",
+              "type": "Infrastructure",
+              "status": "In Stock",
+              "location": "Tokyo HQ",
+              "owner": "AI Research",
+              "qty": 1,
+              "unitCost": 8900,
+              "notes": "Local evaluation node for quantized local models and browser-agent benchmarks.",
+              "vram": "64GB GDDR7",
+              "interconnect": "10GbE"
+            }
+          ]
+        },
+        "custom": {
+          "theme": "light"
+        }
+      }
+    </script>
+
+    <!-- 2. Basecoat UI CSS (shadcn/ui magic for any web stack) -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/basecoat.cdn.min.css"
+    />
+
+    <!-- 3. Load naizo.js locally or via CDN:
+         <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script> -->
+    <script src="../dist/naizo.js" defer></script>
+
+    <style>
+      :root {
+        --page-max-width: 1240px;
+      }
+
+      body {
+        background-color: var(--background);
+        color: var(--foreground);
+        min-height: 100vh;
+        padding-bottom: 5.5rem;
+        font-feature-settings:
+          'rlig' 1,
+          'calt' 1;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .app-shell {
+        max-width: var(--page-max-width);
+        margin: 0 auto;
+        padding: 1.75rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      /* Top navigation & header */
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding-bottom: 1.25rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .brand-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 260px;
+        flex: 1;
+      }
+
+      .brand-eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.15rem;
+      }
+
+      .brand-logo {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: var(--radius-md);
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+
+      .brand-logo svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .page-title {
+        font-size: 1.625rem;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1.25;
+        padding: 0.15rem 0.4rem;
+        margin-left: -0.4rem;
+        border-radius: var(--radius-md);
+        transition:
+          background-color 0.15s,
+          box-shadow 0.15s;
+      }
+
+      .page-subtitle {
+        font-size: 0.875rem;
+        color: var(--muted-foreground);
+        padding: 0.1rem 0.4rem;
+        margin-left: -0.4rem;
+        border-radius: var(--radius-sm);
+      }
+
+      [contenteditable='true']:hover {
+        background-color: var(--accent);
+      }
+
+      [contenteditable='true']:focus {
+        outline: none;
+        background-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--ring);
+      }
+
+      .topbar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      /* KPI Summary Grid */
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 0.875rem;
+      }
+
+      .kpi-card header {
+        padding-bottom: 0.25rem;
+      }
+
+      .kpi-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted-foreground);
+      }
+
+      .kpi-value {
+        font-size: 1.65rem;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .kpi-subtext {
+        font-size: 0.75rem;
+        color: var(--muted-foreground);
+        margin-top: 0.25rem;
+      }
+
+      /* Filter & Search Bar */
+      .toolbar-card {
+        padding: 1rem 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.875rem;
+      }
+
+      .toolbar-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+
+      .search-wrap {
+        position: relative;
+        flex: 1 1 280px;
+        min-width: 240px;
+      }
+
+      .search-wrap .search-icon {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 1rem;
+        height: 1rem;
+        color: var(--muted-foreground);
+        pointer-events: none;
+      }
+
+      .search-wrap .input {
+        padding-left: 2.25rem;
+        padding-right: 2.25rem;
+        width: 100%;
+      }
+
+      .search-wrap .input::-webkit-search-cancel-button,
+      .search-wrap .input::-webkit-search-decoration {
+        -webkit-appearance: none;
+        appearance: none;
+        display: none;
+      }
+
+      .search-clear {
+        position: absolute;
+        right: 0.4rem;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+
+      .filter-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .filter-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8125rem;
+        color: var(--muted-foreground);
+      }
+
+      .filter-label .select {
+        width: auto;
+        min-width: 145px;
+      }
+
+      .category-pills {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.375rem;
+      }
+
+      .results-counter {
+        font-size: 0.8125rem;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Inventory Card Grid */
+      .inventory-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1.125rem;
+        align-items: stretch;
+      }
+
+      .inventory-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+
+      .inventory-card[hidden] {
+        display: none !important;
+      }
+
+      .inventory-card:hover {
+        border-color: var(--ring);
+      }
+
+      .card-meta-top {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.35rem;
+      }
+
+      .sku-code {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--muted-foreground);
+        background: var(--muted);
+        padding: 0.125rem 0.45rem;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+      }
+
+      .card-title-edit {
+        font-size: 1.05rem;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        line-height: 1.35;
+        padding: 0.15rem 0.35rem;
+        margin-left: -0.35rem;
+        border-radius: var(--radius-sm);
+      }
+
+      .card-fields-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.65rem;
+      }
+
+      .card-field-label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--muted-foreground);
+      }
+
+      .card-field-label.full-span {
+        grid-column: 1 / -1;
+      }
+
+      .card-field-label .input,
+      .card-field-label .select,
+      .card-field-label .textarea {
+        width: 100%;
+        font-size: 0.8125rem;
+        color: var(--foreground);
+      }
+
+      .card-field-label .textarea {
+        min-height: 3.25rem;
+        resize: vertical;
+      }
+
+      /* Extra JSON dictionary fields display */
+      .dict-section {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px dashed var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+      }
+
+      .dict-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: var(--muted-foreground);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .dict-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
+
+      .dict-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: var(--radius-sm);
+        background: var(--muted);
+        color: var(--foreground);
+        border: 1px solid var(--border);
+      }
+
+      .dict-pill-key {
+        color: var(--muted-foreground);
+      }
+
+      .dict-pill-remove {
+        border: none;
+        background: transparent;
+        color: var(--muted-foreground);
+        cursor: pointer;
+        padding: 0 0.1rem;
+        font-size: 0.8rem;
+        line-height: 1;
+      }
+
+      .dict-pill-remove:hover {
+        color: var(--destructive);
+      }
+
+      .card-footer-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border);
+        width: 100%;
+        font-size: 0.78rem;
+        color: var(--muted-foreground);
+      }
+
+      .card-total-val {
+        font-weight: 600;
+        color: var(--foreground);
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 3rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .empty-state[hidden] {
+        display: none !important;
+      }
+
+      .empty-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 999px;
+        background: var(--muted);
+        color: var(--muted-foreground);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* Dialog Custom Sizing */
+      dialog.dialog > div.dialog-box-lg {
+        max-width: 36rem;
+        width: calc(100vw - 2rem);
+        max-height: calc(100vh - 3rem);
+        overflow-y: auto;
+      }
+
+      .modal-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.85rem;
+      }
+
+      .modal-grid .full-span {
+        grid-column: 1 / -1;
+      }
+
+      .custom-kv-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        margin-top: 0.35rem;
+      }
+
+      .custom-kv-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 0.45rem;
+        align-items: center;
+      }
+
+      .json-viewer {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        line-height: 1.5;
+        background: var(--muted);
+        color: var(--foreground);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 0.875rem;
+        max-height: 360px;
+        overflow: auto;
+        white-space: pre;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .modal-grid .select,
+      .modal-grid .input,
+      .modal-grid .textarea {
+        width: 100%;
+      }
+
+      .modal-reset-btn {
+        margin-right: auto;
+      }
+
+      @media (max-width: 440px) {
+        .modal-grid,
+        .card-fields-grid {
+          grid-template-columns: 1fr;
+        }
+        .inventory-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- Top Header -->
+      <header class="topbar">
+        <div class="brand-group">
+          <div class="brand-eyebrow">
+            <span class="brand-logo" aria-hidden="true">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"
+                />
+                <path d="m3.3 7 8.7 5 8.7-5" />
+                <path d="M12 22V12" />
+              </svg>
+            </span>
+            <span class="badge" data-variant="secondary">naizo.js · #naizodb</span>
+            <span class="badge" data-variant="outline">Basecoat UI</span>
+          </div>
+          <h1 class="page-title" contenteditable="true" naizo="inventory_title">
+            Asset &amp; Inventory Studio
+          </h1>
+          <p class="page-subtitle" contenteditable="true" naizo="inventory_subtitle">
+            Single-file self-persisting inventory powered by #naizodb and Basecoat UI.
+          </p>
+        </div>
+
+        <div class="topbar-actions">
+          <button
+            type="button"
+            id="theme-toggle-btn"
+            class="btn"
+            data-variant="outline"
+            data-size="sm"
+            aria-label="Toggle color theme"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2" />
+              <path d="M12 20v2" />
+              <path d="m4.93 4.93 1.41 1.41" />
+              <path d="m17.66 17.66 1.41 1.41" />
+              <path d="M2 12h2" />
+              <path d="M20 12h2" />
+              <path d="m6.34 17.66-1.41 1.41" />
+              <path d="m19.07 4.93-1.41 1.41" />
+            </svg>
+            <span id="theme-toggle-label">Dark Mode</span>
+          </button>
+
+          <button
+            type="button"
+            id="inspect-json-btn"
+            class="btn"
+            data-variant="outline"
+            data-size="sm"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            Inspect #naizodb
+          </button>
+
+          <button type="button" id="open-create-modal-btn" class="btn" data-size="sm">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="M12 5v14" />
+            </svg>
+            New Card
+          </button>
+        </div>
+      </header>
+
+      <!-- Live KPI Summary Row -->
+      <section class="kpi-grid" aria-label="Inventory metrics">
+        <div class="card kpi-card" data-size="sm">
+          <header>
+            <span class="kpi-label">Global Card Pool</span>
+            <div class="card-action">
+              <span class="badge" data-variant="secondary" id="kpi-visible-badge">6 shown</span>
+            </div>
+          </header>
+          <section>
+            <div class="kpi-value" id="kpi-total-cards">6</div>
+            <p class="kpi-subtext">JSON dictionaries stored in #naizodb</p>
+          </section>
+        </div>
+
+        <div class="card kpi-card" data-size="sm">
+          <header>
+            <span class="kpi-label">Total Units</span>
+            <div class="card-action">
+              <span class="badge" data-variant="outline">Active</span>
+            </div>
+          </header>
+          <section>
+            <div class="kpi-value" id="kpi-total-units">44</div>
+            <p class="kpi-subtext">Combined quantity across all cards</p>
+          </section>
+        </div>
+
+        <div class="card kpi-card" data-size="sm">
+          <header>
+            <span class="kpi-label">Estimated Asset Value</span>
+            <div class="card-action">
+              <span class="badge" data-variant="outline">USD</span>
+            </div>
+          </header>
+          <section>
+            <div class="kpi-value" id="kpi-total-value">$39,647</div>
+            <p class="kpi-subtext">Calculated from Qty × Unit Cost</p>
+          </section>
+        </div>
+
+        <div class="card kpi-card" data-size="sm">
+          <header>
+            <span class="kpi-label">Attention Needed</span>
+            <div class="card-action">
+              <span class="badge" data-variant="destructive" id="kpi-alerts-badge">Alerts</span>
+            </div>
+          </header>
+          <section>
+            <div class="kpi-value" id="kpi-alerts-count">2</div>
+            <p class="kpi-subtext">Cards marked Low Stock or Maintenance</p>
+          </section>
+        </div>
+      </section>
+
+      <!-- Search & Filter Controls (Persisted via naizo="...") -->
+      <section class="card toolbar-card" aria-label="Search and filter inventory">
+        <div class="toolbar-row">
+          <div class="search-wrap">
+            <svg
+              class="search-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <label>
+              <span class="sr-only">Search inventory cards</span>
+              <input
+                id="search-input"
+                class="input"
+                type="search"
+                naizo="search_query"
+                placeholder="Search by name, SKU, owner, location, or custom JSON key/value..."
+              />
+            </label>
+            <button
+              type="button"
+              id="clear-search-btn"
+              class="btn search-clear"
+              data-variant="ghost"
+              data-size="icon-xs"
+              aria-label="Clear search"
+              hidden
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="filter-controls">
+            <label class="filter-label">
+              <span>Type</span>
+              <select id="filter-type-select" class="select" data-size="sm" naizo="filter_type">
+                <option value="all">All Types</option>
+                <option value="Hardware">Hardware</option>
+                <option value="License">License</option>
+                <option value="Infrastructure">Infrastructure</option>
+                <option value="Peripheral">Peripheral</option>
+                <option value="Consumable">Consumable</option>
+              </select>
+            </label>
+
+            <label class="filter-label">
+              <span>Status</span>
+              <select id="filter-status-select" class="select" data-size="sm" naizo="filter_status">
+                <option value="all">All Statuses</option>
+                <option value="In Stock">In Stock</option>
+                <option value="Assigned">Assigned</option>
+                <option value="Low Stock">Low Stock</option>
+                <option value="Maintenance">Maintenance</option>
+              </select>
+            </label>
+
+            <label class="filter-label">
+              <span>Location</span>
+              <select
+                id="filter-location-select"
+                class="select"
+                data-size="sm"
+                naizo="filter_location"
+              >
+                <option value="all">All Locations</option>
+                <option value="Tokyo HQ">Tokyo HQ</option>
+                <option value="San Francisco">San Francisco</option>
+                <option value="Berlin Lab">Berlin Lab</option>
+                <option value="Cloud / Remote">Cloud / Remote</option>
+              </select>
+            </label>
+
+            <label class="filter-label">
+              <span>Sort</span>
+              <select id="sort-by-select" class="select" data-size="sm" naizo="sort_by">
+                <option value="default">Pool Order</option>
+                <option value="name">Name (A–Z)</option>
+                <option value="value-desc">Value (High → Low)</option>
+                <option value="qty-asc">Qty (Low → High)</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              id="reset-filters-btn"
+              class="btn"
+              data-variant="ghost"
+              data-size="sm"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar-row">
+          <div
+            class="category-pills"
+            id="type-pill-bar"
+            role="group"
+            aria-label="Quick type filter"
+          >
+            <button type="button" class="btn" data-size="xs" data-type-pill="all">All</button>
+            <button
+              type="button"
+              class="btn"
+              data-variant="outline"
+              data-size="xs"
+              data-type-pill="Hardware"
+            >
+              Hardware
+            </button>
+            <button
+              type="button"
+              class="btn"
+              data-variant="outline"
+              data-size="xs"
+              data-type-pill="License"
+            >
+              License
+            </button>
+            <button
+              type="button"
+              class="btn"
+              data-variant="outline"
+              data-size="xs"
+              data-type-pill="Infrastructure"
+            >
+              Infrastructure
+            </button>
+            <button
+              type="button"
+              class="btn"
+              data-variant="outline"
+              data-size="xs"
+              data-type-pill="Peripheral"
+            >
+              Peripheral
+            </button>
+            <button
+              type="button"
+              class="btn"
+              data-variant="outline"
+              data-size="xs"
+              data-type-pill="Consumable"
+            >
+              Consumable
+            </button>
+          </div>
+
+          <span class="results-counter" id="results-counter">Showing 6 of 6 cards</span>
+        </div>
+      </section>
+
+      <!-- Global Inventory Card Pool (Declarative naizo-list) -->
+      <main>
+        <div id="inventory-grid" class="inventory-grid" naizo-list="inventory" naizo-no-controls>
+          <template naizo-template>
+            <article class="card inventory-card" naizo-item>
+              <header>
+                <div class="card-meta-top">
+                  <span class="badge" data-variant="secondary" naizo="type">Hardware</span>
+                  <span class="sku-code" naizo="sku">SKU-000</span>
+                </div>
+                <h3 class="card-title-edit" contenteditable="true" naizo="name">New Asset</h3>
+                <div class="card-action">
+                  <button
+                    type="button"
+                    class="btn"
+                    data-variant="ghost"
+                    data-size="icon-xs"
+                    naizo-remove
+                    title="Delete card from pool"
+                    aria-label="Delete card"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
+              </header>
+
+              <section>
+                <div class="card-fields-grid">
+                  <label class="card-field-label">
+                    <span>Status</span>
+                    <select class="select" data-size="sm" naizo="status">
+                      <option value="In Stock">In Stock</option>
+                      <option value="Assigned">Assigned</option>
+                      <option value="Low Stock">Low Stock</option>
+                      <option value="Maintenance">Maintenance</option>
+                    </select>
+                  </label>
+
+                  <label class="card-field-label">
+                    <span>Location</span>
+                    <input class="input" type="text" naizo="location" placeholder="Location..." />
+                  </label>
+
+                  <label class="card-field-label">
+                    <span>Owner / Team</span>
+                    <input class="input" type="text" naizo="owner" placeholder="Owner..." />
+                  </label>
+
+                  <label class="card-field-label">
+                    <span>Category</span>
+                    <select class="select" data-size="sm" naizo="type">
+                      <option value="Hardware">Hardware</option>
+                      <option value="License">License</option>
+                      <option value="Infrastructure">Infrastructure</option>
+                      <option value="Peripheral">Peripheral</option>
+                      <option value="Consumable">Consumable</option>
+                    </select>
+                  </label>
+
+                  <label class="card-field-label">
+                    <span>Quantity</span>
+                    <input class="input" type="number" min="0" step="1" naizo="qty" />
+                  </label>
+
+                  <label class="card-field-label">
+                    <span>Unit Cost ($ USD)</span>
+                    <input class="input" type="number" min="0" step="1" naizo="unitCost" />
+                  </label>
+
+                  <label class="card-field-label full-span">
+                    <span>Notes &amp; Specifications</span>
+                    <textarea
+                      class="textarea"
+                      rows="2"
+                      naizo="notes"
+                      placeholder="Add card notes..."
+                    ></textarea>
+                  </label>
+                </div>
+
+                <!-- Dynamic Extra JSON Dictionary Keys (preserved in #naizodb via row WeakMap) -->
+                <div class="dict-section" data-card-dict naizo-ignore>
+                  <div class="dict-header">
+                    <span>Custom JSON Fields</span>
+                    <button
+                      type="button"
+                      class="btn"
+                      data-variant="ghost"
+                      data-size="xs"
+                      data-add-card-prop
+                    >
+                      + Key
+                    </button>
+                  </div>
+                  <div class="dict-tags" data-card-dict-tags></div>
+                </div>
+              </section>
+
+              <footer naizo-ignore>
+                <div class="card-footer-bar">
+                  <span data-card-id-label>ID: inv-000</span>
+                  <span>
+                    Subtotal: <strong class="card-total-val" data-card-subtotal>$0</strong>
+                  </span>
+                </div>
+              </footer>
+            </article>
+          </template>
+        </div>
+
+        <!-- Empty Filter State -->
+        <div id="empty-state" class="card empty-state" hidden>
+          <div class="empty-icon" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </div>
+          <h3>No matching inventory cards</h3>
+          <p class="page-subtitle">
+            No cards in the global pool match your active search query or filters.
+          </p>
+          <div class="filter-controls">
+            <button
+              type="button"
+              id="empty-reset-btn"
+              class="btn"
+              data-variant="outline"
+              data-size="sm"
+            >
+              Reset Filters
+            </button>
+            <button type="button" id="empty-create-btn" class="btn" data-size="sm">
+              + Create New Card
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Pop-Up Modal: Create New Inventory Card (Basecoat UI <dialog class="dialog">) -->
+    <dialog
+      id="create-card-dialog"
+      class="dialog"
+      aria-labelledby="create-dialog-title"
+      aria-describedby="create-dialog-desc"
+    >
+      <div class="dialog-box-lg">
+        <header>
+          <h2 id="create-dialog-title">Create Inventory Card</h2>
+          <p id="create-dialog-desc">
+            Fill out the card fields below. Clicking Create appends a new JSON dictionary to
+            <code>#naizodb.lists.inventory</code>.
+          </p>
+        </header>
+
+        <section>
+          <form id="create-card-form" class="modal-grid">
+            <div role="group" class="field full-span">
+              <label for="new-card-name">Card Name *</label>
+              <input
+                id="new-card-name"
+                name="name"
+                class="input"
+                type="text"
+                placeholder='e.g. Apple Studio Display 27"'
+                required
+              />
+            </div>
+
+            <div role="group" class="field">
+              <label for="new-card-sku">SKU / Asset Code</label>
+              <input
+                id="new-card-sku"
+                name="sku"
+                class="input"
+                type="text"
+                placeholder="e.g. PER-ASD-27"
+              />
+            </div>
+
+            <div role="group" class="field">
+              <label for="new-card-type">Category / Type</label>
+              <select id="new-card-type" name="type" class="select">
+                <option value="Hardware">Hardware</option>
+                <option value="License">License</option>
+                <option value="Infrastructure">Infrastructure</option>
+                <option value="Peripheral">Peripheral</option>
+                <option value="Consumable">Consumable</option>
+              </select>
+            </div>
+
+            <div role="group" class="field">
+              <label for="new-card-status">Status</label>
+              <select id="new-card-status" name="status" class="select">
+                <option value="In Stock">In Stock</option>
+                <option value="Assigned">Assigned</option>
+                <option value="Low Stock">Low Stock</option>
+                <option value="Maintenance">Maintenance</option>
+              </select>
+            </div>
+
+            <div role="group" class="field">
+              <label for="new-card-location">Location</label>
+              <input
+                id="new-card-location"
+                name="location"
+                class="input"
+                type="text"
+                value="Tokyo HQ"
+                placeholder="e.g. Tokyo HQ"
+              />
+            </div>
+
+            <div role="group" class="field">
+              <label for="new-card-owner">Owner / Assignee</label>
+              <input
+                id="new-card-owner"
+                name="owner"
+                class="input"
+                type="text"
+                placeholder="e.g. Design Systems Team"
+              />
+            </div>
+
+            <div role="group" class="field">
+              <label for="new-card-qty">Quantity *</label>
+              <input
+                id="new-card-qty"
+                name="qty"
+                class="input"
+                type="number"
+                min="0"
+                step="1"
+                value="1"
+                required
+              />
+            </div>
+
+            <div role="group" class="field full-span">
+              <label for="new-card-cost">Unit Cost ($ USD) *</label>
+              <input
+                id="new-card-cost"
+                name="unitCost"
+                class="input"
+                type="number"
+                min="0"
+                step="1"
+                value="499"
+                required
+              />
+            </div>
+
+            <div role="group" class="field full-span">
+              <label for="new-card-notes">Notes &amp; Description</label>
+              <textarea
+                id="new-card-notes"
+                name="notes"
+                class="textarea"
+                rows="2"
+                placeholder="Optional configuration details, serial numbers, or vendor notes..."
+              ></textarea>
+            </div>
+
+            <!-- Arbitrary JSON Dictionary Key-Value Builder -->
+            <div role="group" class="field full-span">
+              <div class="dict-header">
+                <span>Extra JSON Dictionary Fields (Optional)</span>
+                <button
+                  type="button"
+                  id="add-modal-kv-btn"
+                  class="btn"
+                  data-variant="outline"
+                  data-size="xs"
+                >
+                  + Add Custom Field
+                </button>
+              </div>
+              <div id="modal-kv-container" class="custom-kv-list"></div>
+            </div>
+          </form>
+        </section>
+
+        <footer>
+          <button
+            type="button"
+            class="btn modal-reset-btn"
+            data-variant="ghost"
+            id="reset-create-btn"
+          >
+            Reset
+          </button>
+          <button type="button" class="btn" data-variant="outline" id="cancel-create-btn">
+            Cancel
+          </button>
+          <button type="submit" form="create-card-form" class="btn">Create Card</button>
+        </footer>
+
+        <button
+          type="button"
+          class="btn"
+          data-variant="ghost"
+          data-size="icon-sm"
+          aria-label="Close dialog"
+          id="close-create-x-btn"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+    </dialog>
+
+    <!-- Pop-Up Modal: Add Custom Key-Value to Existing Card -->
+    <dialog id="add-prop-dialog" class="dialog" aria-labelledby="add-prop-title">
+      <div>
+        <header>
+          <h2 id="add-prop-title">Add Custom JSON Field</h2>
+          <p>
+            Add a custom key-value property to this card's JSON dictionary in <code>#naizodb</code>.
+          </p>
+        </header>
+        <section>
+          <form id="add-prop-form" class="modal-grid">
+            <div role="group" class="field full-span">
+              <label for="prop-key-input">Property Key *</label>
+              <input
+                id="prop-key-input"
+                class="input"
+                type="text"
+                placeholder="e.g. serialNumber, warrantyUntil, rackUnit"
+                required
+              />
+            </div>
+            <div role="group" class="field full-span">
+              <label for="prop-val-input">Property Value *</label>
+              <input
+                id="prop-val-input"
+                class="input"
+                type="text"
+                placeholder="e.g. C02X908JGH5 or 64GB"
+                required
+              />
+            </div>
+          </form>
+        </section>
+        <footer>
+          <button
+            type="button"
+            class="btn modal-reset-btn"
+            data-variant="ghost"
+            id="reset-prop-btn"
+          >
+            Reset
+          </button>
+          <button type="button" class="btn" data-variant="outline" id="cancel-prop-btn">
+            Cancel
+          </button>
+          <button type="submit" form="add-prop-form" class="btn">Save Field</button>
+        </footer>
+        <button
+          type="button"
+          class="btn"
+          data-variant="ghost"
+          data-size="icon-sm"
+          aria-label="Close dialog"
+          id="close-prop-x-btn"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+    </dialog>
+
+    <!-- Pop-Up Modal: Inspect Live #naizodb JSON -->
+    <dialog id="inspect-json-dialog" class="dialog" aria-labelledby="inspect-json-title">
+      <div class="dialog-box-lg">
+        <header>
+          <h2 id="inspect-json-title">Live #naizodb Canonical State</h2>
+          <p>
+            Every edit, filter change, or new card immediately updates
+            <code>&lt;script id="naizodb" type="application/json"&gt;</code>.
+          </p>
+        </header>
+        <section>
+          <pre id="json-preview-box" class="json-viewer"></pre>
+        </section>
+        <footer>
+          <button type="button" class="btn" data-variant="outline" id="copy-json-modal-btn">
+            Copy JSON
+          </button>
+          <button type="button" class="btn" id="close-json-modal-btn">Done</button>
+        </footer>
+        <button
+          type="button"
+          class="btn"
+          data-variant="ghost"
+          data-size="icon-sm"
+          aria-label="Close dialog"
+          id="close-json-x-btn"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+    </dialog>
+
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        const STANDARD_CARD_KEYS = new Set([
+          'id',
+          'sku',
+          'name',
+          'type',
+          'status',
+          'location',
+          'owner',
+          'qty',
+          'unitCost',
+          'notes',
+        ]);
+
+        const gridEl = document.getElementById('inventory-grid');
+        const emptyStateEl = document.getElementById('empty-state');
+        const searchInput = document.getElementById('search-input');
+        const clearSearchBtn = document.getElementById('clear-search-btn');
+        const filterTypeSelect = document.getElementById('filter-type-select');
+        const filterStatusSelect = document.getElementById('filter-status-select');
+        const filterLocationSelect = document.getElementById('filter-location-select');
+        const sortBySelect = document.getElementById('sort-by-select');
+        const resetFiltersBtn = document.getElementById('reset-filters-btn');
+        const resultsCounter = document.getElementById('results-counter');
+        const typePillBar = document.getElementById('type-pill-bar');
+        const BASE_LOCATIONS = ['Tokyo HQ', 'San Francisco', 'Berlin Lab', 'Cloud / Remote'];
+
+        // Modals
+        const createDialog = document.getElementById('create-card-dialog');
+        const createForm = document.getElementById('create-card-form');
+        const modalKvContainer = document.getElementById('modal-kv-container');
+        const inspectDialog = document.getElementById('inspect-json-dialog');
+        const jsonPreviewBox = document.getElementById('json-preview-box');
+        const addPropDialog = document.getElementById('add-prop-dialog');
+        const addPropForm = document.getElementById('add-prop-form');
+        const propKeyInput = document.getElementById('prop-key-input');
+        const propValInput = document.getElementById('prop-val-input');
+        let activeCardIdForProp = null;
+        let activeCardRefForProp = null;
+        let draftCardIdForProp = null;
+        let draftCardRefForProp = null;
+
+        const currencyFmt = new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: 0,
+        });
+
+        function setOwnProperty(obj, key, value) {
+          Object.defineProperty(obj, key, {
+            value,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+        }
+
+        function parseSmartValue(raw) {
+          const trimmed = String(raw ?? '').trim();
+          if (trimmed === 'true') return true;
+          if (trimmed === 'false') return false;
+          if (trimmed !== '') {
+            const num = Number(trimmed);
+            if (Number.isFinite(num)) return num;
+          }
+          return trimmed;
+        }
+
+        function resolveActiveCardIndex(items) {
+          if (activeCardIdForProp) {
+            return items.findIndex((item) => String(item?.id ?? '') === activeCardIdForProp);
+          }
+          if (activeCardRefForProp) {
+            return items.indexOf(activeCardRefForProp);
+          }
+          return -1;
+        }
+
+        function showModalDialog(dialogEl) {
+          if (typeof dialogEl.showModal === 'function') {
+            dialogEl.showModal();
+          } else {
+            dialogEl.setAttribute('open', '');
+          }
+        }
+
+        function closeModalDialog(dialogEl) {
+          if (typeof dialogEl.close === 'function') {
+            dialogEl.close();
+          } else {
+            dialogEl.removeAttribute('open');
+          }
+        }
+
+        function isDialogOpen(dialogEl) {
+          return Boolean(dialogEl.open || dialogEl.hasAttribute('open'));
+        }
+
+        function bindBackdropDismiss(dialogEl, onDismiss = () => closeModalDialog(dialogEl)) {
+          let backdropMouseDown = false;
+          dialogEl.addEventListener('mousedown', (e) => {
+            backdropMouseDown = e.target === dialogEl;
+          });
+          dialogEl.addEventListener('click', (e) => {
+            if (e.target === dialogEl && backdropMouseDown) {
+              onDismiss();
+            }
+            backdropMouseDown = false;
+          });
+        }
+
+        function syncJsonInspector() {
+          const db = Naizo.get();
+          jsonPreviewBox.textContent = JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
+        }
+
+        function syncThemeFromStore() {
+          const theme = Naizo.get('theme') === 'dark' ? 'dark' : 'light';
+          document.documentElement.classList.toggle('dark', theme === 'dark');
+          const labelEl = document.getElementById('theme-toggle-label');
+          if (labelEl) {
+            labelEl.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+          }
+        }
+
+        function renderCardEnhancements(cardEl, itemData, index) {
+          const idLabel = cardEl.querySelector('[data-card-id-label]');
+          if (idLabel) {
+            idLabel.textContent = `ID: ${itemData.id || 'inv-' + (index + 1)}`;
+          }
+
+          const subtotalEl = cardEl.querySelector('[data-card-subtotal]');
+          if (subtotalEl) {
+            const qty = Number(itemData.qty) || 0;
+            const cost = Number(itemData.unitCost) || 0;
+            subtotalEl.textContent = currencyFmt.format(qty * cost);
+          }
+
+          const tagsWrap = cardEl.querySelector('[data-card-dict-tags]');
+          if (tagsWrap) {
+            tagsWrap.innerHTML = '';
+            const extraKeys = Object.keys(itemData).filter((k) => !STANDARD_CARD_KEYS.has(k));
+            if (extraKeys.length === 0) {
+              const emptySpan = document.createElement('span');
+              emptySpan.className = 'kpi-subtext';
+              emptySpan.textContent = 'No extra keys';
+              tagsWrap.appendChild(emptySpan);
+            } else {
+              extraKeys.forEach((key) => {
+                const pill = document.createElement('span');
+                pill.className = 'dict-pill';
+
+                const keySpan = document.createElement('span');
+                keySpan.className = 'dict-pill-key';
+                keySpan.textContent = `${key}:`;
+
+                const valSpan = document.createElement('span');
+                valSpan.textContent = String(itemData[key]);
+
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'dict-pill-remove';
+                delBtn.title = `Remove ${key}`;
+                delBtn.setAttribute('aria-label', `Remove ${key}`);
+                delBtn.textContent = '×';
+                delBtn.addEventListener('click', () => {
+                  const currentCards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
+                  const currentIdx = currentCards.indexOf(cardEl);
+                  const fullDb = Naizo.get();
+                  const list = fullDb?.lists?.inventory;
+                  if (
+                    currentIdx !== -1 &&
+                    Array.isArray(list) &&
+                    list[currentIdx] &&
+                    Object.hasOwn(list[currentIdx], key)
+                  ) {
+                    Reflect.deleteProperty(list[currentIdx], key);
+                    void Naizo.save();
+                    refreshInventoryView();
+                  }
+                });
+
+                pill.append(keySpan, valSpan, delBtn);
+                tagsWrap.appendChild(pill);
+              });
+            }
+          }
+        }
+
+        function syncLocationFilterOptions(items) {
+          const storedLoc = String(Naizo.getField('filter_location') || 'all').trim() || 'all';
+          const locations = new Set(BASE_LOCATIONS);
+          items.forEach((item) => {
+            const loc = String(item?.location || '').trim();
+            if (loc) locations.add(loc);
+          });
+          if (storedLoc && storedLoc !== 'all') {
+            locations.add(storedLoc);
+          }
+
+          const existingValues = Array.from(filterLocationSelect.options).map((o) => o.value);
+          const desiredValues = ['all', ...locations];
+          if (existingValues.join('\n') !== desiredValues.join('\n')) {
+            filterLocationSelect.innerHTML = '';
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All Locations';
+            filterLocationSelect.appendChild(allOpt);
+            locations.forEach((loc) => {
+              const opt = document.createElement('option');
+              opt.value = loc;
+              opt.textContent = loc;
+              filterLocationSelect.appendChild(opt);
+            });
+          }
+          if (filterLocationSelect.value !== storedLoc) {
+            filterLocationSelect.value = storedLoc;
+          }
+        }
+
+        function refreshInventoryView() {
+          syncThemeFromStore();
+
+          const items = Naizo.getList('inventory');
+          syncLocationFilterOptions(items);
+
+          const cards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
+          const query = String(searchInput.value || '')
+            .trim()
+            .toLowerCase();
+          const typeFilter = filterTypeSelect.value || 'all';
+          const statusFilter = filterStatusSelect.value || 'all';
+          const locationFilter = filterLocationSelect.value || 'all';
+          const sortBy = sortBySelect.value || 'default';
+
+          clearSearchBtn.hidden = query.length === 0;
+
+          // Sync quick type pills with active type filter
+          typePillBar.querySelectorAll('[data-type-pill]').forEach((btn) => {
+            const isMatch = btn.getAttribute('data-type-pill') === typeFilter;
+            if (isMatch) {
+              btn.removeAttribute('data-variant');
+            } else {
+              btn.setAttribute('data-variant', 'outline');
+            }
+          });
+
+          // Visually sort cards via CSS Grid order without altering DOM/#naizodb array indices
+          const orderIndices = items.map((_, i) => i);
+          if (sortBy === 'name') {
+            orderIndices.sort((a, b) =>
+              String(items[a]?.name || '').localeCompare(String(items[b]?.name || '')),
+            );
+          } else if (sortBy === 'value-desc') {
+            orderIndices.sort((a, b) => {
+              const valA = (Number(items[a]?.qty) || 0) * (Number(items[a]?.unitCost) || 0);
+              const valB = (Number(items[b]?.qty) || 0) * (Number(items[b]?.unitCost) || 0);
+              return valB - valA;
+            });
+          } else if (sortBy === 'qty-asc') {
+            orderIndices.sort(
+              (a, b) => (Number(items[a]?.qty) || 0) - (Number(items[b]?.qty) || 0),
+            );
+          }
+          orderIndices.forEach((cardIdx, visualRank) => {
+            if (cards[cardIdx]) {
+              cards[cardIdx].style.order = String(visualRank);
+            }
+          });
+
+          let visibleCount = 0;
+          let totalUnits = 0;
+          let totalValue = 0;
+          let alertCount = 0;
+
+          cards.forEach((cardEl, idx) => {
+            const data = items[idx] || {};
+            renderCardEnhancements(cardEl, data, idx);
+
+            const qty = Number(data.qty) || 0;
+            const unitCost = Number(data.unitCost) || 0;
+            totalUnits += qty;
+            totalValue += qty * unitCost;
+            if (data.status === 'Low Stock' || data.status === 'Maintenance') {
+              alertCount += 1;
+            }
+
+            const matchesType = typeFilter === 'all' || String(data.type) === typeFilter;
+            const matchesStatus = statusFilter === 'all' || String(data.status) === statusFilter;
+            const matchesLocation =
+              locationFilter === 'all' || String(data.location ?? '').trim() === locationFilter;
+            const matchesQuery =
+              !query ||
+              Object.entries(data).some(
+                ([k, v]) =>
+                  k.toLowerCase().includes(query) ||
+                  String(v ?? '')
+                    .toLowerCase()
+                    .includes(query),
+              );
+
+            const isVisible = matchesType && matchesStatus && matchesLocation && matchesQuery;
+            cardEl.hidden = !isVisible;
+            if (isVisible) visibleCount += 1;
+          });
+
+          // Update KPI cards
+          document.getElementById('kpi-total-cards').textContent = String(items.length);
+          document.getElementById('kpi-visible-badge').textContent = `${visibleCount} shown`;
+          document.getElementById('kpi-total-units').textContent = totalUnits.toLocaleString();
+          document.getElementById('kpi-total-value').textContent = currencyFmt.format(totalValue);
+          document.getElementById('kpi-alerts-count').textContent = String(alertCount);
+
+          const alertsBadge = document.getElementById('kpi-alerts-badge');
+          if (alertsBadge) {
+            alertsBadge.setAttribute('data-variant', alertCount > 0 ? 'destructive' : 'secondary');
+            alertsBadge.textContent = alertCount > 0 ? `${alertCount} attention` : 'Healthy';
+          }
+
+          resultsCounter.textContent = `Showing ${visibleCount} of ${items.length} cards`;
+          emptyStateEl.hidden = visibleCount > 0;
+
+          if (isDialogOpen(addPropDialog) && resolveActiveCardIndex(items) === -1) {
+            activeCardIdForProp = null;
+            activeCardRefForProp = null;
+            closeModalDialog(addPropDialog);
+          }
+          if (isDialogOpen(inspectDialog)) {
+            syncJsonInspector();
+          }
+        }
+
+        function resetAllFilters() {
+          Naizo.setField('search_query', '');
+          Naizo.setField('filter_type', 'all');
+          Naizo.setField('filter_status', 'all');
+          Naizo.setField('filter_location', 'all');
+          Naizo.setField('sort_by', 'default');
+          refreshInventoryView();
+        }
+
+        function appendModalKvRow(key = '', val = '') {
+          const row = document.createElement('div');
+          row.className = 'custom-kv-row';
+          row.innerHTML = `
+            <input class="input" type="text" data-kv-key placeholder="Field key (e.g. serial)" />
+            <input class="input" type="text" data-kv-val placeholder="Value (e.g. SN-9941)" />
+            <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Remove custom field">×</button>
+          `;
+          row.querySelector('[data-kv-key]').value = key;
+          row.querySelector('[data-kv-val]').value = val;
+          row.querySelector('button').addEventListener('click', () => row.remove());
+          modalKvContainer.appendChild(row);
+        }
+
+        function resetCreateForm() {
+          createForm.reset();
+          modalKvContainer.innerHTML = '';
+          appendModalKvRow('serial', '');
+        }
+
+        function openCreateModal() {
+          showModalDialog(createDialog);
+        }
+
+        resetCreateForm();
+
+        // Event bindings: Theme Toggle
+        document.getElementById('theme-toggle-btn').addEventListener('click', () => {
+          const nextTheme = Naizo.get('theme') === 'dark' ? 'light' : 'dark';
+          Naizo.set('theme', nextTheme);
+          syncThemeFromStore();
+        });
+
+        // Event bindings: Search & Filter controls
+        searchInput.addEventListener('input', refreshInventoryView);
+        filterTypeSelect.addEventListener('change', refreshInventoryView);
+        filterStatusSelect.addEventListener('change', refreshInventoryView);
+        filterLocationSelect.addEventListener('change', refreshInventoryView);
+        sortBySelect.addEventListener('change', refreshInventoryView);
+
+        clearSearchBtn.addEventListener('click', () => {
+          Naizo.setField('search_query', '');
+          refreshInventoryView();
+          searchInput.focus();
+        });
+
+        resetFiltersBtn.addEventListener('click', resetAllFilters);
+        document.getElementById('empty-reset-btn').addEventListener('click', resetAllFilters);
+        document.getElementById('empty-create-btn').addEventListener('click', openCreateModal);
+
+        typePillBar.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-type-pill]');
+          if (!btn) return;
+          const selectedType = btn.getAttribute('data-type-pill') || 'all';
+          const nextType =
+            selectedType !== 'all' && filterTypeSelect.value === selectedType
+              ? 'all'
+              : selectedType;
+          Naizo.setField('filter_type', nextType);
+          refreshInventoryView();
+        });
+
+        // Event bindings: Create Card Modal (drag-safe backdrop close; draft preserved across close/reopen)
+        document.getElementById('open-create-modal-btn').addEventListener('click', openCreateModal);
+        document.getElementById('reset-create-btn').addEventListener('click', () => {
+          resetCreateForm();
+          document.getElementById('new-card-name')?.focus();
+        });
+        document
+          .getElementById('cancel-create-btn')
+          .addEventListener('click', () => closeModalDialog(createDialog));
+        document
+          .getElementById('close-create-x-btn')
+          .addEventListener('click', () => closeModalDialog(createDialog));
+        bindBackdropDismiss(createDialog);
+
+        document.getElementById('add-modal-kv-btn').addEventListener('click', () => {
+          appendModalKvRow();
+        });
+
+        createForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const fd = new FormData(createForm);
+          const name = String(fd.get('name') || '').trim();
+          if (!name) return;
+
+          const type = String(fd.get('type') || 'Hardware');
+          const prefix = type.slice(0, 3).toUpperCase();
+          const sku =
+            String(fd.get('sku') || '').trim() ||
+            `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+          const rawQty = Number(fd.get('qty') || 0);
+          const rawUnitCost = Number(fd.get('unitCost') || 0);
+
+          const cardDict = {
+            id: `inv-${Date.now().toString(36)}`,
+            sku,
+            name,
+            type,
+            status: String(fd.get('status') || 'In Stock'),
+            location: String(fd.get('location') || 'Tokyo HQ').trim(),
+            owner: String(fd.get('owner') || 'Unassigned').trim(),
+            qty: Number.isFinite(rawQty) ? rawQty : 0,
+            unitCost: Number.isFinite(rawUnitCost) ? rawUnitCost : 0,
+            notes: String(fd.get('notes') || '').trim(),
+          };
+
+          // Collect custom JSON dictionary fields
+          modalKvContainer.querySelectorAll('.custom-kv-row').forEach((row) => {
+            const k = row.querySelector('[data-kv-key]')?.value.trim();
+            const v = row.querySelector('[data-kv-val]')?.value.trim();
+            if (k && v !== undefined && v !== '' && !STANDARD_CARD_KEYS.has(k)) {
+              setOwnProperty(cardDict, k, parseSmartValue(v));
+            }
+          });
+
+          Naizo.addItem('inventory', cardDict);
+          resetCreateForm();
+          closeModalDialog(createDialog);
+          refreshInventoryView();
+        });
+
+        // Event bindings: Add Custom Property to an Existing Card (drag-safe backdrop close; draft preserved per card)
+        gridEl.addEventListener('click', (e) => {
+          const addPropBtn = e.target.closest('[data-add-card-prop]');
+          if (!addPropBtn) return;
+          const cardEl = addPropBtn.closest('[naizo-item]');
+          const cards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
+          const cardIdx = cards.indexOf(cardEl);
+          const items = Naizo.getList('inventory');
+          const targetItem = items[cardIdx];
+          if (cardIdx === -1 || !targetItem) return;
+          const nextCardId = targetItem.id ? String(targetItem.id) : null;
+          const isSameDraftTarget = nextCardId
+            ? nextCardId === draftCardIdForProp
+            : targetItem === draftCardRefForProp;
+          activeCardIdForProp = nextCardId;
+          activeCardRefForProp = targetItem;
+          draftCardIdForProp = nextCardId;
+          draftCardRefForProp = targetItem;
+          if (!isSameDraftTarget) {
+            addPropForm.reset();
+          }
+          showModalDialog(addPropDialog);
+        });
+
+        function dismissAddPropModal() {
+          activeCardIdForProp = null;
+          activeCardRefForProp = null;
+          closeModalDialog(addPropDialog);
+        }
+
+        document.getElementById('reset-prop-btn').addEventListener('click', () => {
+          addPropForm.reset();
+          propKeyInput.focus();
+        });
+        document.getElementById('cancel-prop-btn').addEventListener('click', dismissAddPropModal);
+        document.getElementById('close-prop-x-btn').addEventListener('click', dismissAddPropModal);
+        bindBackdropDismiss(addPropDialog, dismissAddPropModal);
+        addPropDialog.addEventListener('close', () => {
+          activeCardIdForProp = null;
+          activeCardRefForProp = null;
+        });
+
+        addPropForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const key = propKeyInput.value.trim();
+          const rawVal = propValInput.value.trim();
+          if (!key || rawVal === '') return;
+          const items = Naizo.getList('inventory');
+          const targetIdx = resolveActiveCardIndex(items);
+          activeCardIdForProp = null;
+          activeCardRefForProp = null;
+          draftCardIdForProp = null;
+          draftCardRefForProp = null;
+          if (targetIdx === -1) {
+            addPropForm.reset();
+            closeModalDialog(addPropDialog);
+            refreshInventoryView();
+            return;
+          }
+          const patch = {};
+          setOwnProperty(patch, key, parseSmartValue(rawVal));
+          Naizo.updateItem('inventory', targetIdx, patch);
+          addPropForm.reset();
+          closeModalDialog(addPropDialog);
+          refreshInventoryView();
+        });
+
+        // Event bindings: Inspect #naizodb JSON Modal
+        document.getElementById('inspect-json-btn').addEventListener('click', () => {
+          syncJsonInspector();
+          showModalDialog(inspectDialog);
+        });
+        document
+          .getElementById('close-json-modal-btn')
+          .addEventListener('click', () => closeModalDialog(inspectDialog));
+        document
+          .getElementById('close-json-x-btn')
+          .addEventListener('click', () => closeModalDialog(inspectDialog));
+        bindBackdropDismiss(inspectDialog);
+        document.getElementById('copy-json-modal-btn').addEventListener('click', (e) => {
+          const btn = e.currentTarget;
+          void Naizo.copyJSON().then(() => {
+            btn.textContent = 'Copied!';
+            setTimeout(() => {
+              btn.textContent = 'Copy JSON';
+            }, 1400);
+          });
+        });
+
+        // Re-sync whenever naizo.js hydrates or mutates state
+        window.addEventListener('naizo:hydrate', refreshInventoryView);
+        window.addEventListener('naizo:change', refreshInventoryView);
+        refreshInventoryView();
+      });
+    </script>
+  </body>
+</html>
