@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-22 — Added LOCAMO to README comparison table
+
+- Done: reviewed `DaiAoki/locamo` (`locamo.html` and `README.md`) and added a **[LOCAMO](https://github.com/DaiAoki/locamo)** column to the comparison table in `README.md` contrasting its ready-to-use single-file memo app (`#app-data` JSON in `<body>`, manual `⌘S` `document.documentElement.outerHTML` write via in-memory `FileSystemFileHandle`, ~5.5 KB gzipped) against `naizo.js`'s drop-in declarative engine (`#naizodb` in `<head>`, surgical disk sync, IndexedDB handle persistence, `localStorage` cache, and ~2 s live watch with 3-way top-level key merge).
+- Verified: `vp fmt`, `vp check`, link/reference review, and `git diff --check`. Runtime build (`vp pack`), test suites (`vp test`, `.github/release-tools`), and live browser checks were not run for this documentation-only change.
+- Next: proceed with `M5` (`M5.1` comprehensive usage reference `docs/USAGE.md` and `M5.2` distributable `naizo` AI skill `skills/naizo/SKILL.md`).
+
 ## 2026-10-22 — Hardened `examples/inventory.html` modal state, custom key assignment, location filtering, and live JSON preview
 
 - Done: resolved five review findings in `examples/inventory.html` and added regression coverage in `tests/naizo.test.ts` — resolved the `+ Key` modal target card by stable `id` (with object-reference fallback and automatic dismissal if external hydration removes the card while open) instead of a potentially stale array index, restricted `parseSmartValue()` numeric coercion to finite numbers (`Number.isFinite`) so inputs like `Infinity` or `1e309` remain valid JSON strings instead of being rejected by `Naizo.addItem()` / `Naizo.updateItem()`, trimmed card `location` values during filter matching to stay consistent with `syncLocationFilterOptions()`, used `Object.defineProperty` (`setOwnProperty`) when assigning custom card dictionary keys so keys such as `__proto__` are stored as own enumerable properties (`EC19`), and serialized `Naizo.get()` directly in `#inspect-json-dialog` (with live refresh while open) so the preview never lags behind the 150 ms `#naizodb` DOM script debounce.
