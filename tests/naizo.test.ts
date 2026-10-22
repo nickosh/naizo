@@ -326,6 +326,94 @@ describe('naizo.js v0.1.0 core runtime', () => {
     const firstCardDict = Naizo.getList('inventory')[0];
     expect(firstCardDict?.chip).toBe('Apple M4 Max');
     expect(firstCardDict?.ram).toBe('64GB');
+
+    // Execute inventory.html application script and verify modal/filter edge cases
+    const registeredWinListeners: Array<{
+      type: string;
+      listener: EventListenerOrEventListenerObject;
+    }> = [];
+    const origWinAdd = window.addEventListener.bind(window);
+    const addSpy = vi
+      .spyOn(window, 'addEventListener')
+      .mockImplementation(
+        (
+          type: string,
+          listener: EventListenerOrEventListenerObject,
+          options?: boolean | AddEventListenerOptions,
+        ) => {
+          registeredWinListeners.push({ type, listener });
+          origWinAdd(type, listener, options);
+        },
+      );
+
+    try {
+      const appScript = invDoc.body.querySelector('script')?.textContent || '';
+      runInThisContext(appScript);
+      window.dispatchEvent(new Event('DOMContentLoaded'));
+
+      // 1. Opening + Key on inv-101, reordering cards before submit, and submitting updates inv-101 by stable ID
+      const firstAddPropBtn = invCards[0]?.querySelector<HTMLButtonElement>('[data-add-card-prop]');
+      firstAddPropBtn?.click();
+      Naizo.moveItem('inventory', 0, 1);
+
+      const propKeyIn = document.getElementById('prop-key-input') as HTMLInputElement;
+      const propValIn = document.getElementById('prop-val-input') as HTMLInputElement;
+      const addPropForm = document.getElementById('add-prop-form') as HTMLFormElement;
+      propKeyIn.value = 'maxWatts';
+      propValIn.value = 'Infinity';
+      addPropForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+      // 2. Non-finite numeric input ("Infinity") is preserved as text on inv-101 (now at index 1), not applied to inv-102 (index 0)
+      const listAfterProp = Naizo.getList('inventory');
+      expect(listAfterProp[0]?.id).toBe('inv-102');
+      expect(listAfterProp[0]?.maxWatts).toBeUndefined();
+      expect(listAfterProp[1]?.id).toBe('inv-101');
+      expect(listAfterProp[1]?.maxWatts).toBe('Infinity');
+
+      // 3. Trailing space in a card's Location field still matches trimmed location filter option
+      const locInput = document
+        .querySelectorAll<HTMLElement>('[naizo-item]')[1]
+        ?.querySelector<HTMLInputElement>('input[naizo="location"]');
+      expect(locInput).not.toBeNull();
+      locInput!.value = 'Tokyo HQ ';
+      locInput!.dispatchEvent(new Event('input', { bubbles: true }));
+
+      Naizo.setField('filter_location', 'Tokyo HQ');
+      const movedInv101Card = document.querySelectorAll<HTMLElement>('[naizo-item]')[1];
+      expect(movedInv101Card?.hidden).toBe(false);
+      Naizo.setField('filter_location', 'all');
+
+      // 4. Creating a card with custom "__proto__" key defines an own enumerable property
+      document.getElementById('open-create-modal-btn')?.click();
+      const createForm = document.getElementById('create-card-form') as HTMLFormElement;
+      (createForm.elements.namedItem('name') as HTMLInputElement).value = 'Proto Test Unit';
+      const kvKey = document.querySelector<HTMLInputElement>('#modal-kv-container [data-kv-key]')!;
+      const kvVal = document.querySelector<HTMLInputElement>('#modal-kv-container [data-kv-val]')!;
+      kvKey.value = '__proto__';
+      kvVal.value = '1e309';
+      createForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+      const createdCard = Naizo.getList('inventory').at(-1);
+      expect(createdCard?.name).toBe('Proto Test Unit');
+      expect(Object.hasOwn(createdCard ?? {}, '__proto__')).toBe(true);
+      expect(createdCard?.['__proto__']).toBe('1e309');
+
+      // 5. Inspect JSON modal serializes live store immediately before 150ms #naizodb debounce fires
+      const ownerInput = document
+        .querySelectorAll<HTMLElement>('[naizo-item]')[0]
+        ?.querySelector<HTMLInputElement>('input[naizo="owner"]');
+      ownerInput!.value = 'Live Immediate Preview Owner';
+      ownerInput!.dispatchEvent(new Event('input', { bubbles: true }));
+
+      document.getElementById('inspect-json-btn')?.click();
+      const previewText = document.getElementById('json-preview-box')?.textContent || '';
+      expect(previewText).toContain('Live Immediate Preview Owner');
+    } finally {
+      addSpy.mockRestore();
+      for (const { type, listener } of registeredWinListeners) {
+        window.removeEventListener(type, listener);
+      }
+    }
   });
 
   it('preserves unbound fields, unbound lists, and extra item keys via the in-memory store and WeakMap (D15, EC14)', async () => {

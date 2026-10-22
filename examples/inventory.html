@@ -1439,7 +1439,8 @@
         const addPropForm = document.getElementById('add-prop-form');
         const propKeyInput = document.getElementById('prop-key-input');
         const propValInput = document.getElementById('prop-val-input');
-        let activeCardIndexForProp = -1;
+        let activeCardIdForProp = null;
+        let activeCardRefForProp = null;
 
         const currencyFmt = new Intl.NumberFormat('en-US', {
           style: 'currency',
@@ -1447,14 +1448,59 @@
           maximumFractionDigits: 0,
         });
 
+        function setOwnProperty(obj, key, value) {
+          Object.defineProperty(obj, key, {
+            value,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+        }
+
         function parseSmartValue(raw) {
           const trimmed = String(raw ?? '').trim();
           if (trimmed === 'true') return true;
           if (trimmed === 'false') return false;
-          if (trimmed !== '' && !Number.isNaN(Number(trimmed))) {
-            return Number(trimmed);
+          if (trimmed !== '') {
+            const num = Number(trimmed);
+            if (Number.isFinite(num)) return num;
           }
           return trimmed;
+        }
+
+        function resolveActiveCardIndex(items) {
+          if (activeCardIdForProp) {
+            return items.findIndex((item) => String(item?.id ?? '') === activeCardIdForProp);
+          }
+          if (activeCardRefForProp) {
+            return items.indexOf(activeCardRefForProp);
+          }
+          return -1;
+        }
+
+        function showModalDialog(dialogEl) {
+          if (typeof dialogEl.showModal === 'function') {
+            dialogEl.showModal();
+          } else {
+            dialogEl.setAttribute('open', '');
+          }
+        }
+
+        function closeModalDialog(dialogEl) {
+          if (typeof dialogEl.close === 'function') {
+            dialogEl.close();
+          } else {
+            dialogEl.removeAttribute('open');
+          }
+        }
+
+        function isDialogOpen(dialogEl) {
+          return Boolean(dialogEl.open || dialogEl.hasAttribute('open'));
+        }
+
+        function syncJsonInspector() {
+          const db = Naizo.get();
+          jsonPreviewBox.textContent = JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
         }
 
         function syncThemeFromStore() {
@@ -1511,8 +1557,13 @@
                   const currentIdx = currentCards.indexOf(cardEl);
                   const fullDb = Naizo.get();
                   const list = fullDb?.lists?.inventory;
-                  if (currentIdx !== -1 && Array.isArray(list) && list[currentIdx]) {
-                    delete list[currentIdx][key];
+                  if (
+                    currentIdx !== -1 &&
+                    Array.isArray(list) &&
+                    list[currentIdx] &&
+                    Object.hasOwn(list[currentIdx], key)
+                  ) {
+                    Reflect.deleteProperty(list[currentIdx], key);
                     void Naizo.save();
                     refreshInventoryView();
                   }
@@ -1526,7 +1577,7 @@
         }
 
         function syncLocationFilterOptions(items) {
-          const storedLoc = String(Naizo.getField('filter_location') || 'all');
+          const storedLoc = String(Naizo.getField('filter_location') || 'all').trim() || 'all';
           const locations = new Set(BASE_LOCATIONS);
           items.forEach((item) => {
             const loc = String(item?.location || '').trim();
@@ -1626,7 +1677,7 @@
             const matchesType = typeFilter === 'all' || String(data.type) === typeFilter;
             const matchesStatus = statusFilter === 'all' || String(data.status) === statusFilter;
             const matchesLocation =
-              locationFilter === 'all' || String(data.location) === locationFilter;
+              locationFilter === 'all' || String(data.location ?? '').trim() === locationFilter;
             const matchesQuery =
               !query ||
               Object.entries(data).some(
@@ -1657,6 +1708,15 @@
 
           resultsCounter.textContent = `Showing ${visibleCount} of ${items.length} cards`;
           emptyStateEl.hidden = visibleCount > 0;
+
+          if (isDialogOpen(addPropDialog) && resolveActiveCardIndex(items) === -1) {
+            activeCardIdForProp = null;
+            activeCardRefForProp = null;
+            closeModalDialog(addPropDialog);
+          }
+          if (isDialogOpen(inspectDialog)) {
+            syncJsonInspector();
+          }
         }
 
         function resetAllFilters() {
@@ -1672,10 +1732,12 @@
           const row = document.createElement('div');
           row.className = 'custom-kv-row';
           row.innerHTML = `
-            <input class="input" type="text" data-kv-key placeholder="Field key (e.g. serial)" value="${key}" />
-            <input class="input" type="text" data-kv-val placeholder="Value (e.g. SN-9941)" value="${val}" />
+            <input class="input" type="text" data-kv-key placeholder="Field key (e.g. serial)" />
+            <input class="input" type="text" data-kv-val placeholder="Value (e.g. SN-9941)" />
             <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Remove custom field">×</button>
           `;
+          row.querySelector('[data-kv-key]').value = key;
+          row.querySelector('[data-kv-val]').value = val;
           row.querySelector('button').addEventListener('click', () => row.remove());
           modalKvContainer.appendChild(row);
         }
@@ -1684,7 +1746,7 @@
           createForm.reset();
           modalKvContainer.innerHTML = '';
           appendModalKvRow('serial', '');
-          createDialog.showModal();
+          showModalDialog(createDialog);
         }
 
         // Event bindings: Theme Toggle
@@ -1727,12 +1789,12 @@
         document.getElementById('open-create-modal-btn').addEventListener('click', openCreateModal);
         document
           .getElementById('cancel-create-btn')
-          .addEventListener('click', () => createDialog.close());
+          .addEventListener('click', () => closeModalDialog(createDialog));
         document
           .getElementById('close-create-x-btn')
-          .addEventListener('click', () => createDialog.close());
+          .addEventListener('click', () => closeModalDialog(createDialog));
         createDialog.addEventListener('click', (e) => {
-          if (e.target === createDialog) createDialog.close();
+          if (e.target === createDialog) closeModalDialog(createDialog);
         });
 
         document.getElementById('add-modal-kv-btn').addEventListener('click', () => {
@@ -1751,6 +1813,9 @@
             String(fd.get('sku') || '').trim() ||
             `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+          const rawQty = Number(fd.get('qty') || 0);
+          const rawUnitCost = Number(fd.get('unitCost') || 0);
+
           const cardDict = {
             id: `inv-${Date.now().toString(36)}`,
             sku,
@@ -1759,8 +1824,8 @@
             status: String(fd.get('status') || 'In Stock'),
             location: String(fd.get('location') || 'Tokyo HQ').trim(),
             owner: String(fd.get('owner') || 'Unassigned').trim(),
-            qty: Number(fd.get('qty') || 0),
-            unitCost: Number(fd.get('unitCost') || 0),
+            qty: Number.isFinite(rawQty) ? rawQty : 0,
+            unitCost: Number.isFinite(rawUnitCost) ? rawUnitCost : 0,
             notes: String(fd.get('notes') || '').trim(),
           };
 
@@ -1769,12 +1834,12 @@
             const k = row.querySelector('[data-kv-key]')?.value.trim();
             const v = row.querySelector('[data-kv-val]')?.value.trim();
             if (k && v !== undefined && v !== '' && !STANDARD_CARD_KEYS.has(k)) {
-              cardDict[k] = parseSmartValue(v);
+              setOwnProperty(cardDict, k, parseSmartValue(v));
             }
           });
 
           Naizo.addItem('inventory', cardDict);
-          createDialog.close();
+          closeModalDialog(createDialog);
           refreshInventoryView();
         });
 
@@ -1784,48 +1849,66 @@
           if (!addPropBtn) return;
           const cardEl = addPropBtn.closest('[naizo-item]');
           const cards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
-          activeCardIndexForProp = cards.indexOf(cardEl);
-          if (activeCardIndexForProp === -1) return;
+          const cardIdx = cards.indexOf(cardEl);
+          const items = Naizo.getList('inventory');
+          const targetItem = items[cardIdx];
+          if (cardIdx === -1 || !targetItem) return;
+          activeCardIdForProp = targetItem.id ? String(targetItem.id) : null;
+          activeCardRefForProp = targetItem;
           addPropForm.reset();
-          addPropDialog.showModal();
+          showModalDialog(addPropDialog);
         });
 
-        document
-          .getElementById('cancel-prop-btn')
-          .addEventListener('click', () => addPropDialog.close());
-        document
-          .getElementById('close-prop-x-btn')
-          .addEventListener('click', () => addPropDialog.close());
+        function dismissAddPropModal() {
+          activeCardIdForProp = null;
+          activeCardRefForProp = null;
+          closeModalDialog(addPropDialog);
+        }
+
+        document.getElementById('cancel-prop-btn').addEventListener('click', dismissAddPropModal);
+        document.getElementById('close-prop-x-btn').addEventListener('click', dismissAddPropModal);
         addPropDialog.addEventListener('click', (e) => {
-          if (e.target === addPropDialog) addPropDialog.close();
+          if (e.target === addPropDialog) dismissAddPropModal();
+        });
+        addPropDialog.addEventListener('close', () => {
+          activeCardIdForProp = null;
+          activeCardRefForProp = null;
         });
 
         addPropForm.addEventListener('submit', (e) => {
           e.preventDefault();
           const key = propKeyInput.value.trim();
           const rawVal = propValInput.value.trim();
-          if (!key || rawVal === '' || activeCardIndexForProp < 0) return;
-          Naizo.updateItem('inventory', activeCardIndexForProp, {
-            [key]: parseSmartValue(rawVal),
-          });
-          addPropDialog.close();
+          if (!key || rawVal === '') return;
+          const items = Naizo.getList('inventory');
+          const targetIdx = resolveActiveCardIndex(items);
+          activeCardIdForProp = null;
+          activeCardRefForProp = null;
+          if (targetIdx === -1) {
+            closeModalDialog(addPropDialog);
+            refreshInventoryView();
+            return;
+          }
+          const patch = {};
+          setOwnProperty(patch, key, parseSmartValue(rawVal));
+          Naizo.updateItem('inventory', targetIdx, patch);
+          closeModalDialog(addPropDialog);
           refreshInventoryView();
         });
 
         // Event bindings: Inspect #naizodb JSON Modal
         document.getElementById('inspect-json-btn').addEventListener('click', () => {
-          const dbEl = document.getElementById('naizodb');
-          jsonPreviewBox.textContent = (dbEl?.textContent || '').trim();
-          inspectDialog.showModal();
+          syncJsonInspector();
+          showModalDialog(inspectDialog);
         });
         document
           .getElementById('close-json-modal-btn')
-          .addEventListener('click', () => inspectDialog.close());
+          .addEventListener('click', () => closeModalDialog(inspectDialog));
         document
           .getElementById('close-json-x-btn')
-          .addEventListener('click', () => inspectDialog.close());
+          .addEventListener('click', () => closeModalDialog(inspectDialog));
         inspectDialog.addEventListener('click', (e) => {
-          if (e.target === inspectDialog) inspectDialog.close();
+          if (e.target === inspectDialog) closeModalDialog(inspectDialog);
         });
         document.getElementById('copy-json-modal-btn').addEventListener('click', (e) => {
           const btn = e.currentTarget;
