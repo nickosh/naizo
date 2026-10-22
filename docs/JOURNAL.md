@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-22 — Preserved modal draft state and disabled form-modal backdrop dismissal in `examples/inventory.html`
+
+- Done: updated `examples/inventory.html` and `tests/naizo.test.ts` so `#create-card-dialog` and `#add-prop-dialog` no longer close on backdrop clicks (which also triggered when drag-selecting text inside an input and releasing the pointer outside the modal box), preserve unsaved draft input and custom key-value rows across `Cancel` / `×` / `Escape` dismissal, add explicit **`Reset`** buttons (`#reset-create-btn`, `#reset-prop-btn`) in both modal footers, reset automatically only on successful submit (or when switching `#add-prop-dialog` to a different card), and guard `#inspect-json-dialog` backdrop dismissal with `mousedown` origin tracking so text selection drags do not close it.
+- Verified: `vp fmt`, `vp pack`, `vp check` (0 warnings, 0 errors across 34 files), `vp test` (26/26 project tests passing across `tests/naizo.test.ts` and `tests/release.test.ts`), `node --check dist/naizo.js`, `node --check dist/naizo.min.js`, JSON validation of `package.json` and embedded `#naizodb` blocks, and `git diff --check`. Isolated `.github/release-tools` tests, live browser File System Access API disk linking, and remote GitHub/npm workflows were not run.
+- Next: proceed with `M5` (`M5.1` comprehensive usage reference `docs/USAGE.md` and `M5.2` distributable `naizo` AI skill `skills/naizo/SKILL.md`).
+
 ## 2026-10-22 — Added LOCAMO to README comparison table
 
 - Done: reviewed `DaiAoki/locamo` (`locamo.html` and `README.md`) and added a **[LOCAMO](https://github.com/DaiAoki/locamo)** column to the comparison table in `README.md` contrasting its ready-to-use single-file memo app (`#app-data` JSON in `<body>`, manual `⌘S` `document.documentElement.outerHTML` write via in-memory `FileSystemFileHandle`, ~5.5 KB gzipped) against `naizo.js`'s drop-in declarative engine (`#naizodb` in `<head>`, surgical disk sync, IndexedDB handle persistence, `localStorage` cache, and ~2 s live watch with 3-way top-level key merge).

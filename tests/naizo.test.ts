@@ -398,16 +398,81 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(Object.hasOwn(createdCard ?? {}, '__proto__')).toBe(true);
       expect(createdCard?.['__proto__']).toBe('1e309');
 
-      // 5. Inspect JSON modal serializes live store immediately before 150ms #naizodb debounce fires
+      // 5. Form modals ignore backdrop clicks, preserve draft state across Cancel/X, and reset via Reset button
+      const createDialog = document.getElementById('create-card-dialog') as HTMLDialogElement;
+      document.getElementById('open-create-modal-btn')?.click();
+      expect(createDialog.open || createDialog.hasAttribute('open')).toBe(true);
+
+      const nameIn = createForm.elements.namedItem('name') as HTMLInputElement;
+      const notesIn = createForm.elements.namedItem('notes') as HTMLTextAreaElement;
+      nameIn.value = 'Draft Workstation';
+      notesIn.value = 'Carefully typed specification notes';
+      document.getElementById('add-modal-kv-btn')?.click();
+      const kvRows = document.querySelectorAll('#modal-kv-container .custom-kv-row');
+      expect(kvRows.length).toBe(2);
+
+      // Clicking backdrop of #create-card-dialog must NOT close it
+      createDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(createDialog.open || createDialog.hasAttribute('open')).toBe(true);
+
+      // Closing via Cancel and reopening preserves draft text and extra custom KV rows
+      document.getElementById('cancel-create-btn')?.click();
+      expect(createDialog.open || createDialog.hasAttribute('open')).toBe(false);
+      document.getElementById('open-create-modal-btn')?.click();
+      expect(nameIn.value).toBe('Draft Workstation');
+      expect(notesIn.value).toBe('Carefully typed specification notes');
+      expect(document.querySelectorAll('#modal-kv-container .custom-kv-row').length).toBe(2);
+
+      // Reset button clears draft text and restores default single custom KV row while keeping dialog open
+      document.getElementById('reset-create-btn')?.click();
+      expect(createDialog.open || createDialog.hasAttribute('open')).toBe(true);
+      expect(nameIn.value).toBe('');
+      expect(notesIn.value).toBe('');
+      expect(document.querySelectorAll('#modal-kv-container .custom-kv-row').length).toBe(1);
+      document.getElementById('close-create-x-btn')?.click();
+
+      // Add Property modal also ignores backdrop click, preserves draft for the same card, and resets on Reset or different card
+      const addPropDialog = document.getElementById('add-prop-dialog') as HTMLDialogElement;
+      const currentCards = Array.from(document.querySelectorAll<HTMLElement>('[naizo-item]'));
+      currentCards[0]?.querySelector<HTMLButtonElement>('[data-add-card-prop]')?.click();
+      propKeyIn.value = 'draftKey';
+      propValIn.value = 'draftValue';
+      addPropDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(addPropDialog.open || addPropDialog.hasAttribute('open')).toBe(true);
+
+      document.getElementById('cancel-prop-btn')?.click();
+      currentCards[0]?.querySelector<HTMLButtonElement>('[data-add-card-prop]')?.click();
+      expect(propKeyIn.value).toBe('draftKey');
+      expect(propValIn.value).toBe('draftValue');
+
+      document.getElementById('reset-prop-btn')?.click();
+      expect(propKeyIn.value).toBe('');
+      expect(propValIn.value).toBe('');
+      document.getElementById('close-prop-x-btn')?.click();
+
+      // 6. Inspect JSON modal serializes live store immediately before 150ms #naizodb debounce fires
+      // and only closes on true backdrop click (mousedown + click on dialog backdrop)
       const ownerInput = document
         .querySelectorAll<HTMLElement>('[naizo-item]')[0]
         ?.querySelector<HTMLInputElement>('input[naizo="owner"]');
       ownerInput!.value = 'Live Immediate Preview Owner';
       ownerInput!.dispatchEvent(new Event('input', { bubbles: true }));
 
+      const inspectDialog = document.getElementById('inspect-json-dialog') as HTMLDialogElement;
       document.getElementById('inspect-json-btn')?.click();
-      const previewText = document.getElementById('json-preview-box')?.textContent || '';
+      const previewBox = document.getElementById('json-preview-box') as HTMLElement;
+      const previewText = previewBox.textContent || '';
       expect(previewText).toContain('Live Immediate Preview Owner');
+
+      // Drag-select starting inside #json-preview-box and ending on backdrop does NOT close inspectDialog
+      previewBox.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      inspectDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(inspectDialog.open || inspectDialog.hasAttribute('open')).toBe(true);
+
+      // True backdrop click (mousedown + click on inspectDialog) closes it
+      inspectDialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      inspectDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(inspectDialog.open || inspectDialog.hasAttribute('open')).toBe(false);
     } finally {
       addSpy.mockRestore();
       for (const { type, listener } of registeredWinListeners) {
