@@ -89,5 +89,6 @@ Use proportional verification:
 - After completing and verifying each coherent change, including documentation changes, reconcile project memory and create a local commit without asking again unless the user explicitly requests otherwise.
 - Use Conventional Commits for commit messages (`type(scope): subject`); include a scope only when it adds clarity. Common types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `ci`, and `build`.
 - Every commit must include a factual body after the subject and a blank line explaining what changed, why, and any relevant limitations. Do not create subject-only commits. Scale the detail to the change. Validation results and checks not run belong in closeout documentation and chat; they are not required in commit bodies.
+- Do not add a `Co-authored-by: Copilot` trailer (or any other AI co-author trailer) to commit messages.
 - Stage only changes belonging to the completed work. Preserve unrelated staged and unstaged changes. Leave incomplete or verification-blocked work uncommitted and report the blocker unless the user requests a checkpoint.
 - This authorizes local commits only. Push, tag, publish, or open a pull request only when separately requested by the user.
