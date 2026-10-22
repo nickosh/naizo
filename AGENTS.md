@@ -39,11 +39,11 @@ Whenever you generate or update an interactive HTML file (plans, specs, checklis
 
 Read [docs/PLAN.md](docs/PLAN.md) and the latest entry in [docs/JOURNAL.md](docs/JOURNAL.md) before substantial work. Read relevant decisions in [docs/DECISIONS.md](docs/DECISIONS.md), known boundary cases in [docs/EDGE_CASES.md](docs/EDGE_CASES.md), and any affected specifications under `docs/`.
 
-- [docs/PRODUCT.md](docs/PRODUCT.md) — product vision, target users, core promises (invariants), and scope boundaries.
-- [docs/PLAN.md](docs/PLAN.md) — authoritative task, milestone/slice sequencing, and acceptance ledger.
-- [docs/DECISIONS.md](docs/DECISIONS.md) — ADR-style log of durable architectural and owner decisions (`D01`, `D02`, ...).
-- [docs/EDGE_CASES.md](docs/EDGE_CASES.md) — edge-case resolution ledger (`EC01`, `EC02`, ...; statuses: `ADR`, `fix`, `doc`, `PARTIAL`, `OPEN`).
-- [docs/JOURNAL.md](docs/JOURNAL.md) — newest-first cross-session progress log.
+- [docs/PRODUCT.md](docs/PRODUCT.md) — **Global picture & lifecycles**: product vision, target users, connected Local Mode / Online Mode lifecycles, core promises (invariants), and scope boundaries.
+- [docs/PLAN.md](docs/PLAN.md) — **What & when**: authoritative task, implementation specification, milestone/slice sequencing, and acceptance ledger.
+- [docs/DECISIONS.md](docs/DECISIONS.md) — **Why**: ADR-style log of durable architectural and owner decisions (`D01`, `D02`, ...), capturing context/problem, rationale & invariant safety, and rejected alternatives.
+- [docs/EDGE_CASES.md](docs/EDGE_CASES.md) — **Boundary failure modes**: edge-case resolution ledger (`EC01`, `EC02`, ...; statuses: `ADR`, `fix`, `doc`, `PARTIAL`, `OPEN`).
+- [docs/JOURNAL.md](docs/JOURNAL.md) — **Session delta**: newest-first cross-session progress log.
 
 Specs and contracts are hypotheses: when implementation or owner review changes behavior, update the matching specification in the same change as the code change.
 
@@ -56,7 +56,7 @@ At the end of each state-changing session, independently useful development slic
 - Update affected contracts and specs in the same change as behavior.
 - Mark tasks or milestones done in `docs/PLAN.md` only when their acceptance criteria and verification evidence are satisfied. Keep blocked and not-run checks explicit.
 - Prepend one dated entry to `docs/JOURNAL.md` with 2–5 concise bullets covering done, decided when relevant, verification or blockers, and the next concrete technical action.
-- Record durable architectural or owner decisions in `docs/DECISIONS.md` (`Dxx`), superseding prior decisions explicitly rather than silently rewriting history.
+- Record durable architectural or owner decisions in `docs/DECISIONS.md` (`Dxx`), superseding prior decisions explicitly rather than silently rewriting history. Every `Dxx` entry must explain **why** (Context & Problem, Decision & Rationale / Invariant Safety, and Alternatives Rejected / Trade-offs) rather than duplicating the task checklist from `docs/PLAN.md`. Update `docs/PRODUCT.md` when a decision expands or refines the global product lifecycle.
 - Record reproduced edge cases or their tested resolutions in `docs/EDGE_CASES.md` (`ECxx`); `OPEN` means planned or unresolved, never "resolved by documentation."
 - Do not record branch names, commit SHAs, PR numbers/status, push/pull/merge steps, or CI run/job identifiers in project memory documents; keep delivery bookkeeping in chat, Git history, and the hosting service.
 

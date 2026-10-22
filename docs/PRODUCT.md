@@ -1,6 +1,6 @@
 # naizo — Product Definition
 
-Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-10-21 (`D38`, `D39`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status).
+Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-10-22 (`D38`–`D42`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status).
 
 ## One-liner
 
@@ -25,7 +25,20 @@ AI coding agents (Antigravity, Claude Code, Gemini CLI, Cursor, Codex) increasin
 ## Target users
 
 - **Primary:** Developers and AI coding agents collaborating through local interactive HTML artifacts (plans, specs, checklists, triage boards, custom editors).
-- **Secondary:** Authors of standalone, local-first single-file HTML tools who want persistent state and repeating list controls without a backend server or runtime dependencies.
+- **Secondary:** Authors of standalone, local-first single-file HTML tools who want persistent state and repeating list controls without a backend server or runtime dependencies, and teams/creators sharing interactive single-file HTML apps on static web hosts (such as GitHub Pages).
+
+## Global picture: two connected lifecycles (`D40`, `D41`)
+
+A `naizo.js` HTML file is a self-contained application that moves seamlessly between **local disk** and **the web**:
+
+1. **Local Mode (`file://`, `localhost`, or linked disk file) — Human ↔ AI Agent Co-Editing (`D16`, `D40`):**
+   - The human opens `plan.html` locally in the browser and links the file on disk (via the bottom-right pill or `⌘S` / `Ctrl+S`).
+   - Edits in the browser immediately cache in `localStorage` and surgically rewrite only `<script id="naizodb">` on disk (and flush automatically when switching away from the tab).
+   - When a CLI or IDE AI agent edits `#naizodb` on disk, `naizo.js` detects `file.lastModified` (~2 s watch + focus/pre-write checks), performs a 3-way shallow top-level key merge (`fields`, `lists`, `custom`), protects `document.activeElement`, and backs up any same-key collision to `↺ Restore`.
+2. **Online Mode (Static Web Hosts like GitHub Pages) ↔ Save-to-PC App Exchange (`D41`):**
+   - When the same `.html` file is hosted online (`https://...`), no direct server-file write is possible, yet `localStorage` persistence and 3-way merge against future server deploys work out of the box.
+   - Instead of showing a misleading amber _"Click to Link Disk"_ warning, `naizo.js` enters **Online Mode**: the status pill shows **`Saved in Browser`**, `⌘S` / `Ctrl+S` flushes to browser storage with visual confirmation, and **`↺ Reset`** (with an inline Shadow DOM confirmation popover + backup) lets visitors restore the published template state.
+   - At any moment, clicking **`⬇ Save to PC`** (`Naizo.downloadHTML()`) downloads the single `.html` file with the user's current `#naizodb` data, baked form attributes, and a portable CDN `<script src>` URL. When the user opens that downloaded `.html` file on their computer (`file://`), it automatically boots in **Local Mode** at the exact state they had on the web—ready for local disk sync and AI agent collaboration.
 
 ## Core promises (product invariants — never compromise)
 
@@ -37,9 +50,9 @@ AI coding agents (Antigravity, Claude Code, Gemini CLI, Cursor, Codex) increasin
 
 ## Design priority
 
-Keep the tool lightweight, fast, and easy to add to ordinary HTML (`D26`, `D27`). Prefer a small API, useful defaults, and optional escape hatches. Preserve authors’ unknown JSON data and freedom to build custom widgets; require only what binding and safe persistence need. Reduce repeated DOM/serialization work before adding optimization machinery. Data-loss prevention and truthful persistence status (`Browser Cache` vs. `Synced to Disk`) remain part of the core promise.
+Keep the tool lightweight, fast, and easy to add to ordinary HTML (`D26`, `D27`). Prefer a small API, useful defaults, and optional escape hatches. Preserve authors’ unknown JSON data and freedom to build custom widgets; require only what binding and safe persistence need. Reduce repeated DOM/serialization work before adding optimization machinery. Data-loss prevention and truthful persistence status (`Browser Cache` vs. `Saved in Browser` in Online Mode vs. `Synced to Disk` after local file write, `EC36`, `D41`) remain part of the core promise.
 
 ## Scope and non-goals
 
-- **In scope:** Declarative scalar field binding (`input` including numeric `number`/`range`, `textarea`, `select` including `multiple`, `<details>`, plain-text `[contenteditable]`, `[naizo]`, `[data-naizo]`), single-level declarative list repeaters (`[naizo-list]` / `[data-naizo-list]` including self-bound `[naizo-item]` and `<tbody naizo-list>`), programmatic `window.Naizo` (`window.NaizoDB`) API (`get`, `set`, `delete`, `getField`, `setField`, `deleteField`, `getList`, `addItem`, `updateItem`, `moveItem`, `removeItem`, `bind`, `save`, `unlink`, `copyJSON`, `exportHTML`) with `naizo:hydrate` / `naizo:change` / `naizo:item` events, `localStorage` caching, surgical File System Access API disk write-back with IndexedDB handle persistence, 1-click `#naizodb` JSON clipboard copy (`Naizo.copyJSON()`), and fallback `.html` snapshot download (`Naizo.exportHTML()`).
+- **In scope:** Declarative scalar field binding (`input` including numeric `number`/`range`, `textarea`, `select` including `multiple`, `<details>`, plain-text `[contenteditable]`, `[naizo]`, `[data-naizo]`), single-level declarative list repeaters (`[naizo-list]` / `[data-naizo-list]` including self-bound `[naizo-item]` and `<tbody naizo-list>`), programmatic `window.Naizo` (`window.NaizoDB`) API (`get`, `set`, `delete`, `getField`, `setField`, `deleteField`, `getList`, `addItem`, `updateItem`, `moveItem`, `removeItem`, `bind`, `save`, `unlink`, `reset`, `copyJSON`, `exportHTML`, `downloadHTML`) with `naizo:hydrate` / `naizo:change` / `naizo:item` events, `localStorage` caching, Local Mode (`⌘S` / `Ctrl+S` save/link, surgical File System Access API disk write-back with IndexedDB handle persistence, ~2 s live watch, and 3-way shallow merge), Online Mode (`naizo-mode`, `Saved in Browser`, safe `↺ Reset` with Shadow DOM confirmation + backup, and portable `⬇ Save to PC` `.html` download for web-to-local app exchange, `D41`), and 1-click `#naizodb` JSON clipboard copy (`Naizo.copyJSON()`).
 - **Non-goals:** Backend servers, multi-user real-time network sync, or full frontend framework/virtual DOM replacement.
