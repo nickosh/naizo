@@ -59,7 +59,7 @@ vp dev
 # Opens http://localhost:3000 (serves site/index.html)
 ```
 
-Or copy a starter template from [`examples/starter.html`](examples/starter.html), [`examples/checklist.html`](examples/checklist.html), or [`examples/inventory.html`](examples/inventory.html) and drop `naizo.js` into any HTML file:
+Or copy a starter template from [`examples/starter.html`](examples/starter.html), [`examples/checklist.html`](examples/checklist.html), [`examples/notes.html`](examples/notes.html), or [`examples/inventory.html`](examples/inventory.html) and drop `naizo.js` into any HTML file:
 
 ```html
 <head>
@@ -88,19 +88,20 @@ CDN URLs require the package/version to be published to npm. For local developme
 
 `naizo.js` supports both concise **`naizo` / `naizo-*`** attributes (recommended for low token overhead) and HTML5-compliant **`data-naizo` / `data-naizo-*`** attributes (for strict HTML validators):
 
-| Short Attribute         | HTML5 `data-*` Alias                    | Target Element                                                              | Description                                                                                                                   |
-| ----------------------- | --------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `naizo="key"`           | `data-naizo="key"` / `data-naizo-field` | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when on or inside a `[naizo-item]`).          |
-| `naizo-list="name"`     | `data-naizo-list="name"`                | Container (`<div>`, `<ul>`, `<tbody>`)                                      | Declares a repeating list bound to `lists["name"]` in `#naizodb`. Automatically injects a `+ Add Item` button below the list. |
-| `naizo-item`            | `data-naizo-item`                       | Child of `[naizo-list]`                                                     | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls.                                        |
-| `naizo-template`        | `data-naizo-template`                   | `<template>` inside `[naizo-list]`                                          | Optional explicit HTML blueprint for new items. Auto-generated (`data-naizo-auto-template`) from the first item if omitted.   |
-| `naizo-add="name"`      | `data-naizo-add="name"`                 | `<button>`                                                                  | Appends a new blank item to `[naizo-list="name"]` and focuses its first text field.                                           |
-| `naizo-remove`          | `data-naizo-remove`                     | `<button>` inside `[naizo-item]`                                            | Removes the enclosing `[naizo-item]`.                                                                                         |
-| `naizo-move="up\|down"` | `data-naizo-move="up\|down"`            | `<button>` inside `[naizo-item]`                                            | Moves the enclosing `[naizo-item]` up or down.                                                                                |
-| `naizo-no-controls`     | `data-naizo-no-controls`                | `[naizo-list]`                                                              | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list.                                           |
-| `naizo-ignore`          | `data-naizo-ignore`                     | Any HTML element                                                            | Excludes the element and its subtree from state binding while preserving it in exported HTML.                                 |
-| `naizo-id="scope"`      | `data-naizo-id="scope"`                 | `<html>` or `<body>`                                                        | Optional document scope identifier to isolate `localStorage` and IndexedDB file handles on `localhost`.                       |
-| `naizo-manual`          | `data-naizo-manual`                     | `<html>`, `<body>`, or `<script>`                                           | Opts out of automatic `initNaizo()` boot when loading the browser IIFE bundle so you can call `Naizo.init()` manually.        |
+| Short Attribute                    | HTML5 `data-*` Alias                    | Target Element                                                              | Description                                                                                                                     |
+| ---------------------------------- | --------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `naizo="key"`                      | `data-naizo="key"`                      | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when on or inside a `[naizo-item]`).            |
+| `naizo-list="name"`                | `data-naizo-list="name"`                | Container (`<div>`, `<ul>`, `<tbody>`)                                      | Declares a repeating list bound to `lists["name"]` in `#naizodb`. Automatically injects a `+ Add Item` button below the list.   |
+| `naizo-item`                       | `data-naizo-item`                       | Child of `[naizo-list]`                                                     | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls.                                          |
+| `naizo-template`                   | `data-naizo-template`                   | `<template>` inside `[naizo-list]`                                          | Optional explicit HTML blueprint for new items. Auto-generated (`data-naizo-auto-template`) from the first item if omitted.     |
+| `naizo-add="name"`                 | `data-naizo-add="name"`                 | `<button>`                                                                  | Appends a new blank item to `[naizo-list="name"]` and focuses its first text field.                                             |
+| `naizo-remove`                     | `data-naizo-remove`                     | `<button>` inside `[naizo-item]`                                            | Removes the enclosing `[naizo-item]`.                                                                                           |
+| `naizo-move="up\|down"`            | `data-naizo-move="up\|down"`            | `<button>` inside `[naizo-item]`                                            | Moves the enclosing `[naizo-item]` up or down.                                                                                  |
+| `naizo-no-controls`                | `data-naizo-no-controls`                | `[naizo-list]`                                                              | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list.                                             |
+| `naizo-ignore`                     | `data-naizo-ignore`                     | Any HTML element                                                            | Excludes the element and its subtree from state binding while preserving it in exported HTML.                                   |
+| `naizo-id="scope"`                 | `data-naizo-id="scope"`                 | `<html>` or `<body>`                                                        | Optional document scope identifier to isolate `localStorage` and IndexedDB file handles on `localhost`.                         |
+| `naizo-mode="online\|local\|auto"` | `data-naizo-mode="online\|local\|auto"` | `<html>` or `<body>`                                                        | Overrides automatic Local Mode (`file:`, `localhost`) vs. Online Mode (remote `http(s):` host with `⬇ Save to PC` & `↺ Reset`). |
+| `naizo-manual`                     | `data-naizo-manual`                     | `<html>`, `<body>`, or `<script>`                                           | Opts out of automatic `initNaizo()` boot when loading the browser IIFE bundle so you can call `Naizo.init()` manually.          |
 
 ---
 
@@ -127,9 +128,11 @@ Naizo.removeItem('tasks', 1);
 // Dynamic Subtree Binding & Persistence Utilities
 Naizo.bind(document.getElementById('dynamic-panel')); // Hydrate dynamically mounted DOM
 await Naizo.save(); // Flush cache and await single-flight disk write (Promise<boolean>)
+Naizo.reset(); // Back up current state to ↺ Restore and reset to initial baseline state
 await Naizo.unlink(); // Forget linked FileSystemFileHandle
 const json = await Naizo.copyJSON(); // Copy #naizodb JSON to clipboard and return string
 const html = Naizo.exportHTML(); // Return clean HTML snapshot with baked attributes
+const portableHtml = Naizo.downloadHTML('my-app.html'); // Download portable HTML snapshot with CDN script URL
 
 // Lifecycle & Mutation Events
 window.addEventListener('naizo:hydrate', (e) => console.log('Hydrated store:', e.detail));
@@ -143,7 +146,8 @@ window.addEventListener('naizo:item', (e) => console.log('New list row:', e.deta
 
 1. **Body is the template, `#naizodb` is the data:** When linked to a local file via the bottom-right status pill (`showSaveFilePicker`), `naizo.js` surgically updates only the `<script id="naizodb">` block in place (`\u003c`-escaped, UTF-8 BOM preserved) so third-party runtime DOM mutations (Tailwind Play CDN, Lucide, Mermaid) never pollute the file on disk. Edit `#naizodb` to change data; edit `<body>` markup to change the view.
 2. **Pass-through keys:** Unbound fields in `db.fields`, unbound lists in `db.lists`, and extra keys on list item objects (such as agent-authored `id` or `estimate`) pass through untouched in memory and on save.
-3. **Live ~2 s watch & shallow 3-way merge:** While a linked tab is visible (and on window `focus`, before every disk write, and across page reloads), `naizo.js` checks `file.lastModified` and compares `#naizodb` against its per-key FNV-1a snapshot hash manifest (`naizodb_disk_hash_<key>`). Concurrent human edits in the browser and AI agent edits on disk to different top-level keys (`fields[k]`, `lists[k]`, `custom[k]`) both survive without clobbering `document.activeElement`. On same-key collisions, disk wins and the pre-merge browser state is backed up to `naizodb_backup_<key>` with a 1-click **`↺ Restore`** button in the status pill (alongside **`📋 Copy`**, **`× Unlink`**, and **`↺ Repair`** if startup `#naizodb` JSON is malformed).
+3. **Live ~2 s watch, `⌘S` / `Ctrl+S` shortcut, & shallow 3-way merge:** Pressing `⌘S` / `Ctrl+S` suppresses the browser's broken webpage save dialog and immediately links or flushes `#naizodb` to disk (and switching tabs flushes pending edits automatically). While a linked tab is visible (and on window `focus`, before every disk write, and across page reloads), `naizo.js` checks `file.lastModified` and compares `#naizodb` against its per-key FNV-1a snapshot hash manifest (`naizodb_disk_hash_<key>`). Concurrent human edits in the browser and AI agent edits on disk to different top-level keys (`fields[k]`, `lists[k]`, `custom[k]`) both survive without clobbering `document.activeElement`. On same-key collisions, disk wins and the pre-merge browser state is backed up to `naizodb_backup_<key>` with a 1-click **`↺ Restore`** button in the status pill (alongside **`📋 Copy`**, **`× Unlink`**, and **`↺ Repair`** if startup `#naizodb` JSON is malformed).
+4. **Online Mode (`Saved in Browser` ↔ `⬇ Save to PC`):** When served from a remote `http(s)://` host (such as GitHub Pages) with no linked local file, `naizo.js` enters Online Mode automatically: the status pill shows green **`Saved in Browser`**, **`↺ Reset`** (with an inline Shadow DOM confirmation + backup to **`↺ Restore`**) restores the initial published state, and **`⬇ Save to PC`** (`Naizo.downloadHTML()`) downloads a portable `.html` file with baked state and npm CDN `<script src>` that opens in Local Mode on a local computer (`file://`).
 
 ---
 

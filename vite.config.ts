@@ -18,12 +18,6 @@ export default defineConfig({
     port: 3000,
     open: '/site/index.html',
   },
-  build: {
-    outDir: 'dist/site',
-    rollupOptions: {
-      input: 'site/index.html',
-    },
-  },
   fmt: {
     ignorePatterns: ['dist/**'],
     singleQuote: true,

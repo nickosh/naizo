@@ -32,9 +32,11 @@ export interface NaizoAPI {
   moveItem(listName: string, fromIndex: number, toIndex: number): void;
   bind(root?: ParentNode): void;
   save(): Promise<boolean>;
+  reset(): void;
   unlink(): Promise<void>;
   copyJSON(): Promise<string>;
   exportHTML(): string;
+  downloadHTML(filename?: string): string;
 }
 
 interface FileSystemPermissionDescriptor {
@@ -82,8 +84,12 @@ const DISK_WATCH_INTERVAL_MS = 2000;
 const NAIZODB_SCRIPT_RE =
   /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
 const HEAD_OPEN_RE = /(<head\b[^>]*>)/i;
+const CDN_NAIZO_JS_URL = 'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js';
+const CDN_NAIZO_MIN_JS_URL = 'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js';
+const RELATIVE_NAIZO_SCRIPT_RE = /(?:^|[\\/])naizo(\.min)?\.js(?:[?#].*)?$/i;
+const ABSOLUTE_OR_SCHEME_URL_RE = /^(?:https?:|file:|data:|blob:|\/\/)/i;
 
-const BOUND_SELECTOR = '[naizo], [data-naizo], [data-naizo-field]';
+const BOUND_SELECTOR = '[naizo], [data-naizo]';
 const LIST_SELECTOR = '[naizo-list], [data-naizo-list]';
 const ITEM_SELECTOR = '[naizo-item], [data-naizo-item]';
 const DIRECT_ITEM_SELECTOR = ':scope > [naizo-item], :scope > [data-naizo-item]';
@@ -371,9 +377,11 @@ let trackedDbScriptEl: HTMLScriptElement | null = null;
 let lastSerializedContent = '';
 let lastKnownDiskRaw: string | null = null;
 let lastDiskDb: NaizoDatabase | null = null;
+let initialDiskDb: NaizoDatabase | null = null;
 let lastObservedModified: number | null = null;
 let itemDataMap = new WeakMap<HTMLElement, Record<string, unknown>>();
 let fileHandle: NaizoFileHandle | null = null;
+let fileHandlePermission: PermissionState = 'prompt';
 let persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let watchInterval: ReturnType<typeof setInterval> | null = null;
@@ -382,8 +390,51 @@ let writeQueued = false;
 let statusEl: HTMLElement | null = null;
 let actionBtn: HTMLButtonElement | null = null;
 let restoreBtn: HTMLButtonElement | null = null;
+let resetBtn: HTMLButtonElement | null = null;
+let resetConfirmEl: HTMLElement | null = null;
 let unlinkBtn: HTMLButtonElement | null = null;
 let listenerController: AbortController | null = null;
+
+function getExplicitNaizoMode(): 'online' | 'local' | 'auto' {
+  if (typeof document === 'undefined') return 'auto';
+  const raw = (
+    document.documentElement?.getAttribute('naizo-mode') ??
+    document.documentElement?.getAttribute('data-naizo-mode') ??
+    document.body?.getAttribute('naizo-mode') ??
+    document.body?.getAttribute('data-naizo-mode') ??
+    'auto'
+  )
+    .trim()
+    .toLowerCase();
+  if (raw === 'online') return 'online';
+  if (raw === 'local') return 'local';
+  return 'auto';
+}
+
+function isLocalHostname(hostname: string): boolean {
+  const h = hostname.trim().toLowerCase();
+  return (
+    h === '' ||
+    h === 'localhost' ||
+    h === '127.0.0.1' ||
+    h === '[::1]' ||
+    h === '::1' ||
+    h === '0.0.0.0' ||
+    h.endsWith('.local') ||
+    h.endsWith('.localhost')
+  );
+}
+
+function isOnlineMode(): boolean {
+  if (fileHandle !== null) return false;
+  const explicit = getExplicitNaizoMode();
+  if (explicit === 'online') return true;
+  if (explicit === 'local') return false;
+  if (typeof location === 'undefined') return false;
+  const proto = (location.protocol ?? '').toLowerCase();
+  if (proto !== 'http:' && proto !== 'https:') return false;
+  return !isLocalHostname(location.hostname ?? '');
+}
 
 // --- 1. IndexedDB Helper for Persisting FileSystemFileHandle ---
 function idbStore(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => void): void {
@@ -453,7 +504,7 @@ function loadHandleFromIDB(): Promise<NaizoFileHandle | null> {
 }
 
 // --- 2. Ensure <script id="naizodb" type="application/json"> Exists ---
-export function getDbScript(): HTMLScriptElement {
+function getDbScript(): HTMLScriptElement {
   let el = document.getElementById(DB_ID) as HTMLScriptElement | null;
   if (!el) {
     el = document.createElement('script');
@@ -486,14 +537,6 @@ function parseDbScriptDetailed(rawText?: string): {
     console.warn('[naizo.js] Invalid JSON in #naizodb, resetting.', e);
     return { ok: false, db: createEmptyDb(), raw };
   }
-}
-
-export function parseDbScript(): NaizoDatabase {
-  const currentScript = getDbScript();
-  if (persistTimeout !== null && currentScript === trackedDbScriptEl && !startupInvalidDb) {
-    flushPersistence();
-  }
-  return parseDbScriptDetailed(currentScript.textContent ?? '').db;
 }
 
 function parseCachedState(raw: string | null): NaizoDatabase | null {
@@ -581,50 +624,36 @@ function hashCanonicalDb(raw: string): string {
   return rootHash;
 }
 
-function extractRootDiskHash(storedOrRaw: string): string {
-  const trimmed = storedOrRaw.trim();
-  if (trimmed.startsWith('fnv1a:')) {
-    const pipeIdx = trimmed.indexOf('|');
-    return pipeIdx === -1 ? trimmed : trimmed.slice(0, pipeIdx);
-  }
-  return fnv1aStringHash(normalizeJsonComparison(trimmed));
+function extractRootDiskHash(storedSnapshot: string): string {
+  const trimmed = storedSnapshot.trim();
+  if (!trimmed.startsWith('fnv1a:')) return '';
+  const pipeIdx = trimmed.indexOf('|');
+  return pipeIdx === -1 ? trimmed : trimmed.slice(0, pipeIdx);
 }
 
 function extractKeyHashManifest(storedSnapshot: string): DiskKeyHashMap | null {
   const trimmed = storedSnapshot.trim();
-  if (trimmed.startsWith('fnv1a:')) {
-    const pipeIdx = trimmed.indexOf('|');
-    if (pipeIdx === -1) return null;
-    try {
-      const parsed = JSON.parse(trimmed.slice(pipeIdx + 1)) as Partial<DiskKeyHashMap>;
-      if (
-        isPlainObject(parsed) &&
-        isPlainObject(parsed.fields) &&
-        isPlainObject(parsed.lists) &&
-        isPlainObject(parsed.custom)
-      ) {
-        return {
-          fields: parsed.fields as Record<string, string>,
-          lists: parsed.lists as Record<string, string>,
-          custom: parsed.custom as Record<string, string>,
-        };
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  }
+  if (!trimmed.startsWith('fnv1a:')) return null;
+  const pipeIdx = trimmed.indexOf('|');
+  if (pipeIdx === -1) return null;
   try {
-    const parsed = JSON.parse(trimmed) as Partial<NaizoDatabase>;
-    if (!isPlainObject(parsed)) return null;
-    return {
-      fields: isPlainObject(parsed.fields) ? buildKeyHashesForBucket(parsed.fields) : {},
-      lists: isPlainObject(parsed.lists) ? buildKeyHashesForBucket(parsed.lists) : {},
-      custom: isPlainObject(parsed.custom) ? buildKeyHashesForBucket(parsed.custom) : {},
-    };
+    const parsed = JSON.parse(trimmed.slice(pipeIdx + 1)) as Partial<DiskKeyHashMap>;
+    if (
+      isPlainObject(parsed) &&
+      isPlainObject(parsed.fields) &&
+      isPlainObject(parsed.lists) &&
+      isPlainObject(parsed.custom)
+    ) {
+      return {
+        fields: parsed.fields as Record<string, string>,
+        lists: parsed.lists as Record<string, string>,
+        custom: parsed.custom as Record<string, string>,
+      };
+    }
   } catch {
     return null;
   }
+  return null;
 }
 
 function ensureStore(): NaizoDatabase {
@@ -643,10 +672,7 @@ function ensureStore(): NaizoDatabase {
 
 // --- 3. Element Value Helpers (Explicit Binding, Read, Write & Export-Only Attribute Baking) ---
 function getElementKey(el: Element): string | null {
-  const key =
-    el.getAttribute('naizo') ??
-    el.getAttribute('data-naizo') ??
-    el.getAttribute('data-naizo-field');
+  const key = el.getAttribute('naizo') ?? el.getAttribute('data-naizo');
   return key && key.length > 0 ? key : null;
 }
 
@@ -812,11 +838,6 @@ function writeElementValue(el: Element, val: unknown): void {
 function bakeClonedElementAttributes(liveEl: Element, cloneEl: Element): void {
   if (isSkippedElement(liveEl)) return;
   if (liveEl instanceof HTMLInputElement && cloneEl instanceof HTMLInputElement) {
-    const origRadioName = liveEl.getAttribute('data-naizo-radio-name');
-    if (origRadioName !== null) {
-      cloneEl.setAttribute('name', origRadioName);
-      cloneEl.removeAttribute('data-naizo-radio-name');
-    }
     if (liveEl.type === 'checkbox' || liveEl.type === 'radio') {
       if (liveEl.checked) {
         cloneEl.setAttribute('checked', 'checked');
@@ -906,17 +927,6 @@ function shouldUpdateStoredValue(prevVal: unknown, nextVal: unknown, exists: boo
   return true;
 }
 
-function selectHasOption(selectEl: HTMLSelectElement, val: unknown): boolean {
-  if (selectEl.multiple && Array.isArray(val)) {
-    return val.every((v) => {
-      const text = toTextValue(v);
-      return Array.from(selectEl.options).some((opt) => opt.value === text);
-    });
-  }
-  const textVal = toTextValue(val);
-  return Array.from(selectEl.options).some((opt) => opt.value === textVal);
-}
-
 function queryStandaloneBoundElements(root: ParentNode = document): Element[] {
   const result: Element[] = [];
   if (root instanceof Element && root.matches(BOUND_SELECTOR)) {
@@ -950,7 +960,7 @@ function queryItemBoundElements(itemEl: HTMLElement): Element[] {
 
 function getKeyBoundSelector(key: string): string {
   const escaped = escapeSelectorAttr(key);
-  return `[naizo="${escaped}"], [data-naizo="${escaped}"], [data-naizo-field="${escaped}"]`;
+  return `[naizo="${escaped}"], [data-naizo="${escaped}"]`;
 }
 
 function propagateStandaloneKey(key: string, val: unknown, sourceEl?: Element): void {
@@ -1179,45 +1189,6 @@ function getOrBindItemRecord(itemEl: HTMLElement): Record<string, unknown> | nul
 }
 
 // --- 5. Store <-> DOM Synchronization (Merge & Pass-Through Semantics) ---
-function applyDomElementToRecord(el: Element, record: Record<string, unknown>): void {
-  const key = getElementKey(el);
-  if (!key) return;
-  if (
-    el instanceof HTMLSelectElement &&
-    hasOwn(record, key) &&
-    !selectHasOption(el, getOwn(record, key))
-  ) {
-    return;
-  }
-  const val = readElementValue(el);
-  if (val === undefined) return;
-  if (shouldUpdateStoredValue(getOwn(record, key), val, hasOwn(record, key))) {
-    setOwn(record, key, val);
-  }
-}
-
-function syncDomIntoStore(): NaizoDatabase {
-  const db = ensureStore();
-  queryStandaloneBoundElements(document).forEach((el) => applyDomElementToRecord(el, db.fields));
-
-  document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
-    if (isIgnoredElement(listEl)) return;
-    const listName = getAttr(listEl, 'naizo-list');
-    if (!listName) return;
-    const items: Array<Record<string, unknown>> = [];
-    listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
-      const existingObj = itemDataMap.get(itemEl);
-      const itemObj: Record<string, unknown> = existingObj ? cloneRecord(existingObj) : {};
-      queryItemBoundElements(itemEl).forEach((el) => applyDomElementToRecord(el, itemObj));
-      itemDataMap.set(itemEl, itemObj);
-      items.push(itemObj);
-    });
-    setOwn(db.lists, listName, items);
-  });
-
-  return db;
-}
-
 function isElementActive(el: Element): boolean {
   if (typeof document === 'undefined') return false;
   const active = document.activeElement;
@@ -1242,10 +1213,60 @@ function writeStoreToDomScript(db: NaizoDatabase, allowMetaBump: boolean): strin
   return formatted;
 }
 
-export function captureDomToState(): { db: NaizoDatabase; formatted: string } {
-  const db = syncDomIntoStore();
-  const formatted = writeStoreToDomScript(db, true);
-  return { db, formatted };
+function buildInitialBaselineDb(diskDb: NaizoDatabase): NaizoDatabase {
+  const baseline = cloneDb(diskDb);
+  queryStandaloneBoundElements(document).forEach((el) => {
+    const key = getElementKey(el);
+    if (!key || hasOwn(baseline.fields, key)) return;
+    const val = readElementValue(el);
+    if (val !== undefined) {
+      setOwn(baseline.fields, key, val);
+    }
+  });
+
+  document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
+    if (isIgnoredElement(listEl)) return;
+    const listName = getAttr(listEl, 'naizo-list');
+    if (!listName) return;
+    if (hasOwn(baseline.lists, listName) && Array.isArray(getOwn(baseline.lists, listName))) {
+      const items = getOwn(baseline.lists, listName) as Array<Record<string, unknown>>;
+      const tpl = listEl.querySelector<HTMLTemplateElement>(TEMPLATE_SELECTOR);
+      const tplItem =
+        tpl?.content.querySelector<HTMLElement>(ITEM_SELECTOR) ??
+        (tpl?.content.firstElementChild as HTMLElement | null);
+      if (tplItem) {
+        const tplBound = queryItemBoundElements(tplItem);
+        items.forEach((rowObj) => {
+          tplBound.forEach((el) => {
+            const key = getElementKey(el);
+            if (!key || hasOwn(rowObj, key)) return;
+            const val = readElementValue(el);
+            if (val !== undefined) {
+              setOwn(rowObj, key, val);
+            }
+          });
+        });
+      }
+      return;
+    }
+
+    const seededItems: Array<Record<string, unknown>> = [];
+    listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
+      const rowObj: Record<string, unknown> = {};
+      queryItemBoundElements(itemEl).forEach((el) => {
+        const key = getElementKey(el);
+        if (!key) return;
+        const val = readElementValue(el);
+        if (val !== undefined) {
+          setOwn(rowObj, key, val);
+        }
+      });
+      seededItems.push(rowObj);
+    });
+    setOwn(baseline.lists, listName, seededItems);
+  });
+
+  return baseline;
 }
 
 function hydrateSubtreeFromStore(
@@ -1317,21 +1338,8 @@ function hydrateSubtreeFromStore(
   });
 }
 
-export function hydrateDomFromState(db: NaizoDatabase | null): void {
-  if (!db) return;
-  const validated = validateAndNormalizeDb(db);
-  if (!validated) return;
-  store = validated;
-  storeInitialized = true;
-  lastSerializedContent = serializeContentBuckets(store);
-
-  hydrateSubtreeFromStore(document, false, false);
-  writeStoreToDomScript(store, false);
-  window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
-}
-
 // --- 6. Clean Serialization & Surgical #naizodb Replacement ---
-export function getCleanHtmlString(): string {
+function getCleanHtmlString(portable = isOnlineMode()): string {
   flushPersistence(false);
   const clone = document.documentElement.cloneNode(true) as HTMLElement;
 
@@ -1357,6 +1365,26 @@ export function getCleanHtmlString(): string {
       listEl.querySelectorAll(AUTO_TEMPLATE_SELECTOR).forEach((tpl) => tpl.remove());
     }
   });
+
+  if (portable) {
+    for (const modeHost of [clone, clone.querySelector('body')]) {
+      if (!modeHost) continue;
+      if ((modeHost.getAttribute('naizo-mode') ?? '').trim().toLowerCase() === 'online') {
+        modeHost.removeAttribute('naizo-mode');
+      }
+      if ((modeHost.getAttribute('data-naizo-mode') ?? '').trim().toLowerCase() === 'online') {
+        modeHost.removeAttribute('data-naizo-mode');
+      }
+    }
+    clone.querySelectorAll<HTMLScriptElement>('script[src]').forEach((scriptEl) => {
+      const rawSrc = (scriptEl.getAttribute('src') ?? '').trim();
+      if (!rawSrc || ABSOLUTE_OR_SCHEME_URL_RE.test(rawSrc)) return;
+      const match = RELATIVE_NAIZO_SCRIPT_RE.exec(rawSrc);
+      if (match) {
+        scriptEl.setAttribute('src', match[1] ? CDN_NAIZO_MIN_JS_URL : CDN_NAIZO_JS_URL);
+      }
+    });
+  }
 
   clone.querySelectorAll(RUNTIME_STRIP_SELECTOR).forEach((el) => el.remove());
   return '<!DOCTYPE html>\n' + clone.outerHTML;
@@ -1406,7 +1434,7 @@ function replaceDbScriptInHtml(
   if (bodyText.trim() === '') {
     return {
       ok: true,
-      html: (hasBom ? '\uFEFF' : '') + getCleanHtmlString(),
+      html: (hasBom ? '\uFEFF' : '') + getCleanHtmlString(false),
       missingBlock: false,
     };
   }
@@ -1634,6 +1662,7 @@ async function performSingleDiskWrite(): Promise<boolean> {
   if (!fileHandle || startupInvalidDb) return false;
   try {
     const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
+    fileHandlePermission = perm;
     if (perm !== 'granted') {
       updateUi('needs-permission', 'Resume Disk Sync');
       return false;
@@ -1696,7 +1725,7 @@ async function performSingleDiskWrite(): Promise<boolean> {
       }
     } else {
       payloadToWrite = serializeDbJson(ensureStore());
-      fileTextToWrite = getCleanHtmlString();
+      fileTextToWrite = getCleanHtmlString(false);
     }
 
     const writable = await fileHandle.createWritable();
@@ -1787,7 +1816,13 @@ function flushPersistence(scheduleDisk = true): boolean {
   const storedOk = safeSetStorage(getPageKey(), JSON.stringify(db));
 
   if (!fileHandle) {
-    if (storedOk) {
+    if (isOnlineMode()) {
+      if (storedOk) {
+        updateUi('saved', 'Saved in Browser');
+      } else {
+        updateUi('cached', 'In-Memory Only');
+      }
+    } else if (storedOk) {
       updateUi('cached', 'Browser Cache · Click to Link Disk');
     } else {
       updateUi('cached', 'In-Memory Only · Link Disk');
@@ -1810,13 +1845,10 @@ function schedulePersist(): void {
   }, PERSIST_DEBOUNCE_MS);
 }
 
-export function triggerSave(): Promise<boolean> {
-  return Naizo.save();
-}
-
 async function connectOrResumeDisk(): Promise<void> {
   if (fileHandle) {
     const perm = await fileHandle.requestPermission({ mode: 'readwrite' });
+    fileHandlePermission = perm;
     if (perm === 'granted') {
       startDiskWatch();
       await writeToDisk();
@@ -1830,6 +1862,7 @@ async function connectOrResumeDisk(): Promise<void> {
         suggestedName: location.pathname.split('/').pop() || 'index.html',
         types: [{ description: 'HTML Document', accept: { 'text/html': ['.html'] } }],
       });
+      fileHandlePermission = 'granted';
       saveHandleToIDB(fileHandle);
       startDiskWatch();
       await writeToDisk();
@@ -1837,14 +1870,7 @@ async function connectOrResumeDisk(): Promise<void> {
       // User cancelled file picker
     }
   } else {
-    const blob = new Blob([getCleanHtmlString()], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = location.pathname.split('/').pop() || 'index.html';
-    a.click();
-    URL.revokeObjectURL(url);
-    updateUi('saved', 'Downloaded HTML Snapshot');
+    Naizo.downloadHTML();
   }
 }
 
@@ -1935,6 +1961,15 @@ function mountUi(): void {
         border-radius: 999px; padding: 4px 10px; font: inherit; cursor: pointer;
       }
       button:hover { background: #334155; color: #fff; }
+      button.danger { background: #7f1d1d; border-color: #b91c1c; color: #fecaca; }
+      button.danger:hover { background: #991b1b; color: #fff; }
+      .confirm-pop {
+        position: absolute; bottom: calc(100% + 8px); right: 0;
+        display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+        background: #0f172a; color: #f8fafc; padding: 6px 10px;
+        border-radius: 999px; border: 1px solid #475569;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+      }
       @media print {
         .pill { display: none !important; }
       }
@@ -1942,9 +1977,15 @@ function mountUi(): void {
     <div class="pill" role="region" aria-label="naizo.js sync status">
       <span class="dot" id="dot" aria-hidden="true"></span>
       <span id="status" role="status" aria-live="polite">Browser Cache · Click to Link Disk</span>
-      <button id="action" type="button" aria-label="Link disk file">Link Disk</button>
-      <button id="restore" type="button" style="display: none" title="Restore browser state before disk conflict" aria-label="Restore conflict backup">↺ Restore</button>
+      <button id="action" type="button" title="Link local HTML file on disk (⌘S / Ctrl+S)" aria-label="Link disk file">Link Disk</button>
+      <button id="restore" type="button" style="display: none" title="Restore browser state before conflict or reset" aria-label="Restore conflict backup">↺ Restore</button>
       <button id="copy" type="button" title="Copy #naizodb JSON state" aria-label="Copy #naizodb JSON">📋 Copy</button>
+      <button id="reset" type="button" style="display: none" title="Reset app to initial published state" aria-label="Reset to initial state">↺ Reset</button>
+      <div class="confirm-pop" id="reset-confirm" role="alertdialog" aria-label="Confirm reset" style="display: none">
+        <span>Reset app to initial state?</span>
+        <button id="reset-yes" type="button" class="danger" aria-label="Confirm reset to initial state">Reset</button>
+        <button id="reset-cancel" type="button" aria-label="Cancel reset">Cancel</button>
+      </div>
       <button id="unlink" type="button" style="display: none" title="Forget linked disk file" aria-label="Unlink disk file">× Unlink</button>
     </div>
   `;
@@ -1952,12 +1993,20 @@ function mountUi(): void {
   statusEl = shadow.getElementById('status');
   actionBtn = shadow.getElementById('action') as HTMLButtonElement | null;
   restoreBtn = shadow.getElementById('restore') as HTMLButtonElement | null;
+  resetBtn = shadow.getElementById('reset') as HTMLButtonElement | null;
+  resetConfirmEl = shadow.getElementById('reset-confirm');
   unlinkBtn = shadow.getElementById('unlink') as HTMLButtonElement | null;
   const dotEl = shadow.getElementById('dot');
   const copyBtn = shadow.getElementById('copy') as HTMLButtonElement | null;
+  const resetYesBtn = shadow.getElementById('reset-yes') as HTMLButtonElement | null;
+  const resetCancelBtn = shadow.getElementById('reset-cancel') as HTMLButtonElement | null;
 
   actionBtn?.addEventListener('click', () => {
-    void connectOrResumeDisk();
+    if (isOnlineMode()) {
+      Naizo.downloadHTML();
+    } else {
+      void connectOrResumeDisk();
+    }
   });
   restoreBtn?.addEventListener('click', () => {
     restoreConflictBackup();
@@ -1969,6 +2018,17 @@ function mountUi(): void {
         copyBtn.textContent = '📋 Copy';
       }, 1500);
     });
+  });
+  resetBtn?.addEventListener('click', () => {
+    if (!resetConfirmEl) return;
+    resetConfirmEl.style.display = resetConfirmEl.style.display === 'none' ? 'inline-flex' : 'none';
+  });
+  resetYesBtn?.addEventListener('click', () => {
+    if (resetConfirmEl) resetConfirmEl.style.display = 'none';
+    Naizo.reset();
+  });
+  resetCancelBtn?.addEventListener('click', () => {
+    if (resetConfirmEl) resetConfirmEl.style.display = 'none';
   });
   unlinkBtn?.addEventListener('click', () => {
     void Naizo.unlink();
@@ -1991,21 +2051,43 @@ function mountUi(): void {
   document.body.appendChild(host);
 }
 
+function isDirtyFromInitial(): boolean {
+  if (!initialDiskDb || startupInvalidDb) return false;
+  return serializeContentBuckets(ensureStore()) !== serializeContentBuckets(initialDiskDb);
+}
+
 function updateUi(state: string, message: string): void {
   if (!statusEl || !actionBtn) return;
+  const online = isOnlineMode();
   statusEl.textContent = message;
   (document.getElementById(UI_ID) as NaizoHostElement | null)?._setDot?.(state);
 
-  if (state === 'saved' || state === 'error') {
+  if (online) {
+    if (state === 'error') {
+      actionBtn.style.display = 'none';
+    } else {
+      actionBtn.style.display = 'inline-block';
+      actionBtn.textContent = '⬇ Save to PC';
+      actionBtn.title =
+        'Download portable HTML app to your computer (⌘S / Ctrl+S saves in browser)';
+      actionBtn.setAttribute('aria-label', 'Save portable HTML to PC');
+    }
+  } else if (state === 'saved' || state === 'error') {
     actionBtn.style.display = 'none';
+    actionBtn.title = 'Save to disk (⌘S / Ctrl+S)';
   } else if (state === 'needs-permission') {
     actionBtn.style.display = 'inline-block';
     actionBtn.textContent = 'Resume Disk Sync';
+    actionBtn.title = 'Resume disk sync (⌘S / Ctrl+S)';
+    actionBtn.setAttribute('aria-label', 'Resume disk sync');
   } else if (fileHandle) {
     actionBtn.style.display = 'none';
+    actionBtn.title = 'Save to disk (⌘S / Ctrl+S)';
   } else {
     actionBtn.style.display = 'inline-block';
     actionBtn.textContent = 'Link Disk';
+    actionBtn.title = 'Link local HTML file on disk (⌘S / Ctrl+S)';
+    actionBtn.setAttribute('aria-label', 'Link disk file');
   }
 
   if (restoreBtn) {
@@ -2018,8 +2100,15 @@ function updateUi(state: string, message: string): void {
       restoreBtn.style.display = hasBackup || state === 'conflict' ? 'inline-block' : 'none';
     }
   }
+  if (resetBtn) {
+    const showReset = online && !startupInvalidDb && isDirtyFromInitial();
+    resetBtn.style.display = showReset ? 'inline-block' : 'none';
+    if (!showReset && resetConfirmEl) {
+      resetConfirmEl.style.display = 'none';
+    }
+  }
   if (unlinkBtn) {
-    unlinkBtn.style.display = fileHandle ? 'inline-block' : 'none';
+    unlinkBtn.style.display = !online && fileHandle ? 'inline-block' : 'none';
   }
 }
 
@@ -2215,16 +2304,107 @@ function handleListClicks(e: Event): void {
   }
 }
 
+function handleKeyDown(e: KeyboardEvent): void {
+  if (e.defaultPrevented) return;
+  if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+  if ((e.key ?? '').toLowerCase() !== 's') return;
+
+  e.preventDefault();
+
+  if (isOnlineMode()) {
+    const storedOk = flushPersistence(false);
+    if (!startupInvalidDb && storedOk) {
+      updateUi('saved', '✓ Saved in Browser');
+    }
+    return;
+  }
+
+  if (fileHandle && fileHandlePermission === 'granted') {
+    void Naizo.save();
+    return;
+  }
+
+  flushPersistence(false);
+  void connectOrResumeDisk();
+}
+
+function flushPendingOnHide(): void {
+  const hadPendingPersist = persistTimeout !== null;
+  const hadPendingSave = saveTimeout !== null;
+  if (!hadPendingPersist && !hadPendingSave) return;
+
+  if (hadPendingPersist) {
+    flushPersistence(false);
+  }
+  if (saveTimeout !== null) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  if (fileHandle && !startupInvalidDb) {
+    void writeToDisk();
+  }
+}
+
 function handleStorageEvent(e: StorageEvent): void {
-  if (!e.key || e.key !== getPageKey() || !e.newValue) return;
+  if (!e.key || !e.newValue) return;
   if (writeInFlightPromise !== null || startupInvalidDb) return;
-  const nextDb = parseCachedState(e.newValue);
-  if (!nextDb) return;
-  store = cloneDb(nextDb);
+
+  if (e.key === getSnapshotKey()) {
+    const incomingRootHash = extractRootDiskHash(e.newValue);
+    const currentRootHash = fnv1aStringHash(serializeContentBuckets(ensureStore()));
+    if (incomingRootHash && incomingRootHash === currentRootHash) {
+      lastKnownDiskRaw = serializeDbJson(ensureStore()).trim();
+      lastDiskDb = cloneDb(ensureStore());
+      if (saveTimeout !== null) {
+        clearTimeout(saveTimeout);
+        saveTimeout = null;
+      }
+      if (!isOnlineMode()) {
+        updateUi('saved', 'Synced to Disk');
+      }
+    }
+    return;
+  }
+
+  if (e.key !== getPageKey()) return;
+  const incomingDb = parseCachedState(e.newValue);
+  if (!incomingDb) return;
+
+  if (persistTimeout !== null) {
+    const currentBrowserDb = cloneDb(ensureStore());
+    const storedSnap = safeGetStorage(getSnapshotKey());
+    const baseHashes: DiskKeyHashMap | null =
+      (storedSnap ? extractKeyHashManifest(storedSnap) : null) ??
+      (lastDiskDb
+        ? {
+            fields: buildKeyHashesForBucket(lastDiskDb.fields),
+            lists: buildKeyHashesForBucket(lastDiskDb.lists),
+            custom: buildKeyHashesForBucket(lastDiskDb.custom),
+          }
+        : null);
+    const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(
+      baseHashes,
+      currentBrowserDb,
+      incomingDb,
+    );
+    if (hasCollision) {
+      safeSetStorage(getBackupKey(), JSON.stringify(currentBrowserDb));
+    }
+    store = merged;
+    if (browserKeptKeys) {
+      schedulePersist();
+    }
+  } else {
+    store = cloneDb(incomingDb);
+  }
+
   storeInitialized = true;
   lastSerializedContent = serializeContentBuckets(store);
   hydrateSubtreeFromStore(document, true, false);
   writeStoreToDomScript(store, false);
+  if (isOnlineMode()) {
+    updateUi('saved', 'Saved in Browser');
+  }
   window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
 }
 
@@ -2258,6 +2438,8 @@ function attachListeners(): void {
   document.addEventListener('change', handleInputOrChange, { signal });
   document.addEventListener('toggle', handleInputOrChange, { capture: true, signal });
   document.addEventListener('reset', handleFormReset, { signal });
+  document.addEventListener('keydown', handleKeyDown, { signal });
+  window.addEventListener('keydown', handleKeyDown, { signal });
   window.addEventListener('storage', handleStorageEvent, { signal });
   window.addEventListener(
     'focus',
@@ -2269,7 +2451,7 @@ function attachListeners(): void {
   window.addEventListener(
     'pagehide',
     () => {
-      if (persistTimeout !== null) flushPersistence(false);
+      flushPendingOnHide();
     },
     { signal },
   );
@@ -2277,7 +2459,7 @@ function attachListeners(): void {
     'visibilitychange',
     () => {
       if (document.visibilityState === 'hidden') {
-        if (persistTimeout !== null) flushPersistence(false);
+        flushPendingOnHide();
       } else if (document.visibilityState === 'visible') {
         void checkDiskForExternalChanges();
       }
@@ -2451,6 +2633,39 @@ export const Naizo: NaizoAPI = {
     }
     return cachedOk;
   },
+  reset(): void {
+    if (persistTimeout !== null) {
+      clearTimeout(persistTimeout);
+      persistTimeout = null;
+    }
+    if (saveTimeout !== null) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    if (startupInvalidDb || !initialDiskDb) return;
+
+    safeSetStorage(getBackupKey(), JSON.stringify(ensureStore()));
+    store = cloneDb(initialDiskDb);
+    storeInitialized = true;
+    safeRemoveStorage(getPageKey());
+
+    hydrateSubtreeFromStore(document, false, false);
+    lastSerializedContent = serializeContentBuckets(store);
+    writeStoreToDomScript(store, false);
+
+    if (fileHandle) {
+      scheduleDiskWrite();
+    } else if (isOnlineMode()) {
+      updateUi('saved', 'Saved in Browser');
+    } else {
+      updateUi('cached', 'Browser Cache · Click to Link Disk');
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
+    }
+    dispatchChangeEvent({ scope: 'reset' });
+  },
   async unlink(): Promise<void> {
     stopDiskWatch();
     if (saveTimeout !== null) {
@@ -2458,9 +2673,14 @@ export const Naizo: NaizoAPI = {
       saveTimeout = null;
     }
     fileHandle = null;
+    fileHandlePermission = 'prompt';
     lastObservedModified = null;
     await deleteHandleFromIDB();
-    updateUi('cached', 'Browser Cache · Click to Link Disk');
+    if (isOnlineMode()) {
+      updateUi('saved', 'Saved in Browser');
+    } else {
+      updateUi('cached', 'Browser Cache · Click to Link Disk');
+    }
   },
   async copyJSON(): Promise<string> {
     flushPersistence(false);
@@ -2472,7 +2692,36 @@ export const Naizo: NaizoAPI = {
     }
     return json;
   },
-  exportHTML: getCleanHtmlString,
+  exportHTML(): string {
+    return getCleanHtmlString(isOnlineMode());
+  },
+  downloadHTML(filename?: string): string {
+    const html = getCleanHtmlString(true);
+    const suggested =
+      filename && filename.trim()
+        ? filename.trim()
+        : location.pathname.split('/').pop() || 'index.html';
+    const finalName = /\.html?$/i.test(suggested) ? suggested : `${suggested}.html`;
+    if (
+      typeof Blob !== 'undefined' &&
+      typeof URL !== 'undefined' &&
+      typeof URL.createObjectURL === 'function'
+    ) {
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = finalName;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    if (isOnlineMode()) {
+      updateUi('saved', 'Saved to PC · Ready for Local Mode');
+    } else {
+      updateUi('saved', 'Downloaded HTML Snapshot');
+    }
+    return html;
+  },
 };
 
 export const NaizoDB: NaizoAPI = Naizo;
@@ -2489,7 +2738,9 @@ export async function initNaizo(): Promise<void> {
     saveTimeout = null;
   }
   fileHandle = null;
+  fileHandlePermission = 'prompt';
   lastObservedModified = null;
+  initialDiskDb = null;
 
   mountUi();
   ensureListBlueprints(document, true);
@@ -2525,6 +2776,7 @@ export async function initNaizo(): Promise<void> {
   startupInvalidDb = false;
   lastKnownDiskRaw = currentDiskRaw;
   lastDiskDb = cloneDb(diskDetailed.db);
+  initialDiskDb = buildInitialBaselineDb(diskDetailed.db);
   const currentDiskHashManifest = hashCanonicalDb(currentDiskRaw);
 
   const diskModifiedExternally =
@@ -2560,6 +2812,12 @@ export async function initNaizo(): Promise<void> {
   }
   if (hasBootConflict) {
     updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
+  } else if (isOnlineMode()) {
+    if (storedOk) {
+      updateUi('saved', 'Saved in Browser');
+    } else {
+      updateUi('cached', 'In-Memory Only');
+    }
   } else if (!storedOk) {
     updateUi('cached', 'In-Memory Only · Link Disk');
   } else {
@@ -2572,6 +2830,7 @@ export async function initNaizo(): Promise<void> {
   if (fileHandle) {
     try {
       const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
+      fileHandlePermission = perm;
       if (perm === 'granted') {
         startDiskWatch();
         await checkDiskForExternalChanges();
@@ -2588,6 +2847,7 @@ export async function initNaizo(): Promise<void> {
         updateUi('needs-permission', 'Resume Disk Sync');
       }
     } catch {
+      fileHandlePermission = 'prompt';
       updateUi('needs-permission', 'Resume Disk Sync');
     }
   }

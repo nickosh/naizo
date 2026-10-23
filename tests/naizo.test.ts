@@ -3,16 +3,28 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import iifeBundleCode from '../dist/naizo.js?raw';
 import checklistHtml from '../examples/checklist.html?raw';
 import inventoryHtml from '../examples/inventory.html?raw';
+import notesHtml from '../examples/notes.html?raw';
 import starterHtml from '../examples/starter.html?raw';
 import pkgJson from '../package.json';
 import siteHtml from '../site/index.html?raw';
-import { initNaizo, Naizo, NaizoDB, parseDbScript } from '../src/index';
+import * as NaizoModule from '../src/index';
+import { initNaizo, Naizo, NaizoDB, type NaizoDatabase } from '../src/index';
+
+function readScriptDb(): NaizoDatabase {
+  const raw = document.getElementById('naizodb')?.textContent?.trim() ?? '';
+  if (!raw) return { _meta: {}, fields: {}, lists: {}, custom: {} };
+  return JSON.parse(raw) as NaizoDatabase;
+}
 
 describe('naizo.js v0.1.0 core runtime', () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.removeAttribute('data-naizo-manual');
     document.documentElement.removeAttribute('naizo-manual');
+    document.documentElement.removeAttribute('naizo-mode');
+    document.documentElement.removeAttribute('data-naizo-mode');
+    document.body.removeAttribute('naizo-mode');
+    document.body.removeAttribute('data-naizo-mode');
     document.head.innerHTML = '';
     document.body.innerHTML = '';
   });
@@ -214,21 +226,24 @@ describe('naizo.js v0.1.0 core runtime', () => {
     // Verify corrupted localStorage does not throw (EC05)
     localStorage.setItem(pageKey, '{corrupted json');
     await expect(initNaizo()).resolves.toBeUndefined();
-    expect(parseDbScript().fields.status).toBe('Approved');
+    expect(readScriptDb().fields.status).toBe('Approved');
 
     // Verify malformed #naizodb JSON resets cleanly without throwing (EC04)
+    localStorage.clear();
     document.head.innerHTML = `<script id="naizodb" type="application/json">{not valid json</script>`;
-    expect(parseDbScript()).toEqual({ _meta: {}, fields: {}, lists: {}, custom: {} });
+    await expect(initNaizo()).resolves.toBeUndefined();
+    expect(Naizo.get()).toEqual({ _meta: {}, fields: {}, lists: {}, custom: {} });
     expect(warnSpy).toHaveBeenCalled();
 
     warnSpy.mockRestore();
   });
 
-  it('keeps ESM entry side-effect free and emits clean dist/naizo.js IIFE with data-naizo-manual opt-out (D17, D25, EC37)', async () => {
+  it('keeps ESM entry side-effect free and emits clean dist/naizo.js IIFE with data-naizo-manual opt-out (D17, D25, EC37, EC49)', async () => {
     // ESM import does not auto-mount #__naizodb_host__ before initNaizo() is called
     expect(document.getElementById('__naizodb_host__')).toBeNull();
     expect(Naizo).toBe(NaizoDB);
     expect(typeof Naizo.init).toBe('function');
+    expect(Object.keys(NaizoModule).sort()).toEqual(['Naizo', 'NaizoDB', 'initNaizo']);
 
     // Package entrypoints agree: ESM for main/module/exports["."], IIFE for unpkg/jsdelivr
     expect(pkgJson.name).toBe('naizojs');
@@ -275,8 +290,8 @@ describe('naizo.js v0.1.0 core runtime', () => {
     Object.defineProperty(document, 'readyState', { value: 'complete', configurable: true });
   });
 
-  it('hydrates site/index.html and examples/ starter templates with wrapping labels (M3.2, EC39)', async () => {
-    for (const html of [siteHtml, starterHtml, checklistHtml, inventoryHtml]) {
+  it('hydrates site/index.html and examples/ starter templates with wrapping labels (M3.2, M4.5c, EC39)', async () => {
+    for (const html of [siteHtml, starterHtml, checklistHtml, inventoryHtml, notesHtml]) {
       const parsedDoc = new DOMParser().parseFromString(html, 'text/html');
       const rawJson = parsedDoc.getElementById('naizodb')?.textContent?.trim() ?? '';
       expect(rawJson.length).toBeGreaterThan(0);
@@ -669,7 +684,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     // Flush pending persistence on pagehide (EC16)
     window.dispatchEvent(new Event('pagehide'));
-    expect(parseDbScript().fields.title).toBe('Typed During IDB Wait');
+    expect(readScriptDb().fields.title).toBe('Typed During IDB Wait');
 
     await Promise.resolve();
     resolveIdbGet();
@@ -729,7 +744,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     await initNaizo();
     expect(hydratedRate).toBe(250);
     expect(Naizo.get('rate')).toBe(250);
-    expect(parseDbScript().custom.rate).toBe(250);
+    expect(readScriptDb().custom.rate).toBe(250);
 
     warnSpy.mockRestore();
   });
@@ -844,7 +859,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(rawScript).not.toContain('</script>');
     expect(rawScript).toContain('\\u003c/script>');
     expect(rawScript).toContain('\\u003c!--');
-    expect(parseDbScript().fields.snippet).toBe('</script><!--<script>alert(1)</script>');
+    expect(readScriptDb().fields.snippet).toBe('</script><!--<script>alert(1)</script>');
 
     // 2. Surgical #naizodb replacement preserving UTF-8 BOM and surrounding bytes (D16, D24)
     let diskContent =
@@ -1585,7 +1600,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(repairBtn?.style.display).toBe('inline-block');
     expect(repairBtn?.textContent).toBe('↺ Repair');
     repairBtn?.click();
-    expect(parseDbScript().fields.author).toBe('Alice');
+    expect(readScriptDb().fields.author).toBe('Alice');
     warnSpy.mockRestore();
 
     Reflect.deleteProperty(window, 'showSaveFilePicker');
@@ -1737,9 +1752,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     titleIn.value = 'Typed O(1)';
     titleIn.dispatchEvent(new Event('input', { bubbles: true }));
 
-    expect(qsaSpy).toHaveBeenCalledWith(
-      '[naizo="title"], [data-naizo="title"], [data-naizo-field="title"]',
-    );
+    expect(qsaSpy).toHaveBeenCalledWith('[naizo="title"], [data-naizo="title"]');
     expect(setAttrSpy).not.toHaveBeenCalled();
     qsaSpy.mockRestore();
     setAttrSpy.mockRestore();
@@ -1747,7 +1760,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     // Flush pending debounced persistence via visibilitychange -> hidden (EC16)
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
-    expect(parseDbScript().fields.title).toBe('Typed O(1)');
+    expect(readScriptDb().fields.title).toBe('Typed O(1)');
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
 
     // 5. Window focus event triggers live disk sync (EC10)
@@ -1774,5 +1787,396 @@ describe('naizo.js v0.1.0 core runtime', () => {
     } else {
       Reflect.deleteProperty(globalThis, 'indexedDB');
     }
+  });
+
+  it('intercepts Cmd/Ctrl+S save shortcut, flushes disk on tab hide, and merges uncommitted multi-tab storage events (M4.5a, M4.5b, D40, EC47)', async () => {
+    const baseJson = JSON.stringify(
+      {
+        _meta: {},
+        fields: { alpha: 'init-a', beta: 'init-b' },
+        lists: {},
+        custom: {},
+      },
+      null,
+      2,
+    );
+    let diskHtml = `<html><head><script id="naizodb" type="application/json">\n${baseJson}\n</script></head><body></body></html>`;
+    let diskMtime = 1000;
+
+    document.head.innerHTML = `<script id="naizodb" type="application/json">\n${baseJson}\n</script>`;
+    document.body.innerHTML = `
+      <input id="alpha-in" type="text" naizo="alpha" value="init-a">
+      <input id="beta-in" type="text" naizo="beta" value="init-b">
+      <input id="orphan-alias" type="text" data-naizo-field="ignored_alias" value="should-not-bind">
+    `;
+
+    await initNaizo();
+
+    // Verify orphaned data-naizo-field alias is no longer bound (M4.5e, EC49)
+    expect(Naizo.getField('ignored_alias')).toBeUndefined();
+
+    // 1. #action tooltip advertises ⌘S / Ctrl+S (M4.5a)
+    const host = document.getElementById('__naizodb_host__');
+    const actionBtn = host?.shadowRoot?.getElementById('action') as HTMLButtonElement | null;
+    expect(actionBtn?.title).toContain('⌘S / Ctrl+S');
+
+    // 2. Pressing Cmd+S while unlinked prevents default, flushes localStorage, and opens showSaveFilePicker
+    let permissionState: PermissionState = 'granted';
+    const requestPermSpy = vi.fn().mockImplementation(async () => {
+      permissionState = 'granted';
+      return 'granted';
+    });
+    const writeSpy = vi.fn().mockImplementation(async (data: string) => {
+      diskHtml = data;
+      diskMtime += 100;
+    });
+
+    const pickerSpy = vi.fn().mockResolvedValue({
+      queryPermission: vi.fn().mockImplementation(async () => permissionState),
+      requestPermission: requestPermSpy,
+      getFile: vi.fn().mockImplementation(async () => ({
+        lastModified: diskMtime,
+        text: async () => diskHtml,
+      })),
+      createWritable: vi.fn().mockImplementation(async () => ({
+        write: writeSpy,
+        close: async () => {},
+      })),
+    });
+    window.showSaveFilePicker = pickerSpy;
+
+    const alphaIn = document.getElementById('alpha-in') as HTMLInputElement;
+    alphaIn.value = 'cmd-s-linked';
+    alphaIn.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Shift+Cmd+S is ignored
+    const shiftSaveEvt = new KeyboardEvent('keydown', {
+      key: 's',
+      metaKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(shiftSaveEvt);
+    expect(shiftSaveEvt.defaultPrevented).toBe(false);
+    expect(pickerSpy).not.toHaveBeenCalled();
+
+    // Cmd+S links disk and writes pending edit
+    const cmdSaveEvt = new KeyboardEvent('keydown', {
+      key: 's',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(cmdSaveEvt);
+    expect(cmdSaveEvt.defaultPrevented).toBe(true);
+    expect(pickerSpy).toHaveBeenCalledTimes(1);
+    await new Promise((r) => setTimeout(r, 25));
+    expect(diskHtml).toContain('"alpha": "cmd-s-linked"');
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe('Synced to Disk');
+
+    // 3. Pressing Ctrl+S when linked with 'granted' permission flushes via Naizo.save() immediately
+    alphaIn.value = 'ctrl-s-saved';
+    alphaIn.dispatchEvent(new Event('input', { bubbles: true }));
+    const ctrlSaveEvt = new KeyboardEvent('keydown', {
+      key: 'S',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(ctrlSaveEvt);
+    expect(ctrlSaveEvt.defaultPrevented).toBe(true);
+    await new Promise((r) => setTimeout(r, 25));
+    expect(diskHtml).toContain('"alpha": "ctrl-s-saved"');
+
+    // 4. When permission is 'prompt' (needs-permission), Cmd+S calls requestPermission via connectOrResumeDisk
+    permissionState = 'prompt';
+    await Naizo.save();
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe('Resume Disk Sync');
+    expect(actionBtn?.title).toContain('⌘S / Ctrl+S');
+
+    alphaIn.value = 'resumed-via-cmd-s';
+    alphaIn.dispatchEvent(new Event('input', { bubbles: true }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 's',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 25));
+    expect(requestPermSpy).toHaveBeenCalled();
+    expect(diskHtml).toContain('"alpha": "resumed-via-cmd-s"');
+
+    // 5. visibilitychange: hidden starts writeToDisk() immediately while debounced edit is pending (M4.5b)
+    alphaIn.value = 'flushed-on-tab-hide';
+    alphaIn.dispatchEvent(new Event('input', { bubbles: true }));
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((r) => setTimeout(r, 25));
+    expect(diskHtml).toContain('"alpha": "flushed-on-tab-hide"');
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+    // 6. Cross-tab storage event merges uncommitted persistTimeout edits and syncs snapshot hash (M4.5b)
+    const betaIn = document.getElementById('beta-in') as HTMLInputElement;
+    betaIn.value = 'tab-b-uncommitted';
+    betaIn.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Tab A commits an update to alpha while Tab B still has beta in its 150ms persistTimeout
+    const tabAState = JSON.stringify({
+      _meta: {},
+      fields: { alpha: 'tab-a-committed', beta: 'init-b' },
+      lists: {},
+      custom: {},
+    });
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'naizodb_state_/',
+        newValue: tabAState,
+      }),
+    );
+
+    expect(Naizo.getField('alpha')).toBe('tab-a-committed');
+    expect(Naizo.getField('beta')).toBe('tab-b-uncommitted');
+
+    // Flush Tab B's merged state, then simulate Tab A writing that exact state to disk and updating naizodb_disk_hash_/
+    await Naizo.unlink();
+    Naizo.setField('beta', 'tab-b-uncommitted');
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
+      'Browser Cache · Click to Link Disk',
+    );
+
+    // Re-init to compute canonical hash for the current state, then test snapshot storage event
+    const currentRaw = document.getElementById('naizodb')?.textContent ?? '';
+    await initNaizo();
+    const matchingSnapshotHash = localStorage.getItem('naizodb_disk_hash_/')!;
+    // Mark pill cached first
+    Naizo.setField('beta', 'tab-b-uncommitted');
+    document.head.querySelector('#naizodb')!.textContent = currentRaw;
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'naizodb_disk_hash_/',
+        newValue: matchingSnapshotHash,
+      }),
+    );
+    expect(
+      document.getElementById('__naizodb_host__')?.shadowRoot?.getElementById('status')
+        ?.textContent,
+    ).toBe('Synced to Disk');
+
+    Reflect.deleteProperty(window, 'showSaveFilePicker');
+  });
+
+  it('supports Online Mode (naizo-mode), Naizo.reset() with Shadow DOM confirmation + backup, and portable Naizo.downloadHTML() (M4.5d, D41, EC48)', async () => {
+    document.documentElement.setAttribute('naizo-mode', 'online');
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": { "project": "Starter Cloud" },
+        "lists": {
+          "todos": [{ "text": "Initial cloud item" }]
+        },
+        "custom": { "zoom": 100 }
+      }
+      </script>
+      <script src="../dist/naizo.js" defer></script>
+      <script src="./dist/naizo.min.js" defer></script>
+    `;
+    document.body.innerHTML = `
+      <input id="proj-in" type="text" naizo="project" value="Starter Cloud">
+      <input id="dom-seed-in" type="text" naizo="domSeeded" value="SeedDefault">
+      <ul naizo-list="todos">
+        <li naizo-item><input type="text" naizo="text" value=""></li>
+      </ul>
+    `;
+
+    await initNaizo();
+
+    const host = document.getElementById('__naizodb_host__');
+    const statusEl = host?.shadowRoot?.getElementById('status');
+    const dotEl = host?.shadowRoot?.getElementById('dot');
+    const actionBtn = host?.shadowRoot?.getElementById('action') as HTMLButtonElement | null;
+    const resetBtn = host?.shadowRoot?.getElementById('reset') as HTMLButtonElement | null;
+    const resetConfirm = host?.shadowRoot?.getElementById('reset-confirm') as HTMLElement | null;
+    const resetYes = host?.shadowRoot?.getElementById('reset-yes') as HTMLButtonElement | null;
+    const resetCancel = host?.shadowRoot?.getElementById(
+      'reset-cancel',
+    ) as HTMLButtonElement | null;
+    const restoreBtn = host?.shadowRoot?.getElementById('restore') as HTMLButtonElement | null;
+
+    // 1. Clean Online Mode boot shows green "Saved in Browser", "⬇ Save to PC", and hides "↺ Reset"
+    expect(statusEl?.textContent).toBe('Saved in Browser');
+    expect(dotEl?.className).toBe('dot saved');
+    expect(actionBtn?.style.display).toBe('inline-block');
+    expect(actionBtn?.textContent).toBe('⬇ Save to PC');
+    expect(resetBtn?.style.display).toBe('none');
+
+    // 2. Editing state in Online Mode keeps "Saved in Browser" and reveals "↺ Reset"
+    Naizo.setField('project', 'Edited in Browser');
+    Naizo.addItem('todos', { text: 'Added online' });
+    expect(statusEl?.textContent).toBe('Saved in Browser');
+    expect(resetBtn?.style.display).toBe('inline-block');
+
+    // Cmd+S in Online Mode flashes "✓ Saved in Browser"
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }),
+    );
+    expect(statusEl?.textContent).toBe('✓ Saved in Browser');
+
+    // 3. Clicking "↺ Reset" opens Shadow DOM mini-confirmation popover; Cancel dismisses without resetting
+    resetBtn?.click();
+    expect(resetConfirm?.style.display).toBe('inline-flex');
+    resetCancel?.click();
+    expect(resetConfirm?.style.display).toBe('none');
+    expect(Naizo.getField('project')).toBe('Edited in Browser');
+
+    // 4. Confirming Reset backs up pre-reset state, restores initialDiskDb (including DOM-seeded defaults), hides Reset, and shows Restore
+    const changeEvents: Array<Record<string, unknown>> = [];
+    const onResetChange = (e: Event) => {
+      changeEvents.push((e as CustomEvent<Record<string, unknown>>).detail);
+    };
+    window.addEventListener('naizo:change', onResetChange);
+
+    resetBtn?.click();
+    expect(resetConfirm?.style.display).toBe('inline-flex');
+    resetYes?.click();
+
+    expect(resetConfirm?.style.display).toBe('none');
+    expect(Naizo.getField('project')).toBe('Starter Cloud');
+    expect(Naizo.getField('domSeeded')).toBe('SeedDefault');
+    expect(Naizo.getList('todos')).toEqual([{ text: 'Initial cloud item' }]);
+    expect(localStorage.getItem('naizodb_state_/')).toBeNull();
+    expect(resetBtn?.style.display).toBe('none');
+    expect(restoreBtn?.style.display).toBe('inline-block');
+    expect(changeEvents.some((d) => d.scope === 'reset')).toBe(true);
+    window.removeEventListener('naizo:change', onResetChange);
+
+    // 5. Clicking "↺ Restore" undoes the reset from naizodb_backup_<key>
+    restoreBtn?.click();
+    expect(Naizo.getField('project')).toBe('Edited in Browser');
+    expect(Naizo.getList('todos')).toHaveLength(2);
+    expect(resetBtn?.style.display).toBe('inline-block');
+
+    // 6. Naizo.downloadHTML() and Online Mode Naizo.exportHTML() rewrite relative naizo(.min).js to npm CDN and strip naizo-mode="online"
+    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:portable-url');
+    const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    let downloadedFilename = '';
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloadedFilename = this.download;
+    });
+
+    const portableHtml = Naizo.downloadHTML('my-app');
+    expect(downloadedFilename).toBe('my-app.html');
+    expect(createUrlSpy).toHaveBeenCalled();
+    expect(revokeUrlSpy).toHaveBeenCalledWith('blob:portable-url');
+    expect(statusEl?.textContent).toBe('Saved to PC · Ready for Local Mode');
+    expect(portableHtml).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js');
+    expect(portableHtml).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js');
+    expect(portableHtml).not.toContain('src="../dist/naizo.js"');
+    expect(portableHtml).not.toContain('naizo-mode="online"');
+    expect(portableHtml).toContain('value="Edited in Browser"');
+
+    // Online Mode exportHTML() also produces portable HTML
+    const onlineExport = Naizo.exportHTML();
+    expect(onlineExport).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js');
+    expect(onlineExport).not.toContain('naizo-mode="online"');
+
+    // Switching to Local Mode preserves local relative <script src="../dist/naizo.js"> on Naizo.exportHTML()
+    document.documentElement.setAttribute('naizo-mode', 'local');
+    const localExport = Naizo.exportHTML();
+    expect(localExport).toContain('src="../dist/naizo.js"');
+    expect(localExport).toContain('src="./dist/naizo.min.js"');
+
+    createUrlSpy.mockRestore();
+    revokeUrlSpy.mockRestore();
+    clickSpy.mockRestore();
+    document.documentElement.removeAttribute('naizo-mode');
+  });
+
+  it('powers declarative master-detail notebook in examples/notes.html without wiping [naizo-item] panes (M4.5c, D40)', async () => {
+    const notesDoc = new DOMParser().parseFromString(notesHtml, 'text/html');
+    document.head.innerHTML = notesDoc.head.innerHTML;
+    document.body.innerHTML = notesDoc.body.innerHTML;
+
+    await initNaizo();
+
+    // Verify all 4 [naizo-item] panes exist with wrapping <label> elements (EC39) and pass-through id/updatedAt keys (D15)
+    const initialPanes = Array.from(
+      document.querySelectorAll<HTMLElement>('#notes-list > [naizo-item]'),
+    );
+    expect(initialPanes.length).toBe(4);
+    for (const pane of initialPanes) {
+      const labels = Array.from(pane.querySelectorAll('label'));
+      expect(labels.length).toBeGreaterThan(0);
+      for (const label of labels) {
+        expect(label.control).not.toBeNull();
+        expect(pane.contains(label.control)).toBe(true);
+      }
+    }
+    expect(Naizo.getList('notes')[0]?.id).toBe('note-101');
+    expect(Naizo.get('activeNoteId')).toBe('note-101');
+
+    // Execute notes.html application script
+    const appScript = notesDoc.body.querySelector('script')?.textContent || '';
+    runInThisContext(appScript);
+
+    // 1. Only note-101's [naizo-item] pane has .is-active; all 4 panes stay mounted in the DOM
+    expect(initialPanes[0]?.classList.contains('is-active')).toBe(true);
+    expect(initialPanes[1]?.classList.contains('is-active')).toBe(false);
+    expect(document.getElementById('stat-tasks')?.textContent).toBe('2/3 tasks');
+    expect(
+      Number.parseInt(document.getElementById('stat-words')?.textContent ?? '0', 10),
+    ).toBeGreaterThan(10);
+
+    // 2. Clicking second sidebar note switches active pane without recreating DOM nodes
+    const sidebarItems = Array.from(
+      document.querySelectorAll<HTMLElement>('#note-index-list > .note-index-item'),
+    );
+    expect(sidebarItems.length).toBe(4);
+    sidebarItems[1]?.click();
+
+    expect(Naizo.get('activeNoteId')).toBe('note-102');
+    expect(initialPanes[0]?.classList.contains('is-active')).toBe(false);
+    expect(initialPanes[1]?.classList.contains('is-active')).toBe(true);
+    // Exact same DOM element reference preserved (zero DOM wipe!)
+    expect(document.querySelectorAll('#notes-list > [naizo-item]')[1]).toBe(initialPanes[1]);
+
+    // 3. Filtering by category in sidebar narrows visible index and activates first matching note without deleting from #naizodb
+    const catFilter = document.getElementById('category-filter') as HTMLSelectElement;
+    catFilter.value = 'Research';
+    catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(1);
+    expect(Naizo.get('activeNoteId')).toBe('note-103');
+    expect(Naizo.getList('notes').length).toBe(4);
+
+    catFilter.value = 'all';
+    catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(4);
+
+    // 4. Theme field (naizo="theme") updates html[data-theme]
+    Naizo.setField('theme', 'dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+
+    // 5. Alt+N creates a new note and activates it; Alt+ArrowUp cycles visible notes
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'n', altKey: true, bubbles: true, cancelable: true }),
+    );
+    expect(Naizo.getList('notes').length).toBe(5);
+    const createdNoteId = Naizo.getList('notes')[4]?.id;
+    expect(Naizo.get('activeNoteId')).toBe(createdNoteId);
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowUp',
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(Naizo.get('activeNoteId')).not.toBe(createdNoteId);
   });
 });

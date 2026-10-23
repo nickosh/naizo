@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Engineering Field Notes — naizo.js Master–Detail Notebook</title>
+
+    <!-- 1. Canonical #naizodb JSON state (readable & editable by humans and AI agents) -->
+    <script id="naizodb" type="application/json">
+      {
+        "_meta": {
+          "id": "naizo-field-notes"
+        },
+        "fields": {
+          "notebook_title": "Engineering Field Notes",
+          "notebook_subtitle": "Zero-DOM-wipe master–detail notebook powered by declarative [naizo-list] panes and #naizodb.",
+          "theme": "light"
+        },
+        "lists": {
+          "notes": [
+            {
+              "id": "note-101",
+              "title": "Surgical #naizodb Disk Sync Architecture",
+              "category": "Architecture",
+              "pinned": true,
+              "updatedAt": "2026-10-22T09:30:00.000Z",
+              "body": "Keep <body> as the declarative template and <script id=\"naizodb\"> as the canonical JSON database.\n\nAction items:\n- [x] Escape < as \\u003c when serializing JSON\n- [x] Preserve leading UTF-8 BOM on disk writes\n- [ ] Benchmark 2s lastModified watcher on large specs"
+            },
+            {
+              "id": "note-102",
+              "title": "Release Cut & OIDC Verification Runbook",
+              "category": "Runbook",
+              "pinned": true,
+              "updatedAt": "2026-10-22T11:15:00.000Z",
+              "body": "Pre-release checklist before triggering prepare-release.yml:\n- [x] Run vp pack && vp check && vp test\n- [x] Verify node --check dist/naizo.js and dist/naizo.min.js\n- [ ] Confirm npm OIDC trusted publisher on release.yml"
+            },
+            {
+              "id": "note-103",
+              "title": "Web-to-Local PC App Exchange (Online Mode)",
+              "category": "Research",
+              "pinned": false,
+              "updatedAt": "2026-10-22T14:40:00.000Z",
+              "body": "When hosted on static HTTPS origins (e.g. GitHub Pages), naizo.js enters Online Mode automatically:\n- [x] Show green Saved in Browser status pill\n- [x] Rewrite relative naizo.js script src to jsDelivr CDN on Save to PC\n- [ ] Document Online Mode handoff in docs/USAGE.md"
+            },
+            {
+              "id": "note-104",
+              "title": "Agent Co-Editing Collision Drill Notes",
+              "category": "Meeting",
+              "pinned": false,
+              "updatedAt": "2026-10-22T16:05:00.000Z",
+              "body": "Observed behavior when a CLI agent edits #naizodb while a human is typing in a bound input:\n- Unrelated top-level keys merge cleanly.\n- Same-key collisions let disk win and save pre-merge browser state to naizodb_backup_<key>.\n- Focused document.activeElement is never clobbered mid-keystroke."
+            }
+          ]
+        },
+        "custom": {
+          "activeNoteId": "note-101"
+        }
+      }
+    </script>
+
+    <!-- 2. Load naizo.js locally or via CDN:
+         <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script> -->
+    <script src="../dist/naizo.js" defer></script>
+
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --panel: #ffffff;
+        --panel-muted: #f1f5f9;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #2563eb;
+        --accent-soft: #eff6ff;
+        --pin: #d97706;
+        --danger: #dc2626;
+      }
+
+      html[data-theme='dark'] {
+        --bg: #0b1120;
+        --panel: #111827;
+        --panel-muted: #1e293b;
+        --border: #334155;
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #3b82f6;
+        --accent-soft: #1e3a8a;
+        --pin: #fbbf24;
+        --danger: #f87171;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 1.5rem 1.5rem 5rem;
+        line-height: 1.5;
+      }
+
+      .notebook-shell {
+        max-width: 1180px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+      }
+
+      .notebook-header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.1rem 1.35rem;
+      }
+
+      .notebook-title-group h1 {
+        margin: 0;
+        font-size: 1.55rem;
+        padding: 2px 6px;
+        margin-left: -6px;
+        border-radius: 6px;
+      }
+
+      .notebook-title-group p {
+        margin: 0.25rem 0 0;
+        font-size: 0.9rem;
+        color: var(--muted);
+        padding: 2px 6px;
+        margin-left: -6px;
+        border-radius: 6px;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .theme-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+        font-weight: 500;
+      }
+
+      select,
+      input[type='text'],
+      input[type='search'],
+      textarea {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.45rem 0.65rem;
+      }
+
+      .btn {
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 0.5rem 0.85rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-muted);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #ffffff;
+      }
+
+      .btn-danger {
+        color: var(--danger);
+        background: transparent;
+      }
+
+      .workspace-grid {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 1.25rem;
+        align-items: stretch;
+        min-height: 540px;
+      }
+
+      @media (max-width: 840px) {
+        .workspace-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .sidebar-panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .sidebar-filters {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .sidebar-filters input,
+      .sidebar-filters select {
+        width: 100%;
+      }
+
+      .note-index-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        overflow-y: auto;
+        max-height: 430px;
+      }
+
+      .note-index-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.65rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .note-index-item.is-active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .note-index-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+
+      .note-index-title {
+        font-weight: 600;
+        font-size: 0.92rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .note-index-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.76rem;
+        color: var(--muted);
+      }
+
+      .category-pill {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: var(--panel-muted);
+        border: 1px solid var(--border);
+        font-size: 0.72rem;
+        font-weight: 500;
+      }
+
+      .sidebar-pin-btn {
+        background: transparent;
+        border: none;
+        padding: 0 2px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        color: var(--muted);
+      }
+
+      .sidebar-pin-btn.is-pinned {
+        color: var(--pin);
+      }
+
+      .detail-panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .editor-stack {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Master-detail declarative visibility: only the active [naizo-item] pane is displayed */
+      .note-editor-pane {
+        display: none;
+        flex-direction: column;
+        gap: 0.9rem;
+        flex: 1;
+      }
+
+      .note-editor-pane.is-active {
+        display: flex;
+      }
+
+      .pane-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .pane-title-label {
+        flex: 1;
+        min-width: 220px;
+      }
+
+      .pane-title-label input {
+        width: 100%;
+        font-size: 1.15rem;
+        font-weight: 600;
+      }
+
+      .pane-category-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .pin-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.65rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .note-body-label {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+      }
+
+      .note-body-textarea {
+        width: 100%;
+        flex: 1;
+        min-height: 330px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.9rem;
+        line-height: 1.55;
+      }
+
+      .detail-footer {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .stats-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.9rem;
+      }
+
+      .shortcut-hint kbd {
+        background: var(--panel-muted);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 0.75rem;
+      }
+
+      .empty-state {
+        display: none;
+        padding: 2rem;
+        text-align: center;
+        color: var(--muted);
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="notebook-shell">
+      <header class="notebook-header">
+        <div class="notebook-title-group">
+          <h1 contenteditable="true" naizo="notebook_title">Engineering Field Notes</h1>
+          <p contenteditable="true" naizo="notebook_subtitle">
+            Zero-DOM-wipe master–detail notebook powered by declarative [naizo-list] panes and
+            #naizodb.
+          </p>
+        </div>
+        <div class="header-actions">
+          <label class="theme-control">
+            <span>Theme</span>
+            <select id="theme-select" naizo="theme">
+              <option value="light" selected>Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            id="new-note-btn"
+            class="btn btn-primary"
+            naizo-ignore
+            title="Create new note (Alt+N)"
+          >
+            + New Note
+          </button>
+        </div>
+      </header>
+
+      <div class="workspace-grid">
+        <!-- Master Sidebar Index (ephemeral filter controls + rendered index marked naizo-ignore) -->
+        <aside class="sidebar-panel" naizo-ignore aria-label="Note index and filters">
+          <div class="sidebar-filters">
+            <label>
+              <span class="sr-only">Search notes</span>
+              <input
+                type="search"
+                id="note-search"
+                placeholder="Search title or markdown body..."
+              />
+            </label>
+            <label>
+              <span class="sr-only">Filter by category</span>
+              <select id="category-filter">
+                <option value="all">All Categories</option>
+                <option value="Architecture">Architecture</option>
+                <option value="Runbook">Runbook</option>
+                <option value="Research">Research</option>
+                <option value="Meeting">Meeting</option>
+                <option value="Scratchpad">Scratchpad</option>
+              </select>
+            </label>
+          </div>
+          <ul id="note-index-list" class="note-index-list" role="listbox" aria-label="Notes"></ul>
+        </aside>
+
+        <!-- Detail Editor Pane Stack (declarative [naizo-list="notes"] where each note is a live [naizo-item]) -->
+        <main class="detail-panel">
+          <div id="notes-list" class="editor-stack" naizo-list="notes" naizo-no-controls>
+            <article class="note-editor-pane" naizo-item>
+              <div class="pane-toolbar">
+                <label class="pane-title-label">
+                  <span class="sr-only">Note Title</span>
+                  <input
+                    type="text"
+                    class="note-title-input"
+                    naizo="title"
+                    placeholder="Note title..."
+                  />
+                </label>
+                <label class="pane-category-label">
+                  <span>Category</span>
+                  <select class="note-category-select" naizo="category">
+                    <option value="Architecture">Architecture</option>
+                    <option value="Runbook">Runbook</option>
+                    <option value="Research">Research</option>
+                    <option value="Meeting">Meeting</option>
+                    <option value="Scratchpad">Scratchpad</option>
+                  </select>
+                </label>
+                <label class="pin-toggle">
+                  <input type="checkbox" class="note-pin-checkbox" naizo="pinned" />
+                  <span>Pinned</span>
+                </label>
+                <button
+                  type="button"
+                  class="btn btn-danger"
+                  naizo-ignore
+                  data-delete-note
+                  title="Delete this note"
+                >
+                  Delete
+                </button>
+              </div>
+              <label class="note-body-label">
+                <span class="sr-only">Note Markdown Body</span>
+                <textarea
+                  class="note-body-textarea"
+                  naizo="body"
+                  placeholder="Write notes or Markdown checklists (- [ ] task)..."
+                ></textarea>
+              </label>
+            </article>
+          </div>
+
+          <div id="empty-editor-state" class="empty-state" naizo-ignore>
+            No notes match the current filter. Create a new note or clear the search filter.
+          </div>
+
+          <footer class="detail-footer" naizo-ignore>
+            <div class="stats-row">
+              <span id="stat-chars">0 chars</span>
+              <span id="stat-words">0 words</span>
+              <span id="stat-tasks">0/0 tasks</span>
+              <span id="stat-updated">—</span>
+            </div>
+            <div class="shortcut-hint">
+              <kbd>Alt+N</kbd> New · <kbd>Alt+↑/↓</kbd> Switch · <kbd>⌘S</kbd> / <kbd>Ctrl+S</kbd>
+              Save
+            </div>
+          </footer>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const searchInput = document.getElementById('note-search');
+        const categoryFilter = document.getElementById('category-filter');
+        const indexListEl = document.getElementById('note-index-list');
+        const notesListEl = document.getElementById('notes-list');
+        const newNoteBtn = document.getElementById('new-note-btn');
+        const emptyStateEl = document.getElementById('empty-editor-state');
+        const statCharsEl = document.getElementById('stat-chars');
+        const statWordsEl = document.getElementById('stat-words');
+        const statTasksEl = document.getElementById('stat-tasks');
+        const statUpdatedEl = document.getElementById('stat-updated');
+
+        function ensureNoteIds() {
+          if (!window.Naizo) return [];
+          const notes = window.Naizo.getList('notes');
+          for (let i = 0; i < notes.length; i += 1) {
+            const item = notes[i];
+            if (item && (typeof item.id !== 'string' || !item.id.trim())) {
+              const generatedId = 'note-' + Date.now() + '-' + (i + 1);
+              window.Naizo.updateItem('notes', i, {
+                id: generatedId,
+                updatedAt:
+                  typeof item.updatedAt === 'string' && item.updatedAt
+                    ? item.updatedAt
+                    : new Date().toISOString(),
+              });
+            }
+          }
+          return window.Naizo.getList('notes');
+        }
+
+        function countMarkdownTasks(text) {
+          const matches = String(text || '').match(/^\s*[-*]\s+\[([ xX])\]/gm) || [];
+          let done = 0;
+          for (let i = 0; i < matches.length; i += 1) {
+            if (/\[[xX]\]/.test(matches[i])) done += 1;
+          }
+          return { done: done, total: matches.length };
+        }
+
+        function countWords(text) {
+          const trimmed = String(text || '').trim();
+          if (!trimmed) return 0;
+          return trimmed.split(/\s+/).length;
+        }
+
+        function getFilteredNoteEntries(notes) {
+          const query = String((searchInput && searchInput.value) || '')
+            .trim()
+            .toLowerCase();
+          const cat = String((categoryFilter && categoryFilter.value) || 'all');
+
+          const entries = [];
+          for (let i = 0; i < notes.length; i += 1) {
+            const note = notes[i];
+            if (!note) continue;
+            const title = String(note.title || '');
+            const body = String(note.body || '');
+            const category = String(note.category || 'Scratchpad');
+            if (cat !== 'all' && category !== cat) continue;
+            if (
+              query &&
+              !title.toLowerCase().includes(query) &&
+              !body.toLowerCase().includes(query)
+            ) {
+              continue;
+            }
+            entries.push({ index: i, note: note });
+          }
+
+          entries.sort(function (a, b) {
+            const pinA = Boolean(a.note.pinned) ? 1 : 0;
+            const pinB = Boolean(b.note.pinned) ? 1 : 0;
+            if (pinA !== pinB) return pinB - pinA;
+            return a.index - b.index;
+          });
+          return entries;
+        }
+
+        function applyTheme() {
+          if (!window.Naizo) return;
+          const theme = window.Naizo.getField('theme') === 'dark' ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+        }
+
+        function updateActiveMetrics(activeNote) {
+          if (!activeNote) {
+            if (statCharsEl) statCharsEl.textContent = '0 chars';
+            if (statWordsEl) statWordsEl.textContent = '0 words';
+            if (statTasksEl) statTasksEl.textContent = '0/0 tasks';
+            if (statUpdatedEl) statUpdatedEl.textContent = '—';
+            return;
+          }
+          const body = String(activeNote.body || '');
+          const tasks = countMarkdownTasks(body);
+          if (statCharsEl) statCharsEl.textContent = body.length + ' chars';
+          if (statWordsEl) statWordsEl.textContent = countWords(body) + ' words';
+          if (statTasksEl) statTasksEl.textContent = tasks.done + '/' + tasks.total + ' tasks';
+          if (statUpdatedEl) {
+            const rawTs = typeof activeNote.updatedAt === 'string' ? activeNote.updatedAt : '';
+            statUpdatedEl.textContent = rawTs
+              ? 'Updated ' + rawTs.slice(0, 16).replace('T', ' ')
+              : '—';
+          }
+        }
+
+        function syncNotebookUi() {
+          if (!window.Naizo) return;
+          applyTheme();
+
+          const notes = ensureNoteIds();
+          const filtered = getFilteredNoteEntries(notes);
+          let activeId = window.Naizo.get('activeNoteId');
+
+          const activeStillVisible = filtered.some(function (entry) {
+            return entry.note.id === activeId;
+          });
+          if (!activeStillVisible) {
+            activeId = filtered[0] ? filtered[0].note.id : notes[0] ? notes[0].note.id : '';
+            if (activeId && activeId !== window.Naizo.get('activeNoteId')) {
+              window.Naizo.set('activeNoteId', activeId);
+            }
+          }
+
+          const panes = notesListEl
+            ? Array.from(
+                notesListEl.querySelectorAll(':scope > [naizo-item], :scope > [data-naizo-item]'),
+              )
+            : [];
+          let activeNoteObj = null;
+
+          for (let i = 0; i < panes.length; i += 1) {
+            const pane = panes[i];
+            const note = notes[i];
+            const isActive = Boolean(note && note.id === activeId && filtered.length > 0);
+            pane.classList.toggle('is-active', isActive);
+            pane.setAttribute('data-note-id', note && typeof note.id === 'string' ? note.id : '');
+            if (isActive && note) {
+              activeNoteObj = note;
+            }
+          }
+
+          if (emptyStateEl) {
+            emptyStateEl.style.display = activeNoteObj ? 'none' : 'block';
+          }
+
+          if (indexListEl) {
+            indexListEl.textContent = '';
+            for (let i = 0; i < filtered.length; i += 1) {
+              const entry = filtered[i];
+              const note = entry.note;
+              const li = document.createElement('li');
+              li.className = 'note-index-item' + (note.id === activeId ? ' is-active' : '');
+              li.setAttribute('role', 'option');
+              li.setAttribute('aria-selected', note.id === activeId ? 'true' : 'false');
+              li.setAttribute('data-note-id', String(note.id || ''));
+
+              const topRow = document.createElement('div');
+              topRow.className = 'note-index-top';
+
+              const titleSpan = document.createElement('span');
+              titleSpan.className = 'note-index-title';
+              titleSpan.textContent = String(note.title || 'Untitled Note');
+
+              const pinBtn = document.createElement('button');
+              pinBtn.type = 'button';
+              pinBtn.className = 'sidebar-pin-btn' + (note.pinned ? ' is-pinned' : '');
+              pinBtn.title = note.pinned ? 'Unpin note' : 'Pin note';
+              pinBtn.setAttribute('aria-label', note.pinned ? 'Unpin note' : 'Pin note');
+              pinBtn.textContent = note.pinned ? '★' : '☆';
+              pinBtn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                window.Naizo.updateItem('notes', entry.index, {
+                  pinned: !note.pinned,
+                  updatedAt: new Date().toISOString(),
+                });
+              });
+
+              topRow.appendChild(titleSpan);
+              topRow.appendChild(pinBtn);
+
+              const metaRow = document.createElement('div');
+              metaRow.className = 'note-index-meta';
+
+              const catSpan = document.createElement('span');
+              catSpan.className = 'category-pill';
+              catSpan.textContent = String(note.category || 'Scratchpad');
+
+              const tasks = countMarkdownTasks(note.body);
+              const taskSpan = document.createElement('span');
+              taskSpan.textContent =
+                tasks.total > 0
+                  ? tasks.done + '/' + tasks.total + ' tasks'
+                  : countWords(note.body) + ' words';
+
+              metaRow.appendChild(catSpan);
+              metaRow.appendChild(taskSpan);
+
+              li.appendChild(topRow);
+              li.appendChild(metaRow);
+
+              li.addEventListener('click', function () {
+                window.Naizo.set('activeNoteId', note.id);
+                syncNotebookUi();
+              });
+
+              indexListEl.appendChild(li);
+            }
+          }
+
+          updateActiveMetrics(activeNoteObj);
+        }
+
+        function createNewNote() {
+          if (!window.Naizo) return;
+          if (searchInput && searchInput.value) searchInput.value = '';
+          const defaultCategory =
+            categoryFilter && categoryFilter.value !== 'all'
+              ? categoryFilter.value
+              : 'Architecture';
+          const newId = 'note-' + Date.now();
+          window.Naizo.addItem('notes', {
+            id: newId,
+            title: 'Untitled Note',
+            category: defaultCategory,
+            pinned: false,
+            updatedAt: new Date().toISOString(),
+            body: '- [ ] Capture key decisions\n',
+          });
+          window.Naizo.set('activeNoteId', newId);
+          syncNotebookUi();
+          const activeTitleInput = notesListEl
+            ? notesListEl.querySelector('.note-editor-pane.is-active .note-title-input')
+            : null;
+          if (activeTitleInput && typeof activeTitleInput.focus === 'function') {
+            activeTitleInput.focus();
+          }
+        }
+
+        if (newNoteBtn) {
+          newNoteBtn.addEventListener('click', createNewNote);
+        }
+        if (searchInput) {
+          searchInput.addEventListener('input', syncNotebookUi);
+        }
+        if (categoryFilter) {
+          categoryFilter.addEventListener('change', syncNotebookUi);
+        }
+
+        if (notesListEl) {
+          notesListEl.addEventListener('click', function (e) {
+            const target = e.target;
+            if (!(target instanceof Element)) return;
+            const deleteBtn = target.closest('[data-delete-note]');
+            if (!deleteBtn || !window.Naizo) return;
+            const pane = deleteBtn.closest('[naizo-item], [data-naizo-item]');
+            if (!pane) return;
+            const panes = Array.from(
+              notesListEl.querySelectorAll(':scope > [naizo-item], :scope > [data-naizo-item]'),
+            );
+            const idx = panes.indexOf(pane);
+            if (idx === -1) return;
+            window.Naizo.removeItem('notes', idx);
+            const remaining = window.Naizo.getList('notes');
+            const nextNote = remaining[Math.min(idx, remaining.length - 1)];
+            window.Naizo.set('activeNoteId', nextNote ? nextNote.id : '');
+            syncNotebookUi();
+          });
+        }
+
+        window.addEventListener('keydown', function (e) {
+          if (!e.altKey || e.metaKey || e.ctrlKey) return;
+          const key = (e.key || '').toLowerCase();
+          if (key === 'n') {
+            e.preventDefault();
+            createNewNote();
+            return;
+          }
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            if (!window.Naizo) return;
+            const notes = ensureNoteIds();
+            const filtered = getFilteredNoteEntries(notes);
+            if (filtered.length === 0) return;
+            e.preventDefault();
+            const currentId = window.Naizo.get('activeNoteId');
+            let currentIdx = filtered.findIndex(function (entry) {
+              return entry.note.id === currentId;
+            });
+            if (currentIdx === -1) currentIdx = 0;
+            const delta = e.key === 'ArrowDown' ? 1 : -1;
+            const nextIdx = (currentIdx + delta + filtered.length) % filtered.length;
+            window.Naizo.set('activeNoteId', filtered[nextIdx].note.id);
+            syncNotebookUi();
+          }
+        });
+
+        window.addEventListener('naizo:hydrate', syncNotebookUi);
+        window.addEventListener('naizo:change', function (e) {
+          const detail = e && e.detail ? e.detail : {};
+          if (detail.scope === 'lists' && detail.list === 'notes' && detail.key) {
+            const notes = window.Naizo.getList('notes');
+            const activeId = window.Naizo.get('activeNoteId');
+            const activeNote = notes.find(function (n) {
+              return n && n.id === activeId;
+            });
+            if (activeNote) {
+              activeNote.updatedAt = new Date().toISOString();
+            }
+          }
+          syncNotebookUi();
+        });
+
+        if (window.Naizo) {
+          syncNotebookUi();
+        }
+      })();
+    </script>
+  </body>
+</html>
