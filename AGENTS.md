@@ -49,6 +49,14 @@ Specs and contracts are hypotheses: when implementation or owner review changes 
 
 Versions in documentation and memory identify feature targets and compatibility only. Do not maintain publication status, release dates, or pending-release markers in project memory; GitHub Releases and tags own publication state.
 
+## Engineering collaboration & design discussions
+
+- **Plan and evaluate before coding:** When exploring a new idea, workflow, or external inspiration, analyze how it interacts with `naizo.js`'s core identity (**内蔵** _built-in data_ + **内臓** _internal organs_), the in-memory `store` architecture (`D15`), and existing invariants (`ECxx`) before writing code or mutating project memory. Wait for explicit owner approval when the user asks to discuss or plan first.
+- **Honest engineering pushback (keep what fits, drop what doesn't):** Do not rubber-stamp every draft snippet or feature idea. Actively recommend what belongs in the core runtime (data persistence, `#naizodb` synchronization, list array CRUD, declarative API data flow) and push back when an idea is scope creep, a general UI/layout helper (`naizo-tab`, `naizo-filter`), or unnecessary UX/DOM complexity (e.g., custom tooltip popovers where native `title` suffices).
+- **Plain-language scenarios & concrete options:** Explain subtle browser or architectural constraints (such as `file://` `Origin: null` CORS rules, relative `<script src>` paths breaking after `⬇ Save to PC`, or HTML5 `storage` event tab isolation) using concrete step-by-step examples and numbered trade-off options rather than abstract jargon.
+- **Cross-milestone & dead-code audits:** Before finalizing a plan, audit how new slices affect existing milestones, CI/Pages staging, and exports, and proactively identify stale code or boundary traps (`isIgnoredElement()` guards, mid-flight export cleanup, listener/timer teardown).
+- **Clean-room design:** Treat external tools strictly as high-level product inspiration; never copy code, markup, styles, or unlicensed assets, and always design solutions natively around `naizo.js`'s own declarative store.
+
 ## Project memory and closeout
 
 At the end of each state-changing session, independently useful development slice, milestone, or durable handoff, use the repository-scoped [naizo-closeout](.agents/skills/naizo-closeout/SKILL.md) skill to reconcile project memory from evidence. Read the skill file directly if the host has not registered repository skills; do not invent a slash command.
