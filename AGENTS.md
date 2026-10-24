@@ -59,7 +59,7 @@ Versions in documentation and memory identify feature targets and compatibility 
 
 ## Project memory and closeout
 
-At the end of each state-changing session, independently useful development slice, milestone, or durable handoff, use the repository-scoped [naizo-closeout](.agents/skills/naizo-closeout/SKILL.md) skill to reconcile project memory from evidence. Read the skill file directly if the host has not registered repository skills; do not invent a slash command.
+At the end of each state-changing session, independently useful development slice, planned substep (`Mx.y` or `Mx.ya`–`Mx.yz`), milestone, or durable handoff, use the repository-scoped [naizo-closeout](.agents/skills/naizo-closeout/SKILL.md) skill to reconcile project memory from evidence. Read the skill file directly if the host has not registered repository skills; do not invent a slash command.
 
 - Update affected contracts and specs in the same change as behavior.
 - Mark tasks or milestones done in `docs/PLAN.md` only when their acceptance criteria and verification evidence are satisfied. Keep blocked and not-run checks explicit.
@@ -95,6 +95,7 @@ Use proportional verification:
 ## Git workflow
 
 - After completing and verifying each coherent change, including documentation changes, reconcile project memory and create a local commit without asking again unless the user explicitly requests otherwise.
+- When a planned milestone or task in `docs/PLAN.md` has substeps (e.g., `M5.1` and `M5.2`, or `M4.5a`–`M4.5e`), complete, verify, reconcile project memory, and create a separate local commit for **each substep in sequence** before starting the next substep — never batch multiple planned substeps into a single commit (`D02`, `D44`).
 - Use Conventional Commits for commit messages (`type(scope): subject`); include a scope only when it adds clarity. Common types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `ci`, and `build`.
 - Every commit must include a factual body after the subject and a blank line explaining what changed, why, and any relevant limitations. Do not create subject-only commits. Scale the detail to the change. Validation results and checks not run belong in closeout documentation and chat; they are not required in commit bodies.
 - Do not add a `Co-authored-by: Copilot` trailer (or any other AI co-author trailer) to commit messages.

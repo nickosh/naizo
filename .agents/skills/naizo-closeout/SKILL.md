@@ -45,7 +45,7 @@ Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, CI run
 1. Review changed and new documents for working links/references, unsupported claims, duplicate status ledgers, stale next actions, and accidental edits to unrelated work.
 2. Run `git diff --check` and any targeted validation relevant to the changed files; account for untracked files separately.
 3. Confirm `docs/JOURNAL.md` remains newest first and concise, and that memory edits contain no transient delivery identifiers.
-4. After validation passes, create local commits for completed coherent changes (including reconciled project memory) following `AGENTS.md`'s Git workflow and Conventional Commit body requirements (`D02`). Honor any explicit user request to leave work uncommitted, and preserve unrelated staged and unstaged changes.
+4. After validation passes, create local commits for completed coherent changes (including reconciled project memory) following `AGENTS.md`'s Git workflow and Conventional Commit body requirements (`D02`, `D44`). When a `docs/PLAN.md` milestone or task has substeps (`Mx.y` or `Mx.ya`–`Mx.yz`), verify, reconcile project memory, and commit each substep separately in sequence before starting the next substep rather than batching multiple substeps into one commit. Honor any explicit user request to leave work uncommitted, and preserve unrelated staged and unstaged changes.
 5. Do not push, tag, publish, or open a pull request unless the user separately requested it.
 
 Report the selected closeout mode, memory files changed, verification evidence (including checks not run), local commits created, any remaining uncommitted changes, and the next concrete technical action.
