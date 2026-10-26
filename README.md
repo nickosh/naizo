@@ -5,7 +5,7 @@
 **The Built-In Engine for Self-Persisting HTML & AI Agent Workflows**
 
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#)
-[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~10.8_KB-blue.svg)](#)
+[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~12.3_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 _Turn static HTML files into self-saving apps with built-in JSON state (`#naizodb`) for Human + AI workflows._
@@ -130,14 +130,14 @@ Save the following as `plan.html` on your computer (or copy any template from [`
 <!-- unpkg CDN (readable bundle) -->
 <script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified bundle (~10.8 KB gzipped, works on either CDN) -->
+<!-- Prebuilt minified bundle (~12.3 KB gzipped, works on either CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- Offline / local copy -->
 <script src="./dist/naizo.js" defer></script>
 ```
 
-Both CDNs serve the published `naizojs` npm package (`@latest` follows new releases automatically; replace `@latest` with an exact version such as `@0.1.0` to pin a fixed version). See the [Usage Reference](docs/USAGE.md) for complete authoring patterns and the [Publishing Guide](docs/PUBLISHING.md#cdn-urls-and-automatic-updates) for CDN caching details.
+Both CDNs serve the published `naizojs` npm package (`@latest` follows new releases automatically; replace `@latest` with a specific version tag to pin a fixed version). See the [Usage Reference](docs/USAGE.md) for complete authoring patterns and the [Publishing Guide](docs/PUBLISHING.md#cdn-urls-and-automatic-updates) for CDN caching details.
 
 ---
 
@@ -262,7 +262,7 @@ Several tools explore reactive HTML, declarative persistence, or self-saving sin
 | **Zero-Server Local Disk Save**       | **Yes** (surgical `#naizodb` File System API + HTML fallback) | **Yes** (`⌘S` File System Access API; Chromium only)        | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                |
 | **Two-Way Human ↔ AI Disk Sync**      | **Yes** (~2 s live watch + shallow key merge + restore)       | Manual reload only (`⌘S` overwrites external disk edits)    | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                |
 | **Declarative List Repeater**         | **Yes** (`naizo-list` / `naizo-item`)                         | N/A (hardcoded page sidebar)                                | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    |
-| **Runtime Footprint (Gzip)**          | **~10.8 KB** (0 deps)                                         | ~5.5 KB bundled app (0 deps)                                | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    |
+| **Runtime Footprint (Gzip)**          | **~12.3 KB** (0 deps)                                         | ~5.5 KB bundled app (0 deps)                                | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    |
 
 ---
 

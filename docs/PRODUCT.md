@@ -4,7 +4,7 @@ Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-10-23 (`D38`–`
 
 ## One-liner
 
-**`naizo.js`** (`naizo`, npm package `naizojs`) is a zero-dependency, lightweight script (~10.8 KB minified + gzipped, ~15.5 KB gzipped unminified as of `v0.2.0`) providing a self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) that keeps human edits in the browser and AI agent edits on disk in two-way sync.
+**`naizo.js`** (`naizo`, npm package `naizojs`) is a zero-dependency, lightweight script (~12.3 KB minified + gzipped, ~17.9 KB gzipped unminified) providing a self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) that keeps human edits in the browser and AI agent edits on disk in two-way sync.
 
 ## Name & Meaning
 

@@ -82,9 +82,9 @@ Every `naizo.js` HTML document embeds `<script id="naizodb" type="application/js
 ### CDN & Local Script Options (`D34`, `D39`)
 
 - **jsDelivr (readable):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
-- **jsDelivr (minified, ~10.8 KB gzipped):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
+- **jsDelivr (minified, ~12.3 KB gzipped):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
 - **unpkg:** `https://unpkg.com/naizojs@latest/dist/naizo.js`
-- **Pinned version:** replace `@latest` with an exact version such as `@0.1.0`
+- **Pinned version:** replace `@latest` with a specific published version tag
 - **Local / offline:** `<script src="./dist/naizo.js" defer></script>` (inside the `naizo` repository examples, use `../dist/naizo.js`)
 
 ---

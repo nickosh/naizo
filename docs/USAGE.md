@@ -129,14 +129,14 @@ Load one provider in `<head>` with `defer` (`D34`, `D39`):
 <!-- Readable IIFE bundle (jsDelivr) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified IIFE bundle (~10.8 KB gzipped) -->
+<!-- Prebuilt minified IIFE bundle (~12.3 KB gzipped) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- Alternative: unpkg -->
 <script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer></script>
 ```
 
-Use `@latest` to follow published releases automatically as CDN caches refresh, or pin an exact version such as `naizojs@0.1.0` for immutable artifacts. See [PUBLISHING.md](PUBLISHING.md#cdn-urls-and-automatic-updates) for CDN caching details.
+Use `@latest` to follow published releases automatically as CDN caches refresh, or pin a specific version tag for immutable artifacts. See [PUBLISHING.md](PUBLISHING.md#cdn-urls-and-automatic-updates) for CDN caching details.
 
 ### Option B: Local File Copy (Offline & Local Repository Use)
 
