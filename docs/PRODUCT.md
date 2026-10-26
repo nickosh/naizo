@@ -1,6 +1,6 @@
 # naizo — Product Definition
 
-Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-10-23 (`D38`–`D43`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status).
+Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-10-23 (`D38`–`D43`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status), [USAGE.md](USAGE.md) (comprehensive usage and authoring reference).
 
 ## One-liner
 

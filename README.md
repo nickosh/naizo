@@ -80,7 +80,7 @@ You can use unpkg instead of jsDelivr (load one provider):
 
 Both providers serve the published npm package. The `@latest` URLs follow new npm releases as CDN caches refresh; no separate CDN deployment is needed. Use `dist/naizo.min.js` in either URL for the prebuilt minified bundle. To keep an HTML artifact on a fixed version, replace `@latest` with an exact version such as `@0.1.0`.
 
-CDN URLs require the package/version to be published to npm. For local development or offline use, load a local copy of `dist/naizo.js`. See the [publishing guide](docs/PUBLISHING.md#cdn-urls-and-automatic-updates) for release and caching details.
+CDN URLs require the package/version to be published to npm. For local development or offline use, load a local copy of `dist/naizo.js`. See the [usage reference](docs/USAGE.md) for the complete authoring guide, architectural recipes, and AI agent workflows, and the [publishing guide](docs/PUBLISHING.md#cdn-urls-and-automatic-updates) for release and caching details.
 
 ---
 

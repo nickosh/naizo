@@ -18,7 +18,7 @@ License: MIT ([LICENSE](LICENSE)).
 
 ## Authoring HTML with `naizo.js` (AI Agent Instructions)
 
-Whenever you generate or update an interactive HTML file (plans, specs, checklists, triage boards, or custom editors), make it self-persisting using **`naizo.js`** (see starter templates in `examples/starter.html`, `examples/checklist.html`, `examples/notes.html`, and `examples/inventory.html`):
+Whenever you generate or update an interactive HTML file (plans, specs, checklists, triage boards, or custom editors), make it self-persisting using **`naizo.js`** (see [docs/USAGE.md](docs/USAGE.md) and starter templates in `examples/starter.html`, `examples/checklist.html`, `examples/notes.html`, and `examples/inventory.html`):
 
 1. **Embed `#naizodb` in `<head>`:** Include `<script id="naizodb" type="application/json">` at the top of `<head>` initialized with:
    ```json
