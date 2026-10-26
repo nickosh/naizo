@@ -1440,7 +1440,22 @@ describe('naizo.js v0.1.0 core runtime', () => {
       'Browser Cache · Click to Link Disk',
     );
 
+    // Verify M4.5 Online Mode, reset(), and downloadHTML() in shipped dist/naizo.js bundle
+    const bundleClickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+    document.documentElement.setAttribute('naizo-mode', 'online');
+    bundleNaizo.reset();
+    expect(bundleNaizo.getField('title')).toBe('Bundle Spec');
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe('Saved in Browser');
+    const bundlePortable = bundleNaizo.downloadHTML('bundle-export');
+    expect(bundleClickSpy).toHaveBeenCalledTimes(1);
+    expect(bundlePortable).not.toContain('naizo-mode="online"');
+    expect(bundlePortable).toContain('value="Bundle Spec"');
+    bundleClickSpy.mockRestore();
+
     Reflect.deleteProperty(window, 'showSaveFilePicker');
+    document.documentElement.removeAttribute('naizo-mode');
     document.documentElement.removeAttribute('data-naizo-manual');
     window.Naizo = Naizo;
     window.NaizoDB = NaizoDB;
@@ -1861,15 +1876,14 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(shiftSaveEvt.defaultPrevented).toBe(false);
     expect(pickerSpy).not.toHaveBeenCalled();
 
-    // Cmd+S links disk and writes pending edit
+    // Cmd+S links disk and writes pending edit (even if event is non-cancelable, handledKeyEvents prevents double firing across document + window)
     const cmdSaveEvt = new KeyboardEvent('keydown', {
       key: 's',
       metaKey: true,
       bubbles: true,
-      cancelable: true,
+      cancelable: false,
     });
     document.dispatchEvent(cmdSaveEvt);
-    expect(cmdSaveEvt.defaultPrevented).toBe(true);
     expect(pickerSpy).toHaveBeenCalledTimes(1);
     await new Promise((r) => setTimeout(r, 25));
     expect(diskHtml).toContain('"alpha": "cmd-s-linked"');
@@ -1889,11 +1903,24 @@ describe('naizo.js v0.1.0 core runtime', () => {
     await new Promise((r) => setTimeout(r, 25));
     expect(diskHtml).toContain('"alpha": "ctrl-s-saved"');
 
-    // 4. When permission is 'prompt' (needs-permission), Cmd+S calls requestPermission via connectOrResumeDisk
+    // 4. When permission is 'prompt' (needs-permission), denied requestPermission stays in Resume Disk Sync without popping showSaveFilePicker; granted resumes
     permissionState = 'prompt';
     await Naizo.save();
     expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe('Resume Disk Sync');
     expect(actionBtn?.title).toContain('⌘S / Ctrl+S');
+
+    requestPermSpy.mockResolvedValueOnce('denied');
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 's',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    expect(pickerSpy).toHaveBeenCalledTimes(1);
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe('Resume Disk Sync');
 
     alphaIn.value = 'resumed-via-cmd-s';
     alphaIn.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1918,7 +1945,16 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(diskHtml).toContain('"alpha": "flushed-on-tab-hide"');
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
 
-    // 6. Cross-tab storage event merges uncommitted persistTimeout edits and syncs snapshot hash (M4.5b)
+    // 6. Cross-tab storage event merges uncommitted persistTimeout edits using e.oldValue as base and surfaces same-key collisions (M4.5b)
+    await Naizo.unlink();
+    const sharedBeforeTabA = JSON.stringify({
+      _meta: {},
+      fields: { alpha: 'session-shared-a', beta: 'init-b' },
+      lists: {},
+      custom: {},
+    });
+    Naizo.setField('alpha', 'session-shared-a');
+
     const betaIn = document.getElementById('beta-in') as HTMLInputElement;
     betaIn.value = 'tab-b-uncommitted';
     betaIn.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1933,6 +1969,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     window.dispatchEvent(
       new StorageEvent('storage', {
         key: 'naizodb_state_/',
+        oldValue: sharedBeforeTabA,
         newValue: tabAState,
       }),
     );
@@ -1940,8 +1977,31 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(Naizo.getField('alpha')).toBe('tab-a-committed');
     expect(Naizo.getField('beta')).toBe('tab-b-uncommitted');
 
-    // Flush Tab B's merged state, then simulate Tab A writing that exact state to disk and updating naizodb_disk_hash_/
-    await Naizo.unlink();
+    // Same-key cross-tab collision while persistTimeout is active backs up Tab B and sets conflict status on pill
+    betaIn.value = 'tab-b-conflict';
+    betaIn.dispatchEvent(new Event('input', { bubbles: true }));
+    const tabAConflictState = JSON.stringify({
+      _meta: {},
+      fields: { alpha: 'tab-a-committed', beta: 'tab-a-conflict' },
+      lists: {},
+      custom: {},
+    });
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'naizodb_state_/',
+        oldValue: tabAState,
+        newValue: tabAConflictState,
+      }),
+    );
+    expect(Naizo.getField('beta')).toBe('tab-a-conflict');
+    expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
+      'External Disk Edit · Conflict Backed Up',
+    );
+    expect(
+      (host?.shadowRoot?.getElementById('restore') as HTMLButtonElement | null)?.style.display,
+    ).toBe('inline-block');
+
+    // Flush Tab B's state, then simulate Tab A writing that exact state to disk and updating naizodb_disk_hash_/
     Naizo.setField('beta', 'tab-b-uncommitted');
     expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
       'Browser Cache · Click to Link Disk',
@@ -1965,7 +2025,24 @@ describe('naizo.js v0.1.0 core runtime', () => {
         ?.textContent,
     ).toBe('Synced to Disk');
 
+    // 7. EC04 startupInvalidDb blocks Cmd+S, downloadHTML(), and unlink() from overwriting the error status
     Reflect.deleteProperty(window, 'showSaveFilePicker');
+    document.head.innerHTML = `<script id="naizodb" type="application/json">{ broken json </script>`;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await initNaizo();
+    const errHost = document.getElementById('__naizodb_host__');
+    expect(errHost?.shadowRoot?.getElementById('status')?.textContent).toBe(
+      'Invalid #naizodb JSON',
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }),
+    );
+    Naizo.downloadHTML('should-not-overwrite-error');
+    await Naizo.unlink();
+    expect(errHost?.shadowRoot?.getElementById('status')?.textContent).toBe(
+      'Invalid #naizodb JSON',
+    );
+    warnSpy.mockRestore();
   });
 
   it('supports Online Mode (naizo-mode), Naizo.reset() with Shadow DOM confirmation + backup, and portable Naizo.downloadHTML() (M4.5d, D41, EC48)', async () => {
@@ -2025,7 +2102,13 @@ describe('naizo.js v0.1.0 core runtime', () => {
     );
     expect(statusEl?.textContent).toBe('✓ Saved in Browser');
 
-    // 3. Clicking "↺ Reset" opens Shadow DOM mini-confirmation popover; Cancel dismisses without resetting
+    // 3. Clicking "↺ Reset" opens Shadow DOM mini-confirmation popover; Escape or Cancel dismisses without resetting
+    resetBtn?.click();
+    expect(resetConfirm?.style.display).toBe('inline-flex');
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+    );
+    expect(resetConfirm?.style.display).toBe('none');
     resetBtn?.click();
     expect(resetConfirm?.style.display).toBe('inline-flex');
     resetCancel?.click();
@@ -2052,6 +2135,10 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(restoreBtn?.style.display).toBe('inline-block');
     expect(changeEvents.some((d) => d.scope === 'reset')).toBe(true);
     window.removeEventListener('naizo:change', onResetChange);
+
+    // Calling Naizo.reset() again when already at initial state does not clobber the backup in naizodb_backup_<key>
+    Naizo.reset();
+    expect(restoreBtn?.style.display).toBe('inline-block');
 
     // 5. Clicking "↺ Restore" undoes the reset from naizodb_backup_<key>
     restoreBtn?.click();
@@ -2157,13 +2244,31 @@ describe('naizo.js v0.1.0 core runtime', () => {
     catFilter.dispatchEvent(new Event('change', { bubbles: true }));
     expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(4);
 
+    // Searching with 0 matches shows empty state without overwriting activeNoteId in #naizodb
+    const searchIn = document.getElementById('note-search') as HTMLInputElement;
+    searchIn.value = 'nonexistent-query-xyz';
+    searchIn.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(0);
+    expect(document.getElementById('empty-editor-state')?.style.display).toBe('block');
+    expect(Naizo.get('activeNoteId')).toBe('note-103');
+    searchIn.value = '';
+    searchIn.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(document.getElementById('empty-editor-state')?.style.display).toBe('none');
+    expect(Naizo.get('activeNoteId')).toBe('note-103');
+
     // 4. Theme field (naizo="theme") updates html[data-theme]
     Naizo.setField('theme', 'dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
-    // 5. Alt+N creates a new note and activates it; Alt+ArrowUp cycles visible notes
+    // 5. Alt+N (including macOS Option+N where key==='Dead' and code==='KeyN') creates a new note and activates it; Alt+ArrowUp cycles visible notes
     window.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'n', altKey: true, bubbles: true, cancelable: true }),
+      new KeyboardEvent('keydown', {
+        key: 'Dead',
+        code: 'KeyN',
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
     );
     expect(Naizo.getList('notes').length).toBe(5);
     const createdNoteId = Naizo.getList('notes')[4]?.id;

@@ -1564,11 +1564,11 @@ function applyExternalDiskUpdate(
   lastSerializedContent = serializeContentBuckets(store);
   lastKnownDiskRaw = diskRaw.trim();
   lastDiskDb = cloneDb(diskDb);
-  safeSetStorage(getSnapshotKey(), hashCanonicalDb(lastKnownDiskRaw));
 
   hydrateSubtreeFromStore(document, preserveActive, false);
   writeStoreToDomScript(store, false);
   safeSetStorage(getPageKey(), JSON.stringify(store));
+  safeSetStorage(getSnapshotKey(), hashCanonicalDb(lastKnownDiskRaw));
 
   if (hasCollision) {
     updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
@@ -1846,13 +1846,21 @@ function schedulePersist(): void {
 }
 
 async function connectOrResumeDisk(): Promise<void> {
+  if (startupInvalidDb) return;
   if (fileHandle) {
-    const perm = await fileHandle.requestPermission({ mode: 'readwrite' });
-    fileHandlePermission = perm;
-    if (perm === 'granted') {
-      startDiskWatch();
-      await writeToDisk();
+    try {
+      const perm = await fileHandle.requestPermission({ mode: 'readwrite' });
+      fileHandlePermission = perm;
+      if (perm === 'granted') {
+        startDiskWatch();
+        await writeToDisk();
+        return;
+      }
+      updateUi('needs-permission', 'Resume Disk Sync');
       return;
+    } catch {
+      fileHandle = null;
+      fileHandlePermission = 'prompt';
     }
   }
 
@@ -2304,16 +2312,38 @@ function handleListClicks(e: Event): void {
   }
 }
 
+const handledKeyEvents = new WeakSet<Event>();
+
 function handleKeyDown(e: KeyboardEvent): void {
-  if (e.defaultPrevented) return;
+  if (e.defaultPrevented || handledKeyEvents.has(e)) return;
+
+  if (
+    e.key === 'Escape' &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey &&
+    !e.shiftKey &&
+    resetConfirmEl &&
+    resetConfirmEl.style.display !== 'none'
+  ) {
+    handledKeyEvents.add(e);
+    e.preventDefault();
+    resetConfirmEl.style.display = 'none';
+    resetBtn?.focus();
+    return;
+  }
+
   if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
   if ((e.key ?? '').toLowerCase() !== 's') return;
 
+  handledKeyEvents.add(e);
   e.preventDefault();
 
+  const storedOk = flushPersistence(false);
+  if (startupInvalidDb) return;
+
   if (isOnlineMode()) {
-    const storedOk = flushPersistence(false);
-    if (!startupInvalidDb && storedOk) {
+    if (storedOk) {
       updateUi('saved', '✓ Saved in Browser');
     }
     return;
@@ -2324,7 +2354,6 @@ function handleKeyDown(e: KeyboardEvent): void {
     return;
   }
 
-  flushPersistence(false);
   void connectOrResumeDisk();
 }
 
@@ -2370,29 +2399,40 @@ function handleStorageEvent(e: StorageEvent): void {
   const incomingDb = parseCachedState(e.newValue);
   if (!incomingDb) return;
 
+  let mergedCollision = false;
   if (persistTimeout !== null) {
     const currentBrowserDb = cloneDb(ensureStore());
+    const oldDb = e.oldValue ? parseCachedState(e.oldValue) : null;
     const storedSnap = safeGetStorage(getSnapshotKey());
-    const baseHashes: DiskKeyHashMap | null =
-      (storedSnap ? extractKeyHashManifest(storedSnap) : null) ??
-      (lastDiskDb
-        ? {
-            fields: buildKeyHashesForBucket(lastDiskDb.fields),
-            lists: buildKeyHashesForBucket(lastDiskDb.lists),
-            custom: buildKeyHashesForBucket(lastDiskDb.custom),
-          }
-        : null);
+    const baseHashes: DiskKeyHashMap | null = oldDb
+      ? {
+          fields: buildKeyHashesForBucket(oldDb.fields),
+          lists: buildKeyHashesForBucket(oldDb.lists),
+          custom: buildKeyHashesForBucket(oldDb.custom),
+        }
+      : ((storedSnap ? extractKeyHashManifest(storedSnap) : null) ??
+        (lastDiskDb
+          ? {
+              fields: buildKeyHashesForBucket(lastDiskDb.fields),
+              lists: buildKeyHashesForBucket(lastDiskDb.lists),
+              custom: buildKeyHashesForBucket(lastDiskDb.custom),
+            }
+          : null));
     const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(
       baseHashes,
       currentBrowserDb,
       incomingDb,
     );
+    mergedCollision = hasCollision;
     if (hasCollision) {
       safeSetStorage(getBackupKey(), JSON.stringify(currentBrowserDb));
     }
     store = merged;
     if (browserKeptKeys) {
       schedulePersist();
+    } else {
+      clearTimeout(persistTimeout);
+      persistTimeout = null;
     }
   } else {
     store = cloneDb(incomingDb);
@@ -2402,8 +2442,12 @@ function handleStorageEvent(e: StorageEvent): void {
   lastSerializedContent = serializeContentBuckets(store);
   hydrateSubtreeFromStore(document, true, false);
   writeStoreToDomScript(store, false);
-  if (isOnlineMode()) {
+  if (mergedCollision) {
+    updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
+  } else if (isOnlineMode()) {
     updateUi('saved', 'Saved in Browser');
+  } else if (!fileHandle) {
+    updateUi('cached', 'Browser Cache · Click to Link Disk');
   }
   window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
 }
@@ -2644,7 +2688,9 @@ export const Naizo: NaizoAPI = {
     }
     if (startupInvalidDb || !initialDiskDb) return;
 
-    safeSetStorage(getBackupKey(), JSON.stringify(ensureStore()));
+    if (isDirtyFromInitial()) {
+      safeSetStorage(getBackupKey(), JSON.stringify(ensureStore()));
+    }
     store = cloneDb(initialDiskDb);
     storeInitialized = true;
     safeRemoveStorage(getPageKey());
@@ -2676,6 +2722,7 @@ export const Naizo: NaizoAPI = {
     fileHandlePermission = 'prompt';
     lastObservedModified = null;
     await deleteHandleFromIDB();
+    if (startupInvalidDb) return;
     if (isOnlineMode()) {
       updateUi('saved', 'Saved in Browser');
     } else {
@@ -2697,6 +2744,7 @@ export const Naizo: NaizoAPI = {
   },
   downloadHTML(filename?: string): string {
     const html = getCleanHtmlString(true);
+    if (startupInvalidDb) return html;
     const suggested =
       filename && filename.trim()
         ? filename.trim()

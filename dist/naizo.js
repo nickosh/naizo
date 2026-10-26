@@ -1067,10 +1067,10 @@
 		lastSerializedContent = serializeContentBuckets(store);
 		lastKnownDiskRaw = diskRaw.trim();
 		lastDiskDb = cloneDb(diskDb);
-		safeSetStorage(getSnapshotKey(), hashCanonicalDb(lastKnownDiskRaw));
 		hydrateSubtreeFromStore(document, preserveActive, false);
 		writeStoreToDomScript(store, false);
 		safeSetStorage(getPageKey(), JSON.stringify(store));
+		safeSetStorage(getSnapshotKey(), hashCanonicalDb(lastKnownDiskRaw));
 		if (hasCollision) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
 		else if (fileHandle) updateUi(browserKeptKeys ? "cached" : "saved", browserKeptKeys ? "Browser Cache · Pending Sync" : "Synced to Disk");
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
@@ -1259,7 +1259,8 @@
 		}, PERSIST_DEBOUNCE_MS);
 	}
 	async function connectOrResumeDisk() {
-		if (fileHandle) {
+		if (startupInvalidDb) return;
+		if (fileHandle) try {
 			const perm = await fileHandle.requestPermission({ mode: "readwrite" });
 			fileHandlePermission = perm;
 			if (perm === "granted") {
@@ -1267,6 +1268,11 @@
 				await writeToDisk();
 				return;
 			}
+			updateUi("needs-permission", "Resume Disk Sync");
+			return;
+		} catch {
+			fileHandle = null;
+			fileHandlePermission = "prompt";
 		}
 		if (typeof window.showSaveFilePicker === "function") try {
 			fileHandle = await window.showSaveFilePicker({
@@ -1650,21 +1656,30 @@
 			else if (dir === "down" && idx < rows.length - 1) Naizo.moveItem(listName, idx, idx + 1);
 		}
 	}
+	const handledKeyEvents = /* @__PURE__ */ new WeakSet();
 	function handleKeyDown(e) {
-		if (e.defaultPrevented) return;
+		if (e.defaultPrevented || handledKeyEvents.has(e)) return;
+		if (e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && resetConfirmEl && resetConfirmEl.style.display !== "none") {
+			handledKeyEvents.add(e);
+			e.preventDefault();
+			resetConfirmEl.style.display = "none";
+			resetBtn?.focus();
+			return;
+		}
 		if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
 		if ((e.key ?? "").toLowerCase() !== "s") return;
+		handledKeyEvents.add(e);
 		e.preventDefault();
+		const storedOk = flushPersistence(false);
+		if (startupInvalidDb) return;
 		if (isOnlineMode()) {
-			const storedOk = flushPersistence(false);
-			if (!startupInvalidDb && storedOk) updateUi("saved", "✓ Saved in Browser");
+			if (storedOk) updateUi("saved", "✓ Saved in Browser");
 			return;
 		}
 		if (fileHandle && fileHandlePermission === "granted") {
 			Naizo.save();
 			return;
 		}
-		flushPersistence(false);
 		connectOrResumeDisk();
 	}
 	function flushPendingOnHide() {
@@ -1697,23 +1712,36 @@
 		if (e.key !== getPageKey()) return;
 		const incomingDb = parseCachedState(e.newValue);
 		if (!incomingDb) return;
+		let mergedCollision = false;
 		if (persistTimeout !== null) {
 			const currentBrowserDb = cloneDb(ensureStore());
+			const oldDb = e.oldValue ? parseCachedState(e.oldValue) : null;
 			const storedSnap = safeGetStorage(getSnapshotKey());
-			const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases((storedSnap ? extractKeyHashManifest(storedSnap) : null) ?? (lastDiskDb ? {
+			const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(oldDb ? {
+				fields: buildKeyHashesForBucket(oldDb.fields),
+				lists: buildKeyHashesForBucket(oldDb.lists),
+				custom: buildKeyHashesForBucket(oldDb.custom)
+			} : (storedSnap ? extractKeyHashManifest(storedSnap) : null) ?? (lastDiskDb ? {
 				fields: buildKeyHashesForBucket(lastDiskDb.fields),
 				lists: buildKeyHashesForBucket(lastDiskDb.lists),
 				custom: buildKeyHashesForBucket(lastDiskDb.custom)
 			} : null), currentBrowserDb, incomingDb);
+			mergedCollision = hasCollision;
 			if (hasCollision) safeSetStorage(getBackupKey(), JSON.stringify(currentBrowserDb));
 			store = merged;
 			if (browserKeptKeys) schedulePersist();
+			else {
+				clearTimeout(persistTimeout);
+				persistTimeout = null;
+			}
 		} else store = cloneDb(incomingDb);
 		storeInitialized = true;
 		lastSerializedContent = serializeContentBuckets(store);
 		hydrateSubtreeFromStore(document, true, false);
 		writeStoreToDomScript(store, false);
-		if (isOnlineMode()) updateUi("saved", "Saved in Browser");
+		if (mergedCollision) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
+		else if (isOnlineMode()) updateUi("saved", "Saved in Browser");
+		else if (!fileHandle) updateUi("cached", "Browser Cache · Click to Link Disk");
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 	}
 	function detachListeners() {
@@ -1924,7 +1952,7 @@
 				saveTimeout = null;
 			}
 			if (startupInvalidDb || !initialDiskDb) return;
-			safeSetStorage(getBackupKey(), JSON.stringify(ensureStore()));
+			if (isDirtyFromInitial()) safeSetStorage(getBackupKey(), JSON.stringify(ensureStore()));
 			store = cloneDb(initialDiskDb);
 			storeInitialized = true;
 			safeRemoveStorage(getPageKey());
@@ -1947,6 +1975,7 @@
 			fileHandlePermission = "prompt";
 			lastObservedModified = null;
 			await deleteHandleFromIDB();
+			if (startupInvalidDb) return;
 			if (isOnlineMode()) updateUi("saved", "Saved in Browser");
 			else updateUi("cached", "Browser Cache · Click to Link Disk");
 		},
@@ -1963,6 +1992,7 @@
 		},
 		downloadHTML(filename) {
 			const html = getCleanHtmlString(true);
+			if (startupInvalidDb) return html;
 			const suggested = filename && filename.trim() ? filename.trim() : location.pathname.split("/").pop() || "index.html";
 			const finalName = /\.html?$/i.test(suggested) ? suggested : `${suggested}.html`;
 			if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {

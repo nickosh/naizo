@@ -664,111 +664,125 @@
           }
         }
 
+        let isSyncingUi = false;
+
         function syncNotebookUi() {
-          if (!window.Naizo) return;
-          applyTheme();
+          if (!window.Naizo || isSyncingUi) return;
+          isSyncingUi = true;
+          try {
+            applyTheme();
 
-          const notes = ensureNoteIds();
-          const filtered = getFilteredNoteEntries(notes);
-          let activeId = window.Naizo.get('activeNoteId');
+            const notes = ensureNoteIds();
+            const filtered = getFilteredNoteEntries(notes);
+            let activeId = window.Naizo.get('activeNoteId');
 
-          const activeStillVisible = filtered.some(function (entry) {
-            return entry.note.id === activeId;
-          });
-          if (!activeStillVisible) {
-            activeId = filtered[0] ? filtered[0].note.id : notes[0] ? notes[0].note.id : '';
-            if (activeId && activeId !== window.Naizo.get('activeNoteId')) {
-              window.Naizo.set('activeNoteId', activeId);
+            const activeStillVisible = filtered.some(function (entry) {
+              return entry.note.id === activeId;
+            });
+            if (!activeStillVisible) {
+              if (filtered.length > 0) {
+                activeId = filtered[0].note.id;
+                if (activeId && activeId !== window.Naizo.get('activeNoteId')) {
+                  window.Naizo.set('activeNoteId', activeId);
+                }
+              } else if (notes.length === 0) {
+                activeId = '';
+                if (window.Naizo.get('activeNoteId')) {
+                  window.Naizo.set('activeNoteId', '');
+                }
+              }
             }
-          }
 
-          const panes = notesListEl
-            ? Array.from(
-                notesListEl.querySelectorAll(':scope > [naizo-item], :scope > [data-naizo-item]'),
-              )
-            : [];
-          let activeNoteObj = null;
+            const panes = notesListEl
+              ? Array.from(
+                  notesListEl.querySelectorAll(':scope > [naizo-item], :scope > [data-naizo-item]'),
+                )
+              : [];
+            let activeNoteObj = null;
 
-          for (let i = 0; i < panes.length; i += 1) {
-            const pane = panes[i];
-            const note = notes[i];
-            const isActive = Boolean(note && note.id === activeId && filtered.length > 0);
-            pane.classList.toggle('is-active', isActive);
-            pane.setAttribute('data-note-id', note && typeof note.id === 'string' ? note.id : '');
-            if (isActive && note) {
-              activeNoteObj = note;
+            for (let i = 0; i < panes.length; i += 1) {
+              const pane = panes[i];
+              const note = notes[i];
+              const isActive = Boolean(note && note.id === activeId && filtered.length > 0);
+              pane.classList.toggle('is-active', isActive);
+              pane.setAttribute('data-note-id', note && typeof note.id === 'string' ? note.id : '');
+              if (isActive && note) {
+                activeNoteObj = note;
+              }
             }
-          }
 
-          if (emptyStateEl) {
-            emptyStateEl.style.display = activeNoteObj ? 'none' : 'block';
-          }
+            if (emptyStateEl) {
+              emptyStateEl.style.display = activeNoteObj ? 'none' : 'block';
+            }
 
-          if (indexListEl) {
-            indexListEl.textContent = '';
-            for (let i = 0; i < filtered.length; i += 1) {
-              const entry = filtered[i];
-              const note = entry.note;
-              const li = document.createElement('li');
-              li.className = 'note-index-item' + (note.id === activeId ? ' is-active' : '');
-              li.setAttribute('role', 'option');
-              li.setAttribute('aria-selected', note.id === activeId ? 'true' : 'false');
-              li.setAttribute('data-note-id', String(note.id || ''));
+            if (indexListEl) {
+              indexListEl.textContent = '';
+              for (let i = 0; i < filtered.length; i += 1) {
+                const entry = filtered[i];
+                const note = entry.note;
+                const li = document.createElement('li');
+                li.className = 'note-index-item' + (note.id === activeId ? ' is-active' : '');
+                li.setAttribute('role', 'option');
+                li.setAttribute('aria-selected', note.id === activeId ? 'true' : 'false');
+                li.setAttribute('data-note-id', String(note.id || ''));
 
-              const topRow = document.createElement('div');
-              topRow.className = 'note-index-top';
+                const topRow = document.createElement('div');
+                topRow.className = 'note-index-top';
 
-              const titleSpan = document.createElement('span');
-              titleSpan.className = 'note-index-title';
-              titleSpan.textContent = String(note.title || 'Untitled Note');
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'note-index-title';
+                titleSpan.textContent = String(note.title || 'Untitled Note');
 
-              const pinBtn = document.createElement('button');
-              pinBtn.type = 'button';
-              pinBtn.className = 'sidebar-pin-btn' + (note.pinned ? ' is-pinned' : '');
-              pinBtn.title = note.pinned ? 'Unpin note' : 'Pin note';
-              pinBtn.setAttribute('aria-label', note.pinned ? 'Unpin note' : 'Pin note');
-              pinBtn.textContent = note.pinned ? '★' : '☆';
-              pinBtn.addEventListener('click', function (ev) {
-                ev.stopPropagation();
-                window.Naizo.updateItem('notes', entry.index, {
-                  pinned: !note.pinned,
-                  updatedAt: new Date().toISOString(),
+                const pinBtn = document.createElement('button');
+                pinBtn.type = 'button';
+                pinBtn.className = 'sidebar-pin-btn' + (note.pinned ? ' is-pinned' : '');
+                pinBtn.title = note.pinned ? 'Unpin note' : 'Pin note';
+                pinBtn.setAttribute('aria-label', note.pinned ? 'Unpin note' : 'Pin note');
+                pinBtn.textContent = note.pinned ? '★' : '☆';
+                pinBtn.addEventListener('click', function (ev) {
+                  ev.stopPropagation();
+                  window.Naizo.updateItem('notes', entry.index, {
+                    pinned: !note.pinned,
+                    updatedAt: new Date().toISOString(),
+                  });
                 });
-              });
 
-              topRow.appendChild(titleSpan);
-              topRow.appendChild(pinBtn);
+                topRow.appendChild(titleSpan);
+                topRow.appendChild(pinBtn);
 
-              const metaRow = document.createElement('div');
-              metaRow.className = 'note-index-meta';
+                const metaRow = document.createElement('div');
+                metaRow.className = 'note-index-meta';
 
-              const catSpan = document.createElement('span');
-              catSpan.className = 'category-pill';
-              catSpan.textContent = String(note.category || 'Scratchpad');
+                const catSpan = document.createElement('span');
+                catSpan.className = 'category-pill';
+                catSpan.textContent = String(note.category || 'Scratchpad');
 
-              const tasks = countMarkdownTasks(note.body);
-              const taskSpan = document.createElement('span');
-              taskSpan.textContent =
-                tasks.total > 0
-                  ? tasks.done + '/' + tasks.total + ' tasks'
-                  : countWords(note.body) + ' words';
+                const tasks = countMarkdownTasks(note.body);
+                const taskSpan = document.createElement('span');
+                taskSpan.textContent =
+                  tasks.total > 0
+                    ? tasks.done + '/' + tasks.total + ' tasks'
+                    : countWords(note.body) + ' words';
 
-              metaRow.appendChild(catSpan);
-              metaRow.appendChild(taskSpan);
+                metaRow.appendChild(catSpan);
+                metaRow.appendChild(taskSpan);
 
-              li.appendChild(topRow);
-              li.appendChild(metaRow);
+                li.appendChild(topRow);
+                li.appendChild(metaRow);
 
-              li.addEventListener('click', function () {
-                window.Naizo.set('activeNoteId', note.id);
-                syncNotebookUi();
-              });
+                li.addEventListener('click', function () {
+                  window.Naizo.set('activeNoteId', note.id);
+                  syncNotebookUi();
+                });
 
-              indexListEl.appendChild(li);
+                indexListEl.appendChild(li);
+              }
             }
-          }
 
-          updateActiveMetrics(activeNoteObj);
+            updateActiveMetrics(activeNoteObj);
+          } finally {
+            isSyncingUi = false;
+          }
         }
 
         function createNewNote() {
@@ -831,7 +845,7 @@
         window.addEventListener('keydown', function (e) {
           if (!e.altKey || e.metaKey || e.ctrlKey) return;
           const key = (e.key || '').toLowerCase();
-          if (key === 'n') {
+          if ((key === 'n' || e.code === 'KeyN') && !e.shiftKey) {
             e.preventDefault();
             createNewNote();
             return;
