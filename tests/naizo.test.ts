@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { runInThisContext } from 'node:vm';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import iifeBundleCode from '../dist/naizo.js?raw';
@@ -2283,5 +2285,56 @@ describe('naizo.js v0.1.0 core runtime', () => {
       }),
     );
     expect(Naizo.get('activeNoteId')).not.toBe(createdNoteId);
+  });
+
+  it('validates M5 deliverables (docs/USAGE.md, skills/naizo/SKILL.md) and safe surgical #naizodb CLI replacement with $1/$& payloads', () => {
+    const usagePath = resolve(process.cwd(), 'docs/USAGE.md');
+    const skillPath = resolve(process.cwd(), 'skills/naizo/SKILL.md');
+    const usageMd = readFileSync(usagePath, 'utf-8');
+    const skillMd = readFileSync(skillPath, 'utf-8');
+
+    // Verify skills/naizo/SKILL.md YAML frontmatter
+    expect(skillMd.startsWith('---\n')).toBe(true);
+    expect(skillMd).toContain('name: naizo\n');
+    expect(skillMd).toContain('license: MIT\n');
+    expect(skillMd).toContain('description: ');
+
+    // Both docs/USAGE.md and skills/naizo/SKILL.md must use a replacement callback function
+    // rather than `$1\n${json}\n$3` so dollar signs ($1, $&) in JSON values never corrupt #naizodb
+    expect(usageMd).not.toContain('`$1\\n${json}\\n$3`');
+    expect(skillMd).not.toContain('`$1\\n${json}\\n$3`');
+    expect(usageMd).toContain('(_m, open, _inner, close) => `${open}\\n${json}\\n${close}`');
+    expect(skillMd).toContain('(_m, open, _inner, close) => `${open}\\n${json}\\n${close}`');
+
+    // Verify the documented surgical replacement regex & callback safely round-trip $1, $&, and </script>
+    const sampleHtml = [
+      '<!doctype html><html><head>',
+      '<script id="naizodb-other" type="application/json">{"ignored":true}</script>',
+      '<script id="naizodb" type="application/json">',
+      '{"_meta":{},"fields":{"note":"initial"},"lists":{},"custom":{}}',
+      '</script>',
+      '</head><body></body></html>',
+    ].join('\n');
+
+    const re =
+      /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
+    const match = sampleHtml.match(re);
+    expect(match).not.toBeNull();
+    const db = JSON.parse(match![2]!);
+    db.fields.note = 'Price is $100 ($1 / $& / $3) and </script> tag';
+    const json = JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
+    const updatedHtml = sampleHtml.replace(
+      re,
+      (_m, open, _inner, close) => `${open}\n${json}\n${close}`,
+    );
+
+    // Ensure #naizodb-other was untouched and #naizodb parses back with exact $1/$& string intact
+    expect(updatedHtml).toContain(
+      '<script id="naizodb-other" type="application/json">{"ignored":true}</script>',
+    );
+    const verifyMatch = updatedHtml.match(re);
+    expect(verifyMatch).not.toBeNull();
+    const parsedBack = JSON.parse(verifyMatch![2]!);
+    expect(parsedBack.fields.note).toBe('Price is $100 ($1 / $& / $3) and </script> tag');
   });
 });

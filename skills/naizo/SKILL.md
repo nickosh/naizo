@@ -233,9 +233,20 @@ Use for multi-note engineering notebooks, ADR explorers, prompt libraries, or mu
 - **Key architectural rule:** Never wipe and copy note text into a single shared `<textarea>`. Instead, render every note as a live `[naizo-item]` inside `<div naizo-list="notes" naizo-no-controls>`, store the selected ID in `db.custom.activeNoteId`, and toggle `.is-active` (`display: flex` vs. `display: none`) on the matching `[naizo-item]` pane via CSS:
 
 ```html
+<style>
+  [naizo-list='notes'] > .note-pane {
+    display: none;
+  }
+  [naizo-list='notes'] > .note-pane.is-active {
+    display: flex;
+    flex-direction: column;
+  }
+</style>
+
 <!-- Sidebar index (excluded from state binding via naizo-ignore) -->
 <aside naizo-ignore>
   <input id="note-search" type="search" placeholder="Search notes..." />
+  <button id="new-note-btn" type="button">+ New Note</button>
   <div id="note-sidebar-list"></div>
 </aside>
 
@@ -271,6 +282,18 @@ Use for multi-note engineering notebooks, ADR explorers, prompt libraries, or mu
       syncing = false;
     }
   }
+  document.getElementById('new-note-btn').addEventListener('click', () => {
+    const id = 'note-' + Date.now();
+    Naizo.addItem('notes', {
+      id,
+      title: 'Untitled',
+      category: 'Architecture',
+      pinned: false,
+      updatedAt: new Date().toISOString(),
+      body: '',
+    });
+    Naizo.set('activeNoteId', id);
+  });
   window.addEventListener('naizo:hydrate', syncNotebookUi);
   window.addEventListener('naizo:change', syncNotebookUi);
 </script>
@@ -307,7 +330,7 @@ window.addEventListener('naizo:change', applyFilter);
 **Persisted collapsible sections & tabs:**
 
 - For collapsible sections, bind `<details naizo="section_open" open>` directly (zero JS required).
-- For view tabs, bind radio buttons `<input type="radio" name="tab" value="overview" naizo="active_tab">` and toggle `panel.hidden = panel.dataset.tab !== Naizo.getField('active_tab')` on `naizo:hydrate` and `naizo:change`.
+- For view tabs, bind radio buttons `<input type="radio" name="tab" value="overview" naizo="active_tab" checked>` and toggle `panel.hidden = panel.dataset.tab !== (Naizo.getField('active_tab') || 'overview')` on `naizo:hydrate` and `naizo:change`.
 
 ---
 
@@ -318,14 +341,14 @@ When modifying an existing `naizo.js` `.html` file on disk to update data (`fiel
 1. Read the file and extract the JSON inside `<script id="naizodb" type="application/json">...</script>`.
 2. Parse the JSON and update `db.fields`, `db.lists`, or `db.custom` while keeping untouched keys intact.
 3. Update `db._meta = { ...db._meta, updatedAt: new Date().toISOString() }`.
-4. Serialize with `JSON.stringify(db, null, 2).replace(/</g, '\\u003c')` and replace **only** the `<script id="naizodb">...</script>` block in the HTML file:
+4. Serialize with `JSON.stringify(db, null, 2).replace(/</g, '\\u003c')` and replace **only** the `<script id="naizodb">...</script>` block in the HTML file (using a callback replacement function so `$1` or `$&` inside user JSON values are never interpreted as regex capture groups):
 
 ```bash
 node -e '
 const fs = require("fs");
 const file = "plan.html";
 const html = fs.readFileSync(file, "utf8");
-const re = /(<script\b[^>]*\bid=["\x27]?naizodb["\x27]?[^>]*>)([\s\S]*?)(<\/script>)/i;
+const re = /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
 const match = html.match(re);
 if (!match) throw new Error("Missing #naizodb block");
 const db = JSON.parse(match[2]);
@@ -335,7 +358,7 @@ db.fields.status = "Approved";
 db._meta = { ...db._meta, updatedAt: new Date().toISOString() };
 
 const json = JSON.stringify(db, null, 2).replace(/</g, "\\u003c");
-fs.writeFileSync(file, html.replace(re, `$1\n${json}\n$3`), "utf8");
+fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n${json}\n${close}`), "utf8");
 '
 ```
 

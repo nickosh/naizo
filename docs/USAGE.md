@@ -429,7 +429,7 @@ A single `naizo.js` `.html` file adapts automatically depending on whether it is
 | Capability / UI Element           | Local Mode (`file://`, `localhost`, or linked file)                                                                                                                                              | Online Mode (Remote `https://` static host, unlinked)                                                                                                                                                            |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Default Status Pill**           | Amber **`Browser Cache · Click to Link Disk`** until linked; Green **`Synced to Disk`** after `writable.close()` completes (`EC36`).                                                             | Green **`Saved in Browser`** when `localStorage` is active (or Amber **`In-Memory Only`** if storage is blocked).                                                                                                |
-| **Primary Pill Button**           | **`Link Disk`** (or **`Resume`** if handle permission needs re-granting; hidden once actively synced).                                                                                           | **`⬇ Save to PC`** (`Naizo.downloadHTML()`).                                                                                                                                                                     |
+| **Primary Pill Button**           | **`Link Disk`** (or **`Resume Disk Sync`** if handle permission needs re-granting; hidden once actively synced).                                                                                 | **`⬇ Save to PC`** (`Naizo.downloadHTML()`).                                                                                                                                                                     |
 | **`⌘S` / `Ctrl+S` Shortcut**      | Suppresses native browser _"Save Webpage, Complete"_ dialog; invokes `Naizo.save()` if granted, or opens `showSaveFilePicker()` / permission prompt directly from the keyboard gesture (`EC47`). | Suppresses native browser save dialog; flushes `localStorage` immediately and flashes **`✓ Saved in Browser`** on the status pill.                                                                               |
 | **Tab Hide / Switch (`Cmd+Tab`)** | Synchronously flushes `localStorage` AND immediately starts `writeToDisk()` if a debounced edit was pending (`M4.5b`, `EC47`).                                                                   | Synchronously flushes `localStorage`.                                                                                                                                                                            |
 | **Secondary Reset / Unlink**      | **`× Unlink`** (`Naizo.unlink()`) shown when a `fileHandle` is linked.                                                                                                                           | **`↺ Reset`** (`Naizo.reset()`) shown whenever state differs from the initial published baseline (`initialDiskDb`), guarded by an inline Shadow DOM confirmation popover + backup to **`↺ Restore`**.            |
@@ -439,9 +439,8 @@ A single `naizo.js` `.html` file adapts automatically depending on whether it is
 
 The floating bottom-right pill is isolated inside a Shadow DOM root (`#__naizodb_host__`) and surfaces contextual actions:
 
-- **`Link Disk` / `Resume` / `⬇ Save to PC` (`#action`):** Links or resumes the `FileSystemFileHandle` in Local Mode, or downloads a portable `.html` copy in Online Mode.
-- **`↺ Restore` (`#restore`):** Appears whenever `naizodb_backup_<key>` exists (after an external disk collision or after confirming `↺ Reset`). Restores the backed-up state into `store`, DOM, `localStorage`, and disk.
-- **`↺ Repair` (`#repair`):** Appears only when startup `<script id="naizodb">` contains invalid JSON (`EC04`), allowing 1-click recovery from the in-memory store.
+- **`Link Disk` / `Resume Disk Sync` / `⬇ Save to PC` (`#action`):** Links or resumes the `FileSystemFileHandle` in Local Mode, or downloads a portable `.html` copy in Online Mode.
+- **`↺ Restore` / `↺ Repair` (`#restore`):** Appears as **`↺ Restore`** whenever `naizodb_backup_<key>` exists (after an external disk collision or after confirming `↺ Reset`) to restore the backed-up state into `store`, DOM, `localStorage`, and disk; or switches its label to **`↺ Repair`** when startup `<script id="naizodb">` contains invalid JSON (`EC04`), allowing 1-click recovery from the in-memory store.
 - **`📋 Copy` (`#copy`):** Calls `Naizo.copyJSON()` to copy the 2-space formatted `#naizodb` JSON to the clipboard and flashes `✓ Copied`. Ideal for pasting state into an AI chat window or when running in Safari/Firefox without `showSaveFilePicker`.
 - **`× Unlink` (`#unlink`):** Appears in Local Mode when a `fileHandle` is linked; forgets the persisted handle from IndexedDB (`Naizo.unlink()`).
 - **`↺ Reset` (`#reset`):** Appears in Online Mode when the user has made edits (`isDirtyFromInitial()`). Opens the inline `#reset-confirm` popover (`Reset app to initial state?` with **`Reset`** and **`Cancel`**, also dismissible via `Escape`).
@@ -476,17 +475,17 @@ When a `FileSystemFileHandle` is linked with `'granted'` `readwrite` permission:
 Instead of storing a full duplicate copy of `#naizodb` in `localStorage`, `naizodb_disk_hash_<key>` stores a compact FNV-1a hash manifest of the last known disk state (`EC46`):
 
 ```text
-fnv1a:<rootHash>|fields:owner=1a2b3c4d,title=5e6f7a8b|lists:tasks=9c0d1e2f|custom:theme=3a4b5c6d
+fnv1a:<rootHash>|{"fields":{"owner":"fnv1a:1a2b3c4d"},"lists":{"tasks":"fnv1a:9c0d1e2f"},"custom":{"theme":"fnv1a:3a4b5c6d"}}
 ```
 
 When an external disk edit is detected (and the browser also has uncommitted or cached edits), `shallowMergeDatabases()` performs a **3-way shallow top-level key merge** across `fields[k]`, `lists[k]`, and `custom[k]` using the per-key base hashes:
 
-| Key State Since Last Disk Snapshot             | Merge Outcome                                                                                                                                                                                                                 |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Only **Browser** changed `fields.owner`        | **Browser value kept** (and scheduled for disk write-back).                                                                                                                                                                   |
-| Only **Disk (AI Agent)** changed `lists.tasks` | **Disk value adopted** into the live DOM and store.                                                                                                                                                                           |
-| Both changed **different** top-level keys      | **Both changes survive cleanly** with zero conflict warning.                                                                                                                                                                  |
-| Both changed the **same** key (`lists.tasks`)  | **Disk wins** by default, while the pre-merge browser state is saved to `naizodb_backup_<key>` and the status pill shows purple **`External Disk Edit · Conflict Backed Up`** with a 1-click **`↺ Restore`** button (`EC17`). |
+| Key State Since Last Disk Snapshot             | Merge Outcome                                                                                                                                                                                                                |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only **Browser** changed `fields.owner`        | **Browser value kept** (and scheduled for disk write-back).                                                                                                                                                                  |
+| Only **Disk (AI Agent)** changed `lists.tasks` | **Disk value adopted** into the live DOM and store.                                                                                                                                                                          |
+| Both changed **different** top-level keys      | **Both changes survive cleanly** with zero conflict warning.                                                                                                                                                                 |
+| Both changed the **same** key (`lists.tasks`)  | **Disk wins** by default, while the pre-merge browser state is saved to `naizodb_backup_<key>` and the status pill shows amber **`External Disk Edit · Conflict Backed Up`** with a 1-click **`↺ Restore`** button (`EC17`). |
 
 **Active-element mid-keystroke guard (`EC10`):** When a live external update hydrates the DOM while you are actively typing inside a bound input (`document.activeElement`), `hydrateSubtreeFromStore()` skips overwriting `document.activeElement` so your cursor position and in-progress keystrokes are never clobbered.
 
@@ -636,7 +635,7 @@ node -e '
 const fs = require("fs");
 const file = "plan.html";
 const html = fs.readFileSync(file, "utf8");
-const re = /(<script\b[^>]*\bid=["\x27]?naizodb["\x27]?[^>]*>)([\s\S]*?)(<\/script>)/i;
+const re = /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
 const match = html.match(re);
 if (!match) throw new Error("Missing #naizodb block");
 const db = JSON.parse(match[2]);
@@ -648,7 +647,7 @@ db.lists.milestones.push({ done: false, task: "Added by CLI agent on disk", owne
 db._meta = { ...db._meta, updatedAt: new Date().toISOString() };
 
 const json = JSON.stringify(db, null, 2).replace(/</g, "\\u003c");
-fs.writeFileSync(file, html.replace(re, `$1\n${json}\n$3`), "utf8");
+fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n${json}\n${close}`), "utf8");
 '
 ```
 
@@ -664,7 +663,7 @@ Resulting storage keys:
 - `naizodb_state_<normalizedPath>::<scopeId>` (current cached `NaizoDatabase`)
 - `naizodb_disk_hash_<normalizedPath>::<scopeId>` (compact `fnv1a:` disk snapshot manifest)
 - `naizodb_backup_<normalizedPath>::<scopeId>` (pre-merge collision or pre-reset backup)
-- IndexedDB `NaizoDB_Handles` -> `handles` store -> key `file_handle_<normalizedPath>::<scopeId>`
+- IndexedDB `NaizoDB_Handles` -> `handles` store -> key `naizodb_state_<normalizedPath>::<scopeId>`
 
 **Tip for multi-repo developer hubs:** Always set a unique `<html naizo-id="repo-name-plan">` (or `_meta.id`) when generating specs or dashboards across projects. You can then symlink project HTML files into a central local folder or serve them on the same `localhost` port without `localStorage` or linked `FileSystemFileHandle` collisions.
 
