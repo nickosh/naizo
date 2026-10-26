@@ -737,3 +737,15 @@ cat << 'EOF' > plan.html
 </html>
 EOF
 ```
+
+### Workflow 5: Equipping AI Coding Agents with [`skills/naizo/SKILL.md`](../skills/naizo/SKILL.md)
+
+Install the distributable [`skills/naizo/SKILL.md`](../skills/naizo/SKILL.md) skill into any workspace so Claude Code, Antigravity, Cursor, Gemini CLI, and Codex know how to author `naizo.js` artifacts and surgically update `#naizodb` on disk:
+
+```bash
+# Antigravity, Cursor, Codex, Gemini CLI
+mkdir -p .agents/skills/naizo && cp path/to/naizo/skills/naizo/SKILL.md .agents/skills/naizo/SKILL.md
+
+# Claude Code
+mkdir -p .claude/skills/naizo && cp path/to/naizo/skills/naizo/SKILL.md .claude/skills/naizo/SKILL.md
+```

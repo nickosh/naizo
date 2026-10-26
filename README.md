@@ -10,7 +10,7 @@
 
 _Turn static HTML files into self-saving apps with built-in JSON state (`#naizodb`) for Human + AI workflows._
 
-[Quick Start](#quick-start) · [Starter Examples](#starter-examples) · [Attributes](#declarative-html-attributes) · [JS API](#javascript-api-windownaizo--windownaizodb) · [Full Usage Guide](docs/USAGE.md)
+[Quick Start](#quick-start) · [Starter Examples](#starter-examples) · [AI Agent Skill](#ai-agent-skill-skillsnaizoskillmd) · [Attributes](#declarative-html-attributes) · [JS API](#javascript-api-windownaizo--windownaizodb) · [Full Usage Guide](docs/USAGE.md)
 
 </div>
 
@@ -151,6 +151,22 @@ Copy any of the self-contained single-file apps in [`examples/`](examples/) to j
 | **[`examples/checklist.html`](examples/checklist.html)** | **Release Verification Checklist** — Pre-release sign-off sheet with reviewer metadata, environment dropdown, release readiness toggle, prioritized verification items, and blocker notes.                                                                                                |
 | **[`examples/notes.html`](examples/notes.html)**         | **Master–Detail Engineering Notebook** — Multi-note workspace built declaratively on `[naizo-list="notes"]` with sidebar search & category filters, note pinning, live character/word/task (`- [ ]`) counters, `Alt+N` / `Alt+↑/↓` keyboard navigation, and Light/Dark theme persistence. |
 | **[`examples/inventory.html`](examples/inventory.html)** | **Asset & Inventory Studio** — Filterable card grid with custom per-card JSON key-value badges, `<dialog>` creation/property modals, dynamic location filter options, live KPI summaries, and non-destructive sorting.                                                                    |
+
+---
+
+## AI Agent Skill (`skills/naizo/SKILL.md`)
+
+Want your AI coding agent (Claude Code, Antigravity, Cursor, Gemini CLI, or Codex) to automatically generate self-saving `naizo.js` HTML apps and co-edit `#naizodb` on disk? Copy [`skills/naizo/SKILL.md`](skills/naizo/SKILL.md) into your project's skills folder:
+
+```bash
+# Antigravity, Cursor, Codex, Gemini CLI
+mkdir -p .agents/skills/naizo
+curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
+
+# Claude Code
+mkdir -p .claude/skills/naizo
+curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
+```
 
 ---
 
