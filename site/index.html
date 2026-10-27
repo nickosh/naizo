@@ -1,35 +1,44 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="system">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>naizo.js — Interactive Spec & Playground</title>
+    <meta
+      name="description"
+      content="naizo.js — Zero-dependency, self-persisting HTML built-in database (#naizodb) and declarative list repeater for Human + AI Agent workflows."
+    />
+    <title>naizo.js — Self-Persisting HTML &amp; Built-In Database (#naizodb)</title>
 
-    <!-- 1. Embedded #naizodb JSON State (Readable & Editable by AI Agents on Disk) -->
+    <!-- 1. Canonical #naizodb JSON State (Readable & Editable by Humans and AI Agents) -->
     <script id="naizodb" type="application/json">
       {
         "_meta": {
-          "updatedAt": "2026-10-18T08:00:00.000Z"
+          "id": "naizo-site-playground",
+          "updatedAt": "2026-10-27T08:00:00.000Z"
         },
         "fields": {
           "feature_title": "OAuth2 & Rate-Limiting Spec",
           "owner": "Kenji",
           "status": "In Review",
-          "notes": "Click anywhere in this box to edit architecture notes directly. Refresh the page—or click 'Link Disk' in the bottom right—to see your changes persist directly into index.html!"
+          "theme": "system",
+          "notes": "Click anywhere in this box to edit architecture notes directly. Refresh the page, press ⌘S / Ctrl+S, or click Save to PC in the bottom-right pill—every change persists into #naizodb!"
         },
         "lists": {
           "tasks": [
             {
+              "id": "task-1",
               "done": true,
               "title": "Design PKCE token exchange flow",
               "priority": "High"
             },
             {
+              "id": "task-2",
               "done": false,
               "title": "Implement Redis token-bucket middleware",
               "priority": "High"
             },
             {
+              "id": "task-3",
               "done": false,
               "title": "Add integration tests for 429 burst responses",
               "priority": "Med"
@@ -48,206 +57,1514 @@
     <style>
       :root {
         --bg: #f8fafc;
-        --card: #ffffff;
+        --surface: #ffffff;
+        --surface-muted: #f1f5f9;
+        --code-bg: #0f172a;
+        --code-text: #e2e8f0;
         --border: #e2e8f0;
         --text: #0f172a;
-        --muted: #64748b;
+        --muted: #475569;
         --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --accent-soft: #dbeafe;
+        --accent-text: #1e40af;
+        --emerald: #059669;
+        --emerald-soft: #d1fae5;
+        --amber: #d97706;
+        --amber-soft: #fef3c7;
+        --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
       }
+
+      html[data-theme='dark'] {
+        --bg: #0b1120;
+        --surface: #111827;
+        --surface-muted: #1e293b;
+        --code-bg: #020617;
+        --code-text: #e2e8f0;
+        --border: #334155;
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #3b82f6;
+        --accent-hover: #60a5fa;
+        --accent-soft: #1e3a8a;
+        --accent-text: #bfdbfe;
+        --emerald: #10b981;
+        --emerald-soft: #064e3b;
+        --amber: #f59e0b;
+        --amber-soft: #78350f;
+        --shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme='light']) {
+          --bg: #0b1120;
+          --surface: #111827;
+          --surface-muted: #1e293b;
+          --code-bg: #020617;
+          --code-text: #e2e8f0;
+          --border: #334155;
+          --text: #f8fafc;
+          --muted: #94a3b8;
+          --accent: #3b82f6;
+          --accent-hover: #60a5fa;
+          --accent-soft: #1e3a8a;
+          --accent-text: #bfdbfe;
+          --emerald: #10b981;
+          --emerald-soft: #064e3b;
+          --amber: #f59e0b;
+          --amber-soft: #78350f;
+          --shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
+        margin: 0;
         font-family:
           system-ui,
           -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
           sans-serif;
         background: var(--bg);
         color: var(--text);
-        max-width: 760px;
-        margin: 2.5rem auto;
-        padding: 0 1.25rem 5rem;
-        line-height: 1.5;
+        line-height: 1.6;
+        padding-bottom: 5.5rem;
       }
-      header {
-        margin-bottom: 1.5rem;
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
       }
-      .badge {
-        display: inline-block;
-        background: #dbeafe;
-        color: #1d4ed8;
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      code,
+      pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.875em;
+      }
+
+      :not(pre) > code {
+        background: var(--surface-muted);
+        border: 1px solid var(--border);
+        padding: 0.12rem 0.38rem;
+        border-radius: 5px;
+      }
+
+      .site-nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0.75rem 1.25rem;
+      }
+
+      .site-nav-inner {
+        max-width: 1160px;
+        margin: 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 1.25rem;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-weight: 800;
+        font-size: 1.15rem;
+        color: var(--text);
+      }
+
+      .brand:hover {
+        text-decoration: none;
+      }
+
+      .brand-kanji {
         font-size: 0.75rem;
         font-weight: 600;
-        padding: 2px 8px;
+        background: var(--accent-soft);
+        color: var(--accent-text);
+        padding: 0.15rem 0.5rem;
         border-radius: 999px;
+      }
+
+      .nav-links {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.9rem;
+        font-size: 0.875rem;
+      }
+
+      .nav-links a {
+        color: var(--muted);
+        font-weight: 500;
+      }
+
+      .nav-links a:hover {
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .theme-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: var(--surface-muted);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 0.4rem 0.75rem;
+        font: inherit;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease;
+      }
+
+      .btn:hover {
+        border-color: var(--accent);
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #ffffff;
+        border-color: var(--accent);
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        color: #ffffff;
+        text-decoration: none;
+      }
+
+      .container {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 0 1.25rem;
+      }
+
+      .hero {
+        padding: 3rem 0 2.25rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .pill-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+      }
+
+      .pill-badge strong {
+        color: var(--text);
+      }
+
+      .hero h1 {
+        font-size: clamp(1.85rem, 3.6vw, 2.75rem);
+        line-height: 1.18;
+        margin: 0 0 0.85rem;
+        letter-spacing: -0.02em;
+      }
+
+      .hero-lead {
+        font-size: 1.1rem;
+        color: var(--muted);
+        max-width: 820px;
+        margin: 0 0 1.5rem;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 2rem;
+      }
+
+      .dual-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.15rem;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.35rem;
+        box-shadow: var(--shadow);
+      }
+
+      .card h2,
+      .card h3 {
+        margin-top: 0;
+      }
+
+      .etymology-tag {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 0.15rem 0.55rem;
+        border-radius: 6px;
+        background: var(--accent-soft);
+        color: var(--accent-text);
         margin-bottom: 0.5rem;
       }
-      h1[contenteditable='true'] {
-        margin: 0.25rem 0;
-        font-size: 1.75rem;
-        padding: 2px 6px;
-        margin-left: -6px;
-        border-radius: 6px;
+
+      .section {
+        padding: 2.75rem 0;
+        border-bottom: 1px solid var(--border);
       }
-      .card {
-        background: var(--card);
+
+      .section-header {
+        margin-bottom: 1.5rem;
+      }
+
+      .section-header h2 {
+        font-size: 1.6rem;
+        margin: 0 0 0.35rem;
+        letter-spacing: -0.01em;
+      }
+
+      .section-header p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      /* Loop & Terminal Section */
+      .loop-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .loop-step {
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 10px;
-        padding: 1.25rem;
-        margin-bottom: 1.25rem;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+        padding: 1.1rem;
       }
-      .card h2 {
-        margin-top: 0;
+
+      .loop-step-num {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--accent);
+        margin-bottom: 0.3rem;
+      }
+
+      .loop-step h3 {
+        margin: 0 0 0.4rem;
         font-size: 1rem;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
       }
-      .meta-grid {
+
+      .loop-step p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+
+      .terminal-box {
+        background: var(--code-bg);
+        color: var(--code-text);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+
+      .terminal-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.55rem 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.78rem;
+        color: #94a3b8;
+      }
+
+      .terminal-box pre,
+      .terminal-pre {
+        margin: 0;
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+        font-size: 0.82rem;
+        line-height: 1.55;
+      }
+
+      /* Playground Split Layout */
+      .playground-split {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 1.35rem;
+        align-items: start;
+      }
+
+      @media (max-width: 920px) {
+        .playground-split {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .playground-stack {
+        display: flex;
+        flex-direction: column;
         gap: 1rem;
       }
-      label {
+
+      .spec-title-edit {
+        margin: 0.2rem 0 0.75rem;
+        font-size: 1.45rem;
+        padding: 0.2rem 0.45rem;
+        margin-left: -0.45rem;
+        border-radius: 6px;
+        border: 1px dashed transparent;
+      }
+
+      .spec-title-edit:hover {
+        border-color: var(--border);
+      }
+
+      [contenteditable='true']:focus {
+        outline: 2px solid var(--accent);
+        background: var(--surface-muted);
+      }
+
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 0.85rem;
+      }
+
+      label.field-label {
         display: block;
-        font-size: 0.875rem;
-        font-weight: 500;
+        font-size: 0.8125rem;
+        font-weight: 600;
         color: var(--muted);
       }
+
       input[type='text'],
-      select {
+      select,
+      textarea {
         width: 100%;
         margin-top: 0.25rem;
-        padding: 0.5rem 0.65rem;
+        padding: 0.48rem 0.65rem;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 6px;
         font: inherit;
         color: var(--text);
-        box-sizing: border-box;
       }
+
+      .subcard-title {
+        margin: 0 0 0.65rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
       .task-row {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 8px 4px;
-        border-bottom: 1px solid #f1f5f9;
+        gap: 0.65rem;
+        padding: 0.5rem 0.25rem;
+        border-bottom: 1px solid var(--border);
       }
-      .task-row input[type='checkbox'] {
+
+      .task-check-label {
+        display: inline-flex;
+        align-items: center;
+        cursor: pointer;
+      }
+
+      .task-check-label input[type='checkbox'] {
         width: 16px;
         height: 16px;
         cursor: pointer;
+        margin: 0;
       }
-      .task-title {
+
+      .task-title-label {
         flex: 1;
-        padding: 3px 6px;
-        border-radius: 4px;
+        display: flex;
+        align-items: center;
       }
-      .task-row select {
+
+      .task-title-label input[type='text'] {
+        margin-top: 0;
+        padding: 0.32rem 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      .task-priority-label {
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .task-priority-label select {
         width: auto;
         margin-top: 0;
-        padding: 3px 8px;
+        padding: 0.28rem 0.5rem;
         font-size: 0.8rem;
       }
-      [contenteditable='true']:focus {
-        outline: 2px solid var(--accent);
-        background: #eff6ff;
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
       }
+
       .notes-box {
-        min-height: 80px;
+        min-height: 76px;
         padding: 0.75rem;
-        border: 1px dashed #cbd5e1;
+        border: 1px dashed var(--border);
         border-radius: 8px;
-        background: #fffbeb;
+        background: var(--surface-muted);
+        font-size: 0.92rem;
       }
+
       .slider-wrap {
         display: flex;
         align-items: center;
         gap: 1rem;
       }
+
       .slider-wrap input[type='range'] {
         flex: 1;
       }
+
       .rps-badge {
         font-weight: 700;
         font-variant-numeric: tabular-nums;
-        background: #f1f5f9;
-        padding: 4px 10px;
+        background: var(--surface-muted);
+        border: 1px solid var(--border);
+        padding: 0.25rem 0.65rem;
         border-radius: 6px;
+        font-size: 0.85rem;
+      }
+
+      .inspector-card {
+        position: sticky;
+        top: 4.5rem;
+      }
+
+      .inspector-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .inspector-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+
+      .inspector-pre {
+        margin: 0;
+        padding: 0.95rem;
+        background: var(--code-bg);
+        color: var(--code-text);
+        border-radius: 8px;
+        max-height: 520px;
+        overflow: auto;
+        font-size: 0.8rem;
+        line-height: 1.5;
+      }
+
+      /* Quick Start & Snippets */
+      .steps-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+        gap: 1.15rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .snippet-block {
+        position: relative;
+        background: var(--code-bg);
+        color: var(--code-text);
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        overflow-x: auto;
+        margin-top: 0.65rem;
+      }
+
+      .snippet-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.35rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--muted);
+      }
+
+      /* Templates Grid */
+      .templates-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+        gap: 1.1rem;
+      }
+
+      .template-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .template-card p {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin: 0.4rem 0 1rem;
+      }
+
+      /* Tables */
+      .table-wrap {
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.875rem;
+      }
+
+      th,
+      td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--surface-muted);
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      .site-footer {
+        padding: 2.25rem 0 1rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 1rem;
       }
     </style>
   </head>
   <body>
-    <header>
-      <span class="badge">naizo.js + #naizodb Demo</span>
-      <h1 contenteditable="true" naizo="feature_title">OAuth2 & Rate-Limiting Spec</h1>
-    </header>
-
-    <!-- 1. Standalone Bound Inputs -->
-    <section class="card">
-      <h2>1. Standalone Fields (<code>naizo</code> / <code>data-naizo</code>)</h2>
-      <div class="meta-grid">
-        <label>
-          Spec Owner
-          <input type="text" naizo="owner" />
-        </label>
-        <label>
-          Approval Status
-          <select naizo="status">
-            <option value="Draft">Draft</option>
-            <option value="In Review">In Review</option>
-            <option value="Approved">Approved</option>
-          </select>
-        </label>
-      </div>
-    </section>
-
-    <!-- 2. Declarative List Repeater -->
-    <section class="card">
-      <h2>2. Dynamic Checklist Repeater (<code>naizo-list="tasks"</code>)</h2>
-      <div naizo-list="tasks">
-        <div class="task-row" naizo-item>
-          <input type="checkbox" naizo="done" />
-          <span class="task-title" contenteditable="true" naizo="title">New task...</span>
-          <select naizo="priority">
-            <option value="High">High</option>
-            <option value="Med">Med</option>
-            <option value="Low">Low</option>
-          </select>
+    <!-- Top Navigation -->
+    <nav class="site-nav" aria-label="Primary Navigation">
+      <div class="site-nav-inner">
+        <a href="#top" class="brand">
+          <span>naizo.js</span>
+          <span class="brand-kanji">内蔵 · 内臓</span>
+        </a>
+        <div class="nav-links">
+          <a href="#why-naizo">Why Naizo</a>
+          <a href="#loop">Architecture Loop</a>
+          <a href="#playground">Live Playground</a>
+          <a href="#quick-start">Quick Start</a>
+          <a href="#templates">Starter Templates</a>
+          <a href="#reference">Attributes &amp; API</a>
+          <a href="#matrix">Browser &amp; Mode Matrix</a>
+          <a href="./llms.txt">llms.txt</a>
+          <a href="./SKILL.md">SKILL.md</a>
+          <a href="https://github.com/nickosh/naizo" target="_blank" rel="noopener">GitHub</a>
+        </div>
+        <div class="theme-controls">
+          <button
+            type="button"
+            id="theme-toggle-btn"
+            class="btn"
+            naizo-ignore
+            title="Toggle Light / Dark theme (persisted in #naizodb)"
+          >
+            Theme: <span id="theme-toggle-label">System</span>
+          </button>
         </div>
       </div>
-    </section>
+    </nav>
 
-    <!-- 3. Freeform Editable Notes -->
-    <section class="card">
-      <h2>3. Editable Notes (<code>contenteditable="true"</code>)</h2>
-      <div class="notes-box" contenteditable="true" naizo="notes"></div>
-    </section>
+    <main id="top" class="container">
+      <!-- Hero & Dual Etymology -->
+      <header class="hero" id="why-naizo">
+        <div class="badge-row">
+          <span class="pill-badge"><strong>0</strong> Dependencies</span>
+          <span class="pill-badge"><strong>~12.3 KB</strong> min + gzip</span>
+          <span class="pill-badge"><strong>#naizodb</strong> Built-In JSON Store</span>
+          <span class="pill-badge"><strong>Dual Syntax</strong> naizo-* / data-naizo-*</span>
+          <span class="pill-badge"><strong>MIT</strong> License</span>
+        </div>
 
-    <!-- 4. Custom Widget using window.Naizo API -->
-    <section class="card">
-      <h2>4. Custom JS Widget (<code>Naizo.get</code> / <code>Naizo.set</code>)</h2>
-      <div class="slider-wrap">
-        <input type="range" id="rps-slider" min="10" max="500" step="10" naizo-ignore />
-        <span class="rps-badge"><span id="rps-val">120</span> req/sec</span>
-      </div>
-    </section>
+        <h1>The Built-In Engine for Self-Persisting HTML &amp; AI Agent Workflows</h1>
+        <p class="hero-lead">
+          Turn static <code>.html</code> specs, plans, checklists, notebooks, and triage boards into
+          self-saving applications whose state syncs between the browser DOM,
+          <code>&lt;script id="naizodb" type="application/json"&gt;</code>,
+          <code>localStorage</code>, and the local file on disk.
+        </p>
+
+        <div class="hero-actions">
+          <a href="#playground" class="btn btn-primary">Try Live Playground</a>
+          <a href="#quick-start" class="btn">3-Step Quick Start</a>
+          <a href="#templates" class="btn">Explore 4 Starter Templates</a>
+          <a href="./llms-full.txt" class="btn">AI Agent Docs (llms-full.txt)</a>
+        </div>
+
+        <div class="dual-grid">
+          <article class="card">
+            <span class="etymology-tag">内蔵 — naizō (Built-In / Embedded)</span>
+            <h2>In-File Canonical JSON State (<code>#naizodb</code>)</h2>
+            <p>
+              Every HTML document embeds its own 2-space indented JSON micro-database (<code
+                >{ _meta, fields, lists, custom }</code
+              >) inside <code>&lt;script id="naizodb" type="application/json"&gt;</code> in
+              <code>&lt;head&gt;</code>. No backend server, no separate <code>.json</code> sidecar,
+              and no state trapped only in browser storage—<code>&lt;body&gt;</code> is the template
+              and <code>#naizodb</code> is the canonical data.
+            </p>
+          </article>
+
+          <article class="card">
+            <span class="etymology-tag">内臓 — naizō (Internal Organs / Viscera)</span>
+            <h2>Reactive Bindings &amp; Two-Way Disk Sync</h2>
+            <p>
+              Plain HTML markup is a static skeleton. <code>naizo.js</code> supplies the living
+              internal organs: <code>O(1)</code> field bindings (<code>naizo="key"</code>), a
+              declarative list repeater (<code>naizo-list="name"</code>), surgical
+              <code>#naizodb</code> disk writes (<code>⌘S</code> / <code>Ctrl+S</code>), and a ~2 s
+              file watcher that 3-way merges external AI agent edits on disk.
+            </p>
+          </article>
+        </div>
+      </header>
+
+      <!-- Visual / Terminal Mental Model of the Loop -->
+      <section class="section" id="loop">
+        <div class="section-header">
+          <h2>The Human Browser ↔ <code>#naizodb</code> ↔ Local File ↔ AI Agent Loop</h2>
+          <p>
+            How humans in the browser and AI coding agents on disk collaborate on a single
+            <code>.html</code> file without clobbering each other.
+          </p>
+        </div>
+
+        <div class="loop-grid">
+          <div class="loop-step">
+            <span class="loop-step-num">1. HUMAN IN BROWSER</span>
+            <h3>Edit DOM &amp; Press <code>⌘S</code></h3>
+            <p>
+              Check boxes, edit <code>contenteditable</code> headings, or add/reorder
+              <code>[naizo-list]</code> items. Press <code>⌘S</code> / <code>Ctrl+S</code> (or click
+              <code>Link Disk</code> / <code>⬇ Save to PC</code>).
+            </p>
+          </div>
+          <div class="loop-step">
+            <span class="loop-step-num">2. BUILT-IN #naizodb</span>
+            <h3>In-Memory Store + Cache</h3>
+            <p>
+              <code>O(1)</code> event capture updates <code>{ _meta, fields, lists, custom }</code>,
+              preserves unbound pass-through keys (<code>id</code>, <code>estimate</code>), and
+              writes <code>fnv1a:</code> per-key hash manifests.
+            </p>
+          </div>
+          <div class="loop-step">
+            <span class="loop-step-num">3. LOCAL .HTML ON DISK</span>
+            <h3>Surgical Disk Sync</h3>
+            <p>
+              Via the File System Access API, <code>naizo.js</code> replaces only the
+              <code>&lt;script id="naizodb"&gt;</code> block in place (<code>\u003c</code>-escaped)
+              and flushes immediately when you switch tabs.
+            </p>
+          </div>
+          <div class="loop-step">
+            <span class="loop-step-num">4. CLI / IDE AI AGENT</span>
+            <h3>Live ~2 s Watch &amp; 3-Way Merge</h3>
+            <p>
+              When Claude Code, Antigravity, Cursor, or Codex edits <code>#naizodb</code> on disk,
+              <code>naizo.js</code> merges unrelated keys within ~2 s without clobbering
+              <code>document.activeElement</code> (backing up collisions to <code>↺ Restore</code>).
+            </p>
+          </div>
+        </div>
+
+        <div class="terminal-box">
+          <div class="terminal-bar">
+            <span>Terminal — Human Browser ↔ Local File ↔ AI Agent Co-Editing Flow</span>
+            <span>&lt;body&gt; = Template · #naizodb = Data</span>
+          </div>
+          <pre
+            class="terminal-pre"
+          ><code>┌──────────────────────────────┐     O(1) capture + ⌘S     ┌──────────────────────────────────────┐
+│  Human in Browser            │ ────────────────────────► │  &lt;script id="naizodb"&gt; in plan.html  │
+│  • [naizo="owner"]           │                           │  {                                   │
+│  • [naizo-list="tasks"]      │ ◄──────────────────────── │    "fields": { "owner": "Kenji" },   │
+│  • Protected activeElement   │   ~2 s watch + 3-way      │    "lists":  { "tasks": [ ... ] }    │
+└──────────────────────────────┘   shallow key merge       └──────────────────┬───────────────────┘
+                                                                              │
+                                                                 Surgical JSON read/write on disk
+                                                                 (clean git diff, zero DOM noise)
+                                                                              ▼
+                                                           ┌──────────────────────────────────────┐
+                                                           │  CLI / IDE AI Coding Agent           │
+                                                           │  (Claude Code · Antigravity · Cursor │
+                                                           │   Gemini CLI · OpenAI Codex)         │
+                                                           └──────────────────────────────────────┘</code></pre>
+        </div>
+      </section>
+
+      <!-- Interactive Live Playground + #naizodb JSON Inspector -->
+      <section class="section" id="playground">
+        <div class="section-header">
+          <h2>Interactive Live Playground &amp; <code>#naizodb</code> Inspector</h2>
+          <p>
+            This documentation page is itself a live <code>naizo.js</code> app. Edit any field or
+            task on the left and watch the embedded <code>#naizodb</code> JSON update in real time
+            on the right—or click <strong>⬇ Save to PC</strong> to run this page locally in Local
+            Mode.
+          </p>
+        </div>
+
+        <div class="playground-split">
+          <!-- Left Column: Live Bound Controls -->
+          <div class="playground-stack">
+            <section class="card">
+              <span class="etymology-tag">1. Standalone Fields (naizo / data-naizo)</span>
+              <h3 class="spec-title-edit" contenteditable="true" naizo="feature_title">
+                OAuth2 &amp; Rate-Limiting Spec
+              </h3>
+              <div class="meta-grid">
+                <label class="field-label">
+                  Spec Owner
+                  <input type="text" naizo="owner" />
+                </label>
+                <label class="field-label">
+                  Approval Status
+                  <select naizo="status">
+                    <option value="Draft">Draft</option>
+                    <option value="In Review">In Review</option>
+                    <option value="Approved">Approved</option>
+                  </select>
+                </label>
+                <label class="field-label">
+                  Page Theme (<code>naizo="theme"</code>)
+                  <select id="theme-select" naizo="theme">
+                    <option value="system">System (Auto)</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="card">
+              <h3 class="subcard-title">
+                2. Declarative Checklist Repeater (<code>naizo-list="tasks"</code>)
+              </h3>
+              <div naizo-list="tasks">
+                <div class="task-row" naizo-item>
+                  <label class="task-check-label">
+                    <input type="checkbox" naizo="done" />
+                    <span class="sr-only">Completed</span>
+                  </label>
+                  <label class="task-title-label">
+                    <span class="sr-only">Task Title</span>
+                    <input type="text" naizo="title" placeholder="New task..." />
+                  </label>
+                  <label class="task-priority-label">
+                    <span class="sr-only">Priority</span>
+                    <select naizo="priority">
+                      <option value="High">High</option>
+                      <option value="Med">Med</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <h3 class="subcard-title">
+                3. Freeform Editable Notes (<code>contenteditable="true" naizo="notes"</code>)
+              </h3>
+              <div class="notes-box" contenteditable="true" naizo="notes"></div>
+            </section>
+
+            <section class="card">
+              <h3 class="subcard-title">
+                4. Custom JS Widget (<code>Naizo.get</code> / <code>Naizo.set</code> +
+                <code>naizo-ignore</code>)
+              </h3>
+              <div class="slider-wrap">
+                <label class="field-label" style="flex: 1">
+                  Rate-Limit Burst Ceiling
+                  <input
+                    type="range"
+                    id="rps-slider"
+                    min="10"
+                    max="500"
+                    step="10"
+                    naizo-ignore
+                    style="width: 100%; margin-top: 0.35rem"
+                  />
+                </label>
+                <span class="rps-badge"><span id="rps-val">120</span> req/sec</span>
+              </div>
+            </section>
+          </div>
+
+          <!-- Right Column: Live #naizodb JSON Inspector -->
+          <aside class="card inspector-card" naizo-ignore>
+            <div class="inspector-toolbar">
+              <h3 class="subcard-title" style="margin: 0">
+                Live <code>&lt;script id="naizodb"&gt;</code> JSON
+              </h3>
+              <div class="inspector-actions">
+                <button type="button" class="btn" id="simulate-agent-btn">
+                  🤖 Simulate AI Edit
+                </button>
+                <button type="button" class="btn" id="copy-db-btn">📋 Copy JSON</button>
+                <button type="button" class="btn" id="download-page-btn">⬇ Save to PC</button>
+                <button type="button" class="btn" id="reset-playground-btn">↺ Reset</button>
+              </div>
+            </div>
+            <pre id="live-json-inspector" class="inspector-pre" aria-live="polite">
+Loading #naizodb...</pre>
+          </aside>
+        </div>
+      </section>
+
+      <!-- 3-Step Quick Start & CDN Snippets -->
+      <section class="section" id="quick-start">
+        <div class="section-header">
+          <h2>3-Step Quick Start &amp; CDN Copy Snippets</h2>
+          <p>No Node.js, bundler, or backend required—just one HTML file and a browser.</p>
+        </div>
+
+        <div class="steps-grid">
+          <div class="card">
+            <span class="etymology-tag">Step 1</span>
+            <h3>Embed <code>#naizodb</code> + Script in <code>&lt;head&gt;</code></h3>
+            <p style="color: var(--muted); font-size: 0.9rem">
+              Place <code>&lt;script id="naizodb" type="application/json"&gt;</code> and the
+              <code>naizo.js</code> CDN script inside <code>&lt;head&gt;</code>.
+            </p>
+            <pre
+              class="snippet-block"
+            ><code id="snippet-step1">&lt;script id="naizodb" type="application/json"&gt;
+{
+  "_meta": {},
+  "fields": { "title": "Launch Plan" },
+  "lists": {
+    "tasks": [{ "done": false, "task": "Ship v1" }]
+  },
+  "custom": {}
+}
+&lt;/script&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
+          </div>
+
+          <div class="card">
+            <span class="etymology-tag">Step 2</span>
+            <h3>Bind HTML with <code>naizo="..."</code></h3>
+            <p style="color: var(--muted); font-size: 0.9rem">
+              Bind scalar fields with <code>naizo="key"</code> and repeating lists with
+              <code>naizo-list="name"</code> + <code>naizo-item</code> (wrapping inputs in
+              <code>&lt;label&gt;</code>).
+            </p>
+            <pre
+              class="snippet-block"
+            ><code id="snippet-step2">&lt;h1 contenteditable="true" naizo="title"&gt;Launch Plan&lt;/h1&gt;
+
+&lt;div naizo-list="tasks"&gt;
+  &lt;div naizo-item&gt;
+    &lt;label&gt;&lt;input type="checkbox" naizo="done" /&gt;&lt;/label&gt;
+    &lt;label&gt;&lt;input type="text" naizo="task" /&gt;&lt;/label&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+          </div>
+
+          <div class="card">
+            <span class="etymology-tag">Step 3</span>
+            <h3>Press <code>⌘S</code> / <code>Ctrl+S</code> or Save to PC</h3>
+            <p style="color: var(--muted); font-size: 0.9rem">
+              Open your <code>.html</code> file and press <code>⌘S</code> / <code>Ctrl+S</code> to
+              link it on disk (<code>Synced to Disk</code>), or click
+              <strong>⬇ Save to PC</strong> on any hosted Online Mode app to take a portable copy
+              offline.
+            </p>
+            <pre
+              class="snippet-block"
+            ><code id="snippet-step3"># Install AI Agent Skill (Antigravity, Cursor, Codex, Gemini CLI)
+mkdir -p .agents/skills/naizo
+curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md \
+  -o .agents/skills/naizo/SKILL.md</code></pre>
+          </div>
+        </div>
+
+        <div class="card" naizo-ignore>
+          <div class="snippet-header">
+            <span>CDN &amp; Skill Copy Snippets</span>
+            <span>npm package: <code>naizojs</code></span>
+          </div>
+          <div class="dual-grid">
+            <div>
+              <div class="snippet-header">
+                <span>jsDelivr CDN (Readable)</span>
+                <button type="button" class="btn copy-snippet-btn" data-copy-target="cdn-jsdelivr">
+                  Copy
+                </button>
+              </div>
+              <pre
+                class="snippet-block"
+              ><code id="cdn-jsdelivr">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
+            </div>
+            <div>
+              <div class="snippet-header">
+                <span>jsDelivr CDN (Minified ~12.3 KB gzip)</span>
+                <button
+                  type="button"
+                  class="btn copy-snippet-btn"
+                  data-copy-target="cdn-jsdelivr-min"
+                >
+                  Copy
+                </button>
+              </div>
+              <pre
+                class="snippet-block"
+              ><code id="cdn-jsdelivr-min">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer&gt;&lt;/script&gt;</code></pre>
+            </div>
+            <div>
+              <div class="snippet-header">
+                <span>unpkg CDN</span>
+                <button type="button" class="btn copy-snippet-btn" data-copy-target="cdn-unpkg">
+                  Copy
+                </button>
+              </div>
+              <pre
+                class="snippet-block"
+              ><code id="cdn-unpkg">&lt;script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
+            </div>
+            <div>
+              <div class="snippet-header">
+                <span>Claude Code Skill Install</span>
+                <button type="button" class="btn copy-snippet-btn" data-copy-target="skill-claude">
+                  Copy
+                </button>
+              </div>
+              <pre
+                class="snippet-block"
+              ><code id="skill-claude">mkdir -p .claude/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Starter Templates Gallery -->
+      <section class="section" id="templates">
+        <div class="section-header">
+          <h2>Four Self-Persisting Starter Templates</h2>
+          <p>
+            Open any starter template in your browser, try it in Online Mode, or click
+            <strong>⬇ Save to PC</strong> in the bottom-right pill to use it as a local app on your
+            computer.
+          </p>
+        </div>
+
+        <div class="templates-grid">
+          <article class="card template-card">
+            <div>
+              <span class="etymology-tag">starter.html</span>
+              <h3>Project Spec &amp; Milestones</h3>
+              <p>
+                Minimal specification sheet with an editable heading, owner and status fields,
+                executive summary textarea, and repeating milestone checklist.
+              </p>
+            </div>
+            <a href="../examples/starter.html" class="btn btn-primary">Open starter.html →</a>
+          </article>
+
+          <article class="card template-card">
+            <div>
+              <span class="etymology-tag">checklist.html</span>
+              <h3>Release Verification Checklist</h3>
+              <p>
+                Pre-release sign-off sheet with reviewer metadata, environment dropdown, release
+                readiness toggle, prioritized verification items, and blocker notes.
+              </p>
+            </div>
+            <a href="../examples/checklist.html" class="btn btn-primary">Open checklist.html →</a>
+          </article>
+
+          <article class="card template-card">
+            <div>
+              <span class="etymology-tag">notes.html</span>
+              <h3>Master–Detail Engineering Notebook</h3>
+              <p>
+                Zero-DOM-wipe multi-note workspace on <code>[naizo-list="notes"]</code> with sidebar
+                search &amp; category filter, pinning, live word/task counters, <code>Alt+N</code> /
+                <code>Alt+↑/↓</code> shortcuts, and Light/Dark theme.
+              </p>
+            </div>
+            <a href="../examples/notes.html" class="btn btn-primary">Open notes.html →</a>
+          </article>
+
+          <article class="card template-card">
+            <div>
+              <span class="etymology-tag">inventory.html</span>
+              <h3>Asset &amp; Inventory Studio</h3>
+              <p>
+                Filterable card grid with custom per-card JSON key-value badges (pass-through keys),
+                <code>&lt;dialog&gt;</code> creation &amp; property modals, dynamic location filter
+                options, live KPIs, and CSS Grid sorting.
+              </p>
+            </div>
+            <a href="../examples/inventory.html" class="btn btn-primary">Open inventory.html →</a>
+          </article>
+        </div>
+      </section>
+
+      <!-- Declarative Attributes & JS API Reference -->
+      <section class="section" id="reference">
+        <div class="section-header">
+          <h2>Declarative HTML Attributes &amp; <code>window.Naizo</code> API</h2>
+          <p>
+            Every attribute supports both concise <code>naizo-*</code> syntax and HTML5-compliant
+            <code>data-naizo-*</code> aliases.
+          </p>
+        </div>
+
+        <div class="table-wrap" style="margin-bottom: 1.35rem">
+          <table>
+            <thead>
+              <tr>
+                <th>Short Attribute</th>
+                <th>HTML5 <code>data-*</code> Alias</th>
+                <th>Target Element</th>
+                <th>Behavior</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>naizo="key"</code></td>
+                <td><code>data-naizo="key"</code></td>
+                <td>
+                  <code>&lt;input&gt;</code>, <code>&lt;textarea&gt;</code>,
+                  <code>&lt;select&gt;</code>, <code>&lt;details&gt;</code>,
+                  <code>[contenteditable]</code>, leaf
+                </td>
+                <td>
+                  Binds element value/state to <code>fields["key"]</code> (or item property inside
+                  <code>[naizo-item]</code>).
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-list="name"</code></td>
+                <td><code>data-naizo-list="name"</code></td>
+                <td>
+                  <code>&lt;div&gt;</code>, <code>&lt;ul&gt;</code>, <code>&lt;tbody&gt;</code>
+                </td>
+                <td>
+                  Declares a repeating list bound to <code>lists["name"]</code> and injects
+                  <code>+ Add Item</code>.
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-item</code></td>
+                <td><code>data-naizo-item</code></td>
+                <td>Direct child of <code>[naizo-list]</code></td>
+                <td>
+                  Marks a repeating row/card with hover <code>↑</code> <code>↓</code>
+                  <code>×</code> controls and <code>WeakMap</code> pass-through keys.
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-template</code></td>
+                <td><code>data-naizo-template</code></td>
+                <td><code>&lt;template&gt;</code> in list</td>
+                <td>
+                  Optional explicit blueprint for new items (auto-inferred from first item when
+                  omitted).
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>naizo-add="name"</code> / <code>naizo-remove</code> /
+                  <code>naizo-move="up|down"</code>
+                </td>
+                <td>
+                  <code>data-naizo-add</code> / <code>data-naizo-remove</code> /
+                  <code>data-naizo-move</code>
+                </td>
+                <td><code>&lt;button&gt;</code></td>
+                <td>Custom list add, row delete, and row reorder triggers.</td>
+              </tr>
+              <tr>
+                <td><code>naizo-no-controls</code></td>
+                <td><code>data-naizo-no-controls</code></td>
+                <td><code>[naizo-list]</code></td>
+                <td>Disables automatic injection of <code>+ Add Item</code> and row toolbars.</td>
+              </tr>
+              <tr>
+                <td><code>naizo-ignore</code></td>
+                <td><code>data-naizo-ignore</code></td>
+                <td>Any element</td>
+                <td>
+                  Excludes element/subtree from state binding while preserving it in exported HTML.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>naizo-id="scope"</code> / <code>naizo-mode="online|local|auto"</code> /
+                  <code>naizo-manual</code>
+                </td>
+                <td>
+                  <code>data-naizo-id</code> / <code>data-naizo-mode</code> /
+                  <code>data-naizo-manual</code>
+                </td>
+                <td><code>&lt;html&gt;</code> or <code>&lt;body&gt;</code></td>
+                <td>
+                  Storage key scoping on <code>localhost</code>, Local vs. Online Mode override, and
+                  manual <code>Naizo.init()</code> opt-out.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3 class="subcard-title">
+            Programmatic JavaScript API (<code>window.Naizo</code> / <code>window.NaizoDB</code>)
+          </h3>
+          <pre
+            class="snippet-block"
+            style="margin-top: 0"
+          ><code>// Custom state (db.custom) &amp; Standalone fields (db.fields)
+Naizo.get('rateLimitRps');              Naizo.set('rateLimitRps', 250);        Naizo.delete('oldKey');
+Naizo.getField('owner');                Naizo.setField('owner', 'Kenji');      Naizo.deleteField('flag');
+
+// Repeating lists (db.lists)
+Naizo.getList('tasks');                 Naizo.addItem('tasks', { done: false, title: 'Ship', priority: 'High' });
+Naizo.updateItem('tasks', 0, { done: true });  Naizo.moveItem('tasks', 1, 0);  Naizo.removeItem('tasks', 2);
+
+// Lifecycle, Disk Sync, Online Mode Reset, &amp; Portable HTML Export
+Naizo.bind(rootEl);                     await Naizo.save();                    Naizo.reset();
+await Naizo.unlink();                   await Naizo.copyJSON();
+const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app.html');
+
+// Events: 'naizo:hydrate', 'naizo:change', 'naizo:item'</code></pre>
+        </div>
+      </section>
+
+      <!-- Browser & Mode Capability Matrix -->
+      <section class="section" id="matrix">
+        <div class="section-header">
+          <h2>Browser &amp; Mode Capability Matrix</h2>
+          <p>
+            How <code>naizo.js</code> adapts automatically across Local Mode and Online Mode while
+            keeping the status pill truthful about storage durability.
+          </p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Environment &amp; Mode</th>
+                <th>Browsers</th>
+                <th>Status Pill &amp; Primary Action</th>
+                <th>Persistence, Sync, &amp; Recovery Capabilities</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <strong>Local Mode (Live Disk Sync)</strong><br />
+                  <code>file://</code>, <code>localhost</code>, <code>127.0.0.1</code>, or
+                  <code>naizo-mode="local"</code>
+                </td>
+                <td>Chrome, Edge, Brave, Arc (File System Access API)</td>
+                <td>
+                  Amber <code>Browser Cache · Click to Link Disk</code> → Green
+                  <code>Synced to Disk</code> (<code>Link Disk</code> /
+                  <code>Resume Disk Sync</code> / <code>× Unlink</code>)
+                </td>
+                <td>
+                  <code>⌘S</code> / <code>Ctrl+S</code> links or saves immediately; surgical
+                  <code>&lt;script id="naizodb"&gt;</code> in-place write; immediate disk flush on
+                  tab switch; IndexedDB handle persistence; ~2 s <code>file.lastModified</code> live
+                  watch; 3-way shallow key merge with <code>↺ Restore</code> conflict backup.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Online Mode (Hosted Web Apps)</strong><br />
+                  GitHub Pages or any remote <code>https://</code> origin (or
+                  <code>naizo-mode="online"</code>)
+                </td>
+                <td>All modern browsers (Chrome, Safari, Firefox, Edge, Mobile)</td>
+                <td>
+                  Green <code>Saved in Browser</code> + <strong><code>⬇ Save to PC</code></strong> +
+                  <strong><code>↺ Reset</code></strong> (when modified from initial baseline)
+                </td>
+                <td>
+                  Instant <code>localStorage</code> persistence + cross-tab
+                  <code>storage</code> merge; <code>↺ Reset</code> with inline Shadow DOM
+                  confirmation and <code>↺ Restore</code> undo backup;
+                  <strong><code>⬇ Save to PC</code></strong> (<code>Naizo.downloadHTML()</code>)
+                  rewrites relative <code>naizo.js</code> paths to npm CDN and strips
+                  <code>naizo-mode="online"</code> so downloaded <code>.html</code> files run in
+                  Local Mode on a PC.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Local Mode (Fallback Export)</strong><br />
+                  <code>file://</code> or <code>localhost</code> without
+                  <code>showSaveFilePicker</code>
+                </td>
+                <td>Safari, Firefox</td>
+                <td>
+                  Amber <code>Browser Cache · Click to Save HTML</code> +
+                  <strong><code>📋 Copy</code></strong>
+                </td>
+                <td>
+                  Full reactive bindings, <code>[naizo-list]</code> repeater, and
+                  <code>localStorage</code> cache; 1-click
+                  <code>📋 Copy</code> (<code>Naizo.copyJSON()</code>) to copy
+                  <code>#naizodb</code> JSON to clipboard; 1-click clean <code>.html</code> snapshot
+                  download via <code>Naizo.exportHTML()</code>.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="site-footer">
+        <div>
+          <strong>naizo.js</strong> (npm package <code>naizojs</code>) — Built-in HTML database
+          (<strong>内蔵</strong>) &amp; reactive internal organs (<strong>内臓</strong>). MIT
+          License.
+        </div>
+        <div>
+          <a href="./llms.txt">llms.txt</a> · <a href="./llms-full.txt">llms-full.txt</a> ·
+          <a href="./SKILL.md">SKILL.md</a> ·
+          <a href="https://github.com/nickosh/naizo" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </footer>
+    </main>
 
     <script>
-      const slider = document.getElementById('rps-slider');
-      const label = document.getElementById('rps-val');
+      (function () {
+        const slider = document.getElementById('rps-slider');
+        const rpsVal = document.getElementById('rps-val');
+        const inspector = document.getElementById('live-json-inspector');
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        const themeToggleLabel = document.getElementById('theme-toggle-label');
+        const copyDbBtn = document.getElementById('copy-db-btn');
+        const simulateAgentBtn = document.getElementById('simulate-agent-btn');
+        const downloadPageBtn = document.getElementById('download-page-btn');
+        const resetPlaygroundBtn = document.getElementById('reset-playground-btn');
 
-      function syncCustomWidget() {
-        const rps = window.Naizo?.get('rateLimitRps') ?? 120;
-        slider.value = rps;
-        label.textContent = rps;
-      }
+        function applyThemeFromStore() {
+          const rawTheme = window.Naizo?.getField('theme');
+          const mode =
+            rawTheme === 'dark' || rawTheme === 'light' || rawTheme === 'system'
+              ? rawTheme
+              : 'system';
+          document.documentElement.setAttribute('data-theme', mode);
+          if (themeToggleLabel) {
+            themeToggleLabel.textContent =
+              mode === 'dark' ? 'Dark' : mode === 'light' ? 'Light' : 'System';
+          }
+        }
 
-      window.addEventListener('naizo:hydrate', syncCustomWidget);
-      window.addEventListener('DOMContentLoaded', syncCustomWidget);
+        function refreshInspector() {
+          if (!inspector || !window.Naizo) return;
+          const db = window.Naizo.get();
+          inspector.textContent = JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
+        }
 
-      slider.addEventListener('input', () => {
-        const val = Number(slider.value);
-        label.textContent = val;
-        window.Naizo.set('rateLimitRps', val);
-      });
+        function syncPlaygroundUi() {
+          if (!inspector || !document.body.contains(inspector)) return;
+          const rps = window.Naizo?.get('rateLimitRps') ?? 120;
+          if (slider) slider.value = String(rps);
+          if (rpsVal) rpsVal.textContent = String(rps);
+          applyThemeFromStore();
+          refreshInspector();
+        }
+
+        window.addEventListener('naizo:hydrate', syncPlaygroundUi);
+        window.addEventListener('naizo:change', syncPlaygroundUi);
+        window.addEventListener('naizo:item', syncPlaygroundUi);
+        window.addEventListener('DOMContentLoaded', syncPlaygroundUi);
+
+        if (slider) {
+          slider.addEventListener('input', () => {
+            const val = Number(slider.value);
+            if (rpsVal) rpsVal.textContent = String(val);
+            window.Naizo?.set('rateLimitRps', val);
+          });
+        }
+
+        if (themeToggleBtn) {
+          themeToggleBtn.addEventListener('click', () => {
+            if (!window.Naizo) return;
+            const current = window.Naizo.getField('theme') || 'system';
+            const prefersDark =
+              typeof window.matchMedia === 'function' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches;
+            let next = 'dark';
+            if (current === 'system') {
+              next = prefersDark ? 'light' : 'dark';
+            } else if (current === 'dark') {
+              next = 'light';
+            } else {
+              next = 'dark';
+            }
+            window.Naizo.setField('theme', next);
+          });
+        }
+
+        if (copyDbBtn) {
+          copyDbBtn.addEventListener('click', async () => {
+            if (!window.Naizo) return;
+            await window.Naizo.copyJSON();
+            const prev = copyDbBtn.textContent;
+            copyDbBtn.textContent = '✓ Copied';
+            setTimeout(() => {
+              copyDbBtn.textContent = prev;
+            }, 1200);
+          });
+        }
+
+        if (simulateAgentBtn) {
+          simulateAgentBtn.addEventListener('click', () => {
+            if (!window.Naizo) return;
+            const tasks = window.Naizo.getList('tasks');
+            const firstUnfinishedIdx = tasks.findIndex((t) => !t.done);
+            if (firstUnfinishedIdx !== -1) {
+              window.Naizo.updateItem('tasks', firstUnfinishedIdx, { done: true });
+            } else {
+              window.Naizo.addItem('tasks', {
+                id: 'task-' + (tasks.length + 1),
+                done: false,
+                title: 'Verify shallow 3-way merge with CLI agent',
+                priority: 'High',
+              });
+            }
+            const currentRps = Number(window.Naizo.get('rateLimitRps') ?? 120);
+            const nextRps = currentRps >= 400 ? 150 : currentRps + 50;
+            window.Naizo.set('rateLimitRps', nextRps);
+          });
+        }
+
+        if (downloadPageBtn) {
+          downloadPageBtn.addEventListener('click', () => {
+            window.Naizo?.downloadHTML('naizo-playground.html');
+          });
+        }
+
+        if (resetPlaygroundBtn) {
+          resetPlaygroundBtn.addEventListener('click', () => {
+            window.Naizo?.reset();
+          });
+        }
+
+        document.querySelectorAll('.copy-snippet-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const targetId = btn.getAttribute('data-copy-target');
+            const codeEl = targetId ? document.getElementById(targetId) : null;
+            if (!codeEl) return;
+            const text = codeEl.textContent || '';
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+              }
+            } catch {
+              // Ignore clipboard errors in non-secure test contexts
+            }
+            const prev = btn.textContent;
+            btn.textContent = '✓ Copied';
+            setTimeout(() => {
+              btn.textContent = prev;
+            }, 1200);
+          });
+        });
+
+        syncPlaygroundUi();
+      })();
     </script>
   </body>
 </html>

@@ -2337,4 +2337,69 @@ describe('naizo.js v0.1.0 core runtime', () => {
     const parsedBack = JSON.parse(verifyMatch![2]!);
     expect(parsedBack.fields.note).toBe('Price is $100 ($1 / $& / $3) and </script> tag');
   });
+
+  it('hydrates and powers the M6.1 documentation & interactive demo website in site/index.html', async () => {
+    const siteDoc = new DOMParser().parseFromString(siteHtml, 'text/html');
+    document.head.innerHTML = siteDoc.head.innerHTML;
+    document.body.innerHTML = siteDoc.body.innerHTML;
+
+    await initNaizo();
+
+    // 1. Verify all [naizo-item] rows wrap their form controls inside <label> (EC39) and preserve pass-through id keys (D15)
+    const taskRows = Array.from(
+      document.querySelectorAll<HTMLElement>('[naizo-list="tasks"] > [naizo-item]'),
+    );
+    expect(taskRows.length).toBe(3);
+    for (const row of taskRows) {
+      const labels = Array.from(row.querySelectorAll('label'));
+      expect(labels.length).toBeGreaterThanOrEqual(3);
+      for (const label of labels) {
+        expect(label.control).not.toBeNull();
+        expect(row.contains(label.control)).toBe(true);
+      }
+    }
+    expect(Naizo.getList('tasks')[0]?.id).toBe('task-1');
+
+    // 2. Verify M6.1 sections: dual meaning, architecture loop, starter template links, CDN snippets, and capability matrix
+    expect(siteHtml).toContain('内蔵');
+    expect(siteHtml).toContain('内臓');
+    expect(siteHtml).toContain('../examples/starter.html');
+    expect(siteHtml).toContain('../examples/checklist.html');
+    expect(siteHtml).toContain('../examples/notes.html');
+    expect(siteHtml).toContain('../examples/inventory.html');
+    expect(siteHtml).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js');
+    expect(siteHtml).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js');
+    expect(siteHtml).toContain('https://unpkg.com/naizojs@latest/dist/naizo.js');
+    expect(siteHtml).toContain('prefers-color-scheme: dark');
+    expect(siteHtml).toContain('prefers-reduced-motion: reduce');
+
+    // 3. Execute site/index.html script and verify live #naizodb JSON inspector, theme toggle, AI edit simulation, and reset
+    const appScript = siteDoc.body.querySelector('script')?.textContent || '';
+    runInThisContext(appScript);
+
+    const inspector = document.getElementById('live-json-inspector');
+    expect(inspector?.textContent).toContain('"feature_title": "OAuth2 & Rate-Limiting Spec"');
+    expect(inspector?.textContent).toContain('"rateLimitRps": 120');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('system');
+
+    // Theme toggle button updates fields.theme and html[data-theme]
+    document.getElementById('theme-toggle-btn')?.click();
+    expect(Naizo.getField('theme')).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(document.getElementById('theme-toggle-label')?.textContent).toBe('Dark');
+
+    // Simulate AI Edit button marks an unfinished task done and increments rateLimitRps
+    document.getElementById('simulate-agent-btn')?.click();
+    expect(Naizo.getList('tasks')[1]?.done).toBe(true);
+    expect(Naizo.get('rateLimitRps')).toBe(170);
+    expect(document.getElementById('rps-val')?.textContent).toBe('170');
+    expect(inspector?.textContent).toContain('"rateLimitRps": 170');
+
+    // Reset button restores initial baseline state
+    document.getElementById('reset-playground-btn')?.click();
+    expect(Naizo.getField('theme')).toBe('system');
+    expect(Naizo.get('rateLimitRps')).toBe(120);
+    expect(Naizo.getList('tasks')[1]?.done).toBe(false);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('system');
+  });
 });
