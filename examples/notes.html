@@ -14,7 +14,8 @@
         "fields": {
           "notebook_title": "Engineering Field Notes",
           "notebook_subtitle": "Zero-DOM-wipe master–detail notebook powered by declarative [naizo-list] panes and #naizodb.",
-          "theme": "light"
+          "theme": "light",
+          "category_filter": "all"
         },
         "lists": {
           "notes": [
@@ -462,21 +463,22 @@
       </header>
 
       <div class="workspace-grid">
-        <!-- Master Sidebar Index (ephemeral filter controls + rendered index marked naizo-ignore) -->
-        <aside class="sidebar-panel" naizo-ignore aria-label="Note index and filters">
+        <!-- Master Sidebar Index (persisted category filter, ephemeral search input, and rendered index marked naizo-ignore) -->
+        <aside class="sidebar-panel" aria-label="Note index and filters">
           <div class="sidebar-filters">
             <label>
               <span class="sr-only">Search notes</span>
               <input
                 type="search"
                 id="note-search"
+                naizo-ignore
                 placeholder="Search title or markdown body..."
               />
             </label>
             <label>
               <span class="sr-only">Filter by category</span>
-              <select id="category-filter">
-                <option value="all">All Categories</option>
+              <select id="category-filter" naizo="category_filter">
+                <option value="all" selected>All Categories</option>
                 <option value="Architecture">Architecture</option>
                 <option value="Runbook">Runbook</option>
                 <option value="Research">Research</option>
@@ -485,7 +487,13 @@
               </select>
             </label>
           </div>
-          <ul id="note-index-list" class="note-index-list" role="listbox" aria-label="Notes"></ul>
+          <ul
+            id="note-index-list"
+            class="note-index-list"
+            role="listbox"
+            aria-label="Notes"
+            naizo-ignore
+          ></ul>
         </aside>
 
         <!-- Detail Editor Pane Stack (declarative [naizo-list="notes"] where each note is a live [naizo-item]) -->

@@ -2234,16 +2234,19 @@ describe('naizo.js v0.1.0 core runtime', () => {
     // Exact same DOM element reference preserved (zero DOM wipe!)
     expect(document.querySelectorAll('#notes-list > [naizo-item]')[1]).toBe(initialPanes[1]);
 
-    // 3. Filtering by category in sidebar narrows visible index and activates first matching note without deleting from #naizodb
+    // 3. Filtering by category in sidebar narrows visible index, persists category_filter in #naizodb.fields, and activates first matching note without deleting from #naizodb
     const catFilter = document.getElementById('category-filter') as HTMLSelectElement;
+    expect(Naizo.getField('category_filter')).toBe('all');
     catFilter.value = 'Research';
     catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(Naizo.getField('category_filter')).toBe('Research');
     expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(1);
     expect(Naizo.get('activeNoteId')).toBe('note-103');
     expect(Naizo.getList('notes').length).toBe(4);
 
     catFilter.value = 'all';
     catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(Naizo.getField('category_filter')).toBe('all');
     expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(4);
 
     // Searching with 0 matches shows empty state without overwriting activeNoteId in #naizodb

@@ -243,11 +243,16 @@ Use for multi-note engineering notebooks, ADR explorers, prompt libraries, or mu
   }
 </style>
 
-<!-- Sidebar index (excluded from state binding via naizo-ignore) -->
-<aside naizo-ignore>
-  <input id="note-search" type="search" placeholder="Search notes..." />
-  <button id="new-note-btn" type="button">+ New Note</button>
-  <div id="note-sidebar-list"></div>
+<!-- Sidebar index (persisted category filter; ephemeral search and rendered list excluded via naizo-ignore) -->
+<aside>
+  <input id="note-search" type="search" naizo-ignore placeholder="Search notes..." />
+  <select id="category-filter" naizo="category_filter">
+    <option value="all" selected>All Categories</option>
+    <option value="Architecture">Architecture</option>
+    <option value="Runbook">Runbook</option>
+  </select>
+  <button id="new-note-btn" type="button" naizo-ignore>+ New Note</button>
+  <div id="note-sidebar-list" naizo-ignore></div>
 </aside>
 
 <!-- Declarative [naizo-list] where each [naizo-item] is a full editor pane -->
