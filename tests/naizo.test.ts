@@ -2437,6 +2437,42 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(Naizo.get('rateLimitRps')).toBe(120);
     expect(Naizo.getList('tasks')[1]?.done).toBe(false);
     expect(document.documentElement.getAttribute('data-theme')).toBe('system');
+
+    // 4. Verify M6.4 Cloudflare Web Analytics script with naizo-strip is present in hosted DOM,
+    // stripped by Naizo.exportHTML() / Naizo.downloadHTML() (Save to PC), and absent from examples/*.html (D47)
+    const beaconScript = document.head.querySelector<HTMLScriptElement>('script[data-cf-beacon]');
+    expect(beaconScript).not.toBeNull();
+    expect(beaconScript?.getAttribute('src')).toBe(
+      'https://static.cloudflareinsights.com/beacon.min.js',
+    );
+    expect(beaconScript?.getAttribute('data-cf-beacon')).toBe(
+      '{"token": "37a058a9b8c9479cafdc2e5ea888c5df"}',
+    );
+    expect(beaconScript?.hasAttribute('naizo-strip')).toBe(true);
+
+    const exportedSiteHtml = Naizo.exportHTML();
+    expect(exportedSiteHtml).not.toContain('static.cloudflareinsights.com');
+    expect(exportedSiteHtml).not.toContain('data-cf-beacon');
+    expect(exportedSiteHtml).not.toContain('37a058a9b8c9479cafdc2e5ea888c5df');
+
+    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:site-url');
+    const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const downloadedSiteHtml = Naizo.downloadHTML('naizo-site.html');
+    createUrlSpy.mockRestore();
+    revokeUrlSpy.mockRestore();
+    clickSpy.mockRestore();
+    expect(downloadedSiteHtml).not.toContain('static.cloudflareinsights.com');
+    expect(downloadedSiteHtml).not.toContain('data-cf-beacon');
+    expect(downloadedSiteHtml).not.toContain('37a058a9b8c9479cafdc2e5ea888c5df');
+    expect(downloadedSiteHtml).toContain(
+      'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js',
+    );
+
+    for (const exampleHtml of [starterHtml, checklistHtml, notesHtml, inventoryHtml]) {
+      expect(exampleHtml).not.toContain('cloudflareinsights');
+      expect(exampleHtml).not.toContain('data-cf-beacon');
+    }
   });
 
   it('validates M6.2 AI-agent discovery endpoints (site/llms.txt, site/llms-full.txt, site/SKILL.md), site/CNAME, and ci.yml Pages staging', () => {

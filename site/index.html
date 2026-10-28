@@ -54,6 +54,14 @@
     <!-- 2. Load naizo.js -->
     <script src="../dist/naizo.js" defer></script>
 
+    <!-- 3. Hosted-only Web Analytics (automatically stripped by naizo-strip on Save to PC / exportHTML) -->
+    <script
+      defer
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "37a058a9b8c9479cafdc2e5ea888c5df"}'
+      naizo-strip
+    ></script>
+
     <style>
       /* ==========================================================================
          1. WASHI EDITORIAL TOKENS & TYPOGRAPHY
