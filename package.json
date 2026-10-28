@@ -1,7 +1,7 @@
 {
   "name": "naizojs",
   "version": "0.1.0",
-  "description": "Turn static HTML files into self-saving apps with built-in JSON state for Human + AI workflows.",
+  "description": "Self-persisting HTML for human & AI flows — turn any single .html file into a self-saving app with built-in JSON state (#naizodb).",
   "keywords": [
     "ai-agents",
     "file-system-access-api",

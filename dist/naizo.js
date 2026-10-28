@@ -9,9 +9,8 @@
 	const DISK_WATCH_INTERVAL_MS = 2e3;
 	const NAIZODB_SCRIPT_RE = /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
 	const HEAD_OPEN_RE = /(<head\b[^>]*>)/i;
-	const CDN_NAIZO_JS_URL = "https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js";
 	const CDN_NAIZO_MIN_JS_URL = "https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js";
-	const RELATIVE_NAIZO_SCRIPT_RE = /(?:^|[\\/])naizo(\.min)?\.js(?:[?#].*)?$/i;
+	const RELATIVE_NAIZO_SCRIPT_RE = /(?:^|[\\/])naizo(?:\.min)?\.js(?:[?#].*)?$/i;
 	const ABSOLUTE_OR_SCHEME_URL_RE = /^(?:https?:|file:|data:|blob:|\/\/)/i;
 	const BOUND_SELECTOR = "[naizo], [data-naizo]";
 	const LIST_SELECTOR = "[naizo-list], [data-naizo-list]";
@@ -957,8 +956,7 @@
 			clone.querySelectorAll("script[src]").forEach((scriptEl) => {
 				const rawSrc = (scriptEl.getAttribute("src") ?? "").trim();
 				if (!rawSrc || ABSOLUTE_OR_SCHEME_URL_RE.test(rawSrc)) return;
-				const match = RELATIVE_NAIZO_SCRIPT_RE.exec(rawSrc);
-				if (match) scriptEl.setAttribute("src", match[1] ? CDN_NAIZO_MIN_JS_URL : CDN_NAIZO_JS_URL);
+				if (RELATIVE_NAIZO_SCRIPT_RE.test(rawSrc)) scriptEl.setAttribute("src", CDN_NAIZO_MIN_JS_URL);
 			});
 		}
 		clone.querySelectorAll(RUNTIME_STRIP_SELECTOR).forEach((el) => el.remove());

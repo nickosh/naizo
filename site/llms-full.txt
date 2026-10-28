@@ -149,7 +149,7 @@ Naizo.reset(); // Back up dirty state to ↺ Restore and reset to initial boot b
 await Naizo.unlink(); // Forget linked FileSystemFileHandle
 const json = await Naizo.copyJSON(); // Copy 2-space #naizodb JSON to clipboard
 const html = Naizo.exportHTML(); // Clean HTML snapshot with baked attributes & stripped runtime UI
-const dlHtml = Naizo.downloadHTML('app.html'); // Download portable HTML with CDN script URL
+const dlHtml = Naizo.downloadHTML('app.html'); // Download portable HTML with dist/naizo.min.js CDN URL
 
 // 5. Window Lifecycle & Mutation Events
 window.addEventListener('naizo:hydrate', (e) => {
@@ -176,7 +176,7 @@ window.addEventListener('naizo:item', (e) => {
   - When a linked tab is visible, `naizo.js` polls `file.lastModified` every ~2 seconds. External disk edits by a CLI/IDE AI agent are 3-way merged at the top-level key granularity (`fields[k]`, `lists[k]`, `custom[k]`) using compact `fnv1a:` hash manifests without overwriting `document.activeElement`. Same-key collisions back up browser state to `naizodb_backup_<key>` with a 1-click `↺ Restore` action.
 - **Online Mode (remote `http://` / `https://` hosts with no linked file handle):**
   - Status pill shows green `Saved in Browser`.
-  - Primary action **`⬇ Save to PC`** (`Naizo.downloadHTML()`) bakes live state and form attributes, strips runtime UI, rewrites relative `naizo.js` script paths to the npm CDN (`https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`), and strips `naizo-mode="online"` so the downloaded `.html` file opens in Local Mode on the user's computer.
+  - Primary action **`⬇ Save to PC`** (`Naizo.downloadHTML()`) bakes live state and form attributes, strips runtime UI, rewrites relative `naizo.js` script paths to the minified npm CDN (`https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`), and strips `naizo-mode="online"` so the downloaded `.html` file opens in Local Mode on the user's computer.
   - Secondary action **`↺ Reset`** (`Naizo.reset()`) appears when state diverges from `initialDiskDb`, guarded by a Shadow DOM confirmation popover and `↺ Restore` undo backup.
 
 ---

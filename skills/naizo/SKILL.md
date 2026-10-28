@@ -152,7 +152,7 @@ Naizo.reset(); // Back up dirty state to ↺ Restore and reset to initial boot b
 await Naizo.unlink(); // Forget linked FileSystemFileHandle
 const json = await Naizo.copyJSON(); // Copy 2-space #naizodb JSON to clipboard
 const html = Naizo.exportHTML(); // Clean HTML snapshot with baked attributes & stripped runtime UI
-const dlHtml = Naizo.downloadHTML('app.html'); // Download portable HTML with CDN script URL
+const dlHtml = Naizo.downloadHTML('app.html'); // Download portable HTML with dist/naizo.min.js CDN URL
 
 // 5. Window Lifecycle & Mutation Events
 window.addEventListener('naizo:hydrate', (e) => {

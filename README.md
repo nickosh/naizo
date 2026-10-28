@@ -2,42 +2,44 @@
 
 # `naizo.js`
 
-**The Built-In Engine for Self-Persisting HTML & AI Agent Workflows**
+**Self-persisting HTML for human & AI flows.**
 
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#)
 [![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~12.3_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
-_Turn any single `.html` file into a self-saving application with built-in JSON state (`#naizodb`) for Human + AI workflows._
+_`naizo.js` turns any single `.html` file into a self-saving application — from custom dashboards, studios, and personal trackers to interactive specs and creative micro-tools — with state stored in a built-in JSON block (`<script id="naizodb">`) shared between your browser and AI agents on disk._
 
-[Quick Start](#quick-start) · [Starter Examples](#starter-examples) · [AI Agent Skill](#ai-agent-skill-skillsnaizoskillmd) · [Attributes](#declarative-html-attributes) · [JS API](#javascript-api-windownaizo--windownaizodb) · [Full Usage Guide](docs/USAGE.md)
+[Why Naizo?](#why-naizo) · [Two-Way Loop](#the-human-browser--naizodb--local-file--ai-agent-loop) · [Quick Start](#quick-start) · [Starter Examples](#four-starter-app-blueprints) · [AI Agent Skill](#ai-agent-skill-skillsnaizoskillmd) · [Attributes & API](#declarative-html-attributes--windownaizo-api) · [Modes & Browsers](#browser--mode-capability-matrix) · [Full Usage Guide](docs/USAGE.md)
 
 </div>
 
 ---
 
-## Why **_Naizo_**?
+## Why Naizo?
 
-In Japanese, **_naizō_ (ないぞう)** carries two homophonous meanings—both of which capture what `naizo.js` does for HTML:
+A single `.html` file can be almost anything: a custom tool tailored to your workflow, a visual canvas, an inventory studio, a project board, or an interactive notebook crafted in seconds with an AI agent. Yet plain HTML has two persistent limits: edits in the browser vanish on refresh, and saving to `localStorage` traps your data inside the browser where CLI or IDE agents on disk cannot see it.
 
-- **内蔵 (_naizō_ — built-in / embedded / housed within):** Every `.html` artifact houses its own canonical JSON micro-database (`<script id="naizodb" type="application/json">`) right inside `<head>`. No external server, no separate `.json` sidecar, and no state trapped exclusively in browser storage—everything is **built-in** to the single file.
-- **内臓 (_naizō_ — internal organs / viscera):** Plain HTML markup is only a static skeleton. `naizo.js` supplies the **vital internal organs** inside the document—reactive field bindings, a dynamic list repeater, and a two-way disk circulatory system—turning inert `.html` files into living, breathing applications shared between humans in the browser and AI agents on disk.
+In Japanese, **_naizō_ (ないぞう)** has two homophonous meanings — and `naizo.js` provides both with a single `<script>` tag:
+
+- **内蔵 (_naizō_ — Built-In, `#naizodb` in `<head>`):** Every HTML document houses its own 2-space indented JSON database (`{ _meta, fields, lists, custom }`) inside `<script id="naizodb" type="application/json">`. `<body>` stays a clean template; `#naizodb` holds the canonical data.
+- **内臓 (_naizō_ — Internal Organs, `naizo.js` runtime):** Reactive field bindings (`naizo="key"`), a declarative list repeater (`naizo-list="name"`), surgical in-place disk writes (`⌘S` / `Ctrl+S`), and a ~2 s file watcher that 3-way merges external agent edits without interrupting focused inputs.
 
 ---
 
-## The Problem `naizo.js` Solves
+## The Human Browser ↔ `#naizodb` ↔ Local File ↔ AI Agent Loop
 
-People and AI coding agents (like Claude Code, Cursor, Antigravity, Codex, and Gemini CLI) can spin up **rich, single-file HTML applications** in seconds—dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, notebooks, specs, checklists, and custom micro-tools.
+Humans interact with rendered HTML controls in the browser; AI agents read and edit structured JSON on disk. `naizo.js` keeps both sides synchronized without a backend server:
 
-HTML is far more expressive than Markdown—until a human wants to interact with it and keep their state:
+1. **Browser DOM:** Edit inputs, `contenteditable` blocks, or `[naizo-list]` rows. `O(1)` event capture updates the in-memory store and `localStorage` immediately.
+2. **`#naizodb` Store:** Unbound fields, unbound lists, and extra item keys (such as `id` or `estimate`) pass through untouched. Per-key `fnv1a:` hashes track baseline state.
+3. **Local `.html` File:** Pressing `⌘S` / `Ctrl+S` links the file via the File System Access API and surgically updates only the `<script id="naizodb">` block — keeping `git diff` clean and preventing third-party runtime DOM mutations (Tailwind CDN, Lucide, Mermaid) from polluting the file on disk.
+4. **CLI / IDE Agent:** When an AI agent edits `#naizodb` on disk, `naizo.js` detects `file.lastModified` within ~2 s, merges unrelated keys, protects `document.activeElement`, and backs up same-key collisions to `↺ Restore`.
 
-1. **Static HTML is a lifeless skeleton:** Checking boxes, typing notes, or adding tasks in a local `.html` file disappears the moment you refresh the tab.
-2. **Browser storage hides edits from AI agents:** Saving state to `localStorage` keeps it trapped inside your browser profile. When your CLI or IDE AI agent reads `plan.html` from disk on the next turn, it is completely blind to your changes.
-
-**`naizo.js`** gives HTML both **内蔵 (built-in storage)** and **内臓 (living internal organs)** with a single `<script>` tag:
-
-- **`<script id="naizodb" type="application/json">` — 内蔵 (_Built-In Memory_):** The embedded JSON micro-database living right inside `<head>`, directly readable and writable by AI agents on disk and cleanly diffable in Git.
-- **`naizo.js` — 内臓 (_Vital Organs_):** The tiny reactive engine that binds your HTML inputs and dynamic lists (`naizo="key"`, `naizo-list="tasks"`) and keeps **Human edits in the browser** and **AI Agent edits on disk** in two-way sync without a backend server.
+```text
+Browser DOM  ──(O(1) input + ⌘S surgical write)──►  <script id="naizodb"> in plan.html
+             ◄──(~2 s watch + 3-way key merge)────  Edited on disk by CLI / IDE Agent
+```
 
 ---
 
@@ -52,11 +54,11 @@ HTML is far more expressive than Markdown—until a human wants to interact with
 
 ## Quick Start
 
-You don't need Node.js, a bundler, or a local server to use `naizo.js`. All you need is an `.html` file and a browser.
+No Node.js, bundler, or backend server is required:
 
-### 1. Create an `.html` file
-
-Save the following as `plan.html` on your computer (or copy any template from [`examples/`](examples/)):
+1. **Embed `#naizodb`:** Place `<script id="naizodb" type="application/json">` and the `naizo.js` script tag inside `<head>`.
+2. **Bind Markup:** Add `naizo="key"` to fields and `naizo-list="name"` + `naizo-item` to repeating lists in `<body>`.
+3. **Press `⌘S` / `Ctrl+S`:** Open the `.html` file in your browser and press `⌘S` / `Ctrl+S` to link it on disk (or click **`⬇ Save to PC`** in Online Mode).
 
 ```html
 <!doctype html>
@@ -105,33 +107,17 @@ Save the following as `plan.html` on your computer (or copy any template from [`
 </html>
 ```
 
-### 2. Open it in your browser and press `⌘S` (or `Ctrl+S`)
-
-1. **Open `plan.html` in your browser** by double-clicking it in Finder / File Explorer.
-2. **Start editing:** Click the heading to rename it, type in the notes box, or hover over a task to reorder (`↑` `↓`), delete (`×`), or click **`+ Add Item`**. Every change is cached in your browser immediately.
-3. **Link the file on disk:** Press **`⌘S`** on macOS or **`Ctrl+S`** on Windows/Linux (or click **`Link Disk`** on the status pill in the bottom-right corner) and select `plan.html`.
-4. **Auto-saved to disk:** Once linked, the status pill turns green (**`Synced to Disk`**). Every edit you make in the browser is now saved directly back into `plan.html` on your hard drive—and automatically flushes to disk the moment you switch tabs.
-
-> **Browser note:** Direct in-place disk saving uses the File System Access API (`showSaveFilePicker`), supported in Chrome, Edge, Brave, and Arc. In Safari and Firefox, your edits persist automatically in `localStorage`, and you can click **`📋 Copy`** on the pill to copy the `#naizodb` JSON or click the pill to download an updated `.html` file.
-
-### 3. Co-edit with your AI Agent (or any text editor)
-
-1. Point your AI coding agent (or text editor) at `plan.html`.
-2. All of your browser edits are waiting inside `<script id="naizodb">` at the top of `<head>` as clean, 2-space indented JSON.
-3. Ask your AI agent to check off completed tasks, add new items, or update fields in `#naizodb`—or ask it to redesign the HTML/CSS in `<body>`.
-4. Whenever the file on disk is updated while your browser tab is open, `naizo.js` detects the change within ~2 seconds and merges the new data into your live page without interrupting what you're typing.
-
 ### Ways to Load `naizo.js`
 
 ```html
 <!-- jsDelivr CDN (readable bundle) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- unpkg CDN (readable bundle) -->
-<script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer></script>
-
 <!-- Prebuilt minified bundle (~12.3 KB gzipped, works on either CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
+
+<!-- unpkg CDN (readable bundle) -->
+<script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer></script>
 
 <!-- Offline / local copy -->
 <script src="./dist/naizo.js" defer></script>
@@ -141,16 +127,16 @@ Both CDNs serve the published `naizojs` npm package (`@latest` follows new relea
 
 ---
 
-## Starter Examples
+## Four Starter App Blueprints
 
-Copy any of the self-contained single-file apps in [`examples/`](examples/) to jump-start your own tools:
+Because `<body>` is standard HTML, CSS, and JavaScript and `#naizodb` stores arbitrary JSON (`fields`, `lists`, `custom`), you can build almost any single-file application. Use the four starter apps in [`examples/`](examples/) as architectural blueprints — try them in Online Mode or click **`⬇ Save to PC`** in the status pill to adapt them on your computer:
 
-| Template                                                 | What It Demonstrates                                                                                                                                                                                                                                                                      |
-| :------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **[`examples/starter.html`](examples/starter.html)**     | **Project Spec & Milestones** — Minimal spec sheet with an editable heading, owner and status fields, summary textarea, and repeating milestone checklist.                                                                                                                                |
-| **[`examples/checklist.html`](examples/checklist.html)** | **Release Verification Checklist** — Pre-release sign-off sheet with reviewer metadata, environment dropdown, release readiness toggle, prioritized verification items, and blocker notes.                                                                                                |
-| **[`examples/notes.html`](examples/notes.html)**         | **Master–Detail Engineering Notebook** — Multi-note workspace built declaratively on `[naizo-list="notes"]` with sidebar search & category filters, note pinning, live character/word/task (`- [ ]`) counters, `Alt+N` / `Alt+↑/↓` keyboard navigation, and Light/Dark theme persistence. |
-| **[`examples/inventory.html`](examples/inventory.html)** | **Asset & Inventory Studio** — Filterable card grid with custom per-card JSON key-value badges, `<dialog>` creation/property modals, dynamic location filter options, live KPI summaries, and non-destructive sorting.                                                                    |
+| Template                                                 | What It Demonstrates                                                                                                                                                                                                 |
+| :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[`examples/starter.html`](examples/starter.html)**     | **Project Specification & Milestones** — Minimal spec sheet with an editable heading, owner and status fields, summary textarea, and repeating milestone checklist.                                                  |
+| **[`examples/checklist.html`](examples/checklist.html)** | **Release Verification Checklist** — Pre-release sign-off sheet with reviewer metadata, environment dropdown, release readiness toggle, prioritized checks, and blocker notes.                                       |
+| **[`examples/notes.html`](examples/notes.html)**         | **Master–Detail Engineering Notebook** — Zero-DOM-wipe multi-note workspace on `[naizo-list="notes"]` with sidebar search, category filtering, pinning, live word/task counters, and `Alt+N` / `Alt+↑/↓` navigation. |
+| **[`examples/inventory.html`](examples/inventory.html)** | **Asset & Inventory Studio** — Filterable card grid with custom per-card JSON key-value properties (pass-through keys), `<dialog>` modals, dynamic location filter options, and live KPI summaries.                  |
 
 ---
 
@@ -187,84 +173,65 @@ npx skills add nickosh/naizo@main --skill naizo
 
 ---
 
-## Local Mode vs. Online Mode (`⬇ Save to PC`)
+## Declarative HTML Attributes & `window.Naizo` API
 
-A single `naizo.js` HTML file adapts automatically depending on where it is opened:
+Every attribute supports both concise **`naizo` / `naizo-*`** syntax and HTML5-compliant **`data-naizo` / `data-naizo-*`** aliases (for example, `naizo="key"` or `data-naizo="key"`):
 
-- **Local Mode (`file://`, `localhost`, or linked disk file):** Designed for local human + AI agent collaboration. The status pill prompts **`Click to Link Disk`** (or press **`⌘S` / `Ctrl+S`**) and turns green (**`Synced to Disk`**) once linked, watching the local file every ~2 seconds for external AI agent edits.
-- **Online Mode (GitHub Pages or any `https://` static web host):** When hosted online where no server file write is possible, `naizo.js` automatically switches to **Online Mode**:
-  - The status pill shows green **`Saved in Browser`** (persisting each visitor's edits in `localStorage`).
-  - Once a visitor makes edits, a **`↺ Reset`** button (with a safe inline confirmation popover and **`↺ Restore`** backup) lets them reset the demo back to its initial published state anytime.
-  - Clicking **`⬇ Save to PC`** (`Naizo.downloadHTML()`) downloads a portable `.html` file containing the visitor's current data and a CDN `<script src>`. Opening that downloaded file on their computer boots straight into **Local Mode** at the exact state they had on the web.
-
----
-
-## Declarative HTML Attributes
-
-`naizo.js` supports both concise **`naizo` / `naizo-*`** attributes (recommended for low token overhead) and HTML5-compliant **`data-naizo` / `data-naizo-*`** attributes (for strict HTML validators):
-
-| Short Attribute                    | HTML5 `data-*` Alias                    | Target Element                                                              | Description                                                                                                                      |
-| ---------------------------------- | --------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `naizo="key"`                      | `data-naizo="key"`                      | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf | Binds the element's state to `fields["key"]` (or to the item's `"key"` property when on or inside a `[naizo-item]`).             |
-| `naizo-list="name"`                | `data-naizo-list="name"`                | Container (`<div>`, `<ul>`, `<tbody>`)                                      | Declares a repeating list bound to `lists["name"]` in `#naizodb`. Automatically injects a `+ Add Item` button below the list.    |
-| `naizo-item`                       | `data-naizo-item`                       | Child of `[naizo-list]`                                                     | Marks a repeating item row or card. Automatically receives hover `↑` `↓` `×` controls.                                           |
-| `naizo-template`                   | `data-naizo-template`                   | `<template>` inside `[naizo-list]`                                          | Optional explicit HTML blueprint for new items. Auto-generated (`data-naizo-auto-template`) from the first item if omitted.      |
-| `naizo-add="name"`                 | `data-naizo-add="name"`                 | `<button>`                                                                  | Appends a new blank item to `[naizo-list="name"]` and focuses its first text field.                                              |
-| `naizo-remove`                     | `data-naizo-remove`                     | `<button>` inside `[naizo-item]`                                            | Removes the enclosing `[naizo-item]`.                                                                                            |
-| `naizo-move="up\|down"`            | `data-naizo-move="up\|down"`            | `<button>` inside `[naizo-item]`                                            | Moves the enclosing `[naizo-item]` up or down.                                                                                   |
-| `naizo-no-controls`                | `data-naizo-no-controls`                | `[naizo-list]`                                                              | Disables automatic injection of `+ Add Item` and `↑` `↓` `×` buttons for that list.                                              |
-| `naizo-ignore`                     | `data-naizo-ignore`                     | Any HTML element                                                            | Excludes the element and its subtree from state binding while preserving it in exported HTML.                                    |
-| `naizo-strip`                      | `data-naizo-strip`                      | Any HTML element                                                            | Excludes the element/subtree from state binding and strips it from auto-templates and exported/downloaded HTML (`⬇ Save to PC`). |
-| `naizo-id="scope"`                 | `data-naizo-id="scope"`                 | `<html>` or `<body>`                                                        | Optional document scope identifier to isolate `localStorage` and IndexedDB file handles on `localhost`.                          |
-| `naizo-mode="online\|local\|auto"` | `data-naizo-mode="online\|local\|auto"` | `<html>` or `<body>`                                                        | Overrides automatic Local Mode (`file:`, `localhost`) vs. Online Mode (remote `http(s):` host with `⬇ Save to PC` & `↺ Reset`).  |
-| `naizo-manual`                     | `data-naizo-manual`                     | `<html>`, `<body>`, or `<script>`                                           | Opts out of automatic `initNaizo()` boot when loading the browser IIFE bundle so you can call `Naizo.init()` manually.           |
-
----
-
-## JavaScript API (`window.Naizo` / `window.NaizoDB`)
-
-For custom widgets, charts, filters, or programmatic updates, use `window.Naizo` (see [docs/USAGE.md](docs/USAGE.md) for the complete API and event guide):
+| Attribute (or `data-*`)            | Target Element                                                              | Behavior                                                                                                                     |
+| ---------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `naizo="key"`                      | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf | Binds element state to `fields["key"]` (or item property inside `[naizo-item]`).                                             |
+| `naizo-list="name"`                | `<div>`, `<ul>`, `<tbody>`                                                  | Declares a repeating list bound to `lists["name"]` and appends `+ Add Item`.                                                 |
+| `naizo-item`                       | Direct child of `[naizo-list]`                                              | Marks a repeating row/card with hover `↑ ↓ ×` controls and `WeakMap` pass-through keys.                                      |
+| `naizo-template`                   | `<template>` in list                                                        | Optional explicit blueprint for new items (auto-inferred from first item when omitted).                                      |
+| `naizo-add="name"`                 | `<button>`                                                                  | Appends a new blank item to `[naizo-list="name"]`.                                                                           |
+| `naizo-remove`                     | `<button>` in item                                                          | Removes the enclosing `[naizo-item]` row.                                                                                    |
+| `naizo-move="up\|down"`            | `<button>` in item                                                          | Moves the enclosing `[naizo-item]` row up or down.                                                                           |
+| `naizo-no-controls`                | `[naizo-list]`                                                              | Disables automatic injection of `+ Add Item` and row toolbars.                                                               |
+| `naizo-ignore`                     | Any element                                                                 | Excludes element/subtree from state binding while preserving it in exported HTML.                                            |
+| `naizo-strip`                      | Any element                                                                 | Excludes element/subtree from state binding and strips it from auto-templates and exported/downloaded HTML (`⬇ Save to PC`). |
+| `naizo-id="scope"`                 | `<html>` or `<body>`                                                        | Optional document scope identifier to isolate storage keys on `localhost`.                                                   |
+| `naizo-mode="online\|local\|auto"` | `<html>` or `<body>`                                                        | Overrides automatic Local Mode vs. Online Mode detection.                                                                    |
+| `naizo-manual`                     | `<html>`, `<body>`, or `<script>`                                           | Opts out of automatic boot so you can call `Naizo.init()` manually.                                                          |
 
 ```javascript
-// Custom State Namespace (db.custom)
-const rps = Naizo.get('rateLimitRps');
+// Programmatic JavaScript API (window.Naizo / window.NaizoDB)
+Naizo.get('rateLimitRps');
 Naizo.set('rateLimitRps', 250);
-Naizo.delete('obsoleteCustomKey');
-
-// Standalone Fields Namespace (db.fields)
-const owner = Naizo.getField('owner');
+Naizo.delete('oldKey');
+Naizo.getField('owner');
 Naizo.setField('owner', 'Kenji');
-Naizo.deleteField('obsoleteFlag');
+Naizo.deleteField('flag');
 
-// Programmatic List Manipulation (db.lists)
-const tasks = Naizo.getList('tasks');
-Naizo.addItem('tasks', { done: false, title: 'Write unit tests', priority: 'High' });
+Naizo.getList('tasks');
+Naizo.addItem('tasks', { done: false, title: 'Ship', priority: 'High' });
 Naizo.updateItem('tasks', 0, { done: true });
-Naizo.moveItem('tasks', 2, 0);
-Naizo.removeItem('tasks', 1);
+Naizo.moveItem('tasks', 1, 0);
+Naizo.removeItem('tasks', 2);
 
-// Dynamic Subtree Binding & Persistence Utilities
-Naizo.bind(document.getElementById('dynamic-panel')); // Hydrate dynamically mounted DOM
-await Naizo.save(); // Flush cache and await single-flight disk write (Promise<boolean>)
-Naizo.reset(); // Back up current state to ↺ Restore and reset to initial baseline state
-await Naizo.unlink(); // Forget linked FileSystemFileHandle
-const json = await Naizo.copyJSON(); // Copy #naizodb JSON to clipboard and return string
-const html = Naizo.exportHTML(); // Return clean HTML snapshot with baked attributes
-const portableHtml = Naizo.downloadHTML('my-app.html'); // Download portable HTML snapshot with CDN script URL
+Naizo.bind(rootEl);
+await Naizo.save();
+Naizo.reset();
+await Naizo.unlink();
+await Naizo.copyJSON();
+const html = Naizo.exportHTML();
+const portable = Naizo.downloadHTML('app.html');
 
-// Lifecycle & Mutation Events
-window.addEventListener('naizo:hydrate', (e) => console.log('Hydrated store:', e.detail));
-window.addEventListener('naizo:change', (e) => console.log('State changed:', e.detail));
-window.addEventListener('naizo:item', (e) => console.log('New list row:', e.detail));
+// Events: 'naizo:hydrate', 'naizo:change', 'naizo:item'
 ```
+
+See [docs/USAGE.md](docs/USAGE.md) for the complete API, event payloads, and architectural recipes.
 
 ---
 
-## How Disk Sync & Conflict Resolution Work
+## Browser & Mode Capability Matrix
 
-1. **Body is the template, `#naizodb` is the data:** When linked to a local file (`showSaveFilePicker`), `naizo.js` surgically updates only the `<script id="naizodb">` block in place (`\u003c`-escaped, UTF-8 BOM preserved) so third-party runtime DOM mutations (Tailwind Play CDN, Lucide, Mermaid) never pollute the file on disk and Git diffs show only clean JSON data changes. Edit `#naizodb` to change data; edit `<body>` markup to change the view.
-2. **Pass-through keys:** Unbound fields in `db.fields`, unbound lists in `db.lists`, and extra keys on list item objects (such as agent-authored `id`, `estimate`, or custom card properties) pass through untouched in memory and on save.
-3. **Live ~2 s watch, `⌘S` / `Ctrl+S` shortcut, & shallow 3-way merge:** Pressing `⌘S` / `Ctrl+S` suppresses the browser's broken webpage save dialog and immediately links or flushes `#naizodb` to disk (and switching tabs flushes pending edits automatically). While a linked tab is visible (and on window `focus`, before every disk write, and across page reloads), `naizo.js` checks `file.lastModified` and compares `#naizodb` against its per-key FNV-1a snapshot hash manifest (`naizodb_disk_hash_<key>`). Concurrent human edits in the browser and AI agent edits on disk to different top-level keys (`fields[k]`, `lists[k]`, `custom[k]`) both survive without clobbering `document.activeElement`. On same-key collisions, disk wins and the pre-merge browser state is backed up to `naizodb_backup_<key>` with a 1-click **`↺ Restore`** button in the status pill (alongside **`📋 Copy`**, **`× Unlink`**, and **`↺ Repair`** if startup `#naizodb` JSON is malformed).
+How `naizo.js` adapts across Local Mode and Online Mode while keeping the status pill truthful about storage durability:
+
+| Mode & Browsers                                                                    | Status Pill & Action                                                          | Persistence, Sync, & Recovery                                                                                                                                                                                                                                                                                                                       |
+| :--------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Local Mode (Live Disk)**<br>Chrome, Edge, Brave, Arc on `file://` or `localhost` | `Browser Cache · Click to Link Disk`<br>↓ _after linking_<br>`Synced to Disk` | `⌘S` / `Ctrl+S` links or saves immediately; surgical `<script id="naizodb">` in-place write; immediate disk flush on tab switch; IndexedDB handle persistence; ~2 s `file.lastModified` watch; 3-way shallow key merge with `↺ Restore` backup.                                                                                                     |
+| **Online Mode (Web Host)**<br>All modern browsers on GitHub Pages or `https://`    | `Saved in Browser`<br>Actions: `⬇ Save to PC` · `↺ Reset`                     | Instant `localStorage` persistence + cross-tab `storage` merge; `↺ Reset` with inline Shadow DOM confirmation and `↺ Restore` undo backup; `⬇ Save to PC` (`Naizo.downloadHTML()`) rewrites relative `naizo.js` paths to `dist/naizo.min.js` on the npm CDN and strips `naizo-mode="online"` so downloaded `.html` files run in Local Mode on a PC. |
+| **Local Mode (Fallback)**<br>Safari & Firefox on `file://` or `localhost`          | `Browser Cache · Click to Save HTML`<br>Action: `📋 Copy`                     | Full reactive bindings, `[naizo-list]` repeater, and `localStorage` cache; 1-click `📋 Copy` (`Naizo.copyJSON()`) to copy `#naizodb` JSON to clipboard; 1-click clean `.html` snapshot download via `Naizo.exportHTML()`.                                                                                                                           |
 
 ---
 

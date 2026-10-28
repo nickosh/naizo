@@ -2191,15 +2191,21 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(createUrlSpy).toHaveBeenCalled();
     expect(revokeUrlSpy).toHaveBeenCalledWith('blob:portable-url');
     expect(statusEl?.textContent).toBe('Saved to PC · Ready for Local Mode');
-    expect(portableHtml).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js');
     expect(portableHtml).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js');
+    expect(portableHtml).not.toContain(
+      'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js"',
+    );
     expect(portableHtml).not.toContain('src="../dist/naizo.js"');
+    expect(portableHtml).not.toContain('src="./dist/naizo.min.js"');
     expect(portableHtml).not.toContain('naizo-mode="online"');
     expect(portableHtml).toContain('value="Edited in Browser"');
 
-    // Online Mode exportHTML() also produces portable HTML
+    // Online Mode exportHTML() also produces portable HTML with minified CDN URL
     const onlineExport = Naizo.exportHTML();
-    expect(onlineExport).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js');
+    expect(onlineExport).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js');
+    expect(onlineExport).not.toContain(
+      'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js"',
+    );
     expect(onlineExport).not.toContain('naizo-mode="online"');
 
     // Switching to Local Mode preserves local relative <script src="../dist/naizo.js"> on Naizo.exportHTML()
@@ -2466,8 +2472,9 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(downloadedSiteHtml).not.toContain('data-cf-beacon');
     expect(downloadedSiteHtml).not.toContain('37a058a9b8c9479cafdc2e5ea888c5df');
     expect(downloadedSiteHtml).toContain(
-      'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js',
+      'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js',
     );
+    expect(downloadedSiteHtml).not.toContain('src="../dist/naizo.js"');
 
     for (const exampleHtml of [starterHtml, checklistHtml, notesHtml, inventoryHtml]) {
       expect(exampleHtml).not.toContain('cloudflareinsights');
