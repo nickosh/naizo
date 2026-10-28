@@ -1,7 +1,7 @@
 ---
 name: naizo-closeout
 license: MIT
-description: Close naizo development sessions, useful development slices, and milestones by reconciling implementation evidence with the project memory documents. Use when wrapping up or handing off work, ending a state-changing session, finishing a PLAN task or milestone, or updating project memory after implementation. Do not use for read-only exploration that produced no durable decision, blocker, reproduced edge case, or repository change.
+description: 'Close naizo development sessions, useful development slices, and milestones by reconciling implementation evidence with the project memory documents. Use when wrapping up or handing off work, ending a state-changing session, finishing a PLAN task or milestone, or updating project memory after implementation. Do not use for read-only exploration that produced no durable decision, blocker, reproduced edge case, or repository change.'
 ---
 
 # Naizo Closeout

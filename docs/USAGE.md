@@ -134,9 +134,12 @@ Load one provider in `<head>` with `defer` (`D34`, `D39`):
 
 <!-- Alternative: unpkg -->
 <script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer></script>
+
+<!-- Latest in-development bundle directly from main (dist/naizo.js) -->
+<script src="https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js" defer></script>
 ```
 
-Use `@latest` to follow published releases automatically as CDN caches refresh, or pin a specific version tag for immutable artifacts. See [PUBLISHING.md](PUBLISHING.md#cdn-urls-and-automatic-updates) for CDN caching details.
+Use `@latest` to follow published releases automatically as CDN caches refresh, pin a specific version tag for immutable artifacts, or use `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` (or local `./dist/naizo.js`) for the latest in-development build on `main`. See [PUBLISHING.md](PUBLISHING.md#cdn-urls-and-automatic-updates) for CDN caching details.
 
 ### Option B: Local File Copy (Offline & Local Repository Use)
 
@@ -739,14 +742,19 @@ EOF
 
 ### Workflow 5: Equipping AI Coding Agents with [`skills/naizo/SKILL.md`](../skills/naizo/SKILL.md)
 
-Install the distributable [`skills/naizo/SKILL.md`](../skills/naizo/SKILL.md) skill into any workspace so Claude Code, Antigravity, Cursor, Gemini CLI, and Codex know how to author `naizo.js` artifacts and surgically update `#naizodb` on disk:
+Install the distributable [`skills/naizo/SKILL.md`](../skills/naizo/SKILL.md) skill into any workspace via the GitHub CLI (`gh skill`), the npm Skills CLI (`npx skills`), or `curl` / `cp` so Claude Code, Antigravity, Cursor, GitHub Copilot, Gemini CLI, and Codex know how to author `naizo.js` applications and surgically update `#naizodb` on disk:
 
 ```bash
-# Antigravity, Cursor, Codex, Gemini CLI
-mkdir -p .agents/skills/naizo && cp path/to/naizo/skills/naizo/SKILL.md .agents/skills/naizo/SKILL.md
+# 1. GitHub CLI (gh v2.90+ — tracks latest release, or use naizo@main for latest in-development skill)
+gh skill install nickosh/naizo naizo
+gh skill install nickosh/naizo naizo@main
 
-# Claude Code
-mkdir -p .claude/skills/naizo && cp path/to/naizo/skills/naizo/SKILL.md .claude/skills/naizo/SKILL.md
+# 2. npm Skills CLI (npx skills)
+npx skills add nickosh/naizo --skill naizo
+
+# 3. Direct curl / file copy (Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
+mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
+mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```
 
 ### Workflow 6: Interactive Option Explorer & Human Review Loop (`D45`)

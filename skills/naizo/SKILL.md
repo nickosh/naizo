@@ -1,7 +1,7 @@
 ---
 name: naizo
 license: MIT
-description: Build and update self-persisting interactive HTML applications (dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, engineering notebooks, plans, specs, checklists, triage boards, and custom micro-tools) using naizo.js and its built-in #naizodb JSON database. Activate whenever generating an interactive HTML application or inspecting/editing an existing HTML file that uses <script id="naizodb" type="application/json"> or naizo / data-naizo attributes.
+description: 'Build and update self-persisting interactive HTML applications (dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, engineering notebooks, plans, specs, checklists, triage boards, and custom micro-tools) using naizo.js and its built-in #naizodb JSON database. Activate whenever generating an interactive HTML application or inspecting/editing an existing HTML file that uses <script id="naizodb" type="application/json"> or naizo / data-naizo attributes.'
 ---
 
 # Naizo (`naizo.js`) — Self-Persisting HTML & AI Agent Co-Editing Skill
@@ -79,12 +79,13 @@ Every `naizo.js` HTML document embeds `<script id="naizodb" type="application/js
 </html>
 ```
 
-### CDN & Local Script Options (`D34`, `D39`)
+### CDN & Local Script Options (`D17`, `D34`, `D39`)
 
 - **jsDelivr (readable):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
 - **jsDelivr (minified, ~12.3 KB gzipped):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
 - **unpkg:** `https://unpkg.com/naizojs@latest/dist/naizo.js`
 - **Pinned version:** replace `@latest` with a specific published version tag
+- **Latest in-development (`main` branch `dist/naizo.js`):** `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` (or local `./dist/naizo.js` from a checkout of `main`)
 - **Local / offline:** `<script src="./dist/naizo.js" defer></script>` (inside the `naizo` repository examples, use `../dist/naizo.js`)
 
 ---
@@ -395,12 +396,17 @@ fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n$
 
 ## 8. Installing This Skill in Your Workspace
 
-To equip Claude Code, Antigravity, Cursor, Gemini CLI, or Codex with this skill in any repository, copy `SKILL.md` into your workspace's skills directory:
+To equip Claude Code, Antigravity, Cursor, GitHub Copilot, Gemini CLI, or Codex with this skill in any repository, install it via the GitHub CLI (`gh skill`), the npm Skills CLI (`npx skills`), or `curl`:
 
 ```bash
-# For Antigravity, Cursor, Codex, and Gemini CLI (.agents/skills/)
-mkdir -p .agents/skills/naizo && cp path/to/skills/naizo/SKILL.md .agents/skills/naizo/SKILL.md
+# 1. GitHub CLI (gh v2.90+ — tracks latest release, or use naizo@main for latest in-development skill)
+gh skill install nickosh/naizo naizo
+gh skill install nickosh/naizo naizo@main
 
-# For Claude Code (.claude/skills/)
-mkdir -p .claude/skills/naizo && cp path/to/skills/naizo/SKILL.md .claude/skills/naizo/SKILL.md
+# 2. npm Skills CLI (npx skills)
+npx skills add nickosh/naizo --skill naizo
+
+# 3. Direct curl / file copy (no CLI required)
+mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
+mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```

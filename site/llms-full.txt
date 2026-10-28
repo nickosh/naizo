@@ -75,12 +75,13 @@ Every `naizo.js` HTML document embeds `<script id="naizodb" type="application/js
 </html>
 ```
 
-### CDN & Local Script Options (`D34`, `D39`)
+### CDN & Local Script Options (`D17`, `D34`, `D39`)
 
 - **jsDelivr (readable):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
 - **jsDelivr (minified, ~12.3 KB gzipped):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
 - **unpkg:** `https://unpkg.com/naizojs@latest/dist/naizo.js`
 - **Pinned version:** replace `@latest` with a specific published version tag
+- **Latest in-development (`main` branch `dist/naizo.js`):** `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` (or local `./dist/naizo.js` from a checkout of `main`)
 - **Local / offline:** `<script src="./dist/naizo.js" defer></script>` (inside the `naizo` repository examples, use `../dist/naizo.js`)
 - **ESM import (side-effect free):** `import { Naizo, initNaizo } from 'naizojs';`
 
@@ -423,4 +424,21 @@ db._meta = { ...db._meta, updatedAt: new Date().toISOString() };
 const json = JSON.stringify(db, null, 2).replace(/</g, "\\u003c");
 fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n${json}\n${close}`), "utf8");
 '
+```
+
+---
+
+## 9. Installing the `naizo` AI Skill (`gh skill`, `npx skills`, or `curl`)
+
+```bash
+# 1. GitHub CLI (gh v2.90+ — tracks latest release, or use naizo@main for latest in-development skill)
+gh skill install nickosh/naizo naizo
+gh skill install nickosh/naizo naizo@main
+
+# 2. npm Skills CLI (npx skills)
+npx skills add nickosh/naizo --skill naizo
+
+# 3. Direct curl (Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
+mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
+mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```

@@ -2296,11 +2296,15 @@ describe('naizo.js v0.1.0 core runtime', () => {
     const usageMd = readFileSync(usagePath, 'utf-8');
     const skillMd = readFileSync(skillPath, 'utf-8');
 
-    // Verify skills/naizo/SKILL.md YAML frontmatter
+    // Verify skills/naizo/SKILL.md YAML frontmatter (description must be quoted so ` #naizodb` is not treated as a YAML comment)
     expect(skillMd.startsWith('---\n')).toBe(true);
     expect(skillMd).toContain('name: naizo\n');
     expect(skillMd).toContain('license: MIT\n');
-    expect(skillMd).toContain('description: ');
+    expect(skillMd).toContain("description: 'Build and update");
+    expect(skillMd).toContain('gh skill install nickosh/naizo naizo');
+    expect(skillMd).toContain('gh skill install nickosh/naizo naizo@main');
+    expect(skillMd).toContain('npx skills add nickosh/naizo --skill naizo');
+    expect(skillMd).toContain('https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js');
 
     // Both docs/USAGE.md and skills/naizo/SKILL.md must use a replacement callback function
     // rather than `$1\n${json}\n$3` so dollar signs ($1, $&) in JSON values never corrupt #naizodb

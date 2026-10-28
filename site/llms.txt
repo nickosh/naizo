@@ -8,7 +8,7 @@ In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed wi
 
 1. **`<body>` is the template; `<script id="naizodb">` is the canonical data:**
    - Place `<script id="naizodb" type="application/json">` at the top of `<head>` initialized with `{ "_meta": {}, "fields": {}, "lists": {}, "custom": {} }` (2-space indented, `<` escaped as `\u003c`).
-   - Load `naizo.js`: `<script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>` (or `dist/naizo.min.js`, `unpkg`, or local `./dist/naizo.js`).
+   - Load `naizo.js`: `<script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>` (or `dist/naizo.min.js`, `unpkg`, local `./dist/naizo.js`, or latest in-development `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js`).
    - To read human edits from disk, parse `<script id="naizodb">`. To update data on disk, surgically rewrite only `<script id="naizodb">`. Edit `<body>` only when changing the UI/layout.
 2. **Preserve pass-through keys (`D15`):** Unbound keys in `fields`, unbound arrays in `lists`, and extra properties on list item objects (such as `"id"`, `"estimate"`, `"updatedAt"`) pass through untouched via `WeakMap` row bindings.
 3. **Explicit binding only (`D08`):** Use `naizo="key"` (or `data-naizo="key"`) on scalar inputs (`text`, `number`, `range`, `checkbox`, `radio`), `<textarea>`, `<select>`, `<details>`, and `[contenteditable]`, and `naizo-list="name"` + `naizo-item` on repeating lists.
@@ -43,7 +43,7 @@ In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed wi
 ## AI Agent & LLM Documentation Endpoints
 
 - [Complete Single-File Documentation & Templates (`/llms-full.txt`)](https://naizo.js.org/llms-full.txt): Full authoring guide, API reference, surgical disk-edit script, and starter HTML templates in one file.
-- [Installable AI Agent Skill (`/SKILL.md`)](https://naizo.js.org/SKILL.md): Distributable skill for Claude Code (`.claude/skills/naizo/SKILL.md`), Antigravity, Cursor, Codex, and Gemini CLI (`.agents/skills/naizo/SKILL.md`).
+- [Installable AI Agent Skill (`/SKILL.md`)](https://naizo.js.org/SKILL.md): Distributable skill for Claude Code, Antigravity, Cursor, Copilot, Codex, and Gemini CLI (`gh skill install nickosh/naizo naizo`, `gh skill install nickosh/naizo naizo@main` for in-development `main`, or `npx skills add nickosh/naizo --skill naizo`).
 - [Interactive Documentation & Live Playground (`/`)](https://naizo.js.org/): Self-persisting `naizo.js` documentation site and live `#naizodb` inspector.
 
 ## Starter Application Blueprints

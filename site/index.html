@@ -1135,25 +1135,33 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr-min">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>4. unpkg CDN</span>
+          <span>4. unpkg CDN (or latest in-development dist/naizo.js from main)</span>
           <button type="button" class="quiet-btn copy-snippet-btn" data-copy-target="cdn-unpkg">
             Copy
           </button>
         </div>
-        <pre><code id="cdn-unpkg">&lt;script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
+        <pre><code id="cdn-unpkg">&lt;script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;
+&lt;!-- Latest in-development build from main (dist/naizo.js): --&gt;
+&lt;script src="https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span
-            >5. Install AI Agent Skill (Antigravity, Cursor, Codex, Gemini CLI, Claude Code)</span
-          >
+          <span>
+            5. Install AI Agent Skill (gh skill, npx skills, or curl — Antigravity, Cursor, Claude
+            Code, Copilot, Codex, Gemini CLI)
+          </span>
           <button type="button" class="quiet-btn copy-snippet-btn" data-copy-target="skill-install">
             Copy
           </button>
         </div>
-        <pre><code id="skill-install"># Antigravity, Cursor, Codex, Gemini CLI
-mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
+        <pre><code id="skill-install"># 1. GitHub CLI (tracks latest release, or use naizo@main for latest in-development skill)
+gh skill install nickosh/naizo naizo
+gh skill install nickosh/naizo naizo@main
 
-# Claude Code
+# 2. npm Skills CLI
+npx skills add nickosh/naizo --skill naizo
+
+# 3. Direct curl (Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
+mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
 mkdir -p .claude/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md</code></pre>
       </section>
 
