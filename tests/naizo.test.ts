@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInThisContext } from 'node:vm';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
@@ -2417,7 +2417,9 @@ describe('naizo.js v0.1.0 core runtime', () => {
     // 1. CNAME for js.org registration
     expect(cname.trim()).toBe('naizo.js.org');
 
-    // 2. site/SKILL.md is an exact copy of skills/naizo/SKILL.md
+    // 2. site/SKILL.md is a relative symlink to ../skills/naizo/SKILL.md (single source of truth)
+    expect(lstatSync(resolve(process.cwd(), 'site/SKILL.md')).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(resolve(process.cwd(), 'site/SKILL.md'))).toBe('../skills/naizo/SKILL.md');
     expect(siteSkill).toBe(rootSkill);
 
     // 3. site/llms.txt and site/llms-full.txt cover core contract, attributes, API, D45, and safe surgical replacement
@@ -2433,8 +2435,8 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(llmsFullTxt).toContain('examples/starter.html');
     expect(llmsFullTxt).toContain('examples/notes.html');
 
-    // 4. ci.yml stages site/. to _site/ and rewrites ../dist/ and ../examples/ to ./dist/ and ./examples/
-    expect(ciYml).toContain('cp -R site/. _site/');
+    // 4. ci.yml stages site/. with -RL (dereferencing symlinks) to _site/ and rewrites ../dist/ and ../examples/
+    expect(ciYml).toContain('cp -RL site/. _site/');
     expect(ciYml).toContain('cp -R examples _site/');
     expect(ciYml).toContain(
       "sed -e 's#\\.\\./dist/#./dist/#g' -e 's#\\.\\./examples/#./examples/#g' site/index.html > _site/index.html",
