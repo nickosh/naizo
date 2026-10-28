@@ -3,11 +3,87 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      naizo.js – Self-Persisting HTML &amp; Built-In JSON Database for Human + AI Workflows
+    </title>
     <meta
       name="description"
-      content="Self-persisting HTML for human &amp; AI flows – turn any single .html file into a self-saving app with built-in JSON state (#naizodb)."
+      content="naizo.js is a zero-dependency JavaScript library that turns any single .html file into a self-saving local-first application with a built-in JSON database (#naizodb) shared between your browser and AI agents on disk."
     />
-    <title>naizo.js – Self-persisting HTML for human &amp; AI flows</title>
+    <meta
+      name="keywords"
+      content="naizo, naizo.js, naizojs, self-persisting HTML, single-file HTML app, local-first HTML, built-in JSON database, naizodb, declarative HTML state, human AI agent workflow, File System Access API"
+    />
+    <meta name="author" content="Nikolay Shishov" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://naizo.js.org/" />
+
+    <!-- Open Graph / Social Preview -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="naizo.js" />
+    <meta property="og:url" content="https://naizo.js.org/" />
+    <meta
+      property="og:title"
+      content="naizo.js – Self-Persisting HTML for Human &amp; AI Workflows"
+    />
+    <meta
+      property="og:description"
+      content="Turn any single .html file into a self-saving application – from custom dashboards, interactive studios, and personal trackers to calculators, notebooks, specs, and more – with state stored in a built-in JSON block (#naizodb) shared between your browser and AI agents on disk."
+    />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta
+      name="twitter:title"
+      content="naizo.js – Self-Persisting HTML for Human &amp; AI Workflows"
+    />
+    <meta
+      name="twitter:description"
+      content="Zero-dependency JavaScript library that gives static HTML files a built-in JSON database (#naizodb), declarative list repeaters, and two-way disk sync for humans and AI agents."
+    />
+
+    <!-- AI / LLM Discovery Links -->
+    <link
+      rel="alternate"
+      type="text/plain"
+      href="https://naizo.js.org/llms.txt"
+      title="naizo.js LLM Summary"
+    />
+    <link
+      rel="alternate"
+      type="text/plain"
+      href="https://naizo.js.org/llms-full.txt"
+      title="naizo.js Complete LLM Reference"
+    />
+
+    <!-- Structured Data (Schema.org JSON-LD, stripped on local app export) -->
+    <script type="application/ld+json" naizo-strip>
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "naizo.js",
+        "alternateName": "naizojs",
+        "description": "Zero-dependency JavaScript library that turns any single .html file into a self-persisting local-first application with a built-in JSON database (#naizodb) and declarative list repeater for human and AI agent workflows.",
+        "url": "https://naizo.js.org/",
+        "codeRepository": "https://github.com/nickosh/naizo",
+        "programmingLanguage": ["JavaScript", "TypeScript", "HTML"],
+        "runtimePlatform": "Browser",
+        "license": "https://opensource.org/licenses/MIT",
+        "author": {
+          "@type": "Person",
+          "name": "Nikolay Shishov",
+          "url": "https://github.com/nickosh"
+        },
+        "keywords": [
+          "self-persisting HTML",
+          "single-file HTML application",
+          "local-first",
+          "built-in JSON database",
+          "AI agent workflow",
+          "declarative HTML repeater"
+        ]
+      }
+    </script>
 
     <!-- 1. Canonical #naizodb JSON State (Readable & Editable by Humans and AI Agents) -->
     <script id="naizodb" type="application/json">
@@ -170,8 +246,20 @@
       }
 
       h1 {
-        font-size: clamp(1.85rem, 3.2vw, 2.35rem);
-        margin: 0 0 0.75rem;
+        font-size: clamp(2.1rem, 3.8vw, 2.7rem);
+        margin: 0.35rem 0 0.25rem;
+        text-align: center;
+      }
+
+      .hero-subtitle {
+        font-family: var(--font-serif);
+        font-size: clamp(1.22rem, 2.2vw, 1.48rem);
+        font-weight: 500;
+        color: var(--text);
+        line-height: 1.35;
+        letter-spacing: -0.01em;
+        margin: 0 0 1.25rem;
+        text-align: center;
       }
 
       h2 {
@@ -192,7 +280,7 @@
       .lead {
         font-size: 1.12em;
         color: var(--muted);
-        margin-bottom: 1.35rem;
+        margin-bottom: 0.85rem;
       }
 
       a {
@@ -795,7 +883,7 @@
       <header class="doc-header">
         <div class="doc-topbar">
           <span class="doc-kicker">
-            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~12.3 KB
+            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~12.4 KB
             min+gzip · MIT
           </span>
           <button
@@ -819,18 +907,23 @@
           </button>
         </div>
 
-        <h1>Self-persisting HTML for human &amp; AI flows.</h1>
+        <h1>naizo.js</h1>
+        <p class="hero-subtitle">Self-persisting HTML for human &amp; AI workflows.</p>
         <p class="lead">
-          <code>naizo.js</code> turns any single <code>.html</code> file into a self-saving
-          application – from custom dashboards, studios, and personal trackers to interactive specs
-          and creative micro-tools – with state stored in a built-in JSON block (<code
-            >&lt;script id="naizodb"&gt;</code
-          >) shared between your browser and AI agents on disk.
+          <code>naizo.js</code> is a zero-dependency JavaScript library that turns any single
+          <code>.html</code> file into a self-saving local-first application – from custom
+          dashboards, interactive studios, and personal trackers to calculators, notebooks, specs,
+          and more.
+        </p>
+        <p class="lead">
+          Your data lives in a built-in JSON block (<code>&lt;script id="naizodb"&gt;</code>) right
+          inside the HTML file, so humans in the browser and AI agents on disk can read, build, and
+          update the exact same file without a backend server.
         </p>
 
         <nav class="doc-nav" aria-label="Document Sections">
           <a href="#why-naizo">01. Concept</a>
-          <a href="#loop">02. Two-Way Loop</a>
+          <a href="#loop">02. How It Works</a>
           <a href="#playground">03. Live Playground</a>
           <a href="#quick-start">04. Quick Start</a>
           <a href="#templates">05. Starter Examples</a>
@@ -844,109 +937,173 @@
       </header>
 
       <!-- 01. CONCEPT & ETYMOLOGY -->
-      <section class="doc-section" id="why-naizo">
+      <section class="doc-section" id="why-naizo" aria-labelledby="heading-why-naizo">
         <span class="section-index">01 / CONCEPT</span>
-        <h2>Why Naizo?</h2>
+        <h2 id="heading-why-naizo">Why Naizo?</h2>
         <p>
-          A single <code>.html</code> file can be almost anything: a custom tool tailored to your
-          workflow, a visual canvas, an inventory studio, a project board, or an interactive
-          notebook crafted in seconds with an AI agent. Yet plain HTML has two persistent limits:
-          edits in the browser vanish on refresh, and saving to <code>localStorage</code> traps your
-          data inside the browser where CLI or IDE agents on disk cannot see it.
+          A single <code>.html</code> file is one of the simplest, most versatile formats on a
+          computer. Whether you write one by hand with a few HTML tags or generate one in seconds
+          with an AI agent, a single file can be a custom dashboard, an interactive studio, a
+          personal tracker, a calculator, a notebook, or a living specification – far richer than
+          plain Markdown, with zero build tools or framework setup.
         </p>
         <p>
-          In Japanese, <strong><em>naizō</em> (ないぞう)</strong> has two homophonous meanings – and
-          <code>naizo.js</code> provides both with a single <code>&lt;script&gt;</code> tag:
+          Yet standard HTML has two everyday limits:
+          <strong>edits in the browser vanish on refresh</strong>, and saving to
+          <code>localStorage</code> traps your changes inside your browser profile where the
+          <code>.html</code> file on disk – and any CLI or IDE AI agent working alongside you –
+          cannot see them.
+        </p>
+        <p>
+          In Japanese, <strong><em>naizō</em> (ないぞう)</strong> has two meanings that share the
+          same pronunciation – and <code>naizo.js</code> brings both to standard HTML with a single
+          <code>&lt;script&gt;</code> tag:
         </p>
 
         <div class="etymology-list">
           <div class="etymology-item">
             <div class="etymology-term">
               内蔵 – Built-In
-              <span>#naizodb in &lt;head&gt;</span>
+              <span>Everything inside the HTML file</span>
             </div>
             <p class="etymology-desc">
-              Every HTML document houses its own 2-space indented JSON database (<code
-                >{ _meta, fields, lists, custom }</code
-              >) inside <code>&lt;script id="naizodb" type="application/json"&gt;</code>.
-              <code>&lt;body&gt;</code> stays a clean template; <code>#naizodb</code> holds the
-              canonical data.
+              Everything lives inside one self-contained <code>.html</code> file. Your document
+              carries its own clean, readable JSON database (<code>#naizodb</code>) right inside
+              <code>&lt;head&gt;</code> alongside its layout and styles – no backend server to host
+              and no separate <code>.json</code> sidecar file to manage.
             </p>
           </div>
           <div class="etymology-item">
             <div class="etymology-term">
               内臓 – Internal Organs
-              <span>naizo.js runtime</span>
+              <span>Working organs for static HTML</span>
             </div>
             <p class="etymology-desc">
-              Reactive field bindings (<code>naizo="key"</code>), a declarative list repeater
-              (<code>naizo-list="name"</code>), surgical in-place disk writes (<code>⌘S</code> /
-              <code>Ctrl+S</code>), and a ~2 s file watcher that 3-way merges external agent edits
-              without interrupting focused inputs.
+              Plain HTML markup is a static skeleton. <code>naizo.js</code> gives it working
+              internal organs: fields and text blocks that remember what you type, repeating lists
+              you can add to or reorder on the fly, and two-way sync between your browser and the
+              <code>.html</code> file on disk.
             </p>
           </div>
         </div>
       </section>
 
       <!-- 02. TWO-WAY LOOP -->
-      <section class="doc-section" id="loop">
+      <section class="doc-section" id="loop" aria-labelledby="heading-loop">
         <span class="section-index">02 / ARCHITECTURE</span>
-        <h2>The Human Browser ↔ <code>#naizodb</code> ↔ Local File ↔ AI Agent Loop</h2>
+        <h2 id="heading-loop">One HTML File, Shared by Humans &amp; AI Agents</h2>
         <p>
-          Humans interact with rendered HTML controls in the browser; AI agents read and edit
-          structured JSON on disk. <code>naizo.js</code> keeps both sides synchronized without a
-          backend server:
+          Humans prefer interacting with visual controls in the browser (and writing clean, readable
+          HTML without boilerplate); AI agents prefer reading and updating structured JSON on disk.
+          <code>naizo.js</code> connects both inside a single <code>.html</code> file:
         </p>
 
         <ul class="flow-list">
           <li>
-            <span class="flow-actor">1. Browser DOM</span>
+            <span class="flow-actor">1. Edit in Your Browser</span>
             <p class="flow-detail">
-              Edit inputs, <code>contenteditable</code> blocks, or <code>[naizo-list]</code> rows.
-              <code>O(1)</code> event capture updates the in-memory store and
-              <code>localStorage</code> immediately.
+              Type into headings, form inputs, notes, or interactive checklists just like any web
+              app. Every change is saved immediately in the browser so you never lose work when
+              reloading the tab.
             </p>
           </li>
           <li>
-            <span class="flow-actor">2. #naizodb Store</span>
+            <span class="flow-actor">2. Clean Built-In Data (#naizodb)</span>
             <p class="flow-detail">
-              Unbound fields, unbound lists, and extra item keys (such as <code>id</code> or
-              <code>estimate</code>) pass through untouched. Per-key <code>fnv1a:</code> hashes
-              track baseline state.
+              Instead of scattering state across noisy HTML attributes, your layout stays clean in
+              <code>&lt;body&gt;</code> while your data lives in a structured JSON block
+              (<code>#naizodb</code>) in <code>&lt;head&gt;</code> – easy for humans to inspect and
+              effortless for AI agents to read or edit.
             </p>
           </li>
           <li>
-            <span class="flow-actor">3. Local .html File</span>
+            <span class="flow-actor">3. Saved Straight to Your File</span>
             <p class="flow-detail">
-              Pressing <code>⌘S</code> / <code>Ctrl+S</code> links the file via the File System
-              Access API and surgically updates only the
-              <code>&lt;script id="naizodb"&gt;</code> block – keeping <code>git diff</code> clean.
+              Click the status pill in the bottom-right corner (or press <code>⌘S</code> /
+              <code>Ctrl+S</code>) once to link your local <code>.html</code> file. From then on,
+              saving writes your updated data directly back into that file on your computer – no
+              shortcuts to memorize, clean <code>git diff</code> history, and one self-contained
+              file.
             </p>
           </li>
           <li>
-            <span class="flow-actor">4. CLI / IDE Agent</span>
+            <span class="flow-actor">4. Live Co-Editing with AI Agents</span>
             <p class="flow-detail">
-              When an AI agent edits <code>#naizodb</code> on disk, <code>naizo.js</code> detects
-              <code>file.lastModified</code> within ~2 s, merges unrelated keys, protects
-              <code>document.activeElement</code>, and backs up same-key collisions to
-              <code>↺ Restore</code>.
+              While your file is linked, you and your AI agent (Claude Code, Cursor, Antigravity,
+              Codex, or Gemini CLI) can work on it together. When the agent updates the file on
+              disk, your open browser tab picks up the changes automatically within ~2 seconds
+              without interrupting what you are typing.
             </p>
           </li>
         </ul>
 
-        <pre><code>Browser DOM  ──(O(1) input + ⌘S surgical write)──►  &lt;script id="naizodb"&gt; in plan.html
-             ◄──(~2 s watch + 3-way key merge)────  Edited on disk by CLI / IDE Agent</code></pre>
+        <pre><code>Human in Browser  ──(Edit UI + Status Pill / ⌘S saves to file)──►  Single .html file on disk (#naizodb)
+                  ◄──(Auto-syncs external disk edits in ~2 s)────  CLI / IDE AI Agent or Editor</code></pre>
+
+        <details class="inspector-panel" naizo-ignore>
+          <summary class="inspector-summary">
+            <span>Under the Hood</span>
+            <span style="color: var(--faint)">Technical architecture &amp; sync guarantees</span>
+          </summary>
+          <div class="inspector-body">
+            <ul class="flow-list" style="margin: 0.25rem 0 0; border-top: none">
+              <li>
+                <span class="flow-actor">Template vs. Data</span>
+                <p class="flow-detail">
+                  <code>&lt;script id="naizodb" type="application/json"&gt;</code> holds
+                  2-space-indented JSON (<code>{ _meta, fields, lists, custom }</code> with
+                  <code>&lt;</code> escaped as <code>\u003c</code>). <code>&lt;body&gt;</code> acts
+                  as the template; form attributes (<code>value</code>, <code>checked</code>,
+                  <code>selected</code>) are baked into HTML only when exporting a standalone
+                  snapshot (<code>Naizo.exportHTML()</code> / <code>⬇ Save to PC</code>).
+                </p>
+              </li>
+              <li>
+                <span class="flow-actor">Surgical Disk Writes</span>
+                <p class="flow-detail">
+                  In Chromium browsers (Chrome, Edge, Brave, Arc), linking a local file via the File
+                  System Access API stores the handle in IndexedDB (<code>NaizoDB_Handles</code>)
+                  and surgically replaces only the <code>&lt;script id="naizodb"&gt;</code> block on
+                  disk. Runtime DOM mutations from third-party libraries (Tailwind CDN, Lucide,
+                  Mermaid) never pollute your source file.
+                </p>
+              </li>
+              <li>
+                <span class="flow-actor">3-Way Key Merge &amp; Restore</span>
+                <p class="flow-detail">
+                  A lightweight ~2 s <code>file.lastModified</code> watcher (plus tab-focus and
+                  pre-write checks) compares per-key <code>fnv1a:</code> hashes across
+                  <code>fields</code>, <code>lists</code>, and <code>custom</code>. Unrelated human
+                  and agent edits merge cleanly, focused inputs
+                  (<code>document.activeElement</code>) are protected from mid-keystroke overwrites,
+                  and same-key collisions are backed up to <code>localStorage</code> with a 1-click
+                  <code>↺ Restore</code> button in the status pill.
+                </p>
+              </li>
+              <li>
+                <span class="flow-actor">Pass-Through Data Safety</span>
+                <p class="flow-detail">
+                  Unbound fields, unbound lists, and extra list-item properties (such as
+                  <code>id</code>, <code>createdAt</code>, or custom metadata) are preserved in the
+                  in-memory store and per-row <code>WeakMap</code> so agent-authored data is never
+                  dropped when a human edits the UI.
+                </p>
+              </li>
+            </ul>
+          </div>
+        </details>
       </section>
 
       <!-- 03. INTERACTIVE PLAYGROUND DEMO -->
-      <section class="doc-section" id="playground">
+      <section class="doc-section" id="playground" aria-labelledby="heading-playground">
         <span class="section-index">03 / LIVE PLAYGROUND</span>
-        <h2>Live Playground &amp; <code>#naizodb</code> Inspector</h2>
+        <h2 id="heading-playground">Live Playground &amp; <code>#naizodb</code> Inspector</h2>
         <p>
-          This page is itself a live <code>naizo.js</code> application. Edit any field, toggle or
-          reorder items, or adjust the custom slider widget below, then open the
-          <code>#naizodb</code> drawer to inspect the canonical JSON state – or click
-          <strong>Save to PC</strong> to run this file as a local app on your computer.
+          <strong>Try a self-persisting HTML app right inside this page.</strong> Edit any field,
+          check off or reorder tasks, or drag the custom slider below, then watch the
+          <code>#naizodb</code> JSON state update live in the inspector drawer – or click
+          <strong>Save to PC</strong> in the bottom-right status pill to download this page as a
+          local app on your computer.
         </p>
 
         <div class="spec-sheet">
@@ -1057,10 +1214,16 @@ Loading #naizodb...</pre>
       </section>
 
       <!-- 04. QUICK START & CDN SNIPPETS -->
-      <section class="doc-section" id="quick-start">
+      <section class="doc-section" id="quick-start" aria-labelledby="heading-quick-start">
         <span class="section-index">04 / QUICK START</span>
-        <h2>Three Steps &amp; CDN Snippets</h2>
-        <p>No Node.js, bundler, or backend server is required:</p>
+        <h2 id="heading-quick-start">Build a Self-Saving HTML File in 60 Seconds</h2>
+        <p>
+          <strong
+            >Easy for humans to write by hand, and effortless for AI agents to generate.</strong
+          >
+          No Node.js, bundler, or backend server is required – just standard HTML and a couple of
+          readable attributes:
+        </p>
 
         <ul class="flow-list">
           <li>
@@ -1071,18 +1234,19 @@ Loading #naizodb...</pre>
             </p>
           </li>
           <li>
-            <span class="flow-actor">2. Bind Markup</span>
+            <span class="flow-actor">2. Bind Your HTML</span>
             <p class="flow-detail">
-              Add <code>naizo="key"</code> to fields and <code>naizo-list="name"</code> +
-              <code>naizo-item</code> to repeating lists in <code>&lt;body&gt;</code>.
+              Add <code>naizo="key"</code> to fields you want to persist and
+              <code>naizo-list="name"</code> + <code>naizo-item</code> to repeating lists in
+              <code>&lt;body&gt;</code>.
             </p>
           </li>
           <li>
-            <span class="flow-actor">3. Press ⌘S / Ctrl+S</span>
+            <span class="flow-actor">3. Link &amp; Save</span>
             <p class="flow-detail">
-              Open the <code>.html</code> file in your browser and press <code>⌘S</code> /
-              <code>Ctrl+S</code> to link it on disk (or click <strong>Save to PC</strong> in Online
-              Mode).
+              Open the <code>.html</code> file in your browser and click the bottom-right status
+              pill (or press <code>⌘S</code> / <code>Ctrl+S</code>) to link it on disk – or click
+              <strong>Save to PC</strong> when viewing a hosted page online.
             </p>
           </li>
         </ul>
@@ -1131,7 +1295,7 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>3. jsDelivr CDN (minified ~12.3 KB gzip)</span>
+          <span>3. jsDelivr CDN (minified ~12.4 KB gzip)</span>
           <button
             type="button"
             class="quiet-btn copy-snippet-btn"
@@ -1188,15 +1352,16 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
       </section>
 
       <!-- 05. STARTER EXAMPLES -->
-      <section class="doc-section" id="templates">
+      <section class="doc-section" id="templates" aria-labelledby="heading-templates">
         <span class="section-index">05 / TEMPLATES</span>
-        <h2>Starter App Blueprints</h2>
+        <h2 id="heading-templates">Starter App Blueprints</h2>
         <p>
-          Because <code>&lt;body&gt;</code> is standard HTML, CSS, and JavaScript and
+          <strong>Ready-to-use single-file HTML applications.</strong> Because
+          <code>&lt;body&gt;</code> is standard HTML, CSS, and JavaScript and
           <code>#naizodb</code> stores arbitrary JSON (<code>fields</code>, <code>lists</code>,
-          <code>custom</code>), you can build almost any single-file application. Use the starter
-          apps below as architectural blueprints – try them in Online Mode or click
-          <strong>Save to PC</strong> in the status pill to adapt them on your computer.
+          <code>custom</code>), you can build everything from simple checklists to multi-pane
+          studios. Open any blueprint below to try it online, or click
+          <strong>Save to PC</strong> in the status pill to use and customize it on your computer.
         </p>
 
         <div class="examples-index">
@@ -1253,10 +1418,16 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
       </section>
 
       <!-- 06. ATTRIBUTES & API REFERENCE -->
-      <section class="doc-section" id="reference">
+      <section class="doc-section" id="reference" aria-labelledby="heading-reference">
         <span class="section-index">06 / CONTRACT</span>
-        <h2>Declarative HTML Attributes &amp; <code>window.Naizo</code> API</h2>
+        <h2 id="heading-reference">
+          Declarative HTML Attributes &amp; <code>window.Naizo</code> API
+        </h2>
         <p>
+          <strong
+            >Start with simple HTML attributes; reach for JavaScript only when building custom
+            widgets.</strong
+          >
           Every attribute supports both concise <code>naizo</code> / <code>naizo-*</code> syntax and
           HTML5-compliant <code>data-naizo</code> / <code>data-naizo-*</code> aliases (for example,
           <code>naizo="key"</code> or <code>data-naizo="key"</code>).
@@ -1387,12 +1558,14 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
       </section>
 
       <!-- 07. BROWSER & MODE CAPABILITY MATRIX -->
-      <section class="doc-section" id="matrix">
+      <section class="doc-section" id="matrix" aria-labelledby="heading-matrix">
         <span class="section-index">07 / ENVIRONMENTS</span>
-        <h2>Browser &amp; Mode Capability Matrix</h2>
+        <h2 id="heading-matrix">Browser &amp; Mode Capability Matrix</h2>
         <p>
-          How <code>naizo.js</code> adapts across Local Mode and Online Mode while keeping the
-          status pill truthful about storage durability.
+          <strong>One HTML file that adapts to where you open it.</strong> Whether you open a file
+          locally from your computer (<code>file://</code> or <code>localhost</code>) or host it
+          online (<code>https://</code>), <code>naizo.js</code> adapts automatically and keeps the
+          bottom-right status pill clear about where your changes are saved.
         </p>
 
         <div class="table-wrap">
@@ -1481,15 +1654,14 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
 
       <footer class="doc-footer">
         <div>
-          <strong>naizo.js</strong> (npm package <code>naizojs</code>) – Built-in HTML database
-          (<strong>内蔵</strong>) &amp; reactive internal organs (<strong>内臓</strong>). MIT
-          License.
+          <strong>naizo.js</strong> (npm package <code>naizojs</code>) – Built-in HTML state
+          (<strong>内蔵</strong>) &amp; internal organs (<strong>内臓</strong>). MIT License.
         </div>
-        <div>
+        <nav aria-label="Footer links">
           <a href="./llms.txt">llms.txt</a> · <a href="./llms-full.txt">llms-full.txt</a> ·
           <a href="./SKILL.md">SKILL.md</a> ·
           <a href="https://github.com/nickosh/naizo" target="_blank" rel="noopener">GitHub</a>
-        </div>
+        </nav>
       </footer>
     </main>
 

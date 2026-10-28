@@ -129,7 +129,7 @@ Load one provider in `<head>` with `defer` (`D34`, `D39`):
 <!-- Readable IIFE bundle (jsDelivr) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified IIFE bundle (~12.3 KB gzipped) -->
+<!-- Prebuilt minified IIFE bundle (~12.4 KB gzipped) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- Alternative: unpkg -->

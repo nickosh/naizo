@@ -1,6 +1,6 @@
 # naizo.js
 
-> Self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]`) for Human + AI Agent workflows. Turns any single `.html` file (dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, engineering notebooks, plans, specs, checklists, triage boards, and custom micro-tools) into a living, self-saving application whose state syncs between the browser DOM, `localStorage`, and `<script id="naizodb" type="application/json">` on disk. Zero dependencies, ~12.3 KB minified + gzipped, MIT License.
+> Self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]`) for Human + AI Agent workflows. Turns any single `.html` file (dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, engineering notebooks, plans, specs, checklists, triage boards, and custom micro-tools) into a living, self-saving application whose state syncs between the browser DOM, `localStorage`, and `<script id="naizodb" type="application/json">` on disk. Zero dependencies, ~12.4 KB minified + gzipped, MIT License.
 
 In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed within)** and **内臓 (internal organs)**: `<script id="naizodb">` is the built-in JSON database inside `<head>`, and `naizo.js` provides the reactive internal organs that bind inputs, repeat lists, and sync human browser edits with AI agent disk edits.
 

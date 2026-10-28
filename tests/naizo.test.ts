@@ -2457,8 +2457,21 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(Naizo.getList('tasks')[1]?.done).toBe(false);
     expect(document.documentElement.getAttribute('data-theme')).toBe('system');
 
-    // 4. Verify M6.4 Cloudflare Web Analytics script with naizo-strip is present in hosted DOM,
+    // 4. Verify M6.4 Cloudflare Web Analytics script and SEO JSON-LD with naizo-strip are present in hosted DOM,
     // stripped by Naizo.exportHTML() / Naizo.downloadHTML() (Save to PC), and absent from examples/*.html (D47)
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(
+      'https://naizo.js.org/',
+    );
+    expect(document.head.querySelector('meta[property="og:url"]')?.getAttribute('content')).toBe(
+      'https://naizo.js.org/',
+    );
+    const jsonLdScript = document.head.querySelector<HTMLScriptElement>(
+      'script[type="application/ld+json"]',
+    );
+    expect(jsonLdScript).not.toBeNull();
+    expect(jsonLdScript?.hasAttribute('naizo-strip')).toBe(true);
+    expect(JSON.parse(jsonLdScript?.textContent ?? '{}')['@type']).toBe('SoftwareSourceCode');
+
     const beaconScript = document.head.querySelector<HTMLScriptElement>('script[data-cf-beacon]');
     expect(beaconScript).not.toBeNull();
     expect(beaconScript?.getAttribute('src')).toBe(
@@ -2473,6 +2486,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(exportedSiteHtml).not.toContain('static.cloudflareinsights.com');
     expect(exportedSiteHtml).not.toContain('data-cf-beacon');
     expect(exportedSiteHtml).not.toContain('37a058a9b8c9479cafdc2e5ea888c5df');
+    expect(exportedSiteHtml).not.toContain('application/ld+json');
 
     const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:site-url');
     const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});

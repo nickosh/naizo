@@ -2,15 +2,17 @@
 
 # `naizo.js`
 
-**Self-persisting HTML for human & AI flows.**
+**Self-persisting HTML for human & AI workflows.**
 
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#)
-[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~12.3_KB-blue.svg)](#)
+[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~12.4_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
-_`naizo.js` turns any single `.html` file into a self-saving application — from custom dashboards, studios, and personal trackers to interactive specs and creative micro-tools — with state stored in a built-in JSON block (`<script id="naizodb">`) shared between your browser and AI agents on disk._
+_`naizo.js` is a zero-dependency JavaScript library that turns any single `.html` file into a self-saving local-first application — from custom dashboards, interactive studios, and personal trackers to calculators, notebooks, specs, and more._
 
-[Why Naizo?](#why-naizo) · [Two-Way Loop](#the-human-browser--naizodb--local-file--ai-agent-loop) · [Quick Start](#quick-start) · [Starter Examples](#four-starter-app-blueprints) · [AI Agent Skill](#ai-agent-skill-skillsnaizoskillmd) · [Attributes & API](#declarative-html-attributes--windownaizo-api) · [Modes & Browsers](#browser--mode-capability-matrix) · [Full Usage Guide](docs/USAGE.md)
+_Your data lives in a built-in JSON block (`<script id="naizodb">`) right inside the HTML file, so humans in the browser and AI agents on disk can read, build, and update the exact same file without a backend server._
+
+[Why Naizo?](#why-naizo) · [How It Works](#one-html-file-shared-by-humans--ai-agents) · [Quick Start](#quick-start) · [Starter Examples](#starter-app-blueprints) · [AI Agent Skill](#ai-agent-skill-skillsnaizoskillmd) · [Attributes & API](#declarative-html-attributes--windownaizo-api) · [Modes & Browsers](#browser--mode-capability-matrix) · [Full Usage Guide](docs/USAGE.md)
 
 </div>
 
@@ -18,28 +20,40 @@ _`naizo.js` turns any single `.html` file into a self-saving application — fro
 
 ## Why Naizo?
 
-A single `.html` file can be almost anything: a custom tool tailored to your workflow, a visual canvas, an inventory studio, a project board, or an interactive notebook crafted in seconds with an AI agent. Yet plain HTML has two persistent limits: edits in the browser vanish on refresh, and saving to `localStorage` traps your data inside the browser where CLI or IDE agents on disk cannot see it.
+A single `.html` file is one of the simplest, most versatile formats on a computer. Whether you write one by hand with a few HTML tags or generate one in seconds with an AI agent, a single file can be a custom dashboard, an interactive studio, a personal tracker, a calculator, a notebook, or a living specification — far richer than plain Markdown, with zero build tools or framework setup.
 
-In Japanese, **_naizō_ (ないぞう)** has two homophonous meanings — and `naizo.js` provides both with a single `<script>` tag:
+Yet standard HTML has two everyday limits: **edits in the browser vanish on refresh**, and saving to `localStorage` traps your changes inside your browser profile where the `.html` file on disk — and any CLI or IDE AI agent working alongside you — cannot see them.
 
-- **内蔵 (_naizō_ — Built-In, `#naizodb` in `<head>`):** Every HTML document houses its own 2-space indented JSON database (`{ _meta, fields, lists, custom }`) inside `<script id="naizodb" type="application/json">`. `<body>` stays a clean template; `#naizodb` holds the canonical data.
-- **内臓 (_naizō_ — Internal Organs, `naizo.js` runtime):** Reactive field bindings (`naizo="key"`), a declarative list repeater (`naizo-list="name"`), surgical in-place disk writes (`⌘S` / `Ctrl+S`), and a ~2 s file watcher that 3-way merges external agent edits without interrupting focused inputs.
+In Japanese, **_naizō_ (ないぞう)** has two meanings that share the same pronunciation — and `naizo.js` brings both to standard HTML with a single `<script>` tag:
+
+- **内蔵 (_naizō_ — Built-In):** Everything lives inside one self-contained `.html` file. Your document carries its own clean, readable JSON database (`#naizodb`) right inside `<head>` alongside its layout and styles — no backend server to host and no separate `.json` sidecar file to manage.
+- **内臓 (_naizō_ — Internal Organs):** Plain HTML markup is a static skeleton. `naizo.js` gives it working internal organs: fields and text blocks that remember what you type, repeating lists you can add to or reorder on the fly, and two-way sync between your browser and the `.html` file on disk.
 
 ---
 
-## The Human Browser ↔ `#naizodb` ↔ Local File ↔ AI Agent Loop
+## One HTML File, Shared by Humans & AI Agents
 
-Humans interact with rendered HTML controls in the browser; AI agents read and edit structured JSON on disk. `naizo.js` keeps both sides synchronized without a backend server:
+Humans prefer interacting with visual controls in the browser (and writing clean, readable HTML without boilerplate); AI agents prefer reading and updating structured JSON on disk. `naizo.js` connects both inside a single `.html` file:
 
-1. **Browser DOM:** Edit inputs, `contenteditable` blocks, or `[naizo-list]` rows. `O(1)` event capture updates the in-memory store and `localStorage` immediately.
-2. **`#naizodb` Store:** Unbound fields, unbound lists, and extra item keys (such as `id` or `estimate`) pass through untouched. Per-key `fnv1a:` hashes track baseline state.
-3. **Local `.html` File:** Pressing `⌘S` / `Ctrl+S` links the file via the File System Access API and surgically updates only the `<script id="naizodb">` block — keeping `git diff` clean and preventing third-party runtime DOM mutations (Tailwind CDN, Lucide, Mermaid) from polluting the file on disk.
-4. **CLI / IDE Agent:** When an AI agent edits `#naizodb` on disk, `naizo.js` detects `file.lastModified` within ~2 s, merges unrelated keys, protects `document.activeElement`, and backs up same-key collisions to `↺ Restore`.
+1. **Edit in Your Browser:** Type into headings, form inputs, notes, or interactive checklists just like any web app. Every change is saved immediately in the browser so you never lose work when reloading the tab.
+2. **Clean Built-In Data (`#naizodb`):** Instead of scattering state across noisy HTML attributes, your layout stays clean in `<body>` while your data lives in a structured JSON block (`#naizodb`) in `<head>` — easy for humans to inspect and effortless for AI agents to read or edit.
+3. **Saved Straight to Your File:** Click the status pill in the bottom-right corner (or press `⌘S` / `Ctrl+S`) once to link your local `.html` file. From then on, saving writes your updated data directly back into that file on your computer — no shortcuts to memorize, clean `git diff` history, and one self-contained file.
+4. **Live Co-Editing with AI Agents:** While your file is linked, you and your AI agent (Claude Code, Cursor, Antigravity, Codex, or Gemini CLI) can work on it together. When the agent updates the file on disk, your open browser tab picks up the changes automatically within ~2 seconds without interrupting what you are typing.
 
 ```text
-Browser DOM  ──(O(1) input + ⌘S surgical write)──►  <script id="naizodb"> in plan.html
-             ◄──(~2 s watch + 3-way key merge)────  Edited on disk by CLI / IDE Agent
+Human in Browser  ──(Edit UI + Status Pill / ⌘S saves to file)──►  Single .html file on disk (#naizodb)
+                  ◄──(Auto-syncs external disk edits in ~2 s)────  CLI / IDE AI Agent or Editor
 ```
+
+<details>
+<summary><strong>Under the Hood</strong> — Technical architecture & sync guarantees</summary>
+
+- **Template vs. Data:** `<script id="naizodb" type="application/json">` holds 2-space-indented JSON (`{ _meta, fields, lists, custom }` with `<` escaped as `\u003c`). `<body>` acts as the template; form attributes (`value`, `checked`, `selected`) are baked into HTML only when exporting a standalone snapshot (`Naizo.exportHTML()` / `⬇ Save to PC`).
+- **Surgical Disk Writes:** In Chromium browsers (Chrome, Edge, Brave, Arc), linking a local file via the File System Access API stores the handle in IndexedDB (`NaizoDB_Handles`) and surgically replaces only the `<script id="naizodb">` block on disk. Runtime DOM mutations from third-party libraries (Tailwind CDN, Lucide, Mermaid) never pollute your source file.
+- **3-Way Key Merge & Restore:** A lightweight ~2 s `file.lastModified` watcher (plus tab-focus and pre-write checks) compares per-key `fnv1a:` hashes across `fields`, `lists`, and `custom`. Unrelated human and agent edits merge cleanly, focused inputs (`document.activeElement`) are protected from mid-keystroke overwrites, and same-key collisions are backed up to `localStorage` with a 1-click `↺ Restore` button in the status pill.
+- **Pass-Through Data Safety:** Unbound fields, unbound lists, and extra list-item properties (such as `id`, `createdAt`, or custom metadata) are preserved in the in-memory store and per-row `WeakMap` so agent-authored data is never dropped when a human edits the UI.
+
+</details>
 
 ---
 
@@ -54,11 +68,11 @@ Browser DOM  ──(O(1) input + ⌘S surgical write)──►  <script id="naiz
 
 ## Quick Start
 
-No Node.js, bundler, or backend server is required:
+**Easy for humans to write by hand, and effortless for AI agents to generate.** No Node.js, bundler, or backend server is required — just standard HTML and a couple of readable attributes:
 
 1. **Embed `#naizodb`:** Place `<script id="naizodb" type="application/json">` and the `naizo.js` script tag inside `<head>`.
-2. **Bind Markup:** Add `naizo="key"` to fields and `naizo-list="name"` + `naizo-item` to repeating lists in `<body>`.
-3. **Press `⌘S` / `Ctrl+S`:** Open the `.html` file in your browser and press `⌘S` / `Ctrl+S` to link it on disk (or click **`⬇ Save to PC`** in Online Mode).
+2. **Bind Your HTML:** Add `naizo="key"` to fields you want to persist and `naizo-list="name"` + `naizo-item` to repeating lists in `<body>`.
+3. **Link & Save:** Open the `.html` file in your browser and click the bottom-right status pill (or press `⌘S` / `Ctrl+S`) to link it on disk — or click **`⬇ Save to PC`** when viewing a hosted page online.
 
 ```html
 <!doctype html>
@@ -113,7 +127,7 @@ No Node.js, bundler, or backend server is required:
 <!-- jsDelivr CDN (readable bundle) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified bundle (~12.3 KB gzipped, works on either CDN) -->
+<!-- Prebuilt minified bundle (~12.4 KB gzipped, works on either CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- unpkg CDN (readable bundle) -->
@@ -129,7 +143,7 @@ Both CDNs serve the published `naizojs` npm package (`@latest` follows new relea
 
 ## Starter App Blueprints
 
-Because `<body>` is standard HTML, CSS, and JavaScript and `#naizodb` stores arbitrary JSON (`fields`, `lists`, `custom`), you can build almost any single-file application. Use the starter apps in [`examples/`](examples/) as architectural blueprints — try them in Online Mode or click **`⬇ Save to PC`** in the status pill to adapt them on your computer:
+**Ready-to-use single-file HTML applications.** Because `<body>` is standard HTML, CSS, and JavaScript and `#naizodb` stores arbitrary JSON (`fields`, `lists`, `custom`), you can build everything from simple checklists to multi-pane studios. Open any blueprint in [`examples/`](examples/) to try it online, or click **`⬇ Save to PC`** in the status pill to use and customize it on your computer:
 
 | Template                                                 | What It Demonstrates                                                                                                                                                                                                 |
 | :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -176,7 +190,7 @@ mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/ni
 
 ## Declarative HTML Attributes & `window.Naizo` API
 
-Every attribute supports both concise **`naizo` / `naizo-*`** syntax and HTML5-compliant **`data-naizo` / `data-naizo-*`** aliases (for example, `naizo="key"` or `data-naizo="key"`):
+**Start with simple HTML attributes; reach for JavaScript only when building custom widgets.** Every attribute supports both concise **`naizo` / `naizo-*`** syntax and HTML5-compliant **`data-naizo` / `data-naizo-*`** aliases (for example, `naizo="key"` or `data-naizo="key"`):
 
 | Attribute (or `data-*`)            | Target Element                                                              | Behavior                                                                                                                     |
 | ---------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -226,7 +240,7 @@ See [docs/USAGE.md](docs/USAGE.md) for the complete API, event payloads, and arc
 
 ## Browser & Mode Capability Matrix
 
-How `naizo.js` adapts across Local Mode and Online Mode while keeping the status pill truthful about storage durability:
+**One HTML file that adapts to where you open it.** Whether you open a file locally from your computer (`file://` or `localhost`) or host it online (`https://`), `naizo.js` adapts automatically and keeps the bottom-right status pill clear about where your changes are saved:
 
 | Mode & Browsers                                                                    | Status Pill & Action                                                          | Persistence, Sync, & Recovery                                                                                                                                                                                                                                                                                                                       |
 | :--------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -240,15 +254,15 @@ How `naizo.js` adapts across Local Mode and Online Mode while keeping the status
 
 Several tools explore reactive HTML, declarative persistence, or self-saving single-file apps, but each targets a different layer of the stack:
 
-| Feature / Tool                        | **`naizo.js`**                                                | **[LOCAMO](https://github.com/DaiAoki/locamo)**             | **[ClayJS](https://clayjs.com/) / [HyperclayJS](https://hyperclayjs.com/)** | **[Bento](https://bento.page/) (`.bento.html`)**     | **[Mavo](https://mavo.io/)**                   | **[Alpine.js](https://alpinejs.dev/) + `$persist`** | **[TiddlyWiki](https://tiddlywiki.com/) / [Feather Wiki](https://feather.wiki/)** |
-| :------------------------------------ | :------------------------------------------------------------ | :---------------------------------------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------- | :--------------------------------------------- | :-------------------------------------------------- | :-------------------------------------------------------------------------------- |
-| **Primary Goal**                      | Drop-in script for custom HTML + AI agent sync                | Ready-to-use single-file memo app for humans & AI agents    | Malleable HTML apps via save server / host                                  | Pre-built single-file office apps (Slides, etc.)     | Declarative CRUD web apps from HTML            | General frontend reactivity + `localStorage`        | Standalone single-file personal wiki                                              |
-| **Works on Arbitrary Custom HTML**    | **Yes** (any `.html` file)                                    | No (fixed memo app UI)                                      | **Yes**                                                                     | No (fixed app shells)                                | **Yes**                                        | **Yes**                                             | No (wiki UI / tiddlers)                                                           |
-| **Canonical In-File JSON (`<head>`)** | **Yes** (`#naizodb` JSON; body is template, baked on export)  | **Yes** (`#app-data` JSON in `<body>`; `outerHTML` rewrite) | Optional (`clay-data` / `live` plugin; DOM-first)                           | **Yes** (`#bento-doc` JSON)                          | No (external `.json` / cloud / `localStorage`) | No (`localStorage` only)                            | Internal tiddler store                                                            |
-| **Zero-Server Local Disk Save**       | **Yes** (surgical `#naizodb` File System API + HTML fallback) | **Yes** (`⌘S` File System Access API; Chromium only)        | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                |
-| **Two-Way Human ↔ AI Disk Sync**      | **Yes** (~2 s live watch + shallow key merge + restore)       | Manual reload only (`⌘S` overwrites external disk edits)    | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                |
-| **Declarative List Repeater**         | **Yes** (`naizo-list` / `naizo-item`)                         | N/A (hardcoded page sidebar)                                | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    |
-| **Runtime Footprint (Gzip)**          | **~12.3 KB** (0 deps)                                         | ~5.5 KB bundled app (0 deps)                                | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    |
+| Feature / Tool                        | **`naizo.js`**                                                | **[ClayJS](https://clayjs.com/) / [HyperclayJS](https://hyperclayjs.com/)** | **[Bento](https://bento.page/) (`.bento.html`)**     | **[Mavo](https://mavo.io/)**                   | **[Alpine.js](https://alpinejs.dev/) + `$persist`** | **[TiddlyWiki](https://tiddlywiki.com/) / [Feather Wiki](https://feather.wiki/)** | **[LOCAMO](https://github.com/DaiAoki/locamo)**             |
+| :------------------------------------ | :------------------------------------------------------------ | :-------------------------------------------------------------------------- | :--------------------------------------------------- | :--------------------------------------------- | :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------- |
+| **Primary Goal**                      | Drop-in script for custom HTML + AI agent sync                | Malleable HTML apps via save server / host                                  | Pre-built single-file office apps (Slides, etc.)     | Declarative CRUD web apps from HTML            | General frontend reactivity + `localStorage`        | Standalone single-file personal wiki                                              | Ready-to-use single-file memo app for humans & AI agents    |
+| **Works on Arbitrary Custom HTML**    | **Yes** (any `.html` file)                                    | **Yes**                                                                     | No (fixed app shells)                                | **Yes**                                        | **Yes**                                             | No (wiki UI / tiddlers)                                                           | No (fixed memo app UI)                                      |
+| **Canonical In-File JSON (`<head>`)** | **Yes** (`#naizodb` JSON; body is template, baked on export)  | Optional (`clay-data` / `live` plugin; DOM-first)                           | **Yes** (`#bento-doc` JSON)                          | No (external `.json` / cloud / `localStorage`) | No (`localStorage` only)                            | Internal tiddler store                                                            | **Yes** (`#app-data` JSON in `<body>`; `outerHTML` rewrite) |
+| **Zero-Server Local Disk Save**       | **Yes** (surgical `#naizodb` File System API + HTML fallback) | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                | **Yes** (`⌘S` File System Access API; Chromium only)        |
+| **Two-Way Human ↔ AI Disk Sync**      | **Yes** (~2 s live watch + shallow key merge + restore)       | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                | Manual reload only (`⌘S` overwrites external disk edits)    |
+| **Declarative List Repeater**         | **Yes** (`naizo-list` / `naizo-item`)                         | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    | N/A (hardcoded page sidebar)                                |
+| **Runtime Footprint (Gzip)**          | **~12.4 KB** (0 deps)                                         | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    | ~5.5 KB bundled app (0 deps)                                |
 
 ---
 
