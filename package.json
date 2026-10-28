@@ -1,6 +1,6 @@
 {
   "name": "naizojs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Self-persisting HTML for human & AI workflows — turn any single .html file into a self-saving app with built-in JSON state (#naizodb).",
   "keywords": [
     "ai-agents",
