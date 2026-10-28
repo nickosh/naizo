@@ -306,10 +306,13 @@ describe('naizo.js v0.1.0 core runtime', () => {
   it('hydrates site/index.html and examples/ starter templates with wrapping labels (M3.2, M4.5c, EC39)', async () => {
     for (const html of [siteHtml, starterHtml, checklistHtml, inventoryHtml, notesHtml]) {
       const parsedDoc = new DOMParser().parseFromString(html, 'text/html');
+      const attrScopeId = parsedDoc.documentElement.getAttribute('naizo-id')?.trim() ?? '';
+      expect(attrScopeId.length).toBeGreaterThan(0);
       const rawJson = parsedDoc.getElementById('naizodb')?.textContent?.trim() ?? '';
       expect(rawJson.length).toBeGreaterThan(0);
-      const db = JSON.parse(rawJson) as Record<string, unknown>;
+      const db = JSON.parse(rawJson) as { _meta?: { id?: string } };
       expect(db).toHaveProperty('_meta');
+      expect(db._meta?.id).toBe(attrScopeId);
       expect(db).toHaveProperty('fields');
       expect(db).toHaveProperty('lists');
       expect(db).toHaveProperty('custom');
@@ -506,6 +509,11 @@ describe('naizo.js v0.1.0 core runtime', () => {
       inspectDialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       inspectDialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       expect(inspectDialog.open || inspectDialog.hasAttribute('open')).toBe(false);
+
+      // 7. Exported HTML strips runtime-rendered dict pills and modal KV rows via data-naizo-strip (D47)
+      const exportedInvDoc = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
+      expect(exportedInvDoc.querySelectorAll('[data-card-dict-tags] > *').length).toBe(0);
+      expect(exportedInvDoc.querySelectorAll('#modal-kv-container .custom-kv-row').length).toBe(0);
     } finally {
       addSpy.mockRestore();
       for (const { type, listener } of registeredWinListeners) {
@@ -2322,6 +2330,10 @@ describe('naizo.js v0.1.0 core runtime', () => {
       }),
     );
     expect(Naizo.get('activeNoteId')).not.toBe(createdNoteId);
+
+    // 6. Exported HTML strips runtime-rendered sidebar #note-index-list items via data-naizo-strip (D47)
+    const exportedNotesDoc = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
+    expect(exportedNotesDoc.querySelectorAll('#note-index-list > *').length).toBe(0);
   });
 
   it('validates M5 deliverables (docs/USAGE.md, skills/naizo/SKILL.md) and safe surgical #naizodb CLI replacement with $1/$& payloads', () => {
@@ -2339,6 +2351,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(skillMd).toContain('gh skill install nickosh/naizo naizo@main');
     expect(skillMd).toContain('npx skills add nickosh/naizo --skill naizo');
     expect(skillMd).toContain('npx skills add nickosh/naizo@main --skill naizo');
+    expect(skillMd).toContain('curl -fsSL https://naizo.js.org/SKILL.md');
     expect(skillMd).toContain('https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js');
 
     // Both docs/USAGE.md and skills/naizo/SKILL.md must use a replacement callback function

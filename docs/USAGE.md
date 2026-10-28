@@ -751,8 +751,8 @@ gh skill install nickosh/naizo naizo
 npx skills add nickosh/naizo --skill naizo
 
 # 3. Direct curl / file copy (Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
-mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
-mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
+mkdir -p .agents/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .agents/skills/naizo/SKILL.md
+mkdir -p .claude/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```
 
 **Experimental / In-Development (`main` Branch):** To test unreleased features from `main` before the next tagged release is cut, pair the in-development `dist/naizo.js` bundle with the `@main` skill (note: `main` is under active development and may contain experimental or not-yet-released changes):
@@ -766,6 +766,7 @@ mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/ni
 # In-development AI skill from main
 gh skill install nickosh/naizo naizo@main
 npx skills add nickosh/naizo@main --skill naizo
+mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
 ```
 
 ### Workflow 6: Interactive Option Explorer & Human Review Loop (`D45`)

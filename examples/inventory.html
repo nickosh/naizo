@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" naizo-id="naizo-inventory-studio">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -1567,12 +1567,14 @@
             if (extraKeys.length === 0) {
               const emptySpan = document.createElement('span');
               emptySpan.className = 'kpi-subtext';
+              emptySpan.setAttribute('data-naizo-strip', 'true');
               emptySpan.textContent = 'No extra keys';
               tagsWrap.appendChild(emptySpan);
             } else {
               extraKeys.forEach((key) => {
                 const pill = document.createElement('span');
                 pill.className = 'dict-pill';
+                pill.setAttribute('data-naizo-strip', 'true');
 
                 const keySpan = document.createElement('span');
                 keySpan.className = 'dict-pill-key';
@@ -1766,6 +1768,7 @@
         function appendModalKvRow(key = '', val = '') {
           const row = document.createElement('div');
           row.className = 'custom-kv-row';
+          row.setAttribute('data-naizo-strip', 'true');
           row.innerHTML = `
             <input class="input" type="text" data-kv-key placeholder="Field key (e.g. serial)" />
             <input class="input" type="text" data-kv-val placeholder="Value (e.g. SN-9941)" />

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="light" naizo-id="naizo-field-notes">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -733,6 +733,7 @@
                 li.setAttribute('role', 'option');
                 li.setAttribute('aria-selected', note.id === activeId ? 'true' : 'false');
                 li.setAttribute('data-note-id', String(note.id || ''));
+                li.setAttribute('data-naizo-strip', 'true');
 
                 const topRow = document.createElement('div');
                 topRow.className = 'note-index-top';

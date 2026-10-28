@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="system">
+<html lang="en" data-theme="system" naizo-id="naizo-site-playground">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -1166,8 +1166,8 @@ gh skill install nickosh/naizo naizo
 npx skills add nickosh/naizo --skill naizo
 
 # 3. Direct curl (Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
-mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
-mkdir -p .claude/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md</code></pre>
+mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://naizo.js.org/SKILL.md -o .agents/skills/naizo/SKILL.md
+mkdir -p .claude/skills/naizo &amp;&amp; curl -fsSL https://naizo.js.org/SKILL.md -o .claude/skills/naizo/SKILL.md</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
           <span>
@@ -1183,7 +1183,8 @@ mkdir -p .claude/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
 
 # In-development AI skill from main
 gh skill install nickosh/naizo naizo@main
-npx skills add nickosh/naizo@main --skill naizo</code></pre>
+npx skills add nickosh/naizo@main --skill naizo
+mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md</code></pre>
       </section>
 
       <!-- 05. STARTER EXAMPLES -->

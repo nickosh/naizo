@@ -152,8 +152,8 @@ gh skill install nickosh/naizo naizo
 npx skills add nickosh/naizo --skill naizo
 
 # 3. Direct curl (no CLI required — Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
-mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
-mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
+mkdir -p .agents/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .agents/skills/naizo/SKILL.md
+mkdir -p .claude/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```
 
 ### Experimental / In-Development (`main` Branch)
@@ -169,6 +169,7 @@ To preview unreleased features on `main` before the next tagged release is publi
 # In-development AI skill from main
 gh skill install nickosh/naizo naizo@main
 npx skills add nickosh/naizo@main --skill naizo
+mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
 ```
 
 ---

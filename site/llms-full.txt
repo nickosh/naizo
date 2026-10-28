@@ -203,7 +203,7 @@ window.addEventListener('naizo:item', (e) => {
 
 ```html
 <!doctype html>
-<html lang="en">
+<html lang="en" naizo-id="naizo-starter-spec">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -212,7 +212,9 @@ window.addEventListener('naizo:item', (e) => {
     <!-- 1. Canonical #naizodb JSON state (readable & editable by humans and AI agents) -->
     <script id="naizodb" type="application/json">
       {
-        "_meta": {},
+        "_meta": {
+          "id": "naizo-starter-spec"
+        },
         "fields": {
           "title": "Feature Proposal & Implementation Plan",
           "owner": "Alex",
@@ -439,8 +441,8 @@ gh skill install nickosh/naizo naizo
 npx skills add nickosh/naizo --skill naizo
 
 # 3. Direct curl (Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
-mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
-mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
+mkdir -p .agents/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .agents/skills/naizo/SKILL.md
+mkdir -p .claude/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```
 
 ### Experimental / In-Development (`main` Branch)
@@ -456,4 +458,5 @@ To preview unreleased features from `main` before the next tagged release is pub
 # In-development AI skill from main
 gh skill install nickosh/naizo naizo@main
 npx skills add nickosh/naizo@main --skill naizo
+mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
 ```
