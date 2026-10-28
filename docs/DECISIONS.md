@@ -496,3 +496,14 @@ Accepted by the owner on 2026-10-28 after `M6` completion. Supersedes `D37`'s ru
 - **Alternatives Rejected / Trade-offs:**
   - **Rejected deploying GitHub Pages on every push to `main`:** Causes public documentation (`naizo.js.org`, `/llms.txt`, `/SKILL.md`) and `⬇ Save to PC` exports (`naizojs@latest`) to drift ahead of the latest published npm package during active milestone development.
   - **Rejected moving GitHub Pages deployment into `release.yml`:** `release.yml` is the trusted npm OIDC workflow (`D32`, `D37`); keeping Pages deployment in `ci.yml` triggered by the release merge commit (and `workflow_dispatch`) achieves release synchronization without touching `release.yml` permissions.
+
+## D49 — Add a `pages_source` (`'main' | 'latest-release'`) option to `ci.yml` `workflow_dispatch` (defaulting to `'main'` to avoid release-merge tag races)
+
+Accepted by the owner on 2026-10-29 (refining `D48` and scheduled as `M7.12` in `docs/PLAN.md`).
+
+- **Context & Problem (Why):** When a Release Please PR (`chore(main): release X.Y.Z`) merges to `main`, `prepare-release.yml` (which creates the `vX.Y.Z` tag and draft GitHub Release) and `ci.yml` (which deploys GitHub Pages) start in parallel on the same push event. If `ci.yml` defaulted to looking up the latest published release tag, it could race ahead of `prepare-release.yml` before `vX.Y.Z` is created and accidentally deploy the _previous_ release tag. At the same time, once `main` advances with new milestone commits after a release, the maintainer needs a 1-click option in `workflow_dispatch` to redeploy the site from the latest release tag (`vX.Y.Z`) without deploying unreleased `main` changes.
+- **Decision & Rationale (Global Picture & Invariant Safety):**
+  - **Default to `'main'` (race-free on release merges) with `'latest-release'` option on `workflow_dispatch`:** Add a `workflow_dispatch` input `pages_source` (`choice: ['main', 'latest-release']`, defaulting to `'main'`) in `.github/workflows/ci.yml`.
+  - **Clean separation of release-merge deploy vs. tag redeploy:** On automatic release merge commits (`chore(main): release X.Y.Z`, where `HEAD` of `main` _is_ the exact release commit) and default `workflow_dispatch` runs (`pages_source: 'main'`), `ci.yml` stages and deploys `_site/` directly from `main` with zero tag-creation race against `prepare-release.yml`. When the maintainer selects `pages_source: 'latest-release'` in `workflow_dispatch`, `ci.yml` resolves the latest release tag (`vX.Y.Z` from `.release-please-manifest.json` / latest GitHub Release tag) and builds/stages `_site/` from that tag.
+- **Alternatives Rejected / Trade-offs:**
+  - **Rejected defaulting to `'latest-release'` on parallel release runs:** Because `prepare-release.yml` and `ci.yml` run in parallel on the release PR merge push, querying the latest release tag by default risks a race condition where `vX.Y.Z` does not exist yet and the previous release is deployed instead.
