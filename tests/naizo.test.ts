@@ -2440,7 +2440,8 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(llmsFullTxt).toContain('examples/starter.html');
     expect(llmsFullTxt).toContain('examples/notes.html');
 
-    // 4. ci.yml stages site/. with -RL (dereferencing symlinks) to _site/ and rewrites ../dist/ and ../examples/
+    // 4. ci.yml enforces dist/naizo.js freshness and stages site/. with -RL (dereferencing symlinks) to _site/
+    expect(ciYml).toContain('git diff --exit-code dist/naizo.js');
     expect(ciYml).toContain('cp -RL site/. _site/');
     expect(ciYml).toContain('cp -R examples _site/');
     expect(ciYml).toContain(

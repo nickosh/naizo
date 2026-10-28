@@ -57,6 +57,7 @@ jobs:
           node --check dist/naizo.min.js
           test -f dist/index.mjs
           test -f dist/index.d.mts
+          git diff --exit-code dist/naizo.js
 
       - name: Audit npm package contents
         run: |
