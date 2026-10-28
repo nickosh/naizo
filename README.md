@@ -133,14 +133,11 @@ Save the following as `plan.html` on your computer (or copy any template from [`
 <!-- Prebuilt minified bundle (~12.3 KB gzipped, works on either CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
-<!-- Latest in-development bundle directly from main (dist/naizo.js) -->
-<script src="https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js" defer></script>
-
 <!-- Offline / local copy -->
 <script src="./dist/naizo.js" defer></script>
 ```
 
-Both npm CDNs serve the published `naizojs` npm package (`@latest` follows new releases automatically; replace `@latest` with a specific version tag to pin a fixed version). To test the newest in-development runtime before the next npm release is cut, load `dist/naizo.js` from `main` locally (`./dist/naizo.js`) or via `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js`. See the [Usage Reference](docs/USAGE.md) for complete authoring patterns and the [Publishing Guide](docs/PUBLISHING.md#cdn-urls-and-automatic-updates) for CDN caching details.
+Both CDNs serve the published `naizojs` npm package (`@latest` follows new releases automatically; replace `@latest` with a specific version tag to pin a fixed version). See the [Usage Reference](docs/USAGE.md) for complete authoring patterns and the [Publishing Guide](docs/PUBLISHING.md#cdn-urls-and-automatic-updates) for CDN caching details.
 
 ---
 
@@ -162,9 +159,8 @@ Copy any of the self-contained single-file apps in [`examples/`](examples/) to j
 Want your AI coding agent (Claude Code, Antigravity, Cursor, GitHub Copilot, Gemini CLI, or Codex) to automatically generate self-saving `naizo.js` HTML apps and co-edit `#naizodb` on disk? Install [`skills/naizo/SKILL.md`](skills/naizo/SKILL.md) via `gh skill`, `npx skills`, or `curl`:
 
 ```bash
-# 1. GitHub CLI (gh v2.90+ — tracks latest release, or use naizo@main for latest in-development skill)
+# 1. GitHub CLI (gh v2.90+ — installs from the latest published release)
 gh skill install nickosh/naizo naizo
-gh skill install nickosh/naizo naizo@main
 
 # 2. npm Skills CLI (npx skills)
 npx skills add nickosh/naizo --skill naizo
@@ -172,6 +168,21 @@ npx skills add nickosh/naizo --skill naizo
 # 3. Direct curl (no CLI required — Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
 mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
 mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
+```
+
+### Experimental / In-Development (`main` Branch)
+
+To preview unreleased features on `main` before the next tagged release is published, pair the in-development `dist/naizo.js` bundle with the `@main` skill (note: `main` is under active development and may contain experimental or not-yet-released changes):
+
+```html
+<!-- In-development runtime directly from main (or local ./dist/naizo.js from a main checkout) -->
+<script src="https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js" defer></script>
+```
+
+```bash
+# In-development AI skill from main
+gh skill install nickosh/naizo naizo@main
+npx skills add nickosh/naizo@main --skill naizo
 ```
 
 ---

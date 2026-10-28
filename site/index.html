@@ -1135,14 +1135,12 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr-min">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>4. unpkg CDN (or latest in-development dist/naizo.js from main)</span>
+          <span>4. unpkg CDN</span>
           <button type="button" class="quiet-btn copy-snippet-btn" data-copy-target="cdn-unpkg">
             Copy
           </button>
         </div>
-        <pre><code id="cdn-unpkg">&lt;script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;
-&lt;!-- Latest in-development build from main (dist/naizo.js): --&gt;
-&lt;script src="https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
+        <pre><code id="cdn-unpkg">&lt;script src="https://unpkg.com/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
           <span>
@@ -1153,9 +1151,8 @@ Loading #naizodb...</pre>
             Copy
           </button>
         </div>
-        <pre><code id="skill-install"># 1. GitHub CLI (tracks latest release, or use naizo@main for latest in-development skill)
+        <pre><code id="skill-install"># 1. GitHub CLI (installs from the latest published release)
 gh skill install nickosh/naizo naizo
-gh skill install nickosh/naizo naizo@main
 
 # 2. npm Skills CLI
 npx skills add nickosh/naizo --skill naizo
@@ -1163,6 +1160,22 @@ npx skills add nickosh/naizo --skill naizo
 # 3. Direct curl (Antigravity, Cursor, Codex, Gemini CLI / Claude Code)
 mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
 mkdir -p .claude/skills/naizo &amp;&amp; curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md</code></pre>
+
+        <div class="snippet-bar" naizo-ignore>
+          <span>
+            6. Experimental / In-Development (`main` branch runtime + skill – may include unreleased
+            changes)
+          </span>
+          <button type="button" class="quiet-btn copy-snippet-btn" data-copy-target="dev-main">
+            Copy
+          </button>
+        </div>
+        <pre><code id="dev-main">&lt;!-- In-development runtime directly from main (or local ./dist/naizo.js) --&gt;
+&lt;script src="https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js" defer&gt;&lt;/script&gt;
+
+# In-development AI skill from main
+gh skill install nickosh/naizo naizo@main
+npx skills add nickosh/naizo@main --skill naizo</code></pre>
       </section>
 
       <!-- 05. STARTER EXAMPLES -->

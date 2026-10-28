@@ -43,7 +43,7 @@ In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed wi
 ## AI Agent & LLM Documentation Endpoints
 
 - [Complete Single-File Documentation & Templates (`/llms-full.txt`)](https://naizo.js.org/llms-full.txt): Full authoring guide, API reference, surgical disk-edit script, and starter HTML templates in one file.
-- [Installable AI Agent Skill (`/SKILL.md`)](https://naizo.js.org/SKILL.md): Distributable skill for Claude Code, Antigravity, Cursor, Copilot, Codex, and Gemini CLI (`gh skill install nickosh/naizo naizo`, `gh skill install nickosh/naizo naizo@main` for in-development `main`, or `npx skills add nickosh/naizo --skill naizo`).
+- [Installable AI Agent Skill (`/SKILL.md`)](https://naizo.js.org/SKILL.md): Distributable skill for Claude Code, Antigravity, Cursor, Copilot, Codex, and Gemini CLI (`gh skill install nickosh/naizo naizo` or `npx skills add nickosh/naizo --skill naizo`; for experimental in-development `main`, pair `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` with `gh skill install nickosh/naizo naizo@main` or `npx skills add nickosh/naizo@main --skill naizo`).
 - [Interactive Documentation & Live Playground (`/`)](https://naizo.js.org/): Self-persisting `naizo.js` documentation site and live `#naizodb` inspector.
 
 ## Starter Application Blueprints

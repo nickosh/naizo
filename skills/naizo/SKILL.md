@@ -85,8 +85,8 @@ Every `naizo.js` HTML document embeds `<script id="naizodb" type="application/js
 - **jsDelivr (minified, ~12.3 KB gzipped):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
 - **unpkg:** `https://unpkg.com/naizojs@latest/dist/naizo.js`
 - **Pinned version:** replace `@latest` with a specific published version tag
-- **Latest in-development (`main` branch `dist/naizo.js`):** `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` (or local `./dist/naizo.js` from a checkout of `main`)
 - **Local / offline:** `<script src="./dist/naizo.js" defer></script>` (inside the `naizo` repository examples, use `../dist/naizo.js`)
+- **Experimental / in-development (`main` branch `dist/naizo.js`):** `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` (unreleased; pair with the `@main` skill below)
 
 ---
 
@@ -399,9 +399,8 @@ fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n$
 To equip Claude Code, Antigravity, Cursor, GitHub Copilot, Gemini CLI, or Codex with this skill in any repository, install it via the GitHub CLI (`gh skill`), the npm Skills CLI (`npx skills`), or `curl`:
 
 ```bash
-# 1. GitHub CLI (gh v2.90+ — tracks latest release, or use naizo@main for latest in-development skill)
+# 1. GitHub CLI (gh v2.90+ — installs from the latest published release)
 gh skill install nickosh/naizo naizo
-gh skill install nickosh/naizo naizo@main
 
 # 2. npm Skills CLI (npx skills)
 npx skills add nickosh/naizo --skill naizo
@@ -409,4 +408,19 @@ npx skills add nickosh/naizo --skill naizo
 # 3. Direct curl / file copy (no CLI required)
 mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .agents/skills/naizo/SKILL.md
 mkdir -p .claude/skills/naizo && curl -fsSL https://raw.githubusercontent.com/nickosh/naizo/main/skills/naizo/SKILL.md -o .claude/skills/naizo/SKILL.md
+```
+
+### Experimental / In-Development (`main` Branch)
+
+To preview unreleased features from `main` before the next tagged release is published, pair the in-development `dist/naizo.js` bundle with the `@main` skill (note: `main` is under active development and may contain experimental or not-yet-released changes):
+
+```html
+<!-- In-development runtime directly from main (or local ./dist/naizo.js) -->
+<script src="https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js" defer></script>
+```
+
+```bash
+# In-development AI skill from main
+gh skill install nickosh/naizo naizo@main
+npx skills add nickosh/naizo@main --skill naizo
 ```

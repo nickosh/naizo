@@ -2304,6 +2304,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(skillMd).toContain('gh skill install nickosh/naizo naizo');
     expect(skillMd).toContain('gh skill install nickosh/naizo naizo@main');
     expect(skillMd).toContain('npx skills add nickosh/naizo --skill naizo');
+    expect(skillMd).toContain('npx skills add nickosh/naizo@main --skill naizo');
     expect(skillMd).toContain('https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js');
 
     // Both docs/USAGE.md and skills/naizo/SKILL.md must use a replacement callback function
