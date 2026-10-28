@@ -90,7 +90,27 @@ Complete both parts of the manual `v0.1.0` bootstrap above before requesting ano
 
 ## Subsequent stable releases
 
-Ordinary pushes check for a merged release PR but **do not create or refresh one**. Request preparation explicitly from **Actions → Prepare release → Run workflow**, select **main**, and leave `release_tag` blank. Equivalent fish command:
+### Quick release checklist (`v0.2.0`+)
+
+1. **Check one-time prerequisites (before your first automated OIDC release):**
+   - Confirm npm Trusted Publishing is configured for `nickosh/naizo` workflow `release.yml` (see [Configure token-free publishing](#configure-token-free-publishing); remember a newly added trusted publisher expires if not used within 2 days).
+   - Confirm GitHub repository **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests** is enabled.
+2. **Prepare the release PR:**
+   From a clean, up-to-date `main` branch, run **Actions → Prepare release → Run workflow** (with `release_tag` left blank), or via GitHub CLI:
+   ```fish
+   gh workflow run prepare-release.yml --ref main
+   ```
+3. **Review the Release Please PR:**
+   Wait for the **Prepare release** workflow run (`check` → `bundle` → `prepare`) to succeed, then review the opened/refreshed PR (`chore(main): release X.Y.Z`), checking `package.json`, `CHANGELOG.md`, and `dist/naizo.js`. (Bot-created PRs do not trigger a separate `CI` workflow run; the `bundle` job in **Prepare release** is their verification.)
+4. **Merge the Release Please PR:**
+   Merge the PR into `main`. Merging automatically starts two workflows in parallel:
+   - **Prepare release → Release (`release.yml`):** creates tag `vX.Y.Z` and a draft GitHub Release, dispatches `release.yml` at `vX.Y.Z`, publishes `naizojs@X.Y.Z` to npm via OIDC with provenance, attaches `naizo.js`, `naizo.min.js`, and the `.tgz` tarball, and publishes the GitHub Release.
+   - **CI (`ci.yml` → `Deploy to GitHub Pages`, `D48`):** verifies the release commit on `main` (`contains(github.event.head_commit.message, 'chore(main): release ')`) and deploys the updated website (`naizo.js.org`, `/llms.txt`, `/llms-full.txt`, `/SKILL.md`) to GitHub Pages in lockstep with the published npm release.
+   - _(Tip: If you ever need to deploy a website-only hotfix between npm releases, run `gh workflow run ci.yml --ref main` or click **Actions → CI → Run workflow** on `main`.)_
+
+### Detailed release mechanics
+
+Ordinary pushes check for a merged release PR and verify `_site/` staging in `ci.yml`, but **do not create or refresh a release PR and do not deploy GitHub Pages** (`D32`, `D48`). Request preparation explicitly from **Actions → Prepare release → Run workflow**, select **main**, and leave `release_tag` blank. Equivalent fish command:
 
 ```fish
 gh workflow run prepare-release.yml --ref main
@@ -138,7 +158,7 @@ Remote settings, interactive bootstrap, and a live automated release are owner r
 
 For an authentication failure, check the exact owner/repository/workflow fields, publisher expiry, direct-publish permission, and that the job runs on a GitHub-hosted runner. The workflow uses Node 24.22.0 and its bundled npm 11 (logged in the publish job), exceeding npm's OIDC minimums of Node 22.14.0 and npm 11.5.1. `npm whoami` checks interactive credentials and is not an OIDC test. [npm troubleshooting](https://docs.npmjs.com/trusted-publishers/)
 
-The action references are pinned to reviewed commit IDs and kept current by weekly Dependabot updates. CI and release builds use `setup-vp`, which reads the Vite+ version from `package.json`, Node from `.node-version`, and pnpm from `packageManager`. `pnpm-workspace.yaml` delegates environment management to VP and records resolution policy in the lockfile; pnpm 12.14.0 is required to interpret this configuration consistently. CI caches package-manager data; release builds disable that cache. Release tooling tests run in CI only; release jobs verify the artifact rather than re-testing the tooling. GitHub Pages deploys from `ci.yml` only after verification passes on `main`, using the bundles CI just built and tested; `release.yml` contains no Pages job, so its npm publishing job remains the workflow's only OIDC identity. The publishing job reads `.node-version` with `setup-node`, installs no project dependencies, and uses the npm 11 bundled with that Node for OIDC. Publication outcomes belong to npm and GitHub Releases/tags, not project memory documents.
+The action references are pinned to reviewed commit IDs and kept current by weekly Dependabot updates. CI and release builds use `setup-vp`, which reads the Vite+ version from `package.json`, Node from `.node-version`, and pnpm from `packageManager`. `pnpm-workspace.yaml` delegates environment management to VP and records resolution policy in the lockfile; pnpm 12.14.0 is required to interpret this configuration consistently. CI caches package-manager data; release builds disable that cache. Release tooling tests run in CI only; release jobs verify the artifact rather than re-testing the tooling. Every `ci.yml` run verifies `_site/` staging, while GitHub Pages deploys from `ci.yml` only on Release Please merge pushes (`chore(main): release `) or manual `workflow_dispatch` on `main` after verification passes (`D37`, `D48`); `release.yml` contains no Pages job, so its npm publishing job remains the workflow's only OIDC identity. The publishing job reads `.node-version` with `setup-node`, installs no project dependencies, and uses the npm 11 bundled with that Node for OIDC. Publication outcomes belong to npm and GitHub Releases/tags, not project memory documents.
 
 ## CDN URLs and automatic updates
 

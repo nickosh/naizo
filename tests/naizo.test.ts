@@ -2504,13 +2504,14 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(llmsFullTxt).toContain('examples/starter.html');
     expect(llmsFullTxt).toContain('examples/notes.html');
 
-    // 4. ci.yml enforces dist/naizo.js freshness and stages site/. with -RL (dereferencing symlinks) to _site/
+    // 4. ci.yml enforces dist/naizo.js freshness, stages site/. with -RL (dereferencing symlinks) to _site/, and gates Pages deploy on release or workflow_dispatch (D48)
     expect(ciYml).toContain('git diff --exit-code dist/naizo.js');
     expect(ciYml).toContain('cp -RL site/. _site/');
     expect(ciYml).toContain('cp -R examples _site/');
     expect(ciYml).toContain(
       "sed -e 's#\\.\\./dist/#./dist/#g' -e 's#\\.\\./examples/#./examples/#g' site/index.html > _site/index.html",
     );
+    expect(ciYml).toContain("contains(github.event.head_commit.message, 'chore(main): release ')");
 
     const stagedIndexHtml = siteHtml
       .replace(/\.\.\/dist\//g, './dist/')

@@ -299,6 +299,8 @@ Accepted by the owner on 2026-10-19 after npm rejected the earlier unscoped pack
 
 ## D37 — CI-gated Pages from `main` and accurate release-PR verification
 
+Deploying GitHub Pages on every ordinary `main` push is superseded by `D48`, which gates the `ci.yml` Pages upload/deployment on Release Please merge pushes (`chore(main): release `) or manual `workflow_dispatch` while keeping `_site` staging verification in `ci.yml` on every push and PR.
+
 Accepted by the owner on 2026-10-21 after a CI/CD review. Refines `D28`, `D29`, `D32`, and `D35`; preserves the tracked readable bundle refreshed in every Release Please PR, explicit preparation (no PR refresh on ordinary pushes), GitHub Release assets (`naizo.js`, `naizo.min.js`, tarball), and isolated npm OIDC publication.
 
 - **Pages serves CI-verified `main`.** Deploy from a `ci.yml` job that runs only after verification succeeds on `main` (push or manual dispatch), reusing the bundles CI just built and tested; remove `pages.yml`. Do not deploy Pages from `release.yml`: npm trusts that workflow file, so it keeps the npm publishing job as its only `id-token: write` holder. A released-version site can be reconsidered when the site becomes primary documentation for a stable `1.x`.
@@ -479,3 +481,18 @@ Accepted by the owner on 2026-10-28, scheduled for `M6.3` and `M6.4`. Supersedes
   - **Rejected keeping `data-naizo-runtime` as a public or legacy alias:** The name _"runtime"_ is ambiguous on `<script>` tags (all scripts run at runtime), and retaining a redundant alias before `1.0` adds unnecessary selector weight.
   - **Rejected overloading `naizo-ignore="export"`:** A dedicated boolean attribute (`naizo-strip` / `data-naizo-strip`) is shorter, self-explanatory at a glance, and matches the valueless boolean style of `naizo-ignore`, `naizo-item`, `naizo-remove`, and `naizo-no-controls`.
   - **Rejected custom hostname-guard JS wrappers or `ci.yml` `sed` injection for `site/index.html` analytics:** With `naizo-strip`, the standard 1-line `<script defer ... naizo-strip>` tag in `site/index.html` needs no custom loader script or CI HTML mutation and serves as a live example of `naizo-strip` in page source.
+
+## D48 — Release-gated GitHub Pages deployment in `ci.yml` with manual `workflow_dispatch` override
+
+Accepted by the owner on 2026-10-28 after `M6` completion. Supersedes `D37`'s rule of deploying GitHub Pages on every ordinary `main` push, fulfilling `D37`'s planned transition to a release-aligned website once `site/` became the primary public documentation (`M6`).
+
+- **Context & Problem (Why):** Under `D46`, every new feature or milestone updates `site/index.html`, `skills/naizo/SKILL.md` (`site/SKILL.md`), `site/llms.txt`, and `site/llms-full.txt` alongside `src/index.ts` and `dist/naizo.js` on `main`. However, the primary Quick Start snippets on `naizo.js.org` (and in `/llms.txt` / `/SKILL.md`) instruct humans and AI agents to load `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js` (or install `gh skill install nickosh/naizo naizo` from the latest release tag), and clicking **`⬇ Save to PC`** on `naizo.js.org` rewrites `./dist/naizo.js` to `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`. If `ci.yml` deploys `_site` to GitHub Pages on every ordinary `main` push during feature development (such as `M8`), the live website and LLM endpoints immediately advertise unreleased attributes and APIs that do not exist yet in `naizojs@latest` on npm.
+- **Decision & Rationale (Global Picture & Invariant Safety):**
+  - **Verify `_site/` staging on every CI run (`verify` job):** Keep the `Stage GitHub Pages site from verified bundles` step running on every push and pull request in `.github/workflows/ci.yml` so broken asset paths, symlinks, or staging errors are caught immediately in CI.
+  - **Gate `Upload Pages artifact` and `Deploy to GitHub Pages` on releases + manual dispatch:** Run the Pages artifact upload and `deploy` job in `.github/workflows/ci.yml` only when `github.ref == 'refs/heads/main'` and either:
+    1. A Release Please PR is merged to `main` (`contains(github.event.head_commit.message, 'chore(main): release ')`, which matches merge commits, squash merges, and rebase merges), **or**
+    2. The maintainer manually triggers `CI` via `workflow_dispatch` (allowing urgent website/documentation hotfixes between npm releases).
+  - **Preserve `release.yml` npm OIDC isolation (`D37`):** Keep GitHub Pages deployment inside `ci.yml` rather than `release.yml` so `release.yml` remains dedicated to npm Trusted Publishing (`id-token: write`) and GitHub Release asset attachment.
+- **Alternatives Rejected / Trade-offs:**
+  - **Rejected deploying GitHub Pages on every push to `main`:** Causes public documentation (`naizo.js.org`, `/llms.txt`, `/SKILL.md`) and `⬇ Save to PC` exports (`naizojs@latest`) to drift ahead of the latest published npm package during active milestone development.
+  - **Rejected moving GitHub Pages deployment into `release.yml`:** `release.yml` is the trusted npm OIDC workflow (`D32`, `D37`); keeping Pages deployment in `ci.yml` triggered by the release merge commit (and `workflow_dispatch`) achieves release synchronization without touching `release.yml` permissions.
