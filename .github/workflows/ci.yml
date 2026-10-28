@@ -68,8 +68,9 @@ jobs:
         run: |
           rm -rf _site
           mkdir -p _site/dist
-          cp -R site examples _site/
-          sed 's#\.\./dist/#./dist/#g' site/index.html > _site/index.html
+          cp -R site/. _site/
+          cp -R examples _site/
+          sed -e 's#\.\./dist/#./dist/#g' -e 's#\.\./examples/#./examples/#g' site/index.html > _site/index.html
           cp dist/naizo.js dist/naizo.min.js _site/dist/
           touch _site/.nojekyll
 

@@ -2405,4 +2405,53 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(Naizo.getList('tasks')[1]?.done).toBe(false);
     expect(document.documentElement.getAttribute('data-theme')).toBe('system');
   });
+
+  it('validates M6.2 AI-agent discovery endpoints (site/llms.txt, site/llms-full.txt, site/SKILL.md), site/CNAME, and ci.yml Pages staging', () => {
+    const cname = readFileSync(resolve(process.cwd(), 'site/CNAME'), 'utf-8');
+    const siteSkill = readFileSync(resolve(process.cwd(), 'site/SKILL.md'), 'utf-8');
+    const rootSkill = readFileSync(resolve(process.cwd(), 'skills/naizo/SKILL.md'), 'utf-8');
+    const llmsTxt = readFileSync(resolve(process.cwd(), 'site/llms.txt'), 'utf-8');
+    const llmsFullTxt = readFileSync(resolve(process.cwd(), 'site/llms-full.txt'), 'utf-8');
+    const ciYml = readFileSync(resolve(process.cwd(), '.github/workflows/ci.yml'), 'utf-8');
+
+    // 1. CNAME for js.org registration
+    expect(cname.trim()).toBe('naizo.js.org');
+
+    // 2. site/SKILL.md is an exact copy of skills/naizo/SKILL.md
+    expect(siteSkill).toBe(rootSkill);
+
+    // 3. site/llms.txt and site/llms-full.txt cover core contract, attributes, API, D45, and safe surgical replacement
+    expect(llmsTxt.startsWith('# naizo.js\n')).toBe(true);
+    expect(llmsTxt).toContain('https://naizo.js.org/llms-full.txt');
+    expect(llmsTxt).toContain('https://naizo.js.org/SKILL.md');
+    expect(llmsTxt).toContain('naizo-list="name"');
+    expect(llmsTxt).toContain('window.Naizo');
+
+    expect(llmsFullTxt.startsWith('# naizo.js')).toBe(true);
+    expect(llmsFullTxt).toContain('<script id="naizodb" type="application/json">');
+    expect(llmsFullTxt).toContain('(_m, open, _inner, close) => `${open}\\n${json}\\n${close}`');
+    expect(llmsFullTxt).toContain('examples/starter.html');
+    expect(llmsFullTxt).toContain('examples/notes.html');
+
+    // 4. ci.yml stages site/. to _site/ and rewrites ../dist/ and ../examples/ to ./dist/ and ./examples/
+    expect(ciYml).toContain('cp -R site/. _site/');
+    expect(ciYml).toContain('cp -R examples _site/');
+    expect(ciYml).toContain(
+      "sed -e 's#\\.\\./dist/#./dist/#g' -e 's#\\.\\./examples/#./examples/#g' site/index.html > _site/index.html",
+    );
+
+    const stagedIndexHtml = siteHtml
+      .replace(/\.\.\/dist\//g, './dist/')
+      .replace(/\.\.\/examples\//g, './examples/');
+    expect(stagedIndexHtml).not.toContain('../dist/');
+    expect(stagedIndexHtml).not.toContain('../examples/');
+    expect(stagedIndexHtml).toContain('./dist/naizo.js');
+    expect(stagedIndexHtml).toContain('./examples/starter.html');
+    expect(stagedIndexHtml).toContain('./examples/checklist.html');
+    expect(stagedIndexHtml).toContain('./examples/notes.html');
+    expect(stagedIndexHtml).toContain('./examples/inventory.html');
+    expect(stagedIndexHtml).toContain('./llms.txt');
+    expect(stagedIndexHtml).toContain('./llms-full.txt');
+    expect(stagedIndexHtml).toContain('./SKILL.md');
+  });
 });

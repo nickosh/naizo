@@ -1,0 +1,55 @@
+# naizo.js
+
+> Self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]`) for Human + AI Agent workflows. Turns any single `.html` file (dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, engineering notebooks, plans, specs, checklists, triage boards, and custom micro-tools) into a living, self-saving application whose state syncs between the browser DOM, `localStorage`, and `<script id="naizodb" type="application/json">` on disk. Zero dependencies, ~12.3 KB minified + gzipped, MIT License.
+
+In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed within)** and **内臓 (internal organs)**: `<script id="naizodb">` is the built-in JSON database inside `<head>`, and `naizo.js` provides the reactive internal organs that bind inputs, repeat lists, and sync human browser edits with AI agent disk edits.
+
+## Core Authoring Contract (Golden Rules)
+
+1. **`<body>` is the template; `<script id="naizodb">` is the canonical data:**
+   - Place `<script id="naizodb" type="application/json">` at the top of `<head>` initialized with `{ "_meta": {}, "fields": {}, "lists": {}, "custom": {} }` (2-space indented, `<` escaped as `\u003c`).
+   - Load `naizo.js`: `<script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>` (or `dist/naizo.min.js`, `unpkg`, or local `./dist/naizo.js`).
+   - To read human edits from disk, parse `<script id="naizodb">`. To update data on disk, surgically rewrite only `<script id="naizodb">`. Edit `<body>` only when changing the UI/layout.
+2. **Preserve pass-through keys (`D15`):** Unbound keys in `fields`, unbound arrays in `lists`, and extra properties on list item objects (such as `"id"`, `"estimate"`, `"updatedAt"`) pass through untouched via `WeakMap` row bindings.
+3. **Explicit binding only (`D08`):** Use `naizo="key"` (or `data-naizo="key"`) on scalar inputs (`text`, `number`, `range`, `checkbox`, `radio`), `<textarea>`, `<select>`, `<details>`, and `[contenteditable]`, and `naizo-list="name"` + `naizo-item` on repeating lists.
+4. **Wrap `<label>` around inputs inside `[naizo-item]` (`EC39`):** Never use `for="..."` / `id="..."` pairs inside repeating `[naizo-item]` templates.
+5. **Scope documents with `<html naizo-id="slug">` (`D13`):** Prevents `localStorage` and IndexedDB handle collisions on `localhost` or `file://`.
+6. **Non-destructive filtering (`D43`):** Toggle `row.hidden = !matches` (never remove `[naizo-item]` nodes from the DOM to filter).
+7. **Visual styling (`D45` — Author Preferences First, Minimalist Editorial Fallback):** Always follow the author's explicit design, layout, or CSS framework preferences first. Only when no styling preference is specified, default to calm Washi Editorial minimalism (`#faf8f5` light / `#141311` dark, `1.65–1.75` line-height, `1px` hair-thin rules, spaced en-dashes ` – `, balanced 3-column tables, and `"theme": "system"` with `@media (prefers-color-scheme: dark)` so initial load never dirties `initialDiskDb`).
+
+## Declarative HTML Attributes (`naizo` / `data-naizo`)
+
+- `naizo="key"` / `data-naizo="key"` – Bind element state to `db.fields["key"]` (or `item["key"]` inside/on `[naizo-item]`).
+- `naizo-list="name"` / `data-naizo-list="name"` – Bind direct `[naizo-item]` children to `db.lists["name"]` and inject `+ Add Item`.
+- `naizo-item` / `data-naizo-item` – Repeating list row/card with hover `↑ ↓ ×` controls and `WeakMap` pass-through keys.
+- `naizo-template` / `data-naizo-template` – Optional `<template>` blueprint inside `[naizo-list]` (auto-inferred from first item when omitted).
+- `naizo-add="name"` / `data-naizo-add="name"` – Button that appends a blank item to `[naizo-list="name"]`.
+- `naizo-remove` / `data-naizo-remove` – Button inside `[naizo-item]` that deletes the row.
+- `naizo-move="up|down"` / `data-naizo-move="up|down"` – Button inside `[naizo-item]` that moves the row up or down.
+- `naizo-no-controls` / `data-naizo-no-controls` – Suppress auto-injected `+ Add Item` and row toolbars on `[naizo-list]`.
+- `naizo-ignore` / `data-naizo-ignore` – Exclude element/subtree from state binding while preserving it in exported HTML.
+- `naizo-id="scope"` / `data-naizo-id="scope"` – Scope `localStorage` and IndexedDB keys (`<path>::<scope>`).
+- `naizo-mode="online|local|auto"` / `data-naizo-mode="online|local|auto"` – Override Local Mode vs. Online Mode detection.
+- `naizo-manual` / `data-naizo-manual` – Disable automatic `initNaizo()` boot.
+
+## Programmatic API (`window.Naizo` / `window.NaizoDB`)
+
+- Custom bucket (`db.custom`): `Naizo.get(key?)`, `Naizo.set(key, value)`, `Naizo.delete(key)`
+- Fields bucket (`db.fields`): `Naizo.getField(key)`, `Naizo.setField(key, value)`, `Naizo.deleteField(key)`
+- Lists bucket (`db.lists`): `Naizo.getList(name)`, `Naizo.addItem(name, data?)`, `Naizo.updateItem(name, index, partial)`, `Naizo.moveItem(name, from, to)`, `Naizo.removeItem(name, index)`
+- Lifecycle & Export: `Naizo.bind(root?)`, `await Naizo.save()`, `Naizo.reset()`, `await Naizo.unlink()`, `await Naizo.copyJSON()`, `Naizo.exportHTML()`, `Naizo.downloadHTML(filename?)`
+- Events on `window`: `'naizo:hydrate'`, `'naizo:change'`, `'naizo:item'`
+
+## AI Agent & LLM Documentation Endpoints
+
+- [Complete Single-File Documentation & Templates (`/llms-full.txt`)](https://naizo.js.org/llms-full.txt): Full authoring guide, API reference, surgical disk-edit script, and starter HTML templates in one file.
+- [Installable AI Agent Skill (`/SKILL.md`)](https://naizo.js.org/SKILL.md): Distributable skill for Claude Code (`.claude/skills/naizo/SKILL.md`), Antigravity, Cursor, Codex, and Gemini CLI (`.agents/skills/naizo/SKILL.md`).
+- [Interactive Documentation & Live Playground (`/`)](https://naizo.js.org/): Self-persisting `naizo.js` documentation site and live `#naizodb` inspector.
+
+## Starter Application Blueprints
+
+- [Project Specification & Milestones (`/examples/starter.html`)](https://naizo.js.org/examples/starter.html): Minimal spec sheet with editable title, owner/status fields, summary textarea, and milestone repeater.
+- [Release Verification Checklist (`/examples/checklist.html`)](https://naizo.js.org/examples/checklist.html): Pre-release sign-off sheet with reviewer metadata, environment selector, readiness toggle, and prioritized checks.
+- [Master–Detail Engineering Notebook (`/examples/notes.html`)](https://naizo.js.org/examples/notes.html): Zero-DOM-wipe multi-note workspace on `[naizo-list="notes"]` with sidebar search, persisted category filter, pinning, live word/task counters, and `Alt+N` / `Alt+↑/↓` navigation.
+- [Asset & Inventory Studio (`/examples/inventory.html`)](https://naizo.js.org/examples/inventory.html): Filterable card grid with custom per-card pass-through JSON keys, `<dialog>` modals, and live KPI summaries.
+- [GitHub Repository (`nickosh/naizo`)](https://github.com/nickosh/naizo): Source code, tests, and full usage reference (`docs/USAGE.md`).
