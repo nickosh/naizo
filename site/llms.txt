@@ -47,7 +47,7 @@ In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed wi
 - [Installable AI Agent Skill (`/SKILL.md`)](https://naizo.js.org/SKILL.md): Distributable skill for Claude Code, Antigravity, Cursor, Copilot, Codex, and Gemini CLI (`gh skill install nickosh/naizo naizo` or `npx skills add nickosh/naizo --skill naizo`; for experimental in-development `main`, pair `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` with `gh skill install nickosh/naizo naizo@main` or `npx skills add nickosh/naizo@main --skill naizo`).
 - [Interactive Documentation & Live Playground (`/`)](https://naizo.js.org/): Self-persisting `naizo.js` documentation site and live `#naizodb` inspector.
 
-## Starter Application Blueprints
+## Starter App Blueprints
 
 - [Project Specification & Milestones (`/examples/starter.html`)](https://naizo.js.org/examples/starter.html): Minimal spec sheet with editable title, owner/status fields, summary textarea, and milestone repeater.
 - [Release Verification Checklist (`/examples/checklist.html`)](https://naizo.js.org/examples/checklist.html): Pre-release sign-off sheet with reviewer metadata, environment selector, readiness toggle, and prioritized checks.

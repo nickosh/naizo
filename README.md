@@ -127,9 +127,9 @@ Both CDNs serve the published `naizojs` npm package (`@latest` follows new relea
 
 ---
 
-## Four Starter App Blueprints
+## Starter App Blueprints
 
-Because `<body>` is standard HTML, CSS, and JavaScript and `#naizodb` stores arbitrary JSON (`fields`, `lists`, `custom`), you can build almost any single-file application. Use the four starter apps in [`examples/`](examples/) as architectural blueprints — try them in Online Mode or click **`⬇ Save to PC`** in the status pill to adapt them on your computer:
+Because `<body>` is standard HTML, CSS, and JavaScript and `#naizodb` stores arbitrary JSON (`fields`, `lists`, `custom`), you can build almost any single-file application. Use the starter apps in [`examples/`](examples/) as architectural blueprints — try them in Online Mode or click **`⬇ Save to PC`** in the status pill to adapt them on your computer:
 
 | Template                                                 | What It Demonstrates                                                                                                                                                                                                 |
 | :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
