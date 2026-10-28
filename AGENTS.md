@@ -2,7 +2,7 @@
 
 ## What this project is
 
-**`naizo.js`** (`naizo` project, npm package `naizojs` `v0.1.0`) — zero-dependency, self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) for Human + AI Agent workflows. Its name comes from the Japanese **_naizō_ (ないぞう)**: both **内蔵 (_built-in / embedded_)** and **内臓 (_internal organs_)**. It turns static `.html` artifacts (specs, plans, checklists, triage boards, custom tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="naizodb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
+**`naizo.js`** (`naizo` project, npm package `naizojs` `v0.1.0`) — zero-dependency, self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) for Human + AI Agent workflows. Its name comes from the Japanese **_naizō_ (ないぞう)**: both **内蔵 (_built-in / embedded_)** and **内臓 (_internal organs_)**. It turns static `.html` files (dashboards, interactive studios, personal trackers, option labs, calculators, notebooks, specs, plans, checklists, triage boards, and custom micro-tools) into interactive, human-editable applications whose state syncs between the DOM, `<script id="naizodb" type="application/json">`, `localStorage`, and the local `.html` file on disk.
 
 See [docs/PRODUCT.md](docs/PRODUCT.md) for product vision, target users, and scope boundaries.
 
@@ -18,7 +18,7 @@ License: MIT ([LICENSE](LICENSE)).
 
 ## Authoring HTML with `naizo.js` (AI Agent Instructions)
 
-Whenever you generate or update an interactive HTML file (plans, specs, checklists, triage boards, or custom editors), make it self-persisting using **`naizo.js`** (see [docs/USAGE.md](docs/USAGE.md) and starter templates in `examples/starter.html`, `examples/checklist.html`, `examples/notes.html`, and `examples/inventory.html`):
+Whenever you generate or update an interactive HTML application (dashboards, studios, personal trackers, option labs, calculators, notebooks, plans, specs, checklists, triage boards, or custom editors), make it self-persisting using **`naizo.js`** (see [docs/USAGE.md](docs/USAGE.md) and starter templates in `examples/starter.html`, `examples/checklist.html`, `examples/notes.html`, and `examples/inventory.html`):
 
 1. **Embed `#naizodb` in `<head>`:** Include `<script id="naizodb" type="application/json">` at the top of `<head>` initialized with:
    ```json
@@ -34,6 +34,7 @@ Whenever you generate or update an interactive HTML file (plans, specs, checklis
 4. **Dynamic Lists (`naizo-list` or `data-naizo-list`):** For checklists, tables (`<tbody naizo-list>`), or cards where the user may add, edit, reorder, or delete items, wrap the container in `naizo-list="list_name"` (or `data-naizo-list="list_name"`) and each repeating row/card in `naizo-item` (or `data-naizo-item`), using `naizo="prop_name"` on fields inside the item (or on the `[naizo-item]` root itself) and wrapping `<label>` elements around inputs (`EC39`).
 5. **Custom Widgets (`window.Naizo`):** Persist custom JavaScript state via `Naizo.get('key')`, `Naizo.set('key', value)`, and `Naizo.delete('key')`, or manipulate fields and lists programmatically via `Naizo.getField`, `Naizo.setField`, `Naizo.deleteField`, `Naizo.getList`, `Naizo.addItem`, `Naizo.updateItem`, `Naizo.moveItem`, `Naizo.removeItem`, `Naizo.bind(root)`, `await Naizo.save()`, `Naizo.reset()`, `await Naizo.unlink()`, `await Naizo.copyJSON()`, `Naizo.exportHTML()`, and `Naizo.downloadHTML(filename?)`. Listen to `'naizo:hydrate'`, `'naizo:change'`, and `'naizo:item'` window events to sync custom UI.
 6. **Reading & Updating Files on Disk:** When inspecting or modifying an existing HTML file on disk, treat `<body>` as the template and `<script id="naizodb">` as the canonical data (`D16`): read or edit `<script id="naizodb">` to change data, and edit `<body>` markup to change the view. `naizo.js` automatically hydrates the DOM, merges external disk edits across unrelated top-level keys (`fields`, `lists`, `custom`), and renders list items from `#naizodb` in the browser.
+7. **Visual Design & Styling (`D45` — Author Preferences First, Minimalist Editorial Fallback):** Always follow the user's or author's explicit visual, layout, or CSS framework preferences first. Only when the author has not specified any styling preferences, default to calm, human-readable **Washi Editorial** minimalism (`#faf8f5` warm paper in light mode / `#141311` in dark mode, `1.65–1.75` body line-height, hair-thin `1px` rules instead of nested drop-shadow bento cards or badge clutter, spaced en-dashes `–` instead of unspaced em-dashes, balanced 3-column tables without `white-space: nowrap` on long keys, and `"theme": "system"` with CSS `@media (prefers-color-scheme: dark)` so initial page load never mutates `store` on boot).
 
 ## Start here — authoritative project memory
 

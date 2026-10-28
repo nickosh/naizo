@@ -748,3 +748,11 @@ mkdir -p .agents/skills/naizo && cp path/to/naizo/skills/naizo/SKILL.md .agents/
 # Claude Code
 mkdir -p .claude/skills/naizo && cp path/to/naizo/skills/naizo/SKILL.md .claude/skills/naizo/SKILL.md
 ```
+
+### Workflow 6: Interactive Option Explorer & Human Review Loop (`D45`)
+
+When a human and an AI agent need to evaluate design directions, architecture trade-offs, UI copy variants, or configuration options, `naizo.js` enables a zero-friction **Interactive Option Lab** loop:
+
+1. **AI generates a temporary `naizo.js` comparison page** (e.g., `design-lab.html`) binding radio or `<select>` controls (`naizo="direction"`, `naizo="font_body"`, `naizo="measure"`, `naizo="inspector_layout"`) and a free-form feedback `<textarea naizo="design_notes">` to `#naizodb`.
+2. **Human explores options interactively in the browser**, picks the winning combination, types concrete review notes into `<textarea naizo="design_notes">`, and presses **`⌘S` / `Ctrl+S`** to surgically persist `#naizodb` to the `.html` file on disk.
+3. **AI reads `<script id="naizodb" type="application/json">` directly from disk** on the next turn—receiving both the exact structured option keys (`db.fields.direction`, `db.fields.measure`, etc.) and the human's written notes (`db.fields.design_notes`) without screenshot copy-pasting or ambiguous chat descriptions—applies the chosen direction, and deletes the temporary lab file when done.

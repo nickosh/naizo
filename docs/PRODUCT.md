@@ -1,6 +1,6 @@
 # naizo — Product Definition
 
-Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-10-23 (`D38`–`D43`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status), [USAGE.md](USAGE.md) (comprehensive usage and authoring reference).
+Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-10-28 (`D38`–`D45`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status), [USAGE.md](USAGE.md) (comprehensive usage and authoring reference).
 
 ## One-liner
 
@@ -15,17 +15,17 @@ In Japanese, **_naizō_ (ないぞう)** unites two homophonous concepts that de
 
 ## Problem
 
-AI coding agents (Antigravity, Claude Code, Gemini CLI, Cursor, Codex) increasingly generate rich HTML artifacts for specs, implementation plans, interactive checklists, code reviews, and custom triage tools. Static HTML creates two friction points when humans interact with it:
+A single `.html` file can be almost any application: a custom dashboard, an inventory studio, a personal tracker, an interactive option lab, a visual canvas, an engineering notebook, or a living specification generated in seconds with an AI coding agent (Antigravity, Claude Code, Gemini CLI, Cursor, Codex). Yet plain HTML has two persistent limits when humans interact with it:
 
-1. **Static HTML forgets user input:** Checking boxes, editing notes, or adding tasks in a local `.html` file disappears on page refresh.
+1. **Static HTML forgets user input:** Editing fields, toggling items, or adjusting controls in a local `.html` file disappears on page refresh.
 2. **Browser storage hides edits from AI agents:** Persisting state only to `localStorage` traps changes inside the browser profile. When a CLI or IDE AI agent reads the `.html` file from disk on the next turn, it cannot see the human's edits.
 
-`naizo.js` bridges both worlds with a single `<script>` tag: human edits in the browser sync into `<script id="naizodb" type="application/json">` and back to the `.html` file on disk, while external agent edits to `#naizodb` on disk automatically hydrate the DOM on reload.
+`naizo.js` bridges both worlds with a single `<script>` tag: human edits in the browser sync into `<script id="naizodb" type="application/json">` and back to the `.html` file on disk, while external agent edits to `#naizodb` on disk automatically hydrate the DOM on reload or live watch.
 
 ## Target users
 
-- **Primary:** Developers and AI coding agents collaborating through local interactive HTML artifacts (plans, specs, checklists, triage boards, custom editors).
-- **Secondary:** Authors of standalone, local-first single-file HTML tools who want persistent state and repeating list controls without a backend server or runtime dependencies, and teams/creators sharing interactive single-file HTML apps on static web hosts (such as GitHub Pages).
+- **Primary:** Humans and AI coding agents collaborating through local, self-saving single-file HTML applications of any kind (custom micro-tools, dashboards, option/design labs, studios, notebooks, plans, specs, and checklists).
+- **Secondary:** Authors of standalone, local-first single-file HTML applications who want persistent state and repeating list controls without a backend server or runtime dependencies, and creators sharing interactive single-file HTML apps on static web hosts (such as GitHub Pages) that visitors can customize and save to their own PC (`D41`).
 
 ## Global picture: connected lifecycles (`D40`, `D41`, `D43`)
 

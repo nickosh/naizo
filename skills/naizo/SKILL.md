@@ -1,12 +1,12 @@
 ---
 name: naizo
 license: MIT
-description: Build and update self-persisting interactive HTML applications (plans, specs, checklists, triage boards, engineering notebooks, inventory trackers, and custom local tools) using naizo.js and its built-in #naizodb JSON database. Activate whenever generating an interactive HTML artifact or inspecting/editing an existing HTML file that uses <script id="naizodb" type="application/json"> or naizo / data-naizo attributes.
+description: Build and update self-persisting interactive HTML applications (dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, engineering notebooks, plans, specs, checklists, triage boards, and custom micro-tools) using naizo.js and its built-in #naizodb JSON database. Activate whenever generating an interactive HTML application or inspecting/editing an existing HTML file that uses <script id="naizodb" type="application/json"> or naizo / data-naizo attributes.
 ---
 
 # Naizo (`naizo.js`) — Self-Persisting HTML & AI Agent Co-Editing Skill
 
-Use **`naizo.js`** (npm package `naizojs`) to turn static `.html` files into living, self-persisting applications whose state syncs between the browser DOM, `localStorage`, and `<script id="naizodb" type="application/json">` on disk.
+Use **`naizo.js`** (npm package `naizojs`) to turn any single `.html` file into a living, self-persisting application whose state syncs between the browser DOM, `localStorage`, and `<script id="naizodb" type="application/json">` on disk.
 
 In Japanese, **_naizō_ (ないぞう)** means both **内蔵 (_built-in / housed within_)** and **内臓 (_internal organs_)**: `<script id="naizodb">` is the built-in JSON database inside `<head>`, and `naizo.js` provides the reactive internal organs that bind inputs, repeat lists, and sync human browser edits with AI agent disk edits.
 
@@ -169,7 +169,7 @@ window.addEventListener('naizo:item', (e) => {
 
 ---
 
-## 5. Four Canonical Application Blueprints
+## 5. Canonical Application Blueprints
 
 Choose the blueprint that best matches the user's request (full templates live in `examples/starter.html`, `examples/checklist.html`, `examples/notes.html`, and `examples/inventory.html` in the `naizo` repository):
 
@@ -337,9 +337,33 @@ window.addEventListener('naizo:change', applyFilter);
 - For collapsible sections, bind `<details naizo="section_open" open>` directly (zero JS required).
 - For view tabs, bind radio buttons `<input type="radio" name="tab" value="overview" naizo="active_tab" checked>` and toggle `panel.hidden = panel.dataset.tab !== (Naizo.getField('active_tab') || 'overview')` on `naizo:hydrate` and `naizo:change`.
 
+### Blueprint E: Interactive Option Lab & Human Review Prototype (`D45`)
+
+When helping a user compare design directions, layout options, architecture trade-offs, or copy variants, generate a self-persisting `naizo.js` comparison page (`design-lab.html`):
+
+- Bind option controls (`<input type="radio" name="direction" value="washi" naizo="direction">`, `<select naizo="measure">`, `<select naizo="inspector_layout">`) and a review notes `<textarea naizo="design_notes" rows="4">` to `#naizodb`.
+- Listen to `naizo:hydrate` and `naizo:change` to switch live preview styles or layout attributes (`document.documentElement.dataset.direction = Naizo.getField('direction')`) in real time.
+- Ask the user to explore the options in their browser, write feedback in the notes box, and press **`⌘S` / `Ctrl+S`** to save to disk. On the next turn, read `<script id="naizodb" type="application/json">` directly from disk to apply their exact selected options and written notes.
+
 ---
 
-## 6. Surgical Disk Editing Protocol for CLI / IDE AI Agents
+## 6. Human-First Typography & Minimalist Design (`D45` — Fallback When Author Has No Style Preference)
+
+1. **Always follow the author's explicit preferences first:**
+   - If the user or project specifies a visual style, layout structure, color palette, component library, or CSS framework (e.g., Tailwind, brutalist, dense dashboard grid, neon dark theme, or existing brand tokens), **honor the author's direction completely**. Never override explicit user preferences with a default house style.
+2. **Default fallback when the author has NOT specified styling preferences (`Washi Editorial` minimalism):**
+   - When the user asks for an HTML tool, doc, plan, or app without specifying visual styling, avoid stereotypical AI "neuro-slop" (nested multi-column bento cards, heavy drop shadows, neon gradients, uppercase pill-badge clutter on every heading, and cramped multi-pane sidebars).
+   - Default to a calm, human-readable **editorial layout**:
+     - **Palette:** Warm paper background in light mode (`#faf8f5` surface, `#ffffff` elevated inputs, `#1c1b18` ink, `#57534e` muted prose, `#e5e0d8` hair-thin `1px` borders, `#a8432b` terracotta accent) and warm charcoal in dark mode (`#141311` surface, `#1c1b18` elevated inputs, `#ece8e1` ink, `#a6a096` muted prose, `#2e2c28` borders, `#e07a5f` accent).
+     - **Typography & Measure:** Pair an editorial serif (`'Newsreader'`, `'Iowan Old Style'`, `Georgia`, `serif`) for headings with a clean humanist sans-serif (`'Plus Jakarta Sans'`, `system-ui`, `sans-serif`) for body copy (`16px–16.5px`, `line-height: 1.65–1.75`) inside a calm single-column container (`max-width: 760px–900px`), separating sections with hair-thin `1px` horizontal rules instead of nested boxes.
+     - **Punctuation & Tables:** Prefer spaced en-dashes (`–`) over unspaced em-dashes in prose. Keep reference tables to at most **3 balanced columns** (grouping secondary metadata as compact block badges inside the first cell) and never set `white-space: nowrap` on columns containing long attribute or method signatures.
+3. **Theme persistence without dirtying initial boot state (`"theme": "system"`, `EC48`, `D45`):**
+   - When adding a persistent Light/Dark theme toggle (`naizo="theme"`), initialize `"theme": "system"` in `#naizodb` and let CSS `@media (prefers-color-scheme: dark) { html:not([data-theme='light']) { ... } }` handle OS dark-mode detection automatically.
+   - **Never** call `Naizo.setField('theme', 'dark')` on initial page load based on `window.matchMedia`, because mutating `store` on boot marks the document dirty against `initialDiskDb` and prematurely surfaces the Online Mode `↺ Reset` button before the user has made any edits. Call `Naizo.setField('theme', nextTheme)` only when the user explicitly clicks the theme toggle.
+
+---
+
+## 7. Surgical Disk Editing Protocol for CLI / IDE AI Agents
 
 When modifying an existing `naizo.js` `.html` file on disk to update data (`fields`, `lists`, or `custom`):
 
@@ -369,7 +393,7 @@ fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n$
 
 ---
 
-## 7. Installing This Skill in Your Workspace
+## 8. Installing This Skill in Your Workspace
 
 To equip Claude Code, Antigravity, Cursor, Gemini CLI, or Codex with this skill in any repository, copy `SKILL.md` into your workspace's skills directory:
 

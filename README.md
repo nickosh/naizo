@@ -8,7 +8,7 @@
 [![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~12.3_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
-_Turn static HTML files into self-saving apps with built-in JSON state (`#naizodb`) for Human + AI workflows._
+_Turn any single `.html` file into a self-saving application with built-in JSON state (`#naizodb`) for Human + AI workflows._
 
 [Quick Start](#quick-start) · [Starter Examples](#starter-examples) · [AI Agent Skill](#ai-agent-skill-skillsnaizoskillmd) · [Attributes](#declarative-html-attributes) · [JS API](#javascript-api-windownaizo--windownaizodb) · [Full Usage Guide](docs/USAGE.md)
 
@@ -27,9 +27,9 @@ In Japanese, **_naizō_ (ないぞう)** carries two homophonous meanings—both
 
 ## The Problem `naizo.js` Solves
 
-AI coding agents (like Claude Code, Cursor, Antigravity, Codex, and Gemini CLI) are shifting from plain Markdown to **rich HTML artifacts** for specs, implementation plans, interactive checklists, code reviews, and custom triage tools.
+People and AI coding agents (like Claude Code, Cursor, Antigravity, Codex, and Gemini CLI) can spin up **rich, single-file HTML applications** in seconds—dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, notebooks, specs, checklists, and custom micro-tools.
 
-HTML is far more expressive than Markdown—until a human wants to interact with it:
+HTML is far more expressive than Markdown—until a human wants to interact with it and keep their state:
 
 1. **Static HTML is a lifeless skeleton:** Checking boxes, typing notes, or adding tasks in a local `.html` file disappears the moment you refresh the tab.
 2. **Browser storage hides edits from AI agents:** Saving state to `localStorage` keeps it trapped inside your browser profile. When your CLI or IDE AI agent reads `plan.html` from disk on the next turn, it is completely blind to your changes.
