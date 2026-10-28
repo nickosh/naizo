@@ -711,12 +711,39 @@ function readCleanTextContent(el: Element): string {
 }
 
 function writeCleanTextContent(el: Element, text: string): void {
-  const preservedChildren = Array.from(el.children).filter((child) =>
-    child.matches(IGNORE_SELECTOR),
+  const hasIgnoredChild = Array.from(el.children).some((child) => child.matches(IGNORE_SELECTOR));
+  if (!hasIgnoredChild) {
+    el.textContent = text;
+    return;
+  }
+
+  const nonIgnoredNodes = Array.from(el.childNodes).filter(
+    (node) => !(node instanceof Element && node.matches(IGNORE_SELECTOR)),
   );
-  preservedChildren.forEach((child) => child.remove());
-  el.textContent = text;
-  preservedChildren.forEach((child) => el.appendChild(child));
+  const textNodes = nonIgnoredNodes.filter(
+    (node): node is Text => node.nodeType === Node.TEXT_NODE,
+  );
+  const targetTextNode =
+    textNodes.find((node) => (node.nodeValue ?? '').trim().length > 0) ?? textNodes[0] ?? null;
+
+  for (const node of nonIgnoredNodes) {
+    if (node !== targetTextNode) {
+      node.remove();
+    }
+  }
+
+  if (targetTextNode) {
+    targetTextNode.nodeValue = text;
+    return;
+  }
+
+  const newTextNode = document.createTextNode(text);
+  const firstStripChild = el.querySelector(':scope > [naizo-strip], :scope > [data-naizo-strip]');
+  if (firstStripChild) {
+    el.insertBefore(newTextNode, firstStripChild);
+  } else {
+    el.appendChild(newTextNode);
+  }
 }
 
 function isSkippedElement(el: Element, warn = false): boolean {
@@ -1071,7 +1098,6 @@ function decorateListControls(listEl: HTMLElement): void {
     if (itemEl.querySelector('[naizo-remove], [data-naizo-remove]')) return;
     const tools = document.createElement('span');
     tools.className = 'naizo-item-tools';
-    tools.setAttribute('naizo-ignore', 'true');
     tools.setAttribute('data-naizo-strip', 'true');
     tools.innerHTML = `
       <button type="button" naizo-move="up" title="Move up" aria-label="Move item up">↑</button>
@@ -1085,7 +1111,6 @@ function decorateListControls(listEl: HTMLElement): void {
         lastCell.appendChild(tools);
       } else {
         const td = document.createElement('td');
-        td.setAttribute('naizo-ignore', 'true');
         td.setAttribute('data-naizo-strip', 'true');
         td.appendChild(tools);
         itemEl.appendChild(td);
@@ -1099,7 +1124,6 @@ function decorateListControls(listEl: HTMLElement): void {
   if (!document.querySelector(`[naizo-add="${escaped}"], [data-naizo-add="${escaped}"]`)) {
     const addWrap = document.createElement('div');
     addWrap.className = 'naizo-list-footer';
-    addWrap.setAttribute('naizo-ignore', 'true');
     addWrap.setAttribute('data-naizo-strip', 'true');
     addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}" aria-label="Add item to ${listName}">+ Add Item</button>`;
     const tag = listEl.tagName.toLowerCase();
@@ -1911,7 +1935,6 @@ function mountUi(): void {
   if (!document.getElementById(STYLE_ID)) {
     const style = document.createElement('style');
     style.id = STYLE_ID;
-    style.setAttribute('naizo-ignore', 'true');
     style.setAttribute('data-naizo-strip', 'true');
     style.textContent = `
       [naizo-item], [data-naizo-item] { position: relative; }
@@ -1948,7 +1971,6 @@ function mountUi(): void {
 
   const host = document.createElement('div') as NaizoHostElement;
   host.id = UI_ID;
-  host.setAttribute('naizo-ignore', 'true');
   host.setAttribute('data-naizo-strip', 'true');
   const shadow = host.attachShadow({ mode: 'open' });
 

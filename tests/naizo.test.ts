@@ -1500,7 +1500,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
       <input id="shared-in" type="text" naizo="shared" value="v0">
       <input id="disk-only-in" type="text" naizo="diskOnly" value="">
       <ul naizo-list="steps">
-        <li naizo-item contenteditable="true" naizo="label">Seed<span class="step-badge" naizo-ignore>TAG</span></li>
+        <li naizo-item contenteditable="true" naizo="label"><span class="step-prefix" naizo-ignore>📌</span>Seed<span class="step-badge" naizo-ignore>TAG</span></li>
       </ul>
     `;
 
@@ -1510,22 +1510,34 @@ describe('naizo.js v0.1.0 core runtime', () => {
     const initialHash = localStorage.getItem('naizodb_disk_hash_/');
     expect(initialHash).toMatch(/^fnv1a:[0-9a-f]{8}\|/);
 
-    // 2. Self-bound <li naizo-item contenteditable="true" naizo="label"> excludes .naizo-item-tools / [naizo-ignore] text and keeps both children on update (D47, EC46)
+    // 2. Self-bound <li naizo-item contenteditable="true" naizo="label"> excludes .naizo-item-tools / [naizo-ignore] text and keeps leading/trailing children in place without detaching on update (D47, EC46)
     const li = document.querySelector('ul[naizo-list="steps"] > li') as HTMLElement;
-    expect(li.querySelector('.naizo-item-tools')).not.toBeNull();
-    expect(li.querySelector('.step-badge')?.textContent).toBe('TAG');
+    const prefixEl = li.querySelector('.step-prefix');
+    const badgeEl = li.querySelector('.step-badge');
+    const toolsEl = li.querySelector('.naizo-item-tools');
+    expect(prefixEl?.textContent).toBe('📌');
+    expect(badgeEl?.textContent).toBe('TAG');
+    expect(toolsEl).not.toBeNull();
+    expect(toolsEl?.getAttribute('data-naizo-strip')).toBe('true');
+    expect(toolsEl?.hasAttribute('naizo-ignore')).toBe(false);
+    expect(li.firstElementChild).toBe(prefixEl);
     expect(Naizo.getList('steps')).toEqual([{ label: 'Step One' }]);
 
-    // Simulate user typing into self-bound <li> while .naizo-item-tools and .step-badge are mounted inside it
+    // Simulate user typing into self-bound <li> while .step-prefix, .step-badge, and .naizo-item-tools are mounted inside it
     const textNode = Array.from(li.childNodes).find((n) => n.nodeType === Node.TEXT_NODE);
     if (textNode) textNode.nodeValue = 'Step One Edited';
     li.dispatchEvent(new Event('input', { bubbles: true }));
     expect(Naizo.getList('steps')).toEqual([{ label: 'Step One Edited' }]);
 
-    // Programmatic updateItem preserves both [naizo-ignore] and [data-naizo-strip] (.naizo-item-tools) children inside self-bound <li>
+    // Programmatic updateItem updates text in place without detaching or reordering leading/trailing [naizo-ignore] or [data-naizo-strip] children
     Naizo.updateItem('steps', 0, { label: 'Step One Programmatic' });
-    expect(li.querySelector('.naizo-item-tools')).not.toBeNull();
-    expect(li.querySelector('.step-badge')?.textContent).toBe('TAG');
+    expect(li.querySelector('.step-prefix')).toBe(prefixEl);
+    expect(li.querySelector('.step-badge')).toBe(badgeEl);
+    expect(li.querySelector('.naizo-item-tools')).toBe(toolsEl);
+    expect(li.childNodes[0]).toBe(prefixEl);
+    expect(li.childNodes[1]?.nodeValue).toBe('Step One Programmatic');
+    expect(li.childNodes[2]).toBe(badgeEl);
+    expect(li.childNodes[3]).toBe(toolsEl);
     expect(Naizo.getList('steps')).toEqual([{ label: 'Step One Programmatic' }]);
 
     // 3. Pre-write merge with both browserKeptKeys and hasCollision preserves conflict pill status
