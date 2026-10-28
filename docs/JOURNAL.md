@@ -2,11 +2,11 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
-## 2026-10-29 — Excluded Release Please-generated `CHANGELOG.md` from `Oxfmt` in `vite.config.ts` (`fmt.ignorePatterns`)
+## 2026-10-29 — Excluded Release Please-generated `CHANGELOG.md` from `Oxfmt` in `vite.config.ts` and simplified `guardManifest` test in `.github/release-tools/test.cjs`
 
-- Done: added `'CHANGELOG.md'` to `fmt.ignorePatterns` (`['dist/**', 'CHANGELOG.md']`) in `vite.config.ts` so `vp check` in `release.yml` and `ci.yml` does not fail on Release Please's machine-generated markdown bullet formatting in `CHANGELOG.md`, and added a regression test in `tests/release.test.ts`.
-- Verified: `vp fmt`, `vp check` (0 errors in project files), `vp test --run` (33/33 passing tests across `tests/naizo.test.ts` and `tests/release.test.ts`), and `git diff --check`.
-- Next: pull the merged release commit from `origin/main`, delete the unpublished draft release, commit and push the `vite.config.ts` fix, and re-run `prepare-release.yml`, then implement `M8.1`.
+- Done: added `'CHANGELOG.md'` to `fmt.ignorePatterns` (`['dist/**', 'CHANGELOG.md']`) in `vite.config.ts` so `vp check` in `release.yml` and `ci.yml` does not fail on Release Please's machine-generated markdown bullet formatting in `CHANGELOG.md`, simplified `.github/release-tools/test.cjs` to drop the hardcoded 7-row semver table and test `guardManifest` (`dist/naizo.js` bundle updater + prerelease rejection) directly against the current manifest tag (`v${manifest['.']}`), and added a regression test in `tests/release.test.ts`.
+- Verified: `vp fmt`, `vp check` (0 errors in project files), `vp test --run` (33/33 passing tests across `tests/naizo.test.ts` and `tests/release.test.ts`), `vp node --test .github/release-tools/test.cjs` (25/25 passing release-tooling tests), and `git diff --check`.
+- Next: commit and push the `.github/release-tools/test.cjs` fix, and trigger `ci.yml` (`workflow_dispatch`) to deploy GitHub Pages, then implement `M8.1`.
 
 ## 2026-10-29 — Completed `M6.4` (Cloudflare Web Analytics `<script ... naizo-strip>` in `site/index.html`, completing `M6`, `D47`), release-gated GitHub Pages deployment (`D48`), `dist/naizo.min.js` portable export, SEO metadata, and human-first `README.md` / `site/index.html` copy
 

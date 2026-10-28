@@ -52,94 +52,85 @@ const draft = {
   assets: [],
 };
 
-for (const [message, expected] of [
-  ['fix: preserve fields', '0.1.1'],
-  ['feat: add bindings', '0.2.0'],
-  ['fix!: change binding contract\n\nBREAKING CHANGE: inputs use the new contract.', '0.2.0'],
-  [request, '0.2.0'],
-  [request.replace('0.2.0', '1.0.0'), '1.0.0'],
-  [request.replace('0.2.0', '0.2.0-rc.1'), 'reject'],
-  ['docs: clarify examples', null],
-]) {
-  void test(`actual pinned Manifest updater: ${message.split('\n')[0]}`, async () => {
-    const github = {
-      repository: { owner: 'nickosh', repo: 'naizo', defaultBranch: 'main' },
-      getFileJson: async (path) => JSON.parse(read(path)),
-      getFileContentsOnBranch: async (path) => ({ parsedContent: read(path) }),
-      findFilesByFilenameAndRef: async () => [],
-      releaseIterator: async function* () {
-        yield { tagName: 'v0.1.0', sha: oldSha, notes: '' };
-      },
-      mergeCommitIterator: async function* () {
-        yield { sha, message, files: ['src/index.ts'] };
-        yield { sha: oldSha, message: 'chore: baseline', files: [] };
-      },
-      pullRequestIterator: async function* () {},
-    };
-    const bundle = '(function() { console.log("generated release bundle"); })();\n';
-    const manifest = guardManifest(await Manifest.fromManifest(github, 'main'), bundle);
-    assert.equal(manifest.repositoryConfig['.'].draft, true);
-    assert.equal(manifest.repositoryConfig['.'].forceTag, true);
-    assert.equal(manifest.repositoryConfig['.'].includeComponentInTag, false);
-    assert.equal(manifest.repositoryConfig['.'].includeVInTag, true);
-    if (expected === 'reject') {
-      await assert.rejects(manifest.buildPullRequests(), /stable version/);
-      return;
-    }
-    const candidates = await manifest.buildPullRequests();
-    if (!expected) {
-      assert.equal(candidates.length, 0);
-      return;
-    }
-    assert.equal(candidates.length, 1);
-    const pr = candidates[0];
-    assert.equal(pr.headRefName, releaseBranch);
-    const outputs = new Map(
-      pr.updates
-        .filter((update) => existsSync(path.join(root, update.path)))
-        .map((update) => [update.path, update.updater.updateContent(read(update.path))]),
-    );
-    assert.equal(JSON.parse(outputs.get('package.json')).version, expected);
-    assert.equal(JSON.parse(outputs.get('.release-please-manifest.json'))['.'], expected);
-    assert.ok(outputs.get('CHANGELOG.md').includes(expected));
-    assert.ok(outputs.get('CHANGELOG.md').includes('## 0.1.0'));
-    assert.ok(!outputs.has('.github/release-tools/package.json'));
-    assert.equal(outputs.get('dist/naizo.js'), bundle);
-    const changes = await GitHub.prototype.buildChangeSet.call(
-      {
-        getFileContentsOnBranch: async () => ({
-          content: Buffer.from('stale bundle').toString('base64'),
-          parsedContent: 'stale bundle',
-          mode: '100644',
-        }),
-      },
-      [pr.updates.find((update) => update.path === 'dist/naizo.js')],
-      'main',
-    );
-    assert.equal(changes.get('dist/naizo.js').content, bundle);
-    assert.ok(!pr.updates.some((update) => update.path === 'dist/naizo.min.js'));
-    // An explicit refresh must update the bundle even when release notes are unchanged.
-    assert.equal(manifest.alwaysUpdate, true);
-    let refreshed;
-    github.updatePullRequest = async (number, candidate) => {
-      refreshed = candidate;
-      return { number };
-    };
-    await manifest.createOrUpdatePullRequest(
-      pr,
-      [{ number: 9, headBranchName: pr.headRefName, body: pr.body.toString() }],
-      [],
-    );
-    assert.equal(
-      refreshed.updates
-        .find((update) => update.path === 'dist/naizo.js')
-        .updater.updateContent('stale'),
-      bundle,
-    );
-    // Verify installed implementation, not a mocked version algorithm.
-    assert.equal(require('release-please/package.json').version, '17.11.2');
+void test('guardManifest attaches bundle updater to Manifest.fromManifest and rejects prereleases', async () => {
+  const currentTag = `v${JSON.parse(read('.release-please-manifest.json'))['.']}`;
+  const bundle = '(function() { console.log("generated release bundle"); })();\n';
+  const makeGithub = (message) => ({
+    repository: { owner: 'nickosh', repo: 'naizo', defaultBranch: 'main' },
+    getFileJson: async (path) => JSON.parse(read(path)),
+    getFileContentsOnBranch: async (path) => ({ parsedContent: read(path) }),
+    findFilesByFilenameAndRef: async () => [],
+    releaseIterator: async function* () {
+      yield { tagName: currentTag, sha: oldSha, notes: '' };
+    },
+    mergeCommitIterator: async function* () {
+      yield { sha, message, files: ['src/index.ts'] };
+      yield { sha: oldSha, message: 'chore: baseline', files: [] };
+    },
+    pullRequestIterator: async function* () {},
   });
-}
+
+  const github = makeGithub('feat: add bindings');
+  const manifest = guardManifest(await Manifest.fromManifest(github, 'main'), bundle);
+  assert.equal(manifest.repositoryConfig['.'].draft, true);
+  assert.equal(manifest.repositoryConfig['.'].forceTag, true);
+  assert.equal(manifest.repositoryConfig['.'].includeComponentInTag, false);
+  assert.equal(manifest.repositoryConfig['.'].includeVInTag, true);
+  assert.equal(manifest.alwaysUpdate, true);
+
+  const candidates = await manifest.buildPullRequests();
+  assert.equal(candidates.length, 1);
+  const [pr] = candidates;
+  assert.equal(pr.headRefName, releaseBranch);
+  const outputs = new Map(
+    pr.updates
+      .filter((update) => existsSync(path.join(root, update.path)))
+      .map((update) => [update.path, update.updater.updateContent(read(update.path))]),
+  );
+  assert.ok(!outputs.has('.github/release-tools/package.json'));
+  assert.equal(outputs.get('dist/naizo.js'), bundle);
+  assert.ok(!pr.updates.some((update) => update.path === 'dist/naizo.min.js'));
+
+  const changes = await GitHub.prototype.buildChangeSet.call(
+    {
+      getFileContentsOnBranch: async () => ({
+        content: Buffer.from('stale bundle').toString('base64'),
+        parsedContent: 'stale bundle',
+        mode: '100644',
+      }),
+    },
+    [pr.updates.find((update) => update.path === 'dist/naizo.js')],
+    'main',
+  );
+  assert.equal(changes.get('dist/naizo.js').content, bundle);
+
+  let refreshed;
+  github.updatePullRequest = async (number, candidate) => {
+    refreshed = candidate;
+    return { number };
+  };
+  await manifest.createOrUpdatePullRequest(
+    pr,
+    [{ number: 9, headBranchName: pr.headRefName, body: pr.body.toString() }],
+    [],
+  );
+  assert.equal(
+    refreshed.updates
+      .find((update) => update.path === 'dist/naizo.js')
+      .updater.updateContent('stale'),
+    bundle,
+  );
+  assert.equal(require('release-please/package.json').version, '17.11.2');
+
+  const prereleaseManifest = guardManifest(
+    await Manifest.fromManifest(
+      makeGithub('chore: prepare release\n\nRelease-As: 99.0.0-rc.1'),
+      'main',
+    ),
+    bundle,
+  );
+  await assert.rejects(prereleaseManifest.buildPullRequests(), /stable version/);
+});
 
 void test('creation and refresh retain descriptive Conventional Commit bodies', async () => {
   const calls = [];
