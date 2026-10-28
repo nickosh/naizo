@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vite-plus/test';
 import {
   publicationStatus,
@@ -98,5 +99,10 @@ describe('release guards', () => {
     await expect(
       publicationStatus(pack, async () => new Response('invalid json')),
     ).rejects.toThrow();
+  });
+
+  it('ignores Release Please generated CHANGELOG.md in vite.config.ts fmt.ignorePatterns', () => {
+    const viteConfig = readFileSync('vite.config.ts', 'utf8');
+    expect(viteConfig).toMatch(/ignorePatterns:\s*\[\s*'dist\/\*\*'\s*,\s*'CHANGELOG\.md'\s*\]/);
   });
 });

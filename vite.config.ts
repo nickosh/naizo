@@ -19,7 +19,7 @@ export default defineConfig({
     open: '/site/index.html',
   },
   fmt: {
-    ignorePatterns: ['dist/**'],
+    ignorePatterns: ['dist/**', 'CHANGELOG.md'],
     singleQuote: true,
     semi: true,
   },
