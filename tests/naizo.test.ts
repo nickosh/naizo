@@ -161,33 +161,44 @@ describe('naizo.js v0.1.0 core runtime', () => {
     window.removeEventListener('naizo:hydrate', hydrateSpy);
   });
 
-  it('strips [data-naizo-runtime] UI while preserving user [naizo-ignore] elements in auto-templates and exportHTML (D12, EC03, EC07)', async () => {
+  it('strips [naizo-strip] / [data-naizo-strip] UI while preserving user [naizo-ignore] elements in auto-templates and exportHTML (D12, D47, EC03, EC07)', async () => {
+    document.head.insertAdjacentHTML(
+      'beforeend',
+      '<script defer src="https://example.com/analytics.js" naizo-strip></script>',
+    );
     document.body.innerHTML = `
       <input type="text" naizo="project" value="naizo">
       <div naizo-list="items">
         <div naizo-item>
           <input type="text" naizo="name" value="One">
           <span class="item-custom-widget" naizo-ignore>Item custom badge</span>
+          <span class="item-strip-hint" naizo-strip>Transient item hint</span>
         </div>
       </div>
       <div naizo-ignore><input type="range" id="user-widget" value="50">User widget</div>
       <div data-naizo-ignore>Legacy user widget</div>
-      <div data-naizo-runtime="true">Ephemeral runtime overlay</div>
+      <div naizo-strip><input type="text" naizo="stripped_field" value="skip">Hosted demo banner</div>
+      <div data-naizo-strip="true">Ephemeral runtime overlay</div>
     `;
 
     await initNaizo();
+    expect(Naizo.getField('stripped_field')).toBeUndefined();
     Naizo.addItem('items', { name: 'Two' });
 
     const rows = document.querySelectorAll('[naizo-list="items"] > [naizo-item]');
     expect(rows.length).toBe(2);
     expect(rows[0]?.querySelector('.item-custom-widget')?.textContent).toBe('Item custom badge');
     expect(rows[1]?.querySelector('.item-custom-widget')?.textContent).toBe('Item custom badge');
+    expect(rows[1]?.querySelector('.item-strip-hint')).toBeNull();
 
     const exported = Naizo.exportHTML();
     expect(exported).not.toContain('__naizodb_host__');
     expect(exported).not.toContain('__naizodb_styles__');
     expect(exported).not.toContain('naizo-item-tools');
     expect(exported).not.toContain('naizo-list-footer');
+    expect(exported).not.toContain('analytics.js');
+    expect(exported).not.toContain('Hosted demo banner');
+    expect(exported).not.toContain('Transient item hint');
     expect(exported).not.toContain('Ephemeral runtime overlay');
     expect(exported).toContain('Item custom badge');
     expect(exported).toContain('User widget');
@@ -1374,6 +1385,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
         <option value="Draft">Draft</option>
       </select>
       <div naizo-ignore><input type="text" naizo="ignored" value="skip">Keep user ignore</div>
+      <div naizo-strip><input type="text" naizo="stripped" value="skip">Strip hosted widget</div>
       <div naizo-list="tasks">
         <div naizo-item><input type="text" naizo="title" value=""></div>
       </div>
@@ -1383,6 +1395,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     // Verify pass-through keys, unknown <select> preservation, and duplicate scalar propagation in dist/naizo.js
     expect(bundleNaizo.getField('unboundField')).toBe('Kept by Bundle');
+    expect(bundleNaizo.getField('stripped')).toBeUndefined();
     expect(bundleNaizo.getField('status')).toBe('Shipped');
     expect(bundleNaizo.getField('count')).toBe(7);
     expect(bundleNaizo.getList('unboundList')).toEqual([{ id: 'u-1' }]);
@@ -1434,6 +1447,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     const exported = bundleNaizo.exportHTML();
     expect(exported).toContain('Keep user ignore');
+    expect(exported).not.toContain('Strip hosted widget');
     expect(exported).not.toContain('__naizodb_host__');
     expect(exported).toContain('value="Edited via Bundle"');
 
@@ -1486,7 +1500,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
       <input id="shared-in" type="text" naizo="shared" value="v0">
       <input id="disk-only-in" type="text" naizo="diskOnly" value="">
       <ul naizo-list="steps">
-        <li naizo-item contenteditable="true" naizo="label">Seed</li>
+        <li naizo-item contenteditable="true" naizo="label">Seed<span class="step-badge" naizo-ignore>TAG</span></li>
       </ul>
     `;
 
@@ -1496,20 +1510,22 @@ describe('naizo.js v0.1.0 core runtime', () => {
     const initialHash = localStorage.getItem('naizodb_disk_hash_/');
     expect(initialHash).toMatch(/^fnv1a:[0-9a-f]{8}\|/);
 
-    // 2. Self-bound <li naizo-item contenteditable="true" naizo="label"> excludes .naizo-item-tools text and keeps toolbar on update
+    // 2. Self-bound <li naizo-item contenteditable="true" naizo="label"> excludes .naizo-item-tools / [naizo-ignore] text and keeps both children on update (D47, EC46)
     const li = document.querySelector('ul[naizo-list="steps"] > li') as HTMLElement;
     expect(li.querySelector('.naizo-item-tools')).not.toBeNull();
+    expect(li.querySelector('.step-badge')?.textContent).toBe('TAG');
     expect(Naizo.getList('steps')).toEqual([{ label: 'Step One' }]);
 
-    // Simulate user typing into self-bound <li> while .naizo-item-tools is mounted inside it
+    // Simulate user typing into self-bound <li> while .naizo-item-tools and .step-badge are mounted inside it
     const textNode = Array.from(li.childNodes).find((n) => n.nodeType === Node.TEXT_NODE);
     if (textNode) textNode.nodeValue = 'Step One Edited';
     li.dispatchEvent(new Event('input', { bubbles: true }));
     expect(Naizo.getList('steps')).toEqual([{ label: 'Step One Edited' }]);
 
-    // Programmatic updateItem preserves .naizo-item-tools child inside self-bound <li>
+    // Programmatic updateItem preserves both [naizo-ignore] and [data-naizo-strip] (.naizo-item-tools) children inside self-bound <li>
     Naizo.updateItem('steps', 0, { label: 'Step One Programmatic' });
     expect(li.querySelector('.naizo-item-tools')).not.toBeNull();
+    expect(li.querySelector('.step-badge')?.textContent).toBe('TAG');
     expect(Naizo.getList('steps')).toEqual([{ label: 'Step One Programmatic' }]);
 
     // 3. Pre-write merge with both browserKeptKeys and hasCollision preserves conflict pill status

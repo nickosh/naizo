@@ -97,8 +97,9 @@ const TEMPLATE_SELECTOR = 'template[naizo-template], template[data-naizo-templat
 const AUTHORED_TEMPLATE_SELECTOR =
   ':scope > template[naizo-template]:not([data-naizo-auto-template]), :scope > template[data-naizo-template]:not([data-naizo-auto-template]), :scope > template:not([data-naizo-auto-template])';
 const AUTO_TEMPLATE_SELECTOR = ':scope > template[data-naizo-auto-template]';
-const IGNORE_SELECTOR = '[naizo-ignore], [data-naizo-ignore], [data-naizo-runtime]';
-const RUNTIME_STRIP_SELECTOR = `[data-naizo-runtime], #${UI_ID}, #${STYLE_ID}`;
+const STRIP_SELECTOR = '[naizo-strip], [data-naizo-strip]';
+const IGNORE_SELECTOR = `[naizo-ignore], [data-naizo-ignore], ${STRIP_SELECTOR}`;
+const RUNTIME_STRIP_SELECTOR = `${STRIP_SELECTOR}, #${UI_ID}, #${STYLE_ID}`;
 const SKIPPED_INPUT_TYPES = new Set(['password', 'file', 'button', 'submit', 'reset', 'image']);
 let radioScopeCounter = 0;
 
@@ -710,12 +711,12 @@ function readCleanTextContent(el: Element): string {
 }
 
 function writeCleanTextContent(el: Element, text: string): void {
-  const runtimeChildren = Array.from(el.children).filter((child) =>
-    child.hasAttribute('data-naizo-runtime'),
+  const preservedChildren = Array.from(el.children).filter((child) =>
+    child.matches(IGNORE_SELECTOR),
   );
-  runtimeChildren.forEach((child) => child.remove());
+  preservedChildren.forEach((child) => child.remove());
   el.textContent = text;
-  runtimeChildren.forEach((child) => el.appendChild(child));
+  preservedChildren.forEach((child) => el.appendChild(child));
 }
 
 function isSkippedElement(el: Element, warn = false): boolean {
@@ -1071,7 +1072,7 @@ function decorateListControls(listEl: HTMLElement): void {
     const tools = document.createElement('span');
     tools.className = 'naizo-item-tools';
     tools.setAttribute('naizo-ignore', 'true');
-    tools.setAttribute('data-naizo-runtime', 'true');
+    tools.setAttribute('data-naizo-strip', 'true');
     tools.innerHTML = `
       <button type="button" naizo-move="up" title="Move up" aria-label="Move item up">↑</button>
       <button type="button" naizo-move="down" title="Move down" aria-label="Move item down">↓</button>
@@ -1085,7 +1086,7 @@ function decorateListControls(listEl: HTMLElement): void {
       } else {
         const td = document.createElement('td');
         td.setAttribute('naizo-ignore', 'true');
-        td.setAttribute('data-naizo-runtime', 'true');
+        td.setAttribute('data-naizo-strip', 'true');
         td.appendChild(tools);
         itemEl.appendChild(td);
       }
@@ -1099,7 +1100,7 @@ function decorateListControls(listEl: HTMLElement): void {
     const addWrap = document.createElement('div');
     addWrap.className = 'naizo-list-footer';
     addWrap.setAttribute('naizo-ignore', 'true');
-    addWrap.setAttribute('data-naizo-runtime', 'true');
+    addWrap.setAttribute('data-naizo-strip', 'true');
     addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}" aria-label="Add item to ${listName}">+ Add Item</button>`;
     const tag = listEl.tagName.toLowerCase();
     const anchorEl =
@@ -1911,7 +1912,7 @@ function mountUi(): void {
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.setAttribute('naizo-ignore', 'true');
-    style.setAttribute('data-naizo-runtime', 'true');
+    style.setAttribute('data-naizo-strip', 'true');
     style.textContent = `
       [naizo-item], [data-naizo-item] { position: relative; }
       .naizo-item-tools {
@@ -1934,7 +1935,7 @@ function mountUi(): void {
       }
       .naizo-add-btn:hover { background: #f1f5f9; border-color: #64748b; color: #0f172a; }
       @media print {
-        [data-naizo-runtime], #__naizodb_host__, .naizo-item-tools, .naizo-list-footer {
+        [naizo-strip], [data-naizo-strip], #__naizodb_host__, .naizo-item-tools, .naizo-list-footer {
           display: none !important;
         }
       }
@@ -1948,7 +1949,7 @@ function mountUi(): void {
   const host = document.createElement('div') as NaizoHostElement;
   host.id = UI_ID;
   host.setAttribute('naizo-ignore', 'true');
-  host.setAttribute('data-naizo-runtime', 'true');
+  host.setAttribute('data-naizo-strip', 'true');
   const shadow = host.attachShadow({ mode: 'open' });
 
   shadow.innerHTML = `

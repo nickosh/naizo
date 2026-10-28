@@ -28,6 +28,7 @@ In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed wi
 - `naizo-move="up|down"` / `data-naizo-move="up|down"` – Button inside `[naizo-item]` that moves the row up or down.
 - `naizo-no-controls` / `data-naizo-no-controls` – Suppress auto-injected `+ Add Item` and row toolbars on `[naizo-list]`.
 - `naizo-ignore` / `data-naizo-ignore` – Exclude element/subtree from state binding while preserving it in exported HTML.
+- `naizo-strip` / `data-naizo-strip` – Exclude element/subtree from state binding and strip it from auto-templates and exported/downloaded HTML (`⬇ Save to PC`).
 - `naizo-id="scope"` / `data-naizo-id="scope"` – Scope `localStorage` and IndexedDB keys (`<path>::<scope>`).
 - `naizo-mode="online|local|auto"` / `data-naizo-mode="online|local|auto"` – Override Local Mode vs. Online Mode detection.
 - `naizo-manual` / `data-naizo-manual` – Disable automatic `initNaizo()` boot.
