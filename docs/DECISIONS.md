@@ -446,3 +446,15 @@ Accepted by the owner on 2026-10-28 during the `M6.1` review and interactive des
   - **Rejected multi-column SaaS bento grids for `site/index.html`:** Multi-column card grids fragment prose reading order and waste horizontal space needed for code blocks and tables.
   - **Rejected enforcing a single mandatory visual theme in `skills/naizo/SKILL.md`:** Forcing minimalist editorial styling when a user asks for a dense dashboard, Basecoat UI (`examples/inventory.html`), or a specific aesthetic would work against user intent; making it the fallback when no preference is given gets the best of both worlds.
   - **Rejected OS round emojis (`🟡` / `🟢`) for status pill colors in the capability matrix:** Glossy 3D platform emojis clash with flat editorial typography, whereas `7px` CSS `.status-dot` circles use the exact `#f59e0b` and `#10b981` colors from `src/index.ts`.
+
+## D46 — Synchronize all human docs, `site/index.html`, AI skills (`skills/naizo/SKILL.md` & `site/SKILL.md`), and LLM endpoints (`site/llms.txt` & `site/llms-full.txt`) on every feature or milestone
+
+Accepted by the owner on 2026-10-28 (extending `D11`, `D42`, and `D44` across `AGENTS.md`, `.agents/skills/naizo-closeout/SKILL.md`, and `docs/PLAN.md`).
+
+- **Context & Problem (Why):** Now that `M5` (`docs/USAGE.md`, `skills/naizo/SKILL.md`) and `M6` (`site/index.html`, `site/llms.txt`, `site/llms-full.txt`, `site/SKILL.md`) are live, `naizo.js` serves both human developers (via `README.md`, `docs/USAGE.md`, and `site/index.html`) and AI coding agents (via `AGENTS.md`, `skills/naizo/SKILL.md`, `site/SKILL.md`, `site/llms.txt`, and `site/llms-full.txt`). If a new feature or milestone updates only `README.md` and `docs/USAGE.md` while leaving `site/index.html`, `skills/naizo/SKILL.md`, `site/SKILL.md`, `site/llms.txt`, or `site/llms-full.txt` behind, consumer AI agents and website visitors receive stale attribute/API tables or break the `site/SKILL.md` === `skills/naizo/SKILL.md` parity test.
+- **Decision & Rationale (Global Picture & Invariant Safety):** Require in `AGENTS.md` and `.agents/skills/naizo-closeout/SKILL.md` that whenever a new feature or milestone adds or modifies public attributes, `window.Naizo` APIs, events, runtime behaviors, or authoring patterns, **all three documentation tiers** are updated before the feature or milestone is closed out:
+  1. **Human documentation & repo instructions:** `README.md`, `docs/USAGE.md`, `docs/PRODUCT.md`, and `AGENTS.md`.
+  2. **Public website (`site/`):** `site/index.html` (attribute reference table, `window.Naizo` API block, capability matrix, and playground when relevant).
+  3. **AI skills & LLM discovery endpoints:** `skills/naizo/SKILL.md`, `site/SKILL.md` (kept byte-for-byte identical to `skills/naizo/SKILL.md`), `site/llms.txt`, and `site/llms-full.txt`.
+- **Alternatives Rejected / Trade-offs:**
+  - **Rejected deferring website and `llms.txt` / `SKILL.md` updates to ad-hoc pre-release sweeps:** Deferring updates creates drift between what `dist/naizo.js` supports and what AI agents read from `/llms.txt` or `skills/naizo/SKILL.md` during active development.

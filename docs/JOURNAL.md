@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-10-28 — Recorded `D46` requiring synchronization of all human docs, `site/index.html`, AI skills, and LLM endpoints on every new feature or milestone
+
+- Decided (`D46`): recorded owner-approved `D46` in `docs/DECISIONS.md` and updated `AGENTS.md`, `.agents/skills/naizo-closeout/SKILL.md`, and `docs/PLAN.md` (`M8.2`) so that whenever any new feature or milestone adds or modifies public attributes, `window.Naizo` APIs, events, runtime behaviors, or authoring patterns, all three documentation tiers — human docs (`README.md`, `docs/USAGE.md`, `docs/PRODUCT.md`, `AGENTS.md`), the public website (`site/index.html`), and AI skills / LLM discovery endpoints (`skills/naizo/SKILL.md`, `site/SKILL.md`, `site/llms.txt`, `site/llms-full.txt`) — are updated in lockstep before closing out the feature or milestone.
+- Verified: `vp fmt`, `vp check` (0 errors in project files), link/reference review, and `git diff --check`. Runtime build (`vp pack`), test suites (`vp test`, `.github/release-tools`), and live browser checks were not run for this AI guidance and project memory update.
+- Next: implement `M8.1` (Declarative Mini-API Client `naizo-get` / `naizo-post`, `Naizo.fetch()`, and rightmost `#net` wired-globe network indicator in `src/index.ts` and `dist/naizo.js`), verify and commit it separately (`D44`), and then proceed to `M8.2`.
+
 ## 2026-10-28 — Completed `M6.2` AI-agent discovery endpoints (`site/llms.txt`, `site/llms-full.txt`, `site/SKILL.md`), `site/CNAME`, and `ci.yml` Pages staging (completing `M6`)
 
 - Done (`M6.2`, completing `M6`): added `site/llms.txt` (concise LLM index and authoring contract), `site/llms-full.txt` (complete single-file reference, starter templates, and surgical disk-editing protocol), `site/SKILL.md` (exact copy of `skills/naizo/SKILL.md`), and `site/CNAME` (`naizo.js.org`); linked `./llms-full.txt` in `site/index.html` top navigation; updated `.github/workflows/ci.yml` Pages staging (`cp -R site/. _site/`, `cp -R examples _site/`, and rewrite both `../dist/` → `./dist/` and `../examples/` → `./examples/` in `_site/index.html`); added automated verification in `tests/naizo.test.ts` and marked `M6.2` and `M6` complete in `docs/PLAN.md`.

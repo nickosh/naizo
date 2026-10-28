@@ -63,6 +63,10 @@ Versions in documentation and memory identify feature targets and compatibility 
 At the end of each state-changing session, independently useful development slice, planned substep (`Mx.y` or `Mx.ya`–`Mx.yz`), milestone, or durable handoff, use the repository-scoped [naizo-closeout](.agents/skills/naizo-closeout/SKILL.md) skill to reconcile project memory from evidence. Read the skill file directly if the host has not registered repository skills; do not invent a slash command.
 
 - Update affected contracts and specs in the same change as behavior.
+- Whenever implementing a new feature or completing a milestone that adds or changes public attributes, `window.Naizo` APIs, events, runtime behaviors, or authoring patterns, synchronize **all** human and AI documentation surfaces before closing out the feature/milestone (`D46`):
+  1. **Human documentation & repo instructions:** `README.md`, `docs/USAGE.md`, `docs/PRODUCT.md`, and `AGENTS.md`.
+  2. **Public website (`site/`):** `site/index.html` (declarative attribute tables, `window.Naizo` API reference, browser/mode capability matrix, and interactive playground when applicable).
+  3. **AI skills & LLM discovery endpoints:** `skills/naizo/SKILL.md`, `site/SKILL.md` (must remain byte-for-byte identical to `skills/naizo/SKILL.md`), `site/llms.txt`, and `site/llms-full.txt`.
 - Mark tasks or milestones done in `docs/PLAN.md` only when their acceptance criteria and verification evidence are satisfied. Keep blocked and not-run checks explicit.
 - Prepend one dated entry to `docs/JOURNAL.md` with 2–5 concise bullets covering done, decided when relevant, verification or blockers, and the next concrete technical action.
 - Record durable architectural or owner decisions in `docs/DECISIONS.md` (`Dxx`), superseding prior decisions explicitly rather than silently rewriting history. Every `Dxx` entry must explain **why** (Context & Problem, Decision & Rationale / Invariant Safety, and Alternatives Rejected / Trade-offs) rather than duplicating the task checklist from `docs/PLAN.md`. Update `docs/PRODUCT.md` when a decision expands or refines the global product lifecycle.
