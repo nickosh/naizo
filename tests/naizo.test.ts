@@ -2583,4 +2583,379 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(stagedIndexHtml).toContain('./llms-full.txt');
     expect(stagedIndexHtml).toContain('./SKILL.md');
   });
+
+  it('replaces, clears, and validates lists via Naizo.setList() while preserving pass-through keys (M8.1)', async () => {
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": {},
+        "lists": {
+          "issues": [
+            { "id": 1, "title": "Original issue" }
+          ]
+        },
+        "custom": {}
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <ul naizo-list="issues">
+        <li naizo-item naizo="title">Placeholder</li>
+      </ul>
+    `;
+
+    await initNaizo();
+    expect(document.querySelectorAll('[naizo-list="issues"] > [naizo-item]').length).toBe(1);
+
+    const events: Array<Record<string, unknown>> = [];
+    const onChange = (e: Event) => {
+      events.push((e as CustomEvent).detail as Record<string, unknown>);
+    };
+    window.addEventListener('naizo:change', onChange);
+
+    // Reject invalid payloads without mutating existing list
+    Naizo.setList('issues', 'not-an-array' as unknown as Array<Record<string, unknown>>);
+    Naizo.setList('issues', ['not-an-object'] as unknown as Array<Record<string, unknown>>);
+    Naizo.setList('issues', [{ bad: Number.NaN }]);
+    expect(Naizo.getList('issues')).toEqual([{ id: 1, title: 'Original issue' }]);
+    expect(events.length).toBe(0);
+
+    // Replace entire list with pass-through keys
+    Naizo.setList('issues', [
+      { id: 101, title: 'Ship setList()', html_url: 'https://example.com/101' },
+      { id: 102, title: 'Wire #net globe', priority: 'high' },
+    ]);
+
+    const rendered = document.querySelectorAll<HTMLElement>('[naizo-list="issues"] > [naizo-item]');
+    expect(rendered.length).toBe(2);
+    expect(rendered[0]?.textContent).toContain('Ship setList()');
+    expect(rendered[1]?.textContent).toContain('Wire #net globe');
+    expect(readScriptDb().lists.issues).toEqual([
+      { id: 101, title: 'Ship setList()', html_url: 'https://example.com/101' },
+      { id: 102, title: 'Wire #net globe', priority: 'high' },
+    ]);
+    expect(events[0]?.scope).toBe('lists');
+    expect(events[0]?.action).toBe('set');
+    expect(events[0]?.list).toBe('issues');
+
+    // Clear list cleanly and verify auto-inferred template still allows subsequent additions
+    Naizo.setList('issues', []);
+    expect(document.querySelectorAll('[naizo-list="issues"] > [naizo-item]').length).toBe(0);
+    expect(readScriptDb().lists.issues).toEqual([]);
+
+    Naizo.addItem('issues', { id: 103, title: 'Added after clear' });
+    expect(document.querySelectorAll('[naizo-list="issues"] > [naizo-item]').length).toBe(1);
+    expect(readScriptDb().lists.issues).toEqual([{ id: 103, title: 'Added after clear' }]);
+
+    window.removeEventListener('naizo:change', onChange);
+  });
+
+  it('routes naizo-get / naizo-post, naizo-path (Object.hasOwn), naizo-into (XSS-safe), and naizo-body with CORS-safelisted POST (M8.1, EC50)', async () => {
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": { "project": "naizo" },
+        "lists": { "tasks": [{ "title": "Initial" }] },
+        "custom": { "tokenCount": 3 }
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <input id="proj-input" type="text" naizo="project">
+      <div id="xss-box">Safe</div>
+      <ul naizo-list="tasks">
+        <li naizo-item naizo="title">Seed</li>
+      </ul>
+      <button id="get-field" type="button" naizo-get="https://api.example.com/meta" naizo-path="nested.items.0.label" naizo-into="field:project">Fetch Field</button>
+      <button id="get-list" type="button" data-naizo-get="https://api.example.com/tasks" data-naizo-path="payload.rows" data-naizo-into="list:tasks">Fetch List</button>
+      <button id="get-xss" type="button" naizo-get="https://api.example.com/xss" naizo-into="#xss-box">Fetch Preview</button>
+      <button id="post-webhook" type="button" naizo-post="https://hooks.example.com/notify" naizo-body="fields">Send Fields</button>
+    `;
+
+    await initNaizo();
+
+    const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      fetchCalls.push({ url, init });
+      if (url === 'https://api.example.com/meta') {
+        return new Response(
+          JSON.stringify({ nested: { items: [{ label: 'Updated from API' }] } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url === 'https://api.example.com/tasks') {
+        // GitHub raw-style text/plain JSON response
+        return new Response(
+          JSON.stringify({
+            payload: {
+              rows: [
+                { id: 't1', title: 'Fetched Task A' },
+                { id: 't2', title: 'Fetched Task B' },
+              ],
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
+        );
+      }
+      if (url === 'https://api.example.com/xss') {
+        return new Response('<img src=x onerror="window.__xss=true"><b>Literal</b>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        });
+      }
+      if (url === 'https://hooks.example.com/notify') {
+        // Webhook acknowledgement with a "fields" property must NOT overwrite store in fire-and-forget POST mode
+        return new Response(JSON.stringify({ id: 'rec_1', fields: { wiped: true } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url === 'https://api.example.com/full-db') {
+        return new Response(
+          JSON.stringify({
+            _meta: { source: 'remote' },
+            fields: { project: 'Full Hydrate' },
+            lists: { tasks: [{ title: 'Remote Row' }] },
+            custom: { synced: true },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const fetchEvents: Array<Record<string, unknown>> = [];
+      const onFetch = (e: Event) => {
+        fetchEvents.push((e as CustomEvent).detail as Record<string, unknown>);
+      };
+      window.addEventListener('naizo:fetch', onFetch);
+
+      // 1. Field target with dot-path extraction
+      document.getElementById('get-field')?.click();
+      await vi.waitFor(() => expect(Naizo.getField('project')).toBe('Updated from API'));
+      expect((document.getElementById('proj-input') as HTMLInputElement).value).toBe(
+        'Updated from API',
+      );
+
+      // 2. List target with data-naizo-* aliases
+      document.getElementById('get-list')?.click();
+      await vi.waitFor(() => expect(Naizo.getList('tasks').length).toBe(2));
+      expect(readScriptDb().lists.tasks).toEqual([
+        { id: 't1', title: 'Fetched Task A' },
+        { id: 't2', title: 'Fetched Task B' },
+      ]);
+
+      // 3. Selector target uses textContent, never innerHTML (XSS guard)
+      document.getElementById('get-xss')?.click();
+      await vi.waitFor(() =>
+        expect(document.getElementById('xss-box')?.textContent).toBe(
+          '<img src=x onerror="window.__xss=true"><b>Literal</b>',
+        ),
+      );
+      expect(document.querySelector('#xss-box img')).toBeNull();
+
+      // 4. Prototype traversal via naizo-path is rejected without mutating store
+      const protoRes = await Naizo.fetch('https://api.example.com/meta', {
+        path: 'nested.constructor.name',
+        into: 'field:project',
+      });
+      expect(protoRes.ok).toBe(false);
+      expect(Naizo.getField('project')).toBe('Updated from API');
+
+      // 5. Pending debounced input is flushed before POST, sent as text/plain;charset=UTF-8, and fire-and-forget POST preserves store
+      const projInput = document.getElementById('proj-input') as HTMLInputElement;
+      projInput.value = 'Edited Before POST';
+      projInput.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('post-webhook')?.click();
+      await vi.waitFor(() =>
+        expect(fetchCalls.some((c) => c.url === 'https://hooks.example.com/notify')).toBe(true),
+      );
+      const postCall = fetchCalls.find((c) => c.url === 'https://hooks.example.com/notify');
+      expect(postCall?.init?.method).toBe('POST');
+      const postHeaders = (postCall?.init?.headers ?? {}) as Record<string, string>;
+      expect(postHeaders['Content-Type']).toBe('text/plain;charset=UTF-8');
+      const rawPostBody = typeof postCall?.init?.body === 'string' ? postCall.init.body : '{}';
+      expect(JSON.parse(rawPostBody)).toEqual({ project: 'Edited Before POST' });
+      expect(Naizo.getList('tasks').length).toBe(2);
+      expect(Naizo.get('tokenCount')).toBe(3);
+
+      // 6. Programmatic Naizo.fetch() for custom:<key>, body variants, !res.ok guard, and full #naizodb hydration
+      const badStatus = await Naizo.fetch('https://api.example.com/missing', {
+        into: 'field:project',
+      });
+      expect(badStatus.ok).toBe(false);
+      expect(badStatus.status).toBe(404);
+      expect(Naizo.getField('project')).toBe('Edited Before POST');
+
+      const fullHydrate = await Naizo.fetch('https://api.example.com/full-db');
+      expect(fullHydrate.ok).toBe(true);
+      expect(Naizo.getField('project')).toBe('Full Hydrate');
+      expect(Naizo.getList('tasks')).toEqual([{ title: 'Remote Row' }]);
+      expect(Naizo.get('synced')).toBe(true);
+      expect(fetchEvents.length).toBeGreaterThanOrEqual(5);
+
+      window.removeEventListener('naizo:fetch', onFetch);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('enforces naizo-trigger="init|load|click", [naizo-ignore] exclusion, mid-flight export stripping, and rightmost #net wired-globe states (M8.1, D50, EC36, EC50)', async () => {
+    vi.useFakeTimers();
+    const slowResolvers: Array<(res: Response) => void> = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url === 'https://api.example.com/seed') {
+        return Promise.resolve(
+          new Response(JSON.stringify([{ title: 'Seeded Once' }]), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      if (url === 'https://api.example.com/live') {
+        return Promise.resolve(
+          new Response(JSON.stringify('Live Tick'), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      if (url === 'https://api.example.com/slow') {
+        return new Promise<Response>((resolve) => {
+          slowResolvers.push(resolve);
+        });
+      }
+      return Promise.resolve(new Response('Server Error', { status: 500 }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      // Page with only [naizo-ignore] API attributes keeps #net hidden
+      document.head.innerHTML = `<script id="naizodb" type="application/json">{"_meta":{},"fields":{},"lists":{},"custom":{}}</script>`;
+      document.body.innerHTML = `
+        <div naizo-ignore>
+          <button id="ignored-btn" naizo-get="https://api.example.com/live" naizo-trigger="load">Ignored</button>
+        </div>
+      `;
+      await initNaizo();
+      const shadow1 = document.getElementById('__naizodb_host__')?.shadowRoot;
+      const net1 = shadow1?.getElementById('net') as HTMLButtonElement | null;
+      expect(net1?.style.display).toBe('none');
+      expect(fetchMock).not.toHaveBeenCalled();
+      document.getElementById('ignored-btn')?.click();
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      // Page with active init, load, and click triggers reveals #net at rightmost end of pill
+      localStorage.clear();
+      document.head.innerHTML = `<script id="naizodb" type="application/json">{"_meta":{},"fields":{},"lists":{},"custom":{}}</script>`;
+      document.body.innerHTML = `
+        <span naizo="live_feed"></span>
+        <ul naizo-list="seeds"><template><li naizo-item naizo="title"></li></template></ul>
+        <div naizo-get="https://api.example.com/seed" naizo-into="list:seeds" naizo-trigger="init"></div>
+        <div naizo-get="https://api.example.com/live" naizo-into="field:live_feed" naizo-trigger="load"></div>
+        <button id="slow-btn" type="button" naizo-get="https://api.example.com/slow" naizo-into="field:live_feed">Slow</button>
+        <button id="preset-disabled" type="button" disabled>Static Disabled</button>
+      `;
+
+      await initNaizo();
+      for (let i = 0; i < 6; i += 1) {
+        await Promise.resolve();
+      }
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(Naizo.getList('seeds')).toEqual([{ title: 'Seeded Once' }]);
+      expect(Naizo.getField('live_feed')).toBe('Live Tick');
+
+      const shadow2 = document.getElementById('__naizodb_host__')?.shadowRoot;
+      const pill = shadow2?.querySelector('.pill');
+      const netBtn = shadow2?.getElementById('net') as HTMLButtonElement;
+      const statusSpan = shadow2?.getElementById('status');
+      const dotSpan = shadow2?.getElementById('dot');
+
+      expect(pill?.lastElementChild?.id).toBe('net');
+      expect(netBtn.style.display).toBe('inline-flex');
+      expect(netBtn.querySelector('#naizo-net-wave-clip')).not.toBeNull();
+      expect(netBtn.querySelector('.globe-lit')).not.toBeNull();
+
+      // Fast 2xx completion holds #net active for >= 600ms before returning to idle
+      expect(netBtn.classList.contains('active')).toBe(true);
+      expect(netBtn.title).toBe('API active');
+      vi.advanceTimersByTime(599);
+      expect(netBtn.classList.contains('active')).toBe(true);
+      vi.advanceTimersByTime(5);
+      expect(netBtn.classList.contains('idle')).toBe(true);
+      expect(netBtn.title).toBe('API idle');
+
+      // Simulated reload (F5): "init" skips because list:seeds is now non-empty; "load" runs again
+      fetchMock.mockClear();
+      await initNaizo();
+      for (let i = 0; i < 6; i += 1) {
+        await Promise.resolve();
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.example.com/live');
+
+      vi.advanceTimersByTime(650);
+
+      // Mid-flight click sets data-naizo-loading & disabled, and Naizo.exportHTML() strips them cleanly
+      const slowBtn = document.getElementById('slow-btn') as HTMLButtonElement;
+      slowBtn.click();
+      expect(slowBtn.getAttribute('data-naizo-loading')).toBe('true');
+      expect(slowBtn.disabled).toBe(true);
+
+      const midFlightExport = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
+      const exportedSlowBtn = midFlightExport.getElementById('slow-btn');
+      const exportedStaticDisabled = midFlightExport.getElementById('preset-disabled');
+      expect(exportedSlowBtn?.hasAttribute('data-naizo-loading')).toBe(false);
+      expect(exportedSlowBtn?.hasAttribute('data-naizo-loading-disabled')).toBe(false);
+      expect(exportedSlowBtn?.hasAttribute('disabled')).toBe(false);
+      expect(exportedStaticDisabled?.hasAttribute('disabled')).toBe(true);
+
+      slowResolvers[0]?.(
+        new Response(JSON.stringify('Slow Done'), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+      for (let i = 0; i < 6; i += 1) {
+        await Promise.resolve();
+      }
+      expect(slowBtn.disabled).toBe(false);
+      expect(slowBtn.hasAttribute('data-naizo-loading')).toBe(false);
+      vi.advanceTimersByTime(650);
+
+      // Failed request turns #net red without altering #dot or #status (EC36), and clicking #net clears error
+      const shadow3 = document.getElementById('__naizodb_host__')?.shadowRoot;
+      const net3 = shadow3?.getElementById('net') as HTMLButtonElement;
+      const statusBefore =
+        statusSpan?.textContent ?? shadow3?.getElementById('status')?.textContent;
+      const dotClassBefore = dotSpan?.className ?? shadow3?.getElementById('dot')?.className;
+
+      const errRes = await Naizo.fetch('https://api.example.com/fail', {
+        into: 'field:live_feed',
+      });
+      expect(errRes.ok).toBe(false);
+      expect(net3.classList.contains('error')).toBe(true);
+      expect(net3.title).toBe('API request failed');
+      expect(shadow3?.getElementById('status')?.textContent).toBe(statusBefore);
+      expect(shadow3?.getElementById('dot')?.className).toBe(dotClassBefore);
+      expect(Naizo.getField('live_feed')).toBe('Slow Done');
+
+      net3.click();
+      expect(net3.classList.contains('idle')).toBe(true);
+      expect(net3.title).toBe('API idle');
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
 });

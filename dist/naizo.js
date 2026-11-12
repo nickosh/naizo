@@ -7,6 +7,7 @@
 	const PERSIST_DEBOUNCE_MS = 150;
 	const DISK_DEBOUNCE_MS = 250;
 	const DISK_WATCH_INTERVAL_MS = 2e3;
+	const NET_ACTIVE_HOLD_MS = 600;
 	const NAIZODB_SCRIPT_RE = /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
 	const HEAD_OPEN_RE = /(<head\b[^>]*>)/i;
 	const CDN_NAIZO_MIN_JS_URL = "https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js";
@@ -16,6 +17,7 @@
 	const LIST_SELECTOR = "[naizo-list], [data-naizo-list]";
 	const ITEM_SELECTOR = "[naizo-item], [data-naizo-item]";
 	const DIRECT_ITEM_SELECTOR = ":scope > [naizo-item], :scope > [data-naizo-item]";
+	const API_REQUEST_SELECTOR = "[naizo-get], [data-naizo-get], [naizo-post], [data-naizo-post]";
 	const TEMPLATE_SELECTOR = "template[naizo-template], template[data-naizo-template], template";
 	const AUTHORED_TEMPLATE_SELECTOR = ":scope > template[naizo-template]:not([data-naizo-auto-template]), :scope > template[data-naizo-template]:not([data-naizo-auto-template]), :scope > template:not([data-naizo-auto-template])";
 	const AUTO_TEMPLATE_SELECTOR = ":scope > template[data-naizo-auto-template]";
@@ -195,9 +197,17 @@
 		if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(val);
 		return val.replace(/["\\]/g, "\\$&");
 	}
-	function findListElement(listName) {
+	function findListElements(listName) {
 		const escaped = escapeSelectorAttr(listName);
-		return document.querySelector(`[naizo-list="${escaped}"], [data-naizo-list="${escaped}"]`);
+		const matches = document.querySelectorAll(`[naizo-list="${escaped}"], [data-naizo-list="${escaped}"]`);
+		const result = [];
+		matches.forEach((el) => {
+			if (!isIgnoredElement(el)) result.push(el);
+		});
+		return result;
+	}
+	function findListElement(listName) {
+		return findListElements(listName)[0] ?? null;
 	}
 	function toTextValue(val) {
 		if (val == null) return "";
@@ -238,6 +248,15 @@
 	let resetBtn = null;
 	let resetConfirmEl = null;
 	let unlinkBtn = null;
+	let netSepEl = null;
+	let netBtn = null;
+	let netRevealed = false;
+	let netState = "idle";
+	let netInFlightCount = 0;
+	let netActiveStartMs = 0;
+	let netPendingError = false;
+	let netHoldTimeout = null;
+	let autoTriggeredElements = /* @__PURE__ */ new WeakSet();
 	let listenerController = null;
 	function getExplicitNaizoMode() {
 		if (typeof document === "undefined") return "auto";
@@ -796,6 +815,15 @@
 		});
 		decorateListControls(listEl);
 	}
+	function renderListFromStore(listName) {
+		const rawArr = getOwn(ensureStore().lists, listName);
+		const itemsArray = Array.isArray(rawArr) ? rawArr : [];
+		findListElements(listName).forEach((listEl) => {
+			ensureListBlueprints(listEl, false);
+			renderListItems(listEl, itemsArray);
+			syncNetVisibility(listEl);
+		});
+	}
 	function getOrBindItemRecord(itemEl) {
 		const existing = itemDataMap.get(itemEl);
 		if (existing) return existing;
@@ -946,6 +974,12 @@
 		});
 		clone.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
 			if (listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).length >= 1) listEl.querySelectorAll(AUTO_TEMPLATE_SELECTOR).forEach((tpl) => tpl.remove());
+		});
+		clone.querySelectorAll("[data-naizo-loading], [data-naizo-loading-disabled]").forEach((el) => {
+			const addedDisabled = el.hasAttribute("data-naizo-loading-disabled");
+			el.removeAttribute("data-naizo-loading");
+			el.removeAttribute("data-naizo-loading-disabled");
+			if (addedDisabled) el.removeAttribute("disabled");
 		});
 		if (portable) {
 			for (const modeHost of [clone, clone.querySelector("body")]) {
@@ -1313,6 +1347,90 @@
 			index
 		} }));
 	}
+	function dispatchFetchEvent(result) {
+		if (typeof window === "undefined") return;
+		window.dispatchEvent(new CustomEvent("naizo:fetch", { detail: result }));
+	}
+	function applyNetUiState() {
+		if (!netBtn || !netSepEl) return;
+		netSepEl.style.display = netRevealed ? "inline-block" : "none";
+		netBtn.style.display = netRevealed ? "inline-flex" : "none";
+		if (netState === "active") {
+			netBtn.className = "net-slot active";
+			netBtn.title = "API active";
+			netBtn.setAttribute("data-tip", "API Active");
+		} else if (netState === "error") {
+			netBtn.className = "net-slot error";
+			netBtn.title = "API request failed";
+			netBtn.setAttribute("data-tip", "API Request Failed · Click to Clear");
+		} else {
+			netBtn.className = "net-slot idle";
+			netBtn.title = "API idle";
+			netBtn.setAttribute("data-tip", "API Idle");
+		}
+	}
+	function revealNetIndicator() {
+		if (!netRevealed) {
+			netRevealed = true;
+			applyNetUiState();
+		}
+	}
+	function syncNetVisibility(root = document) {
+		if (netRevealed) return;
+		if (root instanceof Element && root.matches(API_REQUEST_SELECTOR) && !isIgnoredElement(root)) {
+			revealNetIndicator();
+			return;
+		}
+		const candidates = root.querySelectorAll(API_REQUEST_SELECTOR);
+		for (const el of candidates) if (!isIgnoredElement(el)) {
+			revealNetIndicator();
+			return;
+		}
+	}
+	function beginNetRequest() {
+		revealNetIndicator();
+		netPendingError = false;
+		if (netHoldTimeout !== null) {
+			clearTimeout(netHoldTimeout);
+			netHoldTimeout = null;
+		}
+		if (netInFlightCount === 0) netActiveStartMs = Date.now();
+		netInFlightCount += 1;
+		netState = "active";
+		applyNetUiState();
+	}
+	function endNetRequest(ok) {
+		netInFlightCount = Math.max(0, netInFlightCount - 1);
+		if (!ok) netPendingError = true;
+		if (netInFlightCount > 0) return;
+		if (netPendingError) {
+			netPendingError = false;
+			if (netHoldTimeout !== null) {
+				clearTimeout(netHoldTimeout);
+				netHoldTimeout = null;
+			}
+			netState = "error";
+			applyNetUiState();
+			return;
+		}
+		const elapsed = Date.now() - netActiveStartMs;
+		const remaining = NET_ACTIVE_HOLD_MS - elapsed;
+		if (remaining > 0) {
+			netState = "active";
+			applyNetUiState();
+			if (netHoldTimeout !== null) clearTimeout(netHoldTimeout);
+			netHoldTimeout = setTimeout(() => {
+				netHoldTimeout = null;
+				if (netInFlightCount === 0 && netState === "active") {
+					netState = "idle";
+					applyNetUiState();
+				}
+			}, remaining);
+			return;
+		}
+		netState = "idle";
+		applyNetUiState();
+	}
 	function mountUi() {
 		if (!document.getElementById(STYLE_ID)) {
 			const style = document.createElement("style");
@@ -1373,6 +1491,55 @@
       button:hover { background: #334155; color: #fff; }
       button.danger { background: #7f1d1d; border-color: #b91c1c; color: #fecaca; }
       button.danger:hover { background: #991b1b; color: #fff; }
+      .pill-sep {
+        width: 1px; height: 13px; background: rgba(148, 163, 184, 0.3);
+        margin: 0 1px; flex-shrink: 0;
+      }
+      button.net-slot {
+        width: 18px; height: 18px; padding: 0; border: none; background: transparent;
+        display: inline-flex; align-items: center; justify-content: center;
+        cursor: pointer; flex-shrink: 0; border-radius: 50%; position: relative;
+        transition: color 0.25s ease, transform 0.15s ease;
+      }
+      button.net-slot.idle,
+      button.net-slot.active,
+      button.net-slot.idle:hover,
+      button.net-slot.active:hover {
+        background: transparent; border: none; color: rgba(16, 185, 129, 0.38);
+      }
+      button.net-slot.error,
+      button.net-slot.error:hover {
+        background: transparent; border: none; color: #ef4444;
+      }
+      button.net-slot:hover {
+        background: transparent; border: none; transform: scale(1.08);
+      }
+      .net-globe-svg {
+        width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.85;
+        stroke-linecap: round; stroke-linejoin: round; fill: none;
+        display: block; flex-shrink: 0; overflow: visible; transform-origin: 12px 12px;
+      }
+      .net-globe-svg .globe-lit {
+        opacity: 0; stroke: #10b981;
+      }
+      button.net-slot.active .net-globe-svg .globe-lit {
+        opacity: 1;
+      }
+      @keyframes naizoGlobeWaveBand {
+        0% { transform: translateX(-11px); }
+        56% { transform: translateX(25px); }
+        56.01%, 100% { transform: translateX(-11px); }
+      }
+      button.net-slot.active .wave-band-rect {
+        animation: naizoGlobeWaveBand 1.65s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes naizoGlobeErrorPulse {
+        0%, 100% { transform: scale(1); opacity: 0.72; }
+        50% { transform: scale(1.1); opacity: 1; }
+      }
+      button.net-slot.error .net-globe-svg {
+        animation: naizoGlobeErrorPulse 1.5s ease-in-out infinite;
+      }
       .confirm-pop {
         position: absolute; bottom: calc(100% + 8px); right: 0;
         display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
@@ -1397,6 +1564,28 @@
         <button id="reset-cancel" type="button" aria-label="Cancel reset">Cancel</button>
       </div>
       <button id="unlink" type="button" style="display: none" title="Forget linked disk file" aria-label="Unlink disk file">× Unlink</button>
+      <span class="pill-sep" id="net-sep" style="display: none" aria-hidden="true"></span>
+      <button type="button" id="net" class="net-slot idle" data-tip="API Idle" title="API idle" aria-label="API network status" style="display: none">
+        <svg class="net-globe-svg" viewBox="0 0 24 24" aria-hidden="true">
+          <defs>
+            <clipPath id="naizo-net-wave-clip">
+              <rect class="wave-band-rect" x="-4" y="0" width="9" height="24" rx="4" />
+            </clipPath>
+          </defs>
+          <g class="globe-base">
+            <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+            <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+            <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+            <circle cx="12" cy="12" r="9.5" />
+          </g>
+          <g class="globe-lit" clip-path="url(#naizo-net-wave-clip)">
+            <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+            <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+            <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+            <circle cx="12" cy="12" r="9.5" />
+          </g>
+        </svg>
+      </button>
     </div>
   `;
 		statusEl = shadow.getElementById("status");
@@ -1405,6 +1594,8 @@
 		resetBtn = shadow.getElementById("reset");
 		resetConfirmEl = shadow.getElementById("reset-confirm");
 		unlinkBtn = shadow.getElementById("unlink");
+		netSepEl = shadow.getElementById("net-sep");
+		netBtn = shadow.getElementById("net");
 		const dotEl = shadow.getElementById("dot");
 		const copyBtn = shadow.getElementById("copy");
 		const resetYesBtn = shadow.getElementById("reset-yes");
@@ -1438,6 +1629,13 @@
 		unlinkBtn?.addEventListener("click", () => {
 			Naizo.unlink();
 		});
+		netBtn?.addEventListener("click", () => {
+			if (netState === "error" && netInFlightCount === 0) {
+				netState = "idle";
+				applyNetUiState();
+			}
+		});
+		applyNetUiState();
 		host._setDot = (state) => {
 			if (dotEl) {
 				const cls = state === "saved" ? "saved" : state === "saving" ? "saving" : state === "error" ? "error" : "";
@@ -1623,9 +1821,375 @@
 			flushPersistence(true);
 		}
 	}
+	function isRemoteNaizoDbCandidate(val) {
+		if (!isPlainObject(val) || !isValidJsonValue(val)) return false;
+		return hasOwn(val, "_meta") || hasOwn(val, "fields") || hasOwn(val, "lists") || hasOwn(val, "custom");
+	}
+	function extractByDotPath(rootValue, dotPath) {
+		const trimmed = dotPath.trim();
+		if (!trimmed) return {
+			ok: true,
+			value: rootValue
+		};
+		const segments = trimmed.split(".");
+		if (segments.some((seg) => seg.length === 0)) return {
+			ok: false,
+			value: void 0
+		};
+		let current = rootValue;
+		for (const seg of segments) if (Array.isArray(current)) {
+			if (!/^(?:0|[1-9]\d*)$/.test(seg)) return {
+				ok: false,
+				value: void 0
+			};
+			const idx = Number(seg);
+			if (!Number.isSafeInteger(idx) || idx < 0 || idx >= current.length || !hasOwn(current, seg)) return {
+				ok: false,
+				value: void 0
+			};
+			current = current[idx];
+		} else if (isPlainObject(current)) {
+			if (!hasOwn(current, seg)) return {
+				ok: false,
+				value: void 0
+			};
+			current = getOwn(current, seg);
+		} else return {
+			ok: false,
+			value: void 0
+		};
+		return {
+			ok: true,
+			value: current
+		};
+	}
+	function resolveBodyPayload(bodyOption) {
+		const db = ensureStore();
+		if (bodyOption === void 0) return serializeDbJson(db);
+		if (typeof bodyOption === "string") {
+			const trimmed = bodyOption.trim();
+			if (trimmed === "db") return serializeDbJson(db);
+			if (trimmed === "fields") return JSON.stringify(db.fields, null, 2).replace(/</g, "\\u003c");
+			if (trimmed === "custom") return JSON.stringify(db.custom, null, 2).replace(/</g, "\\u003c");
+			if (trimmed.startsWith("list:")) {
+				const listName = trimmed.slice(5).trim();
+				const rawList = hasOwn(db.lists, listName) ? getOwn(db.lists, listName) : [];
+				return JSON.stringify(Array.isArray(rawList) ? rawList : [], null, 2).replace(/</g, "\\u003c");
+			}
+			if (trimmed.startsWith("field:")) {
+				const fieldKey = trimmed.slice(6).trim();
+				const val = hasOwn(db.fields, fieldKey) ? getOwn(db.fields, fieldKey) : null;
+				return JSON.stringify(val ?? null).replace(/</g, "\\u003c");
+			}
+			return bodyOption;
+		}
+		if (!isValidJsonValue(bodyOption)) throw new Error("Invalid non-JSON request body");
+		return JSON.stringify(bodyOption).replace(/</g, "\\u003c");
+	}
+	function isValueEmptyForInit(val) {
+		if (val === void 0 || val === null || val === "") return true;
+		if (Array.isArray(val)) return val.length === 0;
+		return false;
+	}
+	function isInitTargetEmpty(target, method) {
+		const db = ensureStore();
+		if (target !== null) {
+			if (target.startsWith("field:")) {
+				const key = target.slice(6).trim();
+				if (!key) return false;
+				return !hasOwn(db.fields, key) || isValueEmptyForInit(getOwn(db.fields, key));
+			}
+			if (target.startsWith("list:")) {
+				const listName = target.slice(5).trim();
+				if (!listName) return false;
+				if (!hasOwn(db.lists, listName)) return true;
+				const arr = getOwn(db.lists, listName);
+				return !Array.isArray(arr) || arr.length === 0;
+			}
+			if (target.startsWith("custom:")) {
+				const key = target.slice(7).trim();
+				if (!key) return false;
+				if (!hasOwn(db.custom, key)) return true;
+				const val = getOwn(db.custom, key);
+				if (isPlainObject(val)) return Object.keys(val).length === 0;
+				return isValueEmptyForInit(val);
+			}
+			if (target !== "db") try {
+				const first = Array.from(document.querySelectorAll(target)).filter((el) => !isIgnoredElement(el))[0];
+				if (!first) return false;
+				if (first instanceof HTMLInputElement || first instanceof HTMLTextAreaElement || first instanceof HTMLSelectElement) return first.value.trim() === "";
+				return readCleanTextContent(first).trim() === "";
+			} catch {
+				return false;
+			}
+		}
+		if (method === "POST" && target === null) return false;
+		const fieldsEmpty = Object.keys(db.fields).every((k) => isValueEmptyForInit(getOwn(db.fields, k)));
+		const listsEmpty = Object.keys(db.lists).every((k) => {
+			const arr = getOwn(db.lists, k);
+			return !Array.isArray(arr) || arr.length === 0;
+		});
+		const customEmpty = Object.keys(db.custom).length === 0;
+		return fieldsEmpty && listsEmpty && customEmpty;
+	}
+	function writeSelectorTarget(selector, extracted) {
+		let matched;
+		try {
+			matched = Array.from(document.querySelectorAll(selector)).filter((el) => !isIgnoredElement(el));
+		} catch {
+			throw new Error(`Invalid target selector: ${selector}`);
+		}
+		if (matched.length === 0) throw new Error(`Target selector "${selector}" matched no elements`);
+		const formatted = isPlainObject(extracted) || Array.isArray(extracted) ? JSON.stringify(extracted, null, 2) : extracted;
+		matched.forEach((el) => {
+			if (isNonLeafElement(el)) writeCleanTextContent(el, toTextValue(formatted));
+			else writeElementValue(el, formatted);
+		});
+	}
+	function routeFetchPayload(target, method, extracted) {
+		if (target === null) {
+			if (method === "POST") return;
+			if (startupInvalidDb) throw new Error("Cannot hydrate #naizodb while startup JSON is invalid");
+			if (!isRemoteNaizoDbCandidate(extracted)) throw new Error("Response is not a valid NaizoDatabase object");
+			const normalized = validateAndNormalizeDb(extracted);
+			if (!normalized) throw new Error("Response failed NaizoDatabase validation");
+			store = normalized;
+			storeInitialized = true;
+			hydrateSubtreeFromStore(document, true, false);
+			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
+			dispatchChangeEvent({
+				scope: "db",
+				action: "set",
+				value: store
+			});
+			flushPersistence(true);
+			return;
+		}
+		if (target === "db") {
+			if (startupInvalidDb) throw new Error("Cannot hydrate #naizodb while startup JSON is invalid");
+			if (!isRemoteNaizoDbCandidate(extracted)) throw new Error("Response is not a valid NaizoDatabase object");
+			const normalized = validateAndNormalizeDb(extracted);
+			if (!normalized) throw new Error("Response failed NaizoDatabase validation");
+			store = normalized;
+			storeInitialized = true;
+			hydrateSubtreeFromStore(document, true, false);
+			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
+			dispatchChangeEvent({
+				scope: "db",
+				action: "set",
+				value: store
+			});
+			flushPersistence(true);
+			return;
+		}
+		if (target.startsWith("field:")) {
+			const key = target.slice(6).trim();
+			if (!key || !isValidJsonValue(extracted)) throw new Error(`Invalid field target or JSON value for "${target}"`);
+			Naizo.setField(key, extracted);
+			return;
+		}
+		if (target.startsWith("list:")) {
+			const listName = target.slice(5).trim();
+			if (!listName || !Array.isArray(extracted) || !isValidJsonValue(extracted) || !extracted.every((item) => isPlainObject(item))) throw new Error(`Expected array of plain JSON objects for "${target}"`);
+			Naizo.setList(listName, extracted);
+			return;
+		}
+		if (target.startsWith("custom:")) {
+			const key = target.slice(7).trim();
+			if (!key || !isValidJsonValue(extracted)) throw new Error(`Invalid custom target or JSON value for "${target}"`);
+			Naizo.set(key, extracted);
+			return;
+		}
+		writeSelectorTarget(target, extracted);
+	}
+	async function executeFetch(url, options) {
+		const trimmedUrl = (url ?? "").trim();
+		const method = (options?.method ?? "GET").trim().toUpperCase() || "GET";
+		const rawInto = options?.into !== void 0 ? options.into.trim() : "";
+		const target = rawInto.length > 0 ? rawInto : null;
+		const rawPath = options?.path !== void 0 ? options.path.trim() : "";
+		beginNetRequest();
+		if (!trimmedUrl) {
+			endNetRequest(false);
+			const failResult = {
+				url: trimmedUrl,
+				method,
+				ok: false,
+				status: 0,
+				target,
+				data: null,
+				error: "Missing request URL"
+			};
+			dispatchFetchEvent(failResult);
+			return failResult;
+		}
+		let status = 0;
+		try {
+			if (typeof fetch !== "function") throw new Error("Global fetch() is unavailable in this environment");
+			const fetchInit = { method };
+			if (method !== "GET" && method !== "HEAD" && (method === "POST" || options?.body !== void 0)) {
+				if (persistTimeout !== null) flushPersistence(true);
+				const payload = resolveBodyPayload(options?.body);
+				const mergedHeaders = {};
+				let hasContentType = false;
+				if (options?.headers) for (const [hk, hv] of Object.entries(options.headers)) {
+					mergedHeaders[hk] = hv;
+					if (hk.toLowerCase() === "content-type") hasContentType = true;
+				}
+				if (!hasContentType) mergedHeaders["Content-Type"] = "text/plain;charset=UTF-8";
+				fetchInit.headers = mergedHeaders;
+				fetchInit.body = payload;
+			} else if (options?.headers && Object.keys(options.headers).length > 0) fetchInit.headers = { ...options.headers };
+			if (options?.mode) fetchInit.mode = options.mode;
+			if (options?.signal) fetchInit.signal = options.signal;
+			const res = await fetch(trimmedUrl, fetchInit);
+			status = res.status;
+			if (options?.mode === "no-cors" && target === null && res.type === "opaque") {
+				endNetRequest(true);
+				const opaqueResult = {
+					url: trimmedUrl,
+					method,
+					ok: true,
+					status: 0,
+					target: null,
+					data: null,
+					error: null
+				};
+				dispatchFetchEvent(opaqueResult);
+				return opaqueResult;
+			}
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const rawText = await res.text();
+			const contentType = (res.headers?.get?.("content-type") ?? "").toLowerCase();
+			const isFireAndForgetPost = method === "POST" && target === null;
+			const mustParseJson = target === "db" || target === null && method !== "POST" || target !== null && (target.startsWith("field:") || target.startsWith("list:") || target.startsWith("custom:")) || rawPath.length > 0;
+			let parsed;
+			if (isFireAndForgetPost && rawText.trim() === "" && rawPath.length === 0) parsed = null;
+			else if (mustParseJson || contentType.includes("json")) try {
+				parsed = JSON.parse(rawText);
+			} catch {
+				throw new Error("Invalid JSON response");
+			}
+			else parsed = rawText;
+			let extracted = parsed;
+			if (rawPath.length > 0) {
+				const pathRes = extractByDotPath(parsed, rawPath);
+				if (!pathRes.ok) throw new Error(`Path "${rawPath}" not found in response`);
+				extracted = pathRes.value;
+			}
+			routeFetchPayload(target, method, extracted);
+			endNetRequest(true);
+			const okResult = {
+				url: trimmedUrl,
+				method,
+				ok: true,
+				status,
+				target,
+				data: extracted,
+				error: null
+			};
+			dispatchFetchEvent(okResult);
+			return okResult;
+		} catch (err) {
+			endNetRequest(false);
+			const message = err instanceof Error ? err.message : String(err);
+			const failResult = {
+				url: trimmedUrl,
+				method,
+				ok: false,
+				status,
+				target,
+				data: null,
+				error: message
+			};
+			dispatchFetchEvent(failResult);
+			return failResult;
+		}
+	}
+	function getDeclarativeRequestConfig(el) {
+		if (isIgnoredElement(el)) return null;
+		const getUrl = getAttr(el, "naizo-get");
+		const postUrl = getAttr(el, "naizo-post");
+		if (getUrl === null && postUrl === null) return null;
+		const method = getUrl !== null ? "GET" : "POST";
+		const url = (getUrl ?? postUrl ?? "").trim();
+		const intoAttr = getAttr(el, "naizo-into");
+		const pathAttr = getAttr(el, "naizo-path");
+		const bodyAttr = getAttr(el, "naizo-body");
+		const corsAttr = (getAttr(el, "naizo-cors") ?? "").trim().toLowerCase();
+		const triggerRaw = (getAttr(el, "naizo-trigger") ?? "click").trim().toLowerCase();
+		const trigger = triggerRaw === "init" ? "init" : triggerRaw === "load" ? "load" : "click";
+		return {
+			url,
+			method,
+			into: intoAttr !== null ? intoAttr : void 0,
+			path: pathAttr !== null ? pathAttr : void 0,
+			bodySource: bodyAttr !== null && bodyAttr.trim().length > 0 ? bodyAttr.trim() : void 0,
+			mode: corsAttr === "no-cors" ? "no-cors" : void 0,
+			trigger
+		};
+	}
+	async function triggerDeclarativeRequest(el, applyDisabledGuard) {
+		const cfg = getDeclarativeRequestConfig(el);
+		if (!cfg) return null;
+		if (el.getAttribute("data-naizo-loading") === "true") return null;
+		el.setAttribute("data-naizo-loading", "true");
+		let addedDisabled = false;
+		if (applyDisabledGuard) {
+			if (!(el.hasAttribute("disabled") || "disabled" in el && Boolean(el.disabled))) {
+				el.setAttribute("data-naizo-loading-disabled", "true");
+				addedDisabled = true;
+				if ("disabled" in el) el.disabled = true;
+				else el.setAttribute("disabled", "");
+			}
+		}
+		try {
+			return await executeFetch(cfg.url, {
+				method: cfg.method,
+				into: cfg.into,
+				path: cfg.path,
+				body: cfg.method === "POST" ? cfg.bodySource ?? "db" : void 0,
+				mode: cfg.mode
+			});
+		} finally {
+			el.removeAttribute("data-naizo-loading");
+			if (addedDisabled || el.hasAttribute("data-naizo-loading-disabled")) {
+				el.removeAttribute("data-naizo-loading-disabled");
+				if ("disabled" in el) el.disabled = false;
+				el.removeAttribute("disabled");
+			}
+		}
+	}
+	function runAutoTriggers(root = document) {
+		if (startupInvalidDb) return;
+		const candidates = [];
+		if (root instanceof Element && root.matches(API_REQUEST_SELECTOR)) candidates.push(root);
+		root.querySelectorAll(API_REQUEST_SELECTOR).forEach((el) => {
+			candidates.push(el);
+		});
+		for (const el of candidates) {
+			if (autoTriggeredElements.has(el)) continue;
+			const cfg = getDeclarativeRequestConfig(el);
+			if (!cfg || cfg.trigger === "click") continue;
+			autoTriggeredElements.add(el);
+			if (cfg.trigger === "load") triggerDeclarativeRequest(el, false);
+			else if (cfg.trigger === "init") {
+				if (isInitTargetEmpty(cfg.into !== void 0 && cfg.into.trim().length > 0 ? cfg.into.trim() : null, cfg.method)) triggerDeclarativeRequest(el, false);
+			}
+		}
+	}
 	function handleListClicks(e) {
 		const target = e.target;
 		if (!target || typeof target.closest !== "function") return;
+		const reqEl = target.closest(API_REQUEST_SELECTOR);
+		if (reqEl && !isIgnoredElement(reqEl)) {
+			const cfg = getDeclarativeRequestConfig(reqEl);
+			if (cfg && cfg.trigger === "click") {
+				if (reqEl instanceof HTMLAnchorElement || reqEl instanceof HTMLButtonElement && reqEl.form !== null && reqEl.type === "submit") e.preventDefault();
+				triggerDeclarativeRequest(reqEl, true);
+				return;
+			}
+		}
 		const addBtn = target.closest("[naizo-add], [data-naizo-add]");
 		if (addBtn) {
 			const listName = getAttr(addBtn, "naizo-add");
@@ -1760,6 +2324,10 @@
 			clearTimeout(saveTimeout);
 			saveTimeout = null;
 		}
+		if (netHoldTimeout !== null) {
+			clearTimeout(netHoldTimeout);
+			netHoldTimeout = null;
+		}
 		if (listenerController !== null) {
 			listenerController.abort();
 			listenerController = null;
@@ -1867,6 +2435,23 @@
 			const arr = getOwn(ensureStore().lists, listName);
 			return Array.isArray(arr) ? arr : [];
 		},
+		setList(listName, items) {
+			if (!listName || !Array.isArray(items) || !isValidJsonValue(items) || !items.every((item) => isPlainObject(item))) {
+				console.warn("[naizo.js] Rejected invalid setList data for:", listName);
+				return;
+			}
+			const db = ensureStore();
+			const clonedItems = items.map((item) => cloneRecord(item));
+			setOwn(db.lists, listName, clonedItems);
+			renderListFromStore(listName);
+			dispatchChangeEvent({
+				scope: "lists",
+				action: "set",
+				list: listName,
+				value: clonedItems
+			});
+			flushPersistence(true);
+		},
 		addItem(listName, itemData = {}) {
 			addItemInternal(listName, itemData, false);
 		},
@@ -1937,7 +2522,12 @@
 		bind(root = document) {
 			ensureStore();
 			hydrateSubtreeFromStore(root, false);
+			syncNetVisibility(root);
+			runAutoTriggers(root);
 			schedulePersist();
+		},
+		fetch(url, options) {
+			return executeFetch(url, options);
 		},
 		async save() {
 			if (saveTimeout !== null) {
@@ -2026,13 +2616,24 @@
 			clearTimeout(saveTimeout);
 			saveTimeout = null;
 		}
+		if (netHoldTimeout !== null) {
+			clearTimeout(netHoldTimeout);
+			netHoldTimeout = null;
+		}
 		fileHandle = null;
 		fileHandlePermission = "prompt";
 		lastObservedModified = null;
 		initialDiskDb = null;
+		netRevealed = false;
+		netState = "idle";
+		netInFlightCount = 0;
+		netActiveStartMs = 0;
+		netPendingError = false;
+		autoTriggeredElements = /* @__PURE__ */ new WeakSet();
 		mountUi();
 		ensureListBlueprints(document, true);
 		attachListeners();
+		syncNetVisibility(document);
 		const scriptEl = getDbScript();
 		trackedDbScriptEl = scriptEl;
 		const currentDiskRaw = scriptEl.textContent?.trim() ?? "";
@@ -2099,6 +2700,7 @@
 			fileHandlePermission = "prompt";
 			updateUi("needs-permission", "Resume Disk Sync");
 		}
+		runAutoTriggers(document);
 	}
 	//#endregion
 	//#region src/iife.ts
