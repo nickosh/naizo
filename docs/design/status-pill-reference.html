@@ -1680,10 +1680,16 @@ Click #net to clear back to Idle</pre>
       <!-- SECTION 5: HERO LOGO LOCKUP ON site/index.html -->
       <h2 class="sec-title">
         5. <code>site/index.html</code> Hero Crest Lockup &amp; <code>site/logo.svg</code>
-        <span>62×62px · margin-bottom: 2px · Sumi Ink · Heartbeat on :hover</span>
+        <span
+          >62×62px · margin-bottom: 2px · Sumi Ink · Seamless Clockwise 1-2-3 Heartbeat (1.35s) on
+          :hover</span
+        >
       </h2>
       <div class="hero-preview-box">
-        <div class="hero-crest-link" title="Hover to test Heartbeat animation">
+        <div
+          class="hero-crest-link"
+          title="Hover to test Seamless Clockwise 1-2-3 Heartbeat (Top 17% → BR 50% → BL 83%, 1.35s)"
+        >
           <svg class="hero-crest-svg" viewBox="0 0 100 100" aria-hidden="true">
             <circle
               class="ring"
@@ -1701,6 +1707,12 @@ Click #net to clear back to Idle</pre>
         </div>
         <h3 class="hero-preview-title">naizo.js</h3>
         <p class="hero-preview-sub">Self-persisting HTML for human &amp; AI workflows.</p>
+        <pre class="spec-code" style="margin-top: 14px; text-align: left">
+/* site/index.html Hero Crest (:hover Seamless Clockwise 1-2-3 Heartbeat, 1.35s, zero loop pause) */
+.hero-crest-link:hover .ring  { animation: naizoRingBreath 1.35s ease-in-out infinite; }
+.hero-crest-link:hover .c-top { animation: naizoHeartTop   1.35s ease-in-out infinite; } /* 1st: 17% */
+.hero-crest-link:hover .c-br  { animation: naizoHeartBR    1.35s ease-in-out infinite; } /* 2nd: 50% */
+.hero-crest-link:hover .c-bl  { animation: naizoHeartBL    1.35s ease-in-out infinite; } /* 3rd: 83% */</pre>
       </div>
 
       <!-- SECTION 6: PHILOSOPHY, CULTURAL SYMBOLISM & REDESIGN RATIONALE -->
