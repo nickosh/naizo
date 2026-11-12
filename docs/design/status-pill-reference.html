@@ -1,0 +1,1830 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>naizo.js — Locked-In Brand Logo &amp; Status Pill Reference (D50 / D43 / M9)</title>
+    <style>
+      :root {
+        --bg: #faf8f5;
+        --surface: #f3efe8;
+        --card: #ffffff;
+        --text: #1c1917;
+        --muted: #6b655e;
+        --border: #e5e0d8;
+        --accent: #10b981;
+        --amber: #f59e0b;
+        --danger: #ef4444;
+
+        /* Frosted-Glass Status Pill Tokens (Light Mode / Day) */
+        --pill-bg: rgba(255, 255, 255, 0.82);
+        --pill-text: #0f172a;
+        --pill-muted: #64748b;
+        --pill-border: rgba(15, 23, 42, 0.12);
+        --pill-shadow: 0 4px 18px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
+        --btn-bg: rgba(15, 23, 42, 0.045);
+        --btn-bg-hover: rgba(15, 23, 42, 0.1);
+        --btn-border: rgba(15, 23, 42, 0.12);
+        --btn-color: #334155;
+        --btn-color-hover: #0f172a;
+        --sep-color: rgba(15, 23, 42, 0.11);
+      }
+
+      [data-theme='dark'] {
+        --bg: #141311;
+        --surface: #1d1b18;
+        --card: #181614;
+        --text: #e7e5e4;
+        --muted: #9ca3af;
+        --border: #2e2c28;
+
+        /* Frosted-Glass Status Pill Tokens (Dark Mode / Night) */
+        --pill-bg: rgba(15, 23, 42, 0.78);
+        --pill-text: #f8fafc;
+        --pill-muted: #94a3b8;
+        --pill-border: rgba(255, 255, 255, 0.14);
+        --pill-shadow: 0 6px 22px rgba(0, 0, 0, 0.42), 0 1px 4px rgba(0, 0, 0, 0.3);
+        --btn-bg: rgba(255, 255, 255, 0.07);
+        --btn-bg-hover: rgba(255, 255, 255, 0.15);
+        --btn-border: rgba(255, 255, 255, 0.14);
+        --btn-color: #cbd5e1;
+        --btn-color-hover: #ffffff;
+        --sep-color: rgba(255, 255, 255, 0.13);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 20px 24px 60px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.55;
+        transition:
+          background-color 0.2s ease,
+          color 0.2s ease;
+      }
+
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+
+      header.page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 20px;
+      }
+
+      header.page-header h1 {
+        font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+        font-size: 22px;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: -0.02em;
+      }
+
+      header.page-header p {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .theme-btn {
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      h2.sec-title {
+        font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+        font-size: 17px;
+        font-weight: 600;
+        margin: 26px 0 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+      }
+
+      h2.sec-title span {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+
+      /* 1. Interactive Live Stage */
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 10px;
+        padding: 8px 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+
+      .toolbar-label {
+        font-size: 10.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-right: 2px;
+      }
+
+      .chip {
+        font-family: inherit;
+        font-size: 11.5px;
+        font-weight: 500;
+        padding: 4px 9px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .chip.active {
+        background: var(--text);
+        color: var(--bg);
+        border-color: var(--text);
+      }
+
+      .dot-swatch {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .stage {
+        position: relative;
+        height: 220px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 20% 25%, rgba(16, 185, 129, 0.12), transparent 45%),
+          radial-gradient(circle at 82% 75%, rgba(245, 158, 11, 0.12), transparent 45%),
+          repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 23px,
+            var(--border) 23px,
+            var(--border) 24px
+          ),
+          var(--bg);
+        padding: 16px 20px;
+      }
+
+      .stage-note {
+        font-size: 12.5px;
+        color: var(--muted);
+        max-width: 540px;
+        pointer-events: none;
+      }
+
+      .stage-note strong {
+        color: var(--text);
+      }
+
+      /* =====================================================================
+         EXACT LOCKED-IN STATUS PILL CSS & ANIMATIONS (D50 / D43)
+         ===================================================================== */
+      .pill-anchor {
+        position: absolute;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 7px;
+        transition: all 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .pill-anchor.corner-br {
+        bottom: 14px;
+        right: 14px;
+        align-items: flex-end;
+      }
+      .pill-anchor.corner-bl {
+        bottom: 14px;
+        left: 14px;
+        align-items: flex-start;
+      }
+      .pill-anchor.corner-tr {
+        top: 14px;
+        right: 14px;
+        align-items: flex-end;
+        flex-direction: column-reverse;
+      }
+      .pill-anchor.corner-tl {
+        top: 14px;
+        left: 14px;
+        align-items: flex-start;
+        flex-direction: column-reverse;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 6px;
+        border-radius: 999px;
+        background: var(--pill-bg);
+        color: var(--pill-text);
+        border: 1px solid var(--pill-border);
+        box-shadow: var(--pill-shadow);
+        backdrop-filter: blur(12px) saturate(160%);
+        -webkit-backdrop-filter: blur(12px) saturate(160%);
+        user-select: none;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* #dot: 20x20px slot with 21.5x21.5px Maru ni Mitsuishi (0.0 Exact) */
+      .naizo-logo-btn {
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+        color: #f59e0b;
+        border-radius: 50%;
+        flex-shrink: 0;
+        transition:
+          color 0.2s ease,
+          transform 0.15s ease;
+      }
+      .naizo-logo-btn:active {
+        cursor: grabbing;
+      }
+      .naizo-logo-btn.saved,
+      .naizo-logo-btn.saving {
+        color: #10b981;
+      }
+      .naizo-logo-btn.cached,
+      .naizo-logo-btn.conflict,
+      .naizo-logo-btn.needs-permission {
+        color: #f59e0b;
+      }
+      .naizo-logo-btn.error {
+        color: #ef4444;
+      }
+
+      .naizo-logo-svg {
+        width: 21.5px;
+        height: 21.5px;
+        overflow: visible;
+        display: block;
+        flex-shrink: 0;
+      }
+      .naizo-logo-svg .ring {
+        transform-origin: 50px 50px;
+      }
+      .naizo-logo-svg .c-top {
+        transform-origin: 50px 37px;
+      }
+      .naizo-logo-svg .c-bl {
+        transform-origin: 37px 63px;
+      }
+      .naizo-logo-svg .c-br {
+        transform-origin: 63px 63px;
+      }
+
+      /* 1. Boot-Up Animation (1x on initNaizo mount, ~1.25s) */
+      @keyframes naizoBootRing {
+        0% {
+          stroke-dasharray: 263.89;
+          stroke-dashoffset: 263.89;
+          transform: scale(0.92);
+          opacity: 0.3;
+        }
+        65% {
+          stroke-dasharray: 263.89;
+          stroke-dashoffset: 0;
+          transform: scale(1.03);
+          opacity: 1;
+        }
+        100% {
+          stroke-dasharray: 263.89;
+          stroke-dashoffset: 0;
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      @keyframes naizoBootTop {
+        0%,
+        15% {
+          transform: translate(0px, 13px) scale(0);
+          opacity: 0;
+        }
+        70% {
+          transform: translate(0px, -1.5px) scale(1.05);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(0px, 0px) scale(1);
+          opacity: 1;
+        }
+      }
+      @keyframes naizoBootBL {
+        0%,
+        26% {
+          transform: translate(13px, -13px) scale(0);
+          opacity: 0;
+        }
+        78% {
+          transform: translate(-1.2px, 1.2px) scale(1.05);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(0px, 0px) scale(1);
+          opacity: 1;
+        }
+      }
+      @keyframes naizoBootBR {
+        0%,
+        37% {
+          transform: translate(-13px, -13px) scale(0);
+          opacity: 0;
+        }
+        86% {
+          transform: translate(1.2px, 1.2px) scale(1.05);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(0px, 0px) scale(1);
+          opacity: 1;
+        }
+      }
+      .anim-boot .ring {
+        animation: naizoBootRing 1.2s cubic-bezier(0.22, 1, 0.36, 1) 1;
+      }
+      .anim-boot .c-top {
+        animation: naizoBootTop 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+      }
+      .anim-boot .c-bl {
+        animation: naizoBootBL 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+      }
+      .anim-boot .c-br {
+        animation: naizoBootBR 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+      }
+
+      /* 2. Saving: Heartbeat 1-2-3 Wave (Green #10b981, 1.20x swell + 1.045x ring breath) */
+      @keyframes naizoHeartTop {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        18% {
+          transform: translate(0, -1px) scale(1.2);
+        }
+        38% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoHeartBL {
+        0%,
+        16%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        34% {
+          transform: translate(-0.8px, 0.8px) scale(1.2);
+        }
+        54% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoHeartBR {
+        0%,
+        32%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(0.8px, 0.8px) scale(1.2);
+        }
+        70% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoRingBreath {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        34% {
+          transform: scale(1.045);
+        }
+        75% {
+          transform: scale(1);
+        }
+      }
+      .naizo-logo-btn.saving .ring,
+      .anim-heartbeat .ring {
+        animation: naizoRingBreath 1.75s ease-in-out infinite;
+      }
+      .naizo-logo-btn.saving .c-top,
+      .anim-heartbeat .c-top {
+        animation: naizoHeartTop 1.75s ease-in-out infinite;
+      }
+      .naizo-logo-btn.saving .c-bl,
+      .anim-heartbeat .c-bl {
+        animation: naizoHeartBL 1.75s ease-in-out infinite;
+      }
+      .naizo-logo-btn.saving .c-br,
+      .anim-heartbeat .c-br {
+        animation: naizoHeartBR 1.75s ease-in-out infinite;
+      }
+
+      /* 3. Error / Conflict: Sync Pulse (Air-cushioned radial push + 1.06x ring) */
+      @keyframes naizoSyncRing {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        20% {
+          transform: scale(0.97);
+        }
+        52% {
+          transform: scale(1.06);
+        }
+        85% {
+          transform: scale(1);
+        }
+      }
+      @keyframes naizoSyncTop {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        20% {
+          transform: translate(0, 2.2px) scale(0.93);
+        }
+        50% {
+          transform: translate(0, -5.5px) scale(1.04);
+        }
+      }
+      @keyframes naizoSyncBL {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        20% {
+          transform: translate(2px, -2px) scale(0.93);
+        }
+        50% {
+          transform: translate(-2px, 2px) scale(1.04);
+        }
+      }
+      @keyframes naizoSyncBR {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        20% {
+          transform: translate(-2px, -2px) scale(0.93);
+        }
+        50% {
+          transform: translate(2px, 2px) scale(1.04);
+        }
+      }
+      .naizo-logo-btn.error .ring,
+      .naizo-logo-btn.conflict .ring,
+      .anim-sync .ring {
+        animation: naizoSyncRing 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .naizo-logo-btn.error .c-top,
+      .naizo-logo-btn.conflict .c-top,
+      .anim-sync .c-top {
+        animation: naizoSyncTop 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .naizo-logo-btn.error .c-bl,
+      .naizo-logo-btn.conflict .c-bl,
+      .anim-sync .c-bl {
+        animation: naizoSyncBL 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .naizo-logo-btn.error .c-br,
+      .naizo-logo-btn.conflict .c-br,
+      .anim-sync .c-br {
+        animation: naizoSyncBR 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+
+      /* 4. Needs-Permission / Hover: Staggered Wave Pulse */
+      @keyframes naizoWaveTop {
+        0%,
+        65%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        22% {
+          transform: translate(0, -5.5px) scale(1.04);
+        }
+      }
+      @keyframes naizoWaveBL {
+        0%,
+        14%,
+        79%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        36% {
+          transform: translate(-2px, 2px) scale(1.04);
+        }
+      }
+      @keyframes naizoWaveBR {
+        0%,
+        28%,
+        92%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(2px, 2px) scale(1.04);
+        }
+      }
+      .naizo-logo-btn:hover .ring,
+      .anim-wave .ring {
+        animation: naizoRingBreath 1.75s ease-in-out infinite;
+      }
+      .naizo-logo-btn:hover .c-top,
+      .anim-wave .c-top {
+        animation: naizoWaveTop 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .naizo-logo-btn:hover .c-bl,
+      .anim-wave .c-bl {
+        animation: naizoWaveBL 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .naizo-logo-btn:hover .c-br,
+      .anim-wave .c-br {
+        animation: naizoWaveBR 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+
+      .pill-sep {
+        width: 1px;
+        height: 13px;
+        background: var(--sep-color);
+        margin: 0 1px;
+        flex-shrink: 0;
+      }
+
+      /* Action Buttons: 22x22px circle (+2px optical match to 20px logo), 13x13px SVG */
+      .icon-btn {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border-radius: 50%;
+        border: 1px solid var(--btn-border);
+        background: var(--btn-bg);
+        color: var(--btn-color);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition:
+          background-color 0.15s ease,
+          color 0.15s ease,
+          border-color 0.15s ease,
+          transform 0.12s ease;
+      }
+      .icon-btn:hover {
+        background: var(--btn-bg-hover);
+        color: var(--btn-color-hover);
+        transform: translateY(-0.5px);
+      }
+      .icon-btn:active {
+        transform: translateY(0) scale(0.95);
+      }
+      .icon-btn svg {
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        stroke-width: 2.05;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+        display: block;
+        flex-shrink: 0;
+      }
+
+      .icon-btn.copied {
+        color: #10b981;
+        border-color: rgba(16, 185, 129, 0.35);
+        background: rgba(16, 185, 129, 0.12);
+      }
+      .icon-btn.restore-btn {
+        color: #d97706;
+        border-color: rgba(245, 158, 11, 0.35);
+        background: rgba(245, 158, 11, 0.12);
+      }
+      [data-theme='dark'] .icon-btn.restore-btn {
+        color: #fbbf24;
+      }
+      .icon-btn.reset-btn {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.32);
+        background: rgba(239, 68, 68, 0.09);
+      }
+      .icon-btn.reset-btn:hover {
+        color: #ffffff;
+        background: #ef4444;
+        border-color: #ef4444;
+      }
+      .icon-btn.danger-hover:hover {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.35);
+        background: rgba(239, 68, 68, 0.12);
+      }
+
+      /* #net Wired-Globe Network Indicator (18x18px borderless slot, 1.85px stroke) */
+      .net-slot {
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        border-radius: 50%;
+        position: relative;
+        transition:
+          color 0.25s ease,
+          transform 0.15s ease;
+      }
+      /* Shared Light Green Base for BOTH Idle and Active unlit wires */
+      .net-slot.idle,
+      .net-slot.active {
+        color: rgba(16, 185, 129, 0.38);
+      }
+      .net-slot.error {
+        color: #ef4444;
+      }
+      .net-slot:hover {
+        transform: scale(1.08);
+      }
+
+      .net-globe-svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 1.85;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+        display: block;
+        flex-shrink: 0;
+        overflow: visible;
+        transform-origin: 12px 12px;
+      }
+      .net-globe-svg .globe-lit {
+        opacity: 0;
+        stroke: #10b981;
+      }
+      .net-slot.active .net-globe-svg .globe-lit {
+        opacity: 1;
+      }
+
+      /* Active: L->R Light Band Sweep (0%..56%) + Back-of-Globe Pause (56%..100%) */
+      @keyframes naizoGlobeWaveBand {
+        0% {
+          transform: translateX(-11px);
+        }
+        56% {
+          transform: translateX(25px);
+        }
+        56.01%,
+        100% {
+          transform: translateX(-11px);
+        }
+      }
+      .net-slot.active .wave-band-rect {
+        animation: naizoGlobeWaveBand 1.65s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+
+      /* Error: Smooth Red Attention Pulsation (1.10x) */
+      @keyframes naizoGlobeErrorPulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.72;
+        }
+        50% {
+          transform: scale(1.1);
+          opacity: 1;
+        }
+      }
+      .net-slot.error .net-globe-svg {
+        animation: naizoGlobeErrorPulse 1.5s ease-in-out infinite;
+      }
+
+      /* Unified Frosted-Glass Hover Tooltip */
+      .pill-tooltip {
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--pill-bg);
+        color: var(--pill-text);
+        border: 1px solid var(--pill-border);
+        box-shadow: var(--pill-shadow);
+        backdrop-filter: blur(12px) saturate(160%);
+        -webkit-backdrop-filter: blur(12px) saturate(160%);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(4px) scale(0.97);
+        transition:
+          opacity 0.14s ease,
+          transform 0.14s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .pill-tooltip.visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      .pill-tooltip .kbd {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 10px;
+        color: var(--pill-muted);
+        padding: 0 4px;
+        border-radius: 4px;
+        border: 1px solid var(--btn-border);
+        background: var(--btn-bg);
+      }
+
+      /* #reset-confirm Frosted Popover */
+      .confirm-pop {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: var(--pill-bg);
+        color: var(--pill-text);
+        border: 1px solid var(--pill-border);
+        box-shadow: var(--pill-shadow);
+        backdrop-filter: blur(12px) saturate(160%);
+        -webkit-backdrop-filter: blur(12px) saturate(160%);
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .confirm-pop.open {
+        display: inline-flex;
+      }
+      .confirm-pop button {
+        font-family: inherit;
+        font-size: 10.5px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--btn-border);
+        background: var(--btn-bg);
+        color: var(--pill-text);
+        cursor: pointer;
+      }
+      .confirm-pop button.danger {
+        background: #ef4444;
+        border-color: #ef4444;
+        color: #fff;
+      }
+
+      /* Reference Grids */
+      .spec-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 10px;
+      }
+
+      .spec-card {
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .spec-card-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .spec-card-title {
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+
+      .spec-card-sub {
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .spec-code {
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 7px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 10.5px;
+        color: var(--text);
+        overflow-x: auto;
+        white-space: pre;
+      }
+
+      /* Hero Lockup Preview Card */
+      .hero-preview-box {
+        padding: 28px 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        text-align: center;
+      }
+      .hero-crest-link {
+        display: inline-flex;
+        color: var(--text);
+        margin-bottom: 2px;
+        cursor: pointer;
+      }
+      .hero-crest-svg {
+        width: 62px;
+        height: 62px;
+        overflow: visible;
+        display: block;
+      }
+      .hero-crest-svg .ring {
+        transform-origin: 50px 50px;
+      }
+      .hero-crest-svg .c-top {
+        transform-origin: 50px 37px;
+      }
+      .hero-crest-svg .c-bl {
+        transform-origin: 37px 63px;
+      }
+      .hero-crest-svg .c-br {
+        transform-origin: 63px 63px;
+      }
+      .hero-crest-link:hover .ring {
+        animation: naizoRingBreath 1.75s ease-in-out infinite;
+      }
+      .hero-crest-link:hover .c-top {
+        animation: naizoHeartTop 1.75s ease-in-out infinite;
+      }
+      .hero-crest-link:hover .c-bl {
+        animation: naizoHeartBL 1.75s ease-in-out infinite;
+      }
+      .hero-crest-link:hover .c-br {
+        animation: naizoHeartBR 1.75s ease-in-out infinite;
+      }
+      .hero-preview-title {
+        font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+        font-size: 44px;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        margin: 0 0 6px;
+        line-height: 1.1;
+      }
+      .hero-preview-sub {
+        font-size: 16px;
+        color: var(--muted);
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="page-header">
+        <div>
+          <h1>naizo.js — Locked-In Brand Logo &amp; Status Pill Specification</h1>
+          <p>
+            Authoritative visual, SVG geometry, color, and keyframe reference for
+            <code>D50</code>, <code>D43</code> (<code>M8.1</code> <code>#net</code>), and
+            <code>M9</code> (<code>M9.1</code>–<code>M9.3</code>).
+          </p>
+        </div>
+        <button class="theme-btn" id="theme-toggle">☀ Light / ☾ Dark</button>
+      </header>
+
+      <!-- SECTION 1: LIVE INTERACTIVE STATUS PILL -->
+      <h2 class="sec-title">
+        1. Interactive Status Pill Prototype
+        <span>20px Logo · 22px Circle Buttons · 18px Borderless Wired Globe</span>
+      </h2>
+
+      <div class="toolbar">
+        <span class="toolbar-label">Pill State:</span>
+        <button class="chip active" data-state="local-synced">
+          <span class="dot-swatch" style="background: #10b981"></span>1. Local · Synced
+        </button>
+        <button class="chip" data-state="local-saving">
+          <span class="dot-swatch" style="background: #10b981"></span>2. Local · Saving (Heartbeat)
+        </button>
+        <button class="chip" data-state="local-cache">
+          <span class="dot-swatch" style="background: #f59e0b"></span>3. Local · Unlinked Cache
+        </button>
+        <button class="chip" data-state="local-conflict">
+          <span class="dot-swatch" style="background: #f59e0b"></span>4. Local · Conflict Backed Up
+        </button>
+        <button class="chip" data-state="online-saved">
+          <span class="dot-swatch" style="background: #10b981"></span>5. Online · Saved in Browser
+        </button>
+        <button class="chip" data-state="online-dirty">
+          <span class="dot-swatch" style="background: #10b981"></span>6. Online · Edited (+ Reset)
+        </button>
+        <button class="chip" data-state="error">
+          <span class="dot-swatch" style="background: #ef4444"></span>7. Error · Invalid JSON
+        </button>
+      </div>
+
+      <div class="toolbar">
+        <span class="toolbar-label">#net Globe (M8.1):</span>
+        <button class="chip net-chip" data-net="idle">
+          <span class="dot-swatch" style="background: rgba(16, 185, 129, 0.45)"></span>1. Idle
+          (Light Green Base)
+        </button>
+        <button class="chip net-chip active" data-net="active">
+          <span class="dot-swatch" style="background: #10b981"></span>2. Active (L→R Wave)
+        </button>
+        <button class="chip net-chip" data-net="error">
+          <span class="dot-swatch" style="background: #ef4444"></span>3. Error (Red Pulse)
+        </button>
+        <button class="chip net-chip" data-net="hidden">4. Hidden (No API)</button>
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="stage-note">
+          <strong>Interactive check:</strong> Hover any icon on the bottom-right pill to inspect the
+          floating frosted-glass tooltip, click <strong>Copy</strong> to see the in-place green
+          checkmark morph (zero width shift), or drag the pill to snap it to any of the 4 corners.
+        </div>
+
+        <div class="pill-anchor corner-br" id="pill-anchor">
+          <div class="confirm-pop" id="reset-confirm" role="group" aria-label="Confirm reset">
+            <span>Reset to initial state?</span>
+            <button type="button" class="danger" id="reset-yes">Reset</button>
+            <button type="button" id="reset-cancel">Cancel</button>
+          </div>
+
+          <div class="pill-tooltip visible" id="pill-tooltip">
+            <span id="tooltip-text">API Active</span>
+            <span class="kbd" id="tooltip-kbd" style="display: none">⌘S</span>
+          </div>
+
+          <div class="pill" id="pill">
+            <span id="status" class="sr-only" role="status" aria-live="polite">Synced to Disk</span>
+
+            <!-- #dot: 20px Balanced Maru ni Mitsuishi (0.0 Exact) -->
+            <button
+              type="button"
+              id="dot"
+              class="naizo-logo-btn saved"
+              data-tip="Synced to Disk"
+              aria-label="Naizo sync status"
+            >
+              <svg class="naizo-logo-svg" viewBox="0 0 100 100" aria-hidden="true">
+                <circle
+                  class="ring"
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="8"
+                />
+                <rect
+                  class="c-top"
+                  x="39"
+                  y="26"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-bl"
+                  x="26"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-br"
+                  x="52"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
+
+            <span class="pill-sep"></span>
+
+            <!-- #action: Link Disk (link-2) or Save to PC (download) -->
+            <button
+              type="button"
+              id="action"
+              class="icon-btn"
+              data-tip="Link Disk"
+              data-kbd="⌘S"
+              style="display: none"
+            >
+              <span class="sr-only" id="action-sr">Link Disk</span>
+              <svg id="action-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+            </button>
+
+            <!-- #restore: Restore Backup (history) or Repair JSON (wrench) -->
+            <button
+              type="button"
+              id="restore"
+              class="icon-btn restore-btn"
+              data-tip="Restore Backup"
+              style="display: none"
+            >
+              <span class="sr-only" id="restore-sr">↺ Restore</span>
+              <svg id="restore-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+            </button>
+
+            <!-- #copy: Copy JSON -> Checkmark -->
+            <button type="button" id="copy" class="icon-btn" data-tip="Copy JSON">
+              <span class="sr-only" id="copy-sr">📋 Copy</span>
+              <svg id="copy-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+            </button>
+
+            <!-- #reset: Reset to Initial State (Red Eraser) -->
+            <button
+              type="button"
+              id="reset"
+              class="icon-btn reset-btn"
+              data-tip="Reset to Initial State"
+              style="display: none"
+            >
+              <span class="sr-only">↺ Reset</span>
+              <svg id="reset-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+            </button>
+
+            <!-- #unlink: Unlink Disk (Slashed Chain Link) -->
+            <button type="button" id="unlink" class="icon-btn danger-hover" data-tip="Unlink Disk">
+              <span class="sr-only">× Unlink</span>
+              <svg id="unlink-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+            </button>
+
+            <!-- #net: Rightmost 18x18px Borderless Wired-Globe Network Indicator -->
+            <span class="pill-sep" id="net-sep"></span>
+            <button
+              type="button"
+              id="net"
+              class="net-slot active"
+              data-tip="API Active"
+              title="API active"
+              aria-label="API network status"
+            >
+              <svg class="net-globe-svg" viewBox="0 0 24 24" aria-hidden="true">
+                <defs>
+                  <clipPath id="naizo-net-wave-clip">
+                    <rect class="wave-band-rect" x="-4" y="0" width="9" height="24" rx="4" />
+                  </clipPath>
+                </defs>
+                <g class="globe-base">
+                  <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                  <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                  <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                  <circle cx="12" cy="12" r="9.5" />
+                </g>
+                <g class="globe-lit" clip-path="url(#naizo-net-wave-clip)">
+                  <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                  <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                  <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                  <circle cx="12" cy="12" r="9.5" />
+                </g>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: #dot MARU NI MITSUISHI ANIMATION GALLERY -->
+      <h2 class="sec-title">
+        2. <code>#dot</code> Brand Logo States &amp; Animations (<code>丸に三つ石</code> /
+        <code>品</code>)
+        <span>viewBox="0 0 100 100" · 0.0 Exact Center · Safe Inner Halo r ≤ 34.2u</span>
+      </h2>
+      <div class="spec-grid">
+        <div class="spec-card">
+          <div class="spec-card-head">
+            <div
+              class="naizo-logo-btn saved anim-boot"
+              id="boot-replay-target"
+              style="cursor: pointer"
+            >
+              <svg class="naizo-logo-svg" viewBox="0 0 100 100">
+                <circle
+                  class="ring"
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="8"
+                />
+                <rect
+                  class="c-top"
+                  x="39"
+                  y="26"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-bl"
+                  x="26"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-br"
+                  x="52"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+            <div>
+              <div class="spec-card-title">1. Boot-Up (1x on mount)</div>
+              <div class="spec-card-sub">Click icon to replay · 1.2s</div>
+            </div>
+          </div>
+          <pre class="spec-code">
+Ring draws (dashoffset 263.89→0)
++ 3 stones spring out from (50,50)</pre>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-head">
+            <div class="naizo-logo-btn saving">
+              <svg class="naizo-logo-svg" viewBox="0 0 100 100">
+                <circle
+                  class="ring"
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="8"
+                />
+                <rect
+                  class="c-top"
+                  x="39"
+                  y="26"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-bl"
+                  x="26"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-br"
+                  x="52"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+            <div>
+              <div class="spec-card-title">2. Saving: Heartbeat Wave</div>
+              <div class="spec-card-sub">Green #10b981 · 1.75s · 1.20x swell</div>
+            </div>
+          </div>
+          <pre class="spec-code">
+Top → BL → BR 1.20x cube swell
++ 1.045x outer circle breath</pre>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-head">
+            <div class="naizo-logo-btn cached anim-wave">
+              <svg class="naizo-logo-svg" viewBox="0 0 100 100">
+                <circle
+                  class="ring"
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="8"
+                />
+                <rect
+                  class="c-top"
+                  x="39"
+                  y="26"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-bl"
+                  x="26"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-br"
+                  x="52"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+            <div>
+              <div class="spec-card-title">3. Wave Pulse (Hover / Perm)</div>
+              <div class="spec-card-sub">Amber #f59e0b · 1.75s</div>
+            </div>
+          </div>
+          <pre class="spec-code">
+Staggered radial wave (min 4.2u gap
+inside ring) + 1.045x ring pulse</pre>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-head">
+            <div class="naizo-logo-btn error">
+              <svg class="naizo-logo-svg" viewBox="0 0 100 100">
+                <circle
+                  class="ring"
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="8"
+                />
+                <rect
+                  class="c-top"
+                  x="39"
+                  y="26"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-bl"
+                  x="26"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-br"
+                  x="52"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+            <div>
+              <div class="spec-card-title">4. Sync Pulse (Error/Conflict)</div>
+              <div class="spec-card-sub">Red #ef4444 / Amber #f59e0b · 1.6s</div>
+            </div>
+          </div>
+          <pre class="spec-code">
+Simultaneous radial push (4.2u air
+cushion) + 1.06x magnetic ring</pre>
+        </div>
+      </div>
+
+      <!-- SECTION 3: ALL 8 ACTION BUTTON ICONS -->
+      <h2 class="sec-title">
+        3. Action Button Icons (<code>22×22px</code> Circle, <code>13×13px</code> SVG at
+        <code>(12.0, 12.0)</code>)
+        <span>viewBox="0 0 24 24" · stroke-width="2.05"</span>
+      </h2>
+      <div class="spec-grid" id="icon-spec-grid"></div>
+
+      <!-- SECTION 4: #net WIRED-GLOBE NETWORK INDICATOR -->
+      <h2 class="sec-title">
+        4. <code>#net</code> Wired-Globe Network Indicator (<code>M8.1</code> / <code>D43</code> /
+        <code>D50</code>)
+        <span>18×18px Borderless Slot · stroke-width="1.85" · Shared Light Green Base</span>
+      </h2>
+      <div class="spec-grid">
+        <div class="spec-card">
+          <div class="spec-card-head">
+            <div class="net-slot idle">
+              <svg class="net-globe-svg" viewBox="0 0 24 24">
+                <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                <circle cx="12" cy="12" r="9.5" />
+              </svg>
+            </div>
+            <div>
+              <div class="spec-card-title">1. Idle (Default)</div>
+              <div class="spec-card-sub">Shared Light Green rgba(16,185,129,0.38)</div>
+            </div>
+          </div>
+          <pre class="spec-code">
+title="API idle"
+Tooltip: "API Idle"</pre>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-head">
+            <div class="net-slot active">
+              <svg class="net-globe-svg" viewBox="0 0 24 24">
+                <defs>
+                  <clipPath id="naizo-net-wave-clip-card">
+                    <rect class="wave-band-rect" x="-4" y="0" width="9" height="24" rx="4" />
+                  </clipPath>
+                </defs>
+                <g class="globe-base">
+                  <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                  <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                  <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                  <circle cx="12" cy="12" r="9.5" />
+                </g>
+                <g class="globe-lit" clip-path="url(#naizo-net-wave-clip-card)">
+                  <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                  <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                  <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                  <circle cx="12" cy="12" r="9.5" />
+                </g>
+              </svg>
+            </div>
+            <div>
+              <div class="spec-card-title">2. Active (L→R Wave + Pause)</div>
+              <div class="spec-card-sub">Base 0.38 + Bright #10b981 Wave (≥600ms)</div>
+            </div>
+          </div>
+          <pre class="spec-code">
+0%..56%: translateX(-11px → 25px)
+56%..100%: hidden behind globe</pre>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-head">
+            <div class="net-slot error">
+              <svg class="net-globe-svg" viewBox="0 0 24 24">
+                <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                <circle cx="12" cy="12" r="9.5" />
+              </svg>
+            </div>
+            <div>
+              <div class="spec-card-title">3. Error (Red Pulse)</div>
+              <div class="spec-card-sub">Danger Red #ef4444 · 1.10x pulse</div>
+            </div>
+          </div>
+          <pre class="spec-code">
+scale(1 → 1.10 → 1), 1.5s infinite
+Click #net to clear back to Idle</pre>
+        </div>
+      </div>
+
+      <!-- SECTION 5: HERO LOGO LOCKUP ON site/index.html -->
+      <h2 class="sec-title">
+        5. <code>site/index.html</code> Hero Crest Lockup &amp; <code>site/logo.svg</code>
+        <span>62×62px · margin-bottom: 2px · Sumi Ink · Heartbeat on :hover</span>
+      </h2>
+      <div class="hero-preview-box">
+        <div class="hero-crest-link" title="Hover to test Heartbeat animation">
+          <svg class="hero-crest-svg" viewBox="0 0 100 100" aria-hidden="true">
+            <circle
+              class="ring"
+              cx="50"
+              cy="50"
+              r="42"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="8"
+            />
+            <rect class="c-top" x="39" y="26" width="22" height="22" rx="4.5" fill="currentColor" />
+            <rect class="c-bl" x="26" y="52" width="22" height="22" rx="4.5" fill="currentColor" />
+            <rect class="c-br" x="52" y="52" width="22" height="22" rx="4.5" fill="currentColor" />
+          </svg>
+        </div>
+        <h3 class="hero-preview-title">naizo.js</h3>
+        <p class="hero-preview-sub">Self-persisting HTML for human &amp; AI workflows.</p>
+      </div>
+    </div>
+
+    <script>
+      const ICONS = {
+        link: '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/>',
+        download:
+          '<path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="4"/>',
+        copy: '<rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5"/>',
+        check: '<polyline points="20 6.5 9.5 17 4 11.5"/>',
+        restore:
+          '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3.5 2"/>',
+        wrench:
+          '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+        eraser:
+          '<path d="m7 20-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 20"/><path d="M21 20H7"/><path d="m5 11 9 9"/>',
+        unlink:
+          '<path d="M9 17H7A5 5 0 0 1 7 7"/><path d="M15 7h2a5 5 0 0 1 4 8"/><line x1="8" y1="12" x2="12" y2="12"/><line x1="3" y1="3" x2="21" y2="21"/>',
+      };
+
+      const ICON_META = [
+        {
+          key: 'link',
+          id: '#action (Local)',
+          label: 'Link Disk / Resume Disk Sync',
+          sr: 'Link Disk',
+          cls: 'icon-btn',
+        },
+        {
+          key: 'download',
+          id: '#action (Online)',
+          label: 'Save to PC',
+          sr: '⬇ Save to PC',
+          cls: 'icon-btn',
+        },
+        {
+          key: 'copy',
+          id: '#copy (Default)',
+          label: 'Copy JSON',
+          sr: '📋 Copy',
+          cls: 'icon-btn',
+        },
+        {
+          key: 'check',
+          id: '#copy (1.5s Copied)',
+          label: '✓ Copied',
+          sr: '✓ Copied',
+          cls: 'icon-btn copied',
+        },
+        {
+          key: 'restore',
+          id: '#restore (Backup)',
+          label: 'Restore Backup',
+          sr: '↺ Restore',
+          cls: 'icon-btn restore-btn',
+        },
+        {
+          key: 'wrench',
+          id: '#restore (Invalid JSON)',
+          label: 'Repair JSON',
+          sr: '↺ Repair',
+          cls: 'icon-btn restore-btn',
+        },
+        {
+          key: 'eraser',
+          id: '#reset (Red Eraser)',
+          label: 'Reset to Initial State',
+          sr: '↺ Reset',
+          cls: 'icon-btn reset-btn',
+        },
+        {
+          key: 'unlink',
+          id: '#unlink (Danger Hover)',
+          label: 'Unlink Disk',
+          sr: '× Unlink',
+          cls: 'icon-btn danger-hover',
+        },
+      ];
+
+      const grid = document.getElementById('icon-spec-grid');
+      ICON_META.forEach((m) => {
+        const card = document.createElement('div');
+        card.className = 'spec-card';
+        card.innerHTML = `
+          <div class="spec-card-head">
+            <button type="button" class="${m.cls}" title="${m.label}">
+              <svg viewBox="0 0 24 24">${ICONS[m.key]}</svg>
+            </button>
+            <div>
+              <div class="spec-card-title">${m.id}</div>
+              <div class="spec-card-sub">Tooltip: "${m.label}" · sr-only: "${m.sr}"</div>
+            </div>
+          </div>
+          <pre class="spec-code">${ICONS[m.key].replace(/</g, '&lt;')}</pre>
+        `;
+        grid.appendChild(card);
+      });
+
+      const dotEl = document.getElementById('dot');
+      const statusEl = document.getElementById('status');
+      const actionBtn = document.getElementById('action');
+      const actionSr = document.getElementById('action-sr');
+      const actionSvg = document.getElementById('action-svg');
+      const restoreBtn = document.getElementById('restore');
+      const restoreSr = document.getElementById('restore-sr');
+      const restoreSvg = document.getElementById('restore-svg');
+      const copyBtn = document.getElementById('copy');
+      const copySr = document.getElementById('copy-sr');
+      const copySvg = document.getElementById('copy-svg');
+      const resetBtn = document.getElementById('reset');
+      const resetSvg = document.getElementById('reset-svg');
+      const unlinkBtn = document.getElementById('unlink');
+      const unlinkSvg = document.getElementById('unlink-svg');
+      const netSep = document.getElementById('net-sep');
+      const netBtn = document.getElementById('net');
+      const tooltipEl = document.getElementById('pill-tooltip');
+      const tooltipText = document.getElementById('tooltip-text');
+      const tooltipKbd = document.getElementById('tooltip-kbd');
+      const confirmPop = document.getElementById('reset-confirm');
+
+      copySvg.innerHTML = ICONS.copy;
+      resetSvg.innerHTML = ICONS.eraser;
+      unlinkSvg.innerHTML = ICONS.unlink;
+
+      const STATES = {
+        'local-synced': {
+          dotClass: 'saved',
+          status: 'Synced to Disk',
+          action: null,
+          restore: null,
+          reset: false,
+          unlink: true,
+          confirm: false,
+        },
+        'local-saving': {
+          dotClass: 'saving',
+          status: 'Saving...',
+          action: null,
+          restore: null,
+          reset: false,
+          unlink: true,
+          confirm: false,
+        },
+        'local-cache': {
+          dotClass: 'cached',
+          status: 'Browser Cache · Click to Link Disk',
+          action: { icon: 'link', tip: 'Link Disk', sr: 'Link Disk', kbd: '⌘S' },
+          restore: null,
+          reset: false,
+          unlink: false,
+          confirm: false,
+        },
+        'local-conflict': {
+          dotClass: 'conflict',
+          status: 'External Disk Edit · Conflict Backed Up',
+          action: null,
+          restore: { icon: 'restore', tip: 'Restore Backup', sr: '↺ Restore' },
+          reset: false,
+          unlink: true,
+          confirm: false,
+        },
+        'online-saved': {
+          dotClass: 'saved',
+          status: 'Saved in Browser',
+          action: { icon: 'download', tip: 'Save to PC', sr: '⬇ Save to PC', kbd: '' },
+          restore: null,
+          reset: false,
+          unlink: false,
+          confirm: false,
+        },
+        'online-dirty': {
+          dotClass: 'saved',
+          status: 'Saved in Browser',
+          action: { icon: 'download', tip: 'Save to PC', sr: '⬇ Save to PC', kbd: '' },
+          restore: null,
+          reset: true,
+          unlink: false,
+          confirm: true,
+        },
+        error: {
+          dotClass: 'error',
+          status: 'Invalid #naizodb JSON',
+          action: null,
+          restore: { icon: 'wrench', tip: 'Repair JSON', sr: '↺ Repair' },
+          reset: false,
+          unlink: false,
+          confirm: false,
+        },
+      };
+
+      function showTooltip(text, kbd = '') {
+        tooltipText.textContent = text;
+        if (kbd) {
+          tooltipKbd.textContent = kbd;
+          tooltipKbd.style.display = 'inline-block';
+        } else {
+          tooltipKbd.style.display = 'none';
+        }
+        tooltipEl.classList.add('visible');
+      }
+
+      function applyState(key) {
+        const s = STATES[key];
+        dotEl.className = 'naizo-logo-btn ' + s.dotClass;
+        dotEl.dataset.tip = s.status;
+        statusEl.textContent = s.status;
+
+        if (s.action) {
+          actionBtn.style.display = 'inline-flex';
+          actionBtn.dataset.tip = s.action.tip;
+          actionBtn.dataset.kbd = s.action.kbd || '';
+          actionSr.textContent = s.action.sr;
+          actionSvg.innerHTML = ICONS[s.action.icon];
+        } else {
+          actionBtn.style.display = 'none';
+        }
+
+        if (s.restore) {
+          restoreBtn.style.display = 'inline-flex';
+          restoreBtn.dataset.tip = s.restore.tip;
+          restoreSr.textContent = s.restore.sr;
+          restoreSvg.innerHTML = ICONS[s.restore.icon];
+        } else {
+          restoreBtn.style.display = 'none';
+        }
+
+        resetBtn.style.display = s.reset ? 'inline-flex' : 'none';
+        unlinkBtn.style.display = s.unlink ? 'inline-flex' : 'none';
+        confirmPop.classList.toggle('open', !!s.confirm);
+        showTooltip(s.status);
+      }
+
+      document.querySelectorAll('.chip[data-state]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document
+            .querySelectorAll('.chip[data-state]')
+            .forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          applyState(btn.dataset.state);
+        });
+      });
+
+      function applyNetState(net) {
+        if (net === 'hidden') {
+          netSep.style.display = 'none';
+          netBtn.style.display = 'none';
+          return;
+        }
+        netSep.style.display = 'inline-block';
+        netBtn.style.display = 'inline-flex';
+        netBtn.className = 'net-slot ' + net;
+        const map = {
+          idle: { tip: 'API Idle', title: 'API idle' },
+          active: { tip: 'API Active', title: 'API active' },
+          error: { tip: 'API Request Failed · Click to Clear', title: 'API request failed' },
+        };
+        netBtn.dataset.tip = map[net].tip;
+        netBtn.title = map[net].title;
+        showTooltip(map[net].tip);
+      }
+
+      document.querySelectorAll('.net-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.net-chip').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          applyNetState(btn.dataset.net);
+        });
+      });
+
+      netBtn.addEventListener('click', () => {
+        if (netBtn.classList.contains('error')) {
+          document.querySelector('.net-chip[data-net="idle"]').click();
+        }
+      });
+
+      [dotEl, actionBtn, restoreBtn, copyBtn, resetBtn, unlinkBtn, netBtn].forEach((el) => {
+        el.addEventListener('mouseenter', () => {
+          showTooltip(el.dataset.tip || '', el.dataset.kbd || '');
+        });
+      });
+
+      let copyTimer = null;
+      copyBtn.addEventListener('click', () => {
+        if (copyTimer) clearTimeout(copyTimer);
+        copyBtn.classList.add('copied');
+        copyBtn.dataset.tip = '✓ Copied';
+        copySr.textContent = '✓ Copied';
+        copySvg.innerHTML = ICONS.check;
+        showTooltip('✓ Copied');
+        copyTimer = setTimeout(() => {
+          copyBtn.classList.remove('copied');
+          copyBtn.dataset.tip = 'Copy JSON';
+          copySr.textContent = '📋 Copy';
+          copySvg.innerHTML = ICONS.copy;
+        }, 1500);
+      });
+
+      resetBtn.addEventListener('click', () => confirmPop.classList.toggle('open'));
+      document
+        .getElementById('reset-cancel')
+        .addEventListener('click', () => confirmPop.classList.remove('open'));
+      document
+        .getElementById('reset-yes')
+        .addEventListener('click', () => confirmPop.classList.remove('open'));
+
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const root = document.documentElement;
+        root.setAttribute(
+          'data-theme',
+          root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark',
+        );
+      });
+
+      document.getElementById('boot-replay-target').addEventListener('click', (e) => {
+        const el = e.currentTarget;
+        el.classList.remove('anim-boot');
+        void el.offsetWidth;
+        el.classList.add('anim-boot');
+      });
+
+      // 4-Corner Snap Drag on #dot
+      const stage = document.getElementById('stage');
+      const anchor = document.getElementById('pill-anchor');
+      let dragStart = null;
+      dotEl.addEventListener('pointerdown', (e) => {
+        dragStart = { x: e.clientX, y: e.clientY };
+        dotEl.setPointerCapture(e.pointerId);
+      });
+      dotEl.addEventListener('pointerup', (e) => {
+        if (!dragStart) return;
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        dragStart = null;
+        if (Math.hypot(dx, dy) <= 5) return;
+        const rect = stage.getBoundingClientRect();
+        const isRight = e.clientX - rect.left >= rect.width / 2;
+        const isBottom = e.clientY - rect.top >= rect.height / 2;
+        anchor.className =
+          'pill-anchor ' +
+          (isBottom ? (isRight ? 'corner-br' : 'corner-bl') : isRight ? 'corner-tr' : 'corner-tl');
+      });
+    </script>
+  </body>
+</html>

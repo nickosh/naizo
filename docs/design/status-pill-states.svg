@@ -1,0 +1,428 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="980" viewBox="0 0 1440 980" font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <clipPath id="wave-clip-demo">
+      <rect x="7" y="0" width="9" height="24" rx="4" />
+    </clipPath>
+    <filter id="pill-shadow-light" x="-15%" y="-25%" width="130%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#0f172a" flood-opacity="0.10" />
+    </filter>
+    <filter id="pill-shadow-dark" x="-15%" y="-25%" width="130%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- Background Washi Paper -->
+  <rect width="1440" height="980" fill="#faf8f5" />
+
+  <!-- Header -->
+  <text x="44" y="48" font-family="Georgia, 'Palatino Linotype', serif" font-size="24" font-weight="bold" fill="#1c1917">naizo.js — Locked-In Brand Logo, Status Pill &amp; #net Wired-Globe Visual Spec (D50 / D43 / M9)</text>
+  <text x="44" y="72" font-size="13" fill="#6b655e">Exact 2x scale visual snapshot of all locked-in Status Pill states (Light &amp; Dark), 20px Maru ni Mitsuishi (#dot), 22px circular buttons, 18px borderless #net globe, and 62px Hero Crest.</text>
+  <line x1="44" y1="88" x2="1396" y2="88" stroke="#e5e0d8" stroke-width="1" />
+
+  <!-- ===================================================================
+       ROW 1: LIGHT MODE vs DARK MODE STATUS PILLS (SHOWN AT 2X SCALE)
+       =================================================================== -->
+  <text x="44" y="120" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">1. Redesigned Frosted-Glass Status Pill States (Rendered at 2x Magnification)</text>
+
+  <!-- LIGHT MODE PANEL -->
+  <rect x="44" y="136" width="664" height="310" rx="14" fill="#f3efe8" stroke="#e5e0d8" stroke-width="1" />
+  <text x="64" y="164" font-size="12" font-weight="bold" fill="#6b655e" letter-spacing="0.06em">LIGHT THEME (DAY — rgba(255,255,255,0.82))</text>
+
+  <!-- Light Pill A: Local Synced + Active #net Wave (with Tooltip above) -->
+  <text x="64" y="218" font-size="13" font-weight="600" fill="#1c1917">A. Local · Synced + #net Active</text>
+  <text x="64" y="238" font-size="11.5" fill="#6b655e">#dot Green · Copy · Unlink · #net Wave</text>
+  <!-- Tooltip -->
+  <g transform="translate(476, 162)">
+    <rect x="0" y="0" width="134" height="34" rx="17" fill="#ffffff" fill-opacity="0.92" stroke="#0f172a" stroke-opacity="0.12" filter="url(#pill-shadow-light)" />
+    <text x="67" y="21" font-size="13" font-weight="500" fill="#0f172a" text-anchor="middle">Synced to Disk</text>
+  </g>
+  <!-- Pill at 2x (height 60px, padding 8px 12px, gap 10px) -->
+  <g transform="translate(424, 204) scale(2)">
+    <rect x="0" y="0" width="128" height="30" rx="15" fill="#ffffff" fill-opacity="0.86" stroke="#0f172a" stroke-opacity="0.12" filter="url(#pill-shadow-light)" />
+    <!-- #dot (20px slot at x=6, y=5) -->
+    <g transform="translate(5.25, 4.25) scale(0.215)" color="#10b981">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
+      <rect x="39" y="26" width="22" height="22" rx="4.5" fill="#10b981" />
+      <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+      <rect x="52" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+    </g>
+    <!-- sep -->
+    <line x1="31" y1="8.5" x2="31" y2="21.5" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+    <!-- #copy (22x22 circle at x=36, y=4) -->
+    <g transform="translate(36, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <rect x="8" y="8" width="13" height="13" rx="2.5" />
+        <path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5" />
+      </g>
+    </g>
+    <!-- #unlink (22x22 circle at x=63, y=4) -->
+    <g transform="translate(63, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M9 17H7A5 5 0 0 1 7 7" />
+        <path d="M15 7h2a5 5 0 0 1 4 8" />
+        <line x1="8" y1="12" x2="12" y2="12" />
+        <line x1="3" y1="3" x2="21" y2="21" />
+      </g>
+    </g>
+    <!-- sep -->
+    <line x1="91" y1="8.5" x2="91" y2="21.5" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+    <!-- #net (18x18 borderless wired globe at x=97, y=6) -->
+    <g transform="translate(97, 6) scale(0.75)" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <g stroke="#10b981" stroke-opacity="0.38" stroke-width="1.85">
+        <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+        <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+        <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+        <circle cx="12" cy="12" r="9.5" />
+      </g>
+      <g stroke="#10b981" stroke-width="1.85" clip-path="url(#wave-clip-demo)">
+        <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+        <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+        <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+        <circle cx="12" cy="12" r="9.5" />
+      </g>
+    </g>
+  </g>
+
+  <!-- Light Pill B: Online Mode Dirty (Save to PC + Copy + Red Eraser Reset + #net Idle) -->
+  <text x="64" y="346" font-size="13" font-weight="600" fill="#1c1917">B. Online Mode · Edited (+ Reset)</text>
+  <text x="64" y="366" font-size="11.5" fill="#6b655e">Save to PC · Copy · Red Eraser · #net Idle</text>
+  <g transform="translate(370, 326) scale(2)">
+    <rect x="0" y="0" width="155" height="30" rx="15" fill="#ffffff" fill-opacity="0.86" stroke="#0f172a" stroke-opacity="0.12" filter="url(#pill-shadow-light)" />
+    <!-- #dot Green -->
+    <g transform="translate(5.25, 4.25) scale(0.215)">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
+      <rect x="39" y="26" width="22" height="22" rx="4.5" fill="#10b981" />
+      <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+      <rect x="52" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+    </g>
+    <line x1="31" y1="8.5" x2="31" y2="21.5" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+    <!-- #action Download -->
+    <g transform="translate(36, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="4" />
+      </g>
+    </g>
+    <!-- #copy -->
+    <g transform="translate(63, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <rect x="8" y="8" width="13" height="13" rx="2.5" />
+        <path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5" />
+      </g>
+    </g>
+    <!-- #reset Red Eraser -->
+    <g transform="translate(90, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#ef4444" fill-opacity="0.09" stroke="#ef4444" stroke-opacity="0.32" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#ef4444" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="m7 20-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 20" />
+        <path d="M21 20H7" />
+        <path d="m5 11 9 9" />
+      </g>
+    </g>
+    <line x1="118" y1="8.5" x2="118" y2="21.5" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+    <!-- #net Idle (Shared Light Green Base 0.38) -->
+    <g transform="translate(124, 6) scale(0.75)" stroke="#10b981" stroke-opacity="0.38" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+      <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+      <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+      <circle cx="12" cy="12" r="9.5" />
+    </g>
+  </g>
+
+  <!-- DARK MODE PANEL -->
+  <rect x="732" y="136" width="664" height="310" rx="14" fill="#181614" stroke="#2e2c28" stroke-width="1" />
+  <text x="752" y="164" font-size="12" font-weight="bold" fill="#9ca3af" letter-spacing="0.06em">DARK THEME (NIGHT — rgba(15,23,42,0.78))</text>
+
+  <!-- Dark Pill C: Local Unlinked Cache -->
+  <text x="752" y="218" font-size="13" font-weight="600" fill="#e7e5e4">C. Local · Unlinked Browser Cache</text>
+  <text x="752" y="238" font-size="11.5" fill="#9ca3af">#dot Amber · Link (⌘S) · ✓ Copied · #net Idle</text>
+  <!-- Dark Tooltip -->
+  <g transform="translate(1144, 162)">
+    <rect x="0" y="0" width="150" height="34" rx="17" fill="#0f172a" fill-opacity="0.88" stroke="#ffffff" stroke-opacity="0.14" filter="url(#pill-shadow-dark)" />
+    <text x="58" y="21" font-size="13" font-weight="500" fill="#f8fafc" text-anchor="middle">Link Disk</text>
+    <rect x="102" y="8" width="34" height="18" rx="4" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.16" />
+    <text x="119" y="20" font-family="monospace" font-size="11" fill="#94a3b8" text-anchor="middle">⌘S</text>
+  </g>
+  <g transform="translate(1112, 204) scale(2)">
+    <rect x="0" y="0" width="128" height="30" rx="15" fill="#0f172a" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.14" filter="url(#pill-shadow-dark)" />
+    <!-- #dot Amber -->
+    <g transform="translate(5.25, 4.25) scale(0.215)">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#f59e0b" stroke-width="8" />
+      <rect x="39" y="26" width="22" height="22" rx="4.5" fill="#f59e0b" />
+      <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
+      <rect x="52" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
+    </g>
+    <line x1="31" y1="8.5" x2="31" y2="21.5" stroke="#ffffff" stroke-opacity="0.13" stroke-width="1" />
+    <!-- #action Link Disk -->
+    <g transform="translate(36, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#cbd5e1" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+        <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+      </g>
+    </g>
+    <!-- #copy in Copied state (Green Checkmark) -->
+    <g transform="translate(63, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#10b981" fill-opacity="0.14" stroke="#10b981" stroke-opacity="0.38" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#10b981" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <polyline points="20 6.5 9.5 17 4 11.5" />
+      </g>
+    </g>
+    <line x1="91" y1="8.5" x2="91" y2="21.5" stroke="#ffffff" stroke-opacity="0.13" stroke-width="1" />
+    <!-- #net Idle (Shared Light Green Base 0.38) -->
+    <g transform="translate(97, 6) scale(0.75)" stroke="#10b981" stroke-opacity="0.38" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+      <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+      <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+      <circle cx="12" cy="12" r="9.5" />
+    </g>
+  </g>
+
+  <!-- Dark Pill D: Conflict Backed Up + #net Error Red -->
+  <text x="752" y="346" font-size="13" font-weight="600" fill="#e7e5e4">D. Local · Conflict + #net Error</text>
+  <text x="752" y="366" font-size="11.5" fill="#9ca3af">Restore · Copy · Unlink · #net Red Pulse</text>
+  <g transform="translate(1058, 326) scale(2)">
+    <rect x="0" y="0" width="155" height="30" rx="15" fill="#0f172a" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.14" filter="url(#pill-shadow-dark)" />
+    <!-- #dot Amber -->
+    <g transform="translate(5.25, 4.25) scale(0.215)">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#f59e0b" stroke-width="8" />
+      <rect x="39" y="26" width="22" height="22" rx="4.5" fill="#f59e0b" />
+      <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
+      <rect x="52" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
+    </g>
+    <line x1="31" y1="8.5" x2="31" y2="21.5" stroke="#ffffff" stroke-opacity="0.13" stroke-width="1" />
+    <!-- #restore History Clock -->
+    <g transform="translate(36, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#f59e0b" fill-opacity="0.14" stroke="#f59e0b" stroke-opacity="0.38" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#fbbf24" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M12 7v5l3.5 2" />
+      </g>
+    </g>
+    <!-- #copy -->
+    <g transform="translate(63, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#cbd5e1" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <rect x="8" y="8" width="13" height="13" rx="2.5" />
+        <path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5" />
+      </g>
+    </g>
+    <!-- #unlink -->
+    <g transform="translate(90, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#cbd5e1" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M9 17H7A5 5 0 0 1 7 7" />
+        <path d="M15 7h2a5 5 0 0 1 4 8" />
+        <line x1="8" y1="12" x2="12" y2="12" />
+        <line x1="3" y1="3" x2="21" y2="21" />
+      </g>
+    </g>
+    <line x1="118" y1="8.5" x2="118" y2="21.5" stroke="#ffffff" stroke-opacity="0.13" stroke-width="1" />
+    <!-- #net Error (Danger Red #ef4444) -->
+    <g transform="translate(124, 6) scale(0.75)" stroke="#ef4444" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+      <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+      <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+      <circle cx="12" cy="12" r="9.5" />
+    </g>
+  </g>
+
+  <!-- ===================================================================
+       ROW 2: ALL 8 ACTION BUTTON ICONS + #net 3 WIRED-GLOBE STATES
+       =================================================================== -->
+  <text x="44" y="484" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">2. All 8 Action Button Icons (22×22px Circle, 13×13px SVG) &amp; 3 #net Wired-Globe States (18×18px Borderless)</text>
+
+  <!-- 8 Action Button Cards -->
+  <g transform="translate(44, 500)">
+    <!-- 1. Link Disk -->
+    <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+    <g transform="translate(56, 16) scale(2)">
+      <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" /><line x1="8" y1="12" x2="16" y2="12" />
+      </g>
+    </g>
+    <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">1. Link Disk</text>
+    <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#action (link-2 · ⌘S)</text>
+
+    <!-- 2. Save to PC -->
+    <g transform="translate(169, 0)">
+      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(56, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="4" />
+        </g>
+      </g>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">2. Save to PC</text>
+      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#action (download)</text>
+    </g>
+
+    <!-- 3. Copy JSON -->
+    <g transform="translate(338, 0)">
+      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(56, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <rect x="8" y="8" width="13" height="13" rx="2.5" /><path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5" />
+        </g>
+      </g>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">3. Copy JSON</text>
+      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#copy (default)</text>
+    </g>
+
+    <!-- 4. Copied Check -->
+    <g transform="translate(507, 0)">
+      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(56, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-opacity="0.35" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#10b981" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <polyline points="20 6.5 9.5 17 4 11.5" />
+        </g>
+      </g>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#10b981" text-anchor="middle">4. ✓ Copied (1.5s)</text>
+      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#copy (0px width shift)</text>
+    </g>
+
+    <!-- 5. Restore Backup -->
+    <g transform="translate(676, 0)">
+      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(56, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#f59e0b" fill-opacity="0.12" stroke="#f59e0b" stroke-opacity="0.35" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#d97706" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3.5 2" />
+        </g>
+      </g>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">5. Restore Backup</text>
+      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#restore (history)</text>
+    </g>
+
+    <!-- 6. Repair JSON -->
+    <g transform="translate(845, 0)">
+      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(56, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#f59e0b" fill-opacity="0.12" stroke="#f59e0b" stroke-opacity="0.35" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#d97706" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </g>
+      </g>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">6. Repair JSON</text>
+      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#restore (wrench)</text>
+    </g>
+
+    <!-- 7. Reset (Red Eraser) -->
+    <g transform="translate(1014, 0)">
+      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(56, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#ef4444" fill-opacity="0.09" stroke="#ef4444" stroke-opacity="0.32" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#ef4444" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="m7 20-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 20" /><path d="M21 20H7" /><path d="m5 11 9 9" />
+        </g>
+      </g>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#ef4444" text-anchor="middle">7. Reset (Red Eraser)</text>
+      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#reset (solid red hover)</text>
+    </g>
+
+    <!-- 8. Unlink Disk -->
+    <g transform="translate(1183, 0)">
+      <rect x="0" y="0" width="169" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(62, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M9 17H7A5 5 0 0 1 7 7" /><path d="M15 7h2a5 5 0 0 1 4 8" /><line x1="8" y1="12" x2="12" y2="12" /><line x1="3" y1="3" x2="21" y2="21" />
+        </g>
+      </g>
+      <text x="84.5" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">8. Unlink Disk</text>
+      <text x="84.5" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#unlink (red on hover)</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================
+       ROW 3: #net WIRED-GLOBE STATES + #dot BRAND STATES + HERO CREST
+       =================================================================== -->
+  <text x="44" y="660" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">3. #net Wired-Globe States (18×18px, 1.85px Stroke), #dot Colors &amp; site/index.html 62×62px Hero Crest</text>
+
+  <!-- #net State 1: Idle -->
+  <g transform="translate(44, 676)">
+    <rect x="0" y="0" width="265" height="260" rx="12" fill="#ffffff" stroke="#e5e0d8" />
+    <g transform="translate(102, 26) scale(2.5)" stroke="#10b981" stroke-opacity="0.38" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+      <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+      <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+      <circle cx="12" cy="12" r="9.5" />
+    </g>
+    <text x="132.5" y="118" font-size="13.5" font-weight="bold" fill="#1c1917" text-anchor="middle">#net · 1. Idle (Default)</text>
+    <text x="132.5" y="138" font-size="11.5" fill="#10b981" font-weight="600" text-anchor="middle">Shared Light Green Base (0.38)</text>
+    <text x="132.5" y="162" font-size="11" fill="#6b655e" text-anchor="middle">Same unlit wire color as Active</text>
+    <text x="132.5" y="180" font-size="11" fill="#6b655e" text-anchor="middle">(zero base color jump on start/end)</text>
+    <text x="132.5" y="206" font-family="monospace" font-size="10.5" fill="#334155" text-anchor="middle">rgba(16, 185, 129, 0.38)</text>
+    <text x="132.5" y="226" font-family="monospace" font-size="10.5" fill="#6b655e" text-anchor="middle">Tooltip: "API Idle"</text>
+  </g>
+
+  <!-- #net State 2: Active (L->R Wave Sweep) -->
+  <g transform="translate(325, 676)">
+    <rect x="0" y="0" width="285" height="260" rx="12" fill="#ffffff" stroke="#e5e0d8" />
+    <g transform="translate(112, 26) scale(2.5)" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <g stroke="#10b981" stroke-opacity="0.38" stroke-width="1.85">
+        <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+        <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+        <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+        <circle cx="12" cy="12" r="9.5" />
+      </g>
+      <g stroke="#10b981" stroke-width="1.85" clip-path="url(#wave-clip-demo)">
+        <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+        <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+        <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+        <circle cx="12" cy="12" r="9.5" />
+      </g>
+    </g>
+    <text x="142.5" y="118" font-size="13.5" font-weight="bold" fill="#10b981" text-anchor="middle">#net · 2. Active (L→R Wave)</text>
+    <text x="142.5" y="138" font-size="11.5" fill="#1c1917" font-weight="600" text-anchor="middle">Light Green Base + Bright #10b981 Band</text>
+    <text x="142.5" y="162" font-size="11" fill="#6b655e" text-anchor="middle">0%–56%: Band sweeps Left → Right</text>
+    <text x="142.5" y="180" font-size="11" fill="#6b655e" text-anchor="middle">56%–100%: Hidden behind back of globe</text>
+    <text x="142.5" y="206" font-family="monospace" font-size="10.5" fill="#334155" text-anchor="middle">Held ≥ 600ms (netHoldTimeout)</text>
+    <text x="142.5" y="226" font-family="monospace" font-size="10.5" fill="#6b655e" text-anchor="middle">Tooltip: "API Active"</text>
+  </g>
+
+  <!-- #net State 3: Error (Red Pulse) -->
+  <g transform="translate(626, 676)">
+    <rect x="0" y="0" width="265" height="260" rx="12" fill="#ffffff" stroke="#e5e0d8" />
+    <g transform="translate(102, 26) scale(2.5)" stroke="#ef4444" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+      <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+      <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+      <circle cx="12" cy="12" r="9.5" />
+    </g>
+    <text x="132.5" y="118" font-size="13.5" font-weight="bold" fill="#ef4444" text-anchor="middle">#net · 3. Error (Red Pulse)</text>
+    <text x="132.5" y="138" font-size="11.5" fill="#1c1917" font-weight="600" text-anchor="middle">Danger Red #ef4444 · 1.10x Pulse</text>
+    <text x="132.5" y="162" font-size="11" fill="#6b655e" text-anchor="middle">Smooth scale(1 → 1.10 → 1) + opacity</text>
+    <text x="132.5" y="180" font-size="11" fill="#6b655e" text-anchor="middle">pulsation (1.5s infinite); click clears</text>
+    <text x="132.5" y="206" font-family="monospace" font-size="10.5" fill="#334155" text-anchor="middle">#ef4444 · 1.5s ease-in-out</text>
+    <text x="132.5" y="226" font-family="monospace" font-size="10.5" fill="#6b655e" text-anchor="middle">"API Request Failed · Click to Clear"</text>
+  </g>
+
+  <!-- Hero Crest Lockup Card (site/index.html + site/logo.svg + README.md) -->
+  <g transform="translate(907, 676)">
+    <rect x="0" y="0" width="489" height="260" rx="12" fill="#faf8f5" stroke="#e5e0d8" stroke-width="1.5" />
+    <!-- 62x62 Crest centered at x=244.5 -->
+    <g transform="translate(213.5, 28) scale(0.62)">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#1c1917" stroke-width="8" />
+      <rect x="39" y="26" width="22" height="22" rx="4.5" fill="#1c1917" />
+      <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#1c1917" />
+      <rect x="52" y="52" width="22" height="22" rx="4.5" fill="#1c1917" />
+    </g>
+    <!-- 2px gap below 62px crest -->
+    <text x="244.5" y="130" font-family="Georgia, 'Palatino Linotype', serif" font-size="42" font-weight="bold" fill="#1c1917" text-anchor="middle">naizo.js</text>
+    <text x="244.5" y="156" font-size="14.5" fill="#6b655e" text-anchor="middle">Self-persisting HTML for human &amp; AI workflows.</text>
+    <line x1="40" y1="178" x2="449" y2="178" stroke="#e5e0d8" />
+    <text x="244.5" y="202" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">site/index.html Hero Crest, site/logo.svg Favicon &amp; README.md</text>
+    <text x="244.5" y="222" font-family="monospace" font-size="11" fill="#6b655e" text-anchor="middle">62×62px · margin-bottom: 2px · Sumi Ink (#1c1917 / #e7e5e4) · :hover Heartbeat</text>
+  </g>
+</svg>
