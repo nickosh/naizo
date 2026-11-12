@@ -93,21 +93,13 @@ function compareStableTagsDesc(a: string, b: string): number {
   return bMaj - aMaj || bMin - aMin || bPat - aPat;
 }
 
-export function latestReleaseTag(
-  releases: GitHubReleaseSummary[],
-  manifestVersion?: string,
-): string {
+export function latestReleaseTag(releases: GitHubReleaseSummary[]): string {
   const published = releases
     .filter((release) => !release.draft && !release.prerelease && stableTag.test(release.tag_name))
     .map((release) => release.tag_name)
     .sort(compareStableTagsDesc);
-  if (published.length > 0) return published[0]!;
-  if (releases.length === 0 && manifestVersion !== undefined) {
-    const fallbackTag = `v${manifestVersion.trim()}`;
-    validateReleaseTag(fallbackTag);
-    return fallbackTag;
-  }
-  throw new Error('No published stable GitHub Release found');
+  assert.ok(published.length > 0, 'No published stable GitHub Release found');
+  return published[0]!;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -131,11 +123,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   } else if (command === 'bootstrap') {
     await confirmBootstrap(argument);
   } else if (command === 'latest-tag') {
-    const manifest = JSON.parse(readFileSync('.release-please-manifest.json', 'utf8')) as Record<
-      string,
-      string
-    >;
-    console.log(latestReleaseTag(await client().releases(), manifest['.']));
+    console.log(latestReleaseTag(await client().releases()));
   } else {
     throw new Error(
       'Expected tag, version, package, status, source, artifacts, bootstrap, or latest-tag command',

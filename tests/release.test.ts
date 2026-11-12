@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { describe, expect, it } from 'vite-plus/test';
 import {
   publicationStatus,
@@ -112,55 +112,51 @@ describe('release guards', () => {
 
   it('selects the highest published stable release tag for Pages latest-release and skips drafts/prereleases (M7.12, D49)', () => {
     expect(
-      latestReleaseTag(
-        [
-          { tag_name: 'v0.1.0', draft: false, prerelease: false },
-          { tag_name: 'v0.2.0', draft: false, prerelease: false },
-          { tag_name: 'v0.3.0', draft: true, prerelease: false },
-          { tag_name: 'v0.4.0-rc.1', draft: false, prerelease: true },
-          { tag_name: 'v0.5.0-beta.1', draft: false, prerelease: false },
-        ],
-        '0.3.0',
-      ),
+      latestReleaseTag([
+        { tag_name: 'v0.1.0', draft: false, prerelease: false },
+        { tag_name: 'v0.2.0', draft: false, prerelease: false },
+        { tag_name: 'v0.3.0', draft: true, prerelease: false },
+        { tag_name: 'v0.4.0-rc.1', draft: false, prerelease: true },
+        { tag_name: 'v0.5.0-beta.1', draft: false, prerelease: false },
+      ]),
     ).toBe('v0.2.0');
 
-    // Numeric semver comparison (v0.10.0 > v0.9.0) and manual tagged releases higher than manifest
+    // Numeric semver comparison (v0.10.0 > v0.9.0) and manual tagged releases
     expect(
-      latestReleaseTag(
-        [
-          { tag_name: 'v0.9.0', draft: false, prerelease: false },
-          { tag_name: 'v0.10.0', draft: false, prerelease: false },
-          { tag_name: 'v0.2.0', draft: false, prerelease: false },
-        ],
-        '0.9.0',
-      ),
+      latestReleaseTag([
+        { tag_name: 'v0.9.0', draft: false, prerelease: false },
+        { tag_name: 'v0.10.0', draft: false, prerelease: false },
+        { tag_name: 'v0.2.0', draft: false, prerelease: false },
+      ]),
     ).toBe('v0.10.0');
 
-    // Falls back to .release-please-manifest.json only when zero GitHub Releases exist
-    expect(latestReleaseTag([], '0.2.0')).toBe('v0.2.0');
-
-    // Rejects when only unpublished drafts/prereleases exist or when fallback manifest is invalid
+    // Strictly rejects when zero published releases exist (including empty responses under contents: read when only drafts exist)
     expect(() =>
-      latestReleaseTag([{ tag_name: 'v0.1.0', draft: true, prerelease: false }], '0.1.0'),
+      latestReleaseTag([{ tag_name: 'v0.1.0', draft: true, prerelease: false }]),
     ).toThrow('No published stable GitHub Release found');
-    expect(() => latestReleaseTag([], '0.2.0-rc.1')).toThrow();
+    expect(() =>
+      latestReleaseTag([{ tag_name: 'v0.2.0-rc.1', draft: false, prerelease: false }]),
+    ).toThrow('No published stable GitHub Release found');
     expect(() => latestReleaseTag([])).toThrow('No published stable GitHub Release found');
 
-    // End-to-end CLI invocation of `scripts/release.ts latest-tag` with mocked gh binary
+    // Cross-platform end-to-end CLI invocation of `scripts/release.ts latest-tag` with mocked gh binary
     const mockBinDir = mkdtempSync(join(tmpdir(), 'naizo-gh-mock-'));
     try {
-      const mockGhPath = join(mockBinDir, 'gh');
-      writeFileSync(
-        mockGhPath,
-        `#!/bin/sh\nprintf '%s\\n' '[[{"tag_name":"v0.1.0","draft":false,"prerelease":false},{"tag_name":"v0.2.0","draft":false,"prerelease":false},{"tag_name":"v0.3.0","draft":true,"prerelease":false}]]'\n`,
-      );
-      chmodSync(mockGhPath, 0o755);
+      const mockPayload =
+        '[[{"tag_name":"v0.1.0","draft":false,"prerelease":false},{"tag_name":"v0.2.0","draft":false,"prerelease":false},{"tag_name":"v0.3.0","draft":true,"prerelease":false}]]';
+      if (process.platform === 'win32') {
+        writeFileSync(join(mockBinDir, 'gh.cmd'), `@echo off\r\necho ${mockPayload}\r\n`);
+      } else {
+        const mockGhPath = join(mockBinDir, 'gh');
+        writeFileSync(mockGhPath, `#!/bin/sh\nprintf '%s\\n' '${mockPayload}'\n`);
+        chmodSync(mockGhPath, 0o755);
+      }
       const cliOut = execFileSync(process.execPath, ['scripts/release.ts', 'latest-tag'], {
         encoding: 'utf8',
         env: {
           ...process.env,
           GITHUB_REPOSITORY: 'nickosh/naizo',
-          PATH: `${mockBinDir}:${process.env.PATH ?? ''}`,
+          PATH: `${mockBinDir}${delimiter}${process.env.PATH ?? ''}`,
         },
       }).trim();
       expect(cliOut).toBe('v0.2.0');

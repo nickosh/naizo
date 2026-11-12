@@ -20,8 +20,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  # Never cancel a main run midway through its GitHub Pages deployment.
+  # Separate Pages-deploying runs on main so ordinary pushes never cancel a queued Pages deploy.
+  group: >-
+    ${{
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       contains(github.event.head_commit.message, 'chore(main): release ')) &&
+      'ci-refs/heads/main-pages' || format('ci-{0}-verify', github.ref)
+    }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -60,6 +66,8 @@ jobs:
           git checkout --detach "$COMMIT"
           vp node scripts/release.ts version "$RELEASE_TAG"
           vp env install
+          echo "PAGES_RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "PAGES_RELEASE_COMMIT=${COMMIT}" >> "$GITHUB_ENV"
           echo "Selected latest release ${RELEASE_TAG} (${COMMIT}) for GitHub Pages"
 
       - name: Install dependencies
@@ -102,6 +110,18 @@ jobs:
           sed -e 's#\.\./dist/#./dist/#g' -e 's#\.\./examples/#./examples/#g' site/index.html > _site/index.html
           cp dist/naizo.js dist/naizo.min.js _site/dist/
           touch _site/.nojekyll
+
+      - name: Record GitHub Pages source summary
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name == 'workflow_dispatch' ||
+           contains(github.event.head_commit.message, 'chore(main): release '))
+        run: |
+          if [ -n "${PAGES_RELEASE_TAG:-}" ]; then
+            echo "GitHub Pages source: **latest-release** (\`${PAGES_RELEASE_TAG}\` @ \`${PAGES_RELEASE_COMMIT}\`)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "GitHub Pages source: **main** (\`${GITHUB_SHA}\`)" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload Pages artifact
         if: >-

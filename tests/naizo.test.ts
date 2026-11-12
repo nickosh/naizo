@@ -2545,6 +2545,8 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(ciYml).toContain('type: choice');
     expect(ciYml).toContain('- main\n');
     expect(ciYml).toContain('- latest-release\n');
+    expect(ciYml).toContain("'ci-refs/heads/main-pages'");
+    expect(ciYml).toContain("format('ci-{0}-verify', github.ref)");
     expect(ciYml).toContain(
       "fetch-depth: ${{ (github.event_name == 'workflow_dispatch' && inputs.pages_source == 'latest-release') && '0' || '1' }}",
     );
@@ -2555,6 +2557,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(ciYml).toContain('git merge-base --is-ancestor "$COMMIT" origin/main');
     expect(ciYml).toContain('git checkout --detach "$COMMIT"');
     expect(ciYml).toContain('vp node scripts/release.ts version "$RELEASE_TAG"');
+    expect(ciYml).toContain('GITHUB_STEP_SUMMARY');
     expect(ciYml).toContain(
       "if: github.event_name != 'workflow_dispatch' || inputs.pages_source != 'latest-release'",
     );
