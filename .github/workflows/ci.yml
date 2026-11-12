@@ -6,6 +6,15 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      pages_source:
+        description: 'GitHub Pages source when deploying manually (main or latest release tag vX.Y.Z)'
+        required: false
+        default: 'main'
+        type: choice
+        options:
+          - main
+          - latest-release
 
 permissions:
   contents: read
@@ -24,6 +33,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: ${{ (github.event_name == 'workflow_dispatch' && inputs.pages_source == 'latest-release') && '0' || '1' }}
           persist-credentials: false
 
       - name: Setup pinned Vite+ environment
@@ -31,13 +41,32 @@ jobs:
         with:
           version-file: package.json
           node-version-file: .node-version
-          cache: true
+          cache: ${{ github.event_name != 'workflow_dispatch' || inputs.pages_source != 'latest-release' }}
           run-install: false
+
+      - name: Select latest release tag for Pages
+        if: github.event_name == 'workflow_dispatch' && inputs.pages_source == 'latest-release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run latest-release Pages deployment from the main branch (got ${GITHUB_REF})."
+            exit 1
+          fi
+          RELEASE_TAG=$(vp node scripts/release.ts latest-tag)
+          vp node scripts/release.ts tag "$RELEASE_TAG"
+          COMMIT=$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")
+          git merge-base --is-ancestor "$COMMIT" origin/main
+          git checkout --detach "$COMMIT"
+          vp node scripts/release.ts version "$RELEASE_TAG"
+          vp env install
+          echo "Selected latest release ${RELEASE_TAG} (${COMMIT}) for GitHub Pages"
 
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
       - name: Verify isolated release tooling
+        if: github.event_name != 'workflow_dispatch' || inputs.pages_source != 'latest-release'
         run: |
           vp env exec -- npm ci --prefix .github/release-tools --ignore-scripts --no-audit --no-fund
           vp node --test .github/release-tools/test.cjs

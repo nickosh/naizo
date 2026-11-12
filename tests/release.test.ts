@@ -1,5 +1,8 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vite-plus/test';
 import {
   publicationStatus,
@@ -7,6 +10,7 @@ import {
   validateReleaseTag,
   validateSource,
   confirmBootstrap,
+  latestReleaseTag,
 } from '../scripts/release';
 
 const pack = {
@@ -104,5 +108,64 @@ describe('release guards', () => {
   it('ignores Release Please generated CHANGELOG.md in vite.config.ts fmt.ignorePatterns', () => {
     const viteConfig = readFileSync('vite.config.ts', 'utf8');
     expect(viteConfig).toMatch(/ignorePatterns:\s*\[\s*'dist\/\*\*'\s*,\s*'CHANGELOG\.md'\s*\]/);
+  });
+
+  it('selects the highest published stable release tag for Pages latest-release and skips drafts/prereleases (M7.12, D49)', () => {
+    expect(
+      latestReleaseTag(
+        [
+          { tag_name: 'v0.1.0', draft: false, prerelease: false },
+          { tag_name: 'v0.2.0', draft: false, prerelease: false },
+          { tag_name: 'v0.3.0', draft: true, prerelease: false },
+          { tag_name: 'v0.4.0-rc.1', draft: false, prerelease: true },
+          { tag_name: 'v0.5.0-beta.1', draft: false, prerelease: false },
+        ],
+        '0.3.0',
+      ),
+    ).toBe('v0.2.0');
+
+    // Numeric semver comparison (v0.10.0 > v0.9.0) and manual tagged releases higher than manifest
+    expect(
+      latestReleaseTag(
+        [
+          { tag_name: 'v0.9.0', draft: false, prerelease: false },
+          { tag_name: 'v0.10.0', draft: false, prerelease: false },
+          { tag_name: 'v0.2.0', draft: false, prerelease: false },
+        ],
+        '0.9.0',
+      ),
+    ).toBe('v0.10.0');
+
+    // Falls back to .release-please-manifest.json only when zero GitHub Releases exist
+    expect(latestReleaseTag([], '0.2.0')).toBe('v0.2.0');
+
+    // Rejects when only unpublished drafts/prereleases exist or when fallback manifest is invalid
+    expect(() =>
+      latestReleaseTag([{ tag_name: 'v0.1.0', draft: true, prerelease: false }], '0.1.0'),
+    ).toThrow('No published stable GitHub Release found');
+    expect(() => latestReleaseTag([], '0.2.0-rc.1')).toThrow();
+    expect(() => latestReleaseTag([])).toThrow('No published stable GitHub Release found');
+
+    // End-to-end CLI invocation of `scripts/release.ts latest-tag` with mocked gh binary
+    const mockBinDir = mkdtempSync(join(tmpdir(), 'naizo-gh-mock-'));
+    try {
+      const mockGhPath = join(mockBinDir, 'gh');
+      writeFileSync(
+        mockGhPath,
+        `#!/bin/sh\nprintf '%s\\n' '[[{"tag_name":"v0.1.0","draft":false,"prerelease":false},{"tag_name":"v0.2.0","draft":false,"prerelease":false},{"tag_name":"v0.3.0","draft":true,"prerelease":false}]]'\n`,
+      );
+      chmodSync(mockGhPath, 0o755);
+      const cliOut = execFileSync(process.execPath, ['scripts/release.ts', 'latest-tag'], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_REPOSITORY: 'nickosh/naizo',
+          PATH: `${mockBinDir}:${process.env.PATH ?? ''}`,
+        },
+      }).trim();
+      expect(cliOut).toBe('v0.2.0');
+    } finally {
+      rmSync(mockBinDir, { recursive: true, force: true });
+    }
   });
 });

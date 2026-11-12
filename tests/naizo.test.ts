@@ -2538,7 +2538,26 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(llmsFullTxt).toContain('examples/starter.html');
     expect(llmsFullTxt).toContain('examples/notes.html');
 
-    // 4. ci.yml enforces dist/naizo.js freshness, stages site/. with -RL (dereferencing symlinks) to _site/, and gates Pages deploy on release or workflow_dispatch (D48)
+    // 4. ci.yml enforces dist/naizo.js freshness, stages site/. with -RL (dereferencing symlinks) to _site/,
+    // gates Pages deploy on release or workflow_dispatch (D48), and supports pages_source: 'main' | 'latest-release' (M7.12, D49)
+    expect(ciYml).toContain('pages_source:');
+    expect(ciYml).toContain("default: 'main'");
+    expect(ciYml).toContain('type: choice');
+    expect(ciYml).toContain('- main\n');
+    expect(ciYml).toContain('- latest-release\n');
+    expect(ciYml).toContain(
+      "fetch-depth: ${{ (github.event_name == 'workflow_dispatch' && inputs.pages_source == 'latest-release') && '0' || '1' }}",
+    );
+    expect(ciYml).toContain(
+      "if: github.event_name == 'workflow_dispatch' && inputs.pages_source == 'latest-release'",
+    );
+    expect(ciYml).toContain('RELEASE_TAG=$(vp node scripts/release.ts latest-tag)');
+    expect(ciYml).toContain('git merge-base --is-ancestor "$COMMIT" origin/main');
+    expect(ciYml).toContain('git checkout --detach "$COMMIT"');
+    expect(ciYml).toContain('vp node scripts/release.ts version "$RELEASE_TAG"');
+    expect(ciYml).toContain(
+      "if: github.event_name != 'workflow_dispatch' || inputs.pages_source != 'latest-release'",
+    );
     expect(ciYml).toContain('git diff --exit-code dist/naizo.js');
     expect(ciYml).toContain('cp -RL site/. _site/');
     expect(ciYml).toContain('cp -R examples _site/');
