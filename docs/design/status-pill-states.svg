@@ -4,11 +4,19 @@
       <rect x="7" y="0" width="9" height="24" rx="4" />
     </clipPath>
     <filter id="pill-shadow-light" x="-15%" y="-25%" width="130%" height="160%">
-      <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#0f172a" flood-opacity="0.10" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.09" />
     </filter>
     <filter id="pill-shadow-dark" x="-15%" y="-25%" width="130%" height="160%">
-      <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#000000" flood-opacity="0.45" />
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.42" />
     </filter>
+    <linearGradient id="frosted-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.62" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.42" />
+    </linearGradient>
+    <linearGradient id="frosted-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.48" />
+    </linearGradient>
   </defs>
 
   <!-- Background Washi Paper -->
@@ -26,19 +34,21 @@
 
   <!-- LIGHT MODE PANEL -->
   <rect x="44" y="136" width="664" height="310" rx="14" fill="#f3efe8" stroke="#e5e0d8" stroke-width="1" />
-  <text x="64" y="164" font-size="12" font-weight="bold" fill="#6b655e" letter-spacing="0.06em">LIGHT THEME (DAY — rgba(255,255,255,0.82))</text>
+  <circle cx="550" cy="235" r="76" fill="#10b981" fill-opacity="0.11" />
+  <circle cx="520" cy="355" r="82" fill="#f59e0b" fill-opacity="0.10" />
+  <text x="64" y="164" font-size="12" font-weight="bold" fill="#6b655e" letter-spacing="0.06em">LIGHT THEME (FROSTED GLASS 56%→36% + WHISPER RING 0.07)</text>
 
   <!-- Light Pill A: Local Synced + Active #net Wave (with Tooltip above) -->
   <text x="64" y="218" font-size="13" font-weight="600" fill="#1c1917">A. Local · Synced + #net Active</text>
   <text x="64" y="238" font-size="11.5" fill="#6b655e">#dot Green · Copy · Unlink · #net Wave</text>
   <!-- Tooltip -->
   <g transform="translate(476, 162)">
-    <rect x="0" y="0" width="134" height="34" rx="17" fill="#ffffff" fill-opacity="0.92" stroke="#0f172a" stroke-opacity="0.12" filter="url(#pill-shadow-light)" />
+    <rect x="0" y="0" width="134" height="34" rx="17" fill="url(#frosted-light)" stroke="#0f172a" stroke-opacity="0.07" filter="url(#pill-shadow-light)" />
     <text x="67" y="21" font-size="13" font-weight="500" fill="#0f172a" text-anchor="middle">Synced to Disk</text>
   </g>
   <!-- Pill at 2x (height 60px, padding 8px 12px, gap 10px) -->
   <g transform="translate(424, 204) scale(2)">
-    <rect x="0" y="0" width="128" height="30" rx="15" fill="#ffffff" fill-opacity="0.86" stroke="#0f172a" stroke-opacity="0.12" filter="url(#pill-shadow-light)" />
+    <rect x="0" y="0" width="128" height="30" rx="15" fill="url(#frosted-light)" stroke="#0f172a" stroke-opacity="0.07" stroke-width="0.5" filter="url(#pill-shadow-light)" />
     <!-- #dot (20px slot at x=6, y=5) -->
     <g transform="translate(5.25, 4.25) scale(0.215)" color="#10b981">
       <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
@@ -89,7 +99,7 @@
   <text x="64" y="346" font-size="13" font-weight="600" fill="#1c1917">B. Online Mode · Edited (+ Reset)</text>
   <text x="64" y="366" font-size="11.5" fill="#6b655e">Save to PC · Copy · Red Eraser · #net Idle</text>
   <g transform="translate(370, 326) scale(2)">
-    <rect x="0" y="0" width="155" height="30" rx="15" fill="#ffffff" fill-opacity="0.86" stroke="#0f172a" stroke-opacity="0.12" filter="url(#pill-shadow-light)" />
+    <rect x="0" y="0" width="155" height="30" rx="15" fill="url(#frosted-light)" stroke="#0f172a" stroke-opacity="0.07" stroke-width="0.5" filter="url(#pill-shadow-light)" />
     <!-- #dot Green -->
     <g transform="translate(5.25, 4.25) scale(0.215)">
       <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
@@ -136,20 +146,22 @@
 
   <!-- DARK MODE PANEL -->
   <rect x="732" y="136" width="664" height="310" rx="14" fill="#181614" stroke="#2e2c28" stroke-width="1" />
-  <text x="752" y="164" font-size="12" font-weight="bold" fill="#9ca3af" letter-spacing="0.06em">DARK THEME (NIGHT — rgba(15,23,42,0.78))</text>
+  <circle cx="1235" cy="235" r="76" fill="#38bdf8" fill-opacity="0.11" />
+  <circle cx="1210" cy="355" r="82" fill="#f59e0b" fill-opacity="0.11" />
+  <text x="752" y="164" font-size="12" font-weight="bold" fill="#9ca3af" letter-spacing="0.06em">DARK THEME (FROSTED GLASS 13%→44% + WHISPER RING 0.09)</text>
 
   <!-- Dark Pill C: Local Unlinked Cache -->
   <text x="752" y="218" font-size="13" font-weight="600" fill="#e7e5e4">C. Local · Unlinked Browser Cache</text>
   <text x="752" y="238" font-size="11.5" fill="#9ca3af">#dot Amber · Link (⌘S) · ✓ Copied · #net Idle</text>
   <!-- Dark Tooltip -->
   <g transform="translate(1144, 162)">
-    <rect x="0" y="0" width="150" height="34" rx="17" fill="#0f172a" fill-opacity="0.88" stroke="#ffffff" stroke-opacity="0.14" filter="url(#pill-shadow-dark)" />
+    <rect x="0" y="0" width="150" height="34" rx="17" fill="url(#frosted-dark)" stroke="#ffffff" stroke-opacity="0.09" filter="url(#pill-shadow-dark)" />
     <text x="58" y="21" font-size="13" font-weight="500" fill="#f8fafc" text-anchor="middle">Link Disk</text>
     <rect x="102" y="8" width="34" height="18" rx="4" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.16" />
     <text x="119" y="20" font-family="monospace" font-size="11" fill="#94a3b8" text-anchor="middle">⌘S</text>
   </g>
   <g transform="translate(1112, 204) scale(2)">
-    <rect x="0" y="0" width="128" height="30" rx="15" fill="#0f172a" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.14" filter="url(#pill-shadow-dark)" />
+    <rect x="0" y="0" width="128" height="30" rx="15" fill="url(#frosted-dark)" stroke="#ffffff" stroke-opacity="0.09" stroke-width="0.5" filter="url(#pill-shadow-dark)" />
     <!-- #dot Amber -->
     <g transform="translate(5.25, 4.25) scale(0.215)">
       <circle cx="50" cy="50" r="42" fill="none" stroke="#f59e0b" stroke-width="8" />
@@ -184,17 +196,17 @@
     </g>
   </g>
 
-  <!-- Dark Pill D: Conflict Backed Up + #net Error Red -->
-  <text x="752" y="346" font-size="13" font-weight="600" fill="#e7e5e4">D. Local · Conflict + #net Error</text>
-  <text x="752" y="366" font-size="11.5" fill="#9ca3af">Restore · Copy · Unlink · #net Red Pulse</text>
+  <!-- Dark Pill D: Conflict Backed Up (Conflict Clash) + #net Error Red -->
+  <text x="752" y="346" font-size="13" font-weight="600" fill="#e7e5e4">D. Local · Conflict Clash + #net Error</text>
+  <text x="752" y="366" font-size="11.5" fill="#9ca3af">Clash &amp; Pop · Restore · Copy · Unlink · #net Red</text>
   <g transform="translate(1058, 326) scale(2)">
-    <rect x="0" y="0" width="155" height="30" rx="15" fill="#0f172a" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.14" filter="url(#pill-shadow-dark)" />
-    <!-- #dot Amber -->
+    <rect x="0" y="0" width="155" height="30" rx="15" fill="url(#frosted-dark)" stroke="#ffffff" stroke-opacity="0.09" stroke-width="0.5" filter="url(#pill-shadow-dark)" />
+    <!-- #dot Amber (Conflict Clash mid-clash & upward pop pose!) -->
     <g transform="translate(5.25, 4.25) scale(0.215)">
       <circle cx="50" cy="50" r="42" fill="none" stroke="#f59e0b" stroke-width="8" />
-      <rect x="39" y="26" width="22" height="22" rx="4.5" fill="#f59e0b" />
-      <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
-      <rect x="52" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
+      <rect x="39" y="20.2" width="22" height="22" rx="4.5" fill="#f59e0b" />
+      <rect x="27.4" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
+      <rect x="50.6" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
     </g>
     <line x1="31" y1="8.5" x2="31" y2="21.5" stroke="#ffffff" stroke-opacity="0.13" stroke-width="1" />
     <!-- #restore History Clock -->
@@ -423,6 +435,6 @@
     <text x="244.5" y="156" font-size="14.5" fill="#6b655e" text-anchor="middle">Self-persisting HTML for human &amp; AI workflows.</text>
     <line x1="40" y1="178" x2="449" y2="178" stroke="#e5e0d8" />
     <text x="244.5" y="202" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">site/index.html Hero Crest, site/logo.svg Favicon &amp; README.md</text>
-    <text x="244.5" y="222" font-family="monospace" font-size="11" fill="#6b655e" text-anchor="middle">62×62px · margin-bottom: 2px · Sumi Ink (#1c1917 / #e7e5e4) · :hover Heartbeat</text>
+    <text x="244.5" y="222" font-family="monospace" font-size="10.5" fill="#6b655e" text-anchor="middle">62×62px · 2px gap · Sumi Ink · :hover Clockwise Heartbeat (1.35s)</text>
   </g>
 </svg>

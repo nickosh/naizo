@@ -16,23 +16,27 @@
         --amber: #f59e0b;
         --danger: #ef4444;
 
-        /* Frosted-Glass Status Pill Tokens (Light Mode / Day) */
-        --pill-bg: rgba(255, 255, 255, 0.82);
+        /* True Translucent Frosted-Glass Status Pill Tokens + Whisper-Ring Shadow (Light Mode / Day) */
+        --pill-bg: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.56) 0%,
+          rgba(255, 255, 255, 0.36) 100%
+        );
         --pill-text: #0f172a;
         --pill-muted: #64748b;
-        --pill-border: rgba(15, 23, 42, 0.12);
-        --pill-shadow: 0 4px 18px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
-        --btn-bg: rgba(15, 23, 42, 0.045);
-        --btn-bg-hover: rgba(15, 23, 42, 0.1);
-        --btn-border: rgba(15, 23, 42, 0.12);
+        --pill-border: transparent;
+        --pill-shadow: 0 0 0 1px rgba(15, 23, 42, 0.07), 0 4px 14px rgba(15, 23, 42, 0.09);
+        --btn-bg: rgba(15, 23, 42, 0.055);
+        --btn-bg-hover: rgba(15, 23, 42, 0.12);
+        --btn-border: rgba(15, 23, 42, 0.11);
         --btn-color: #334155;
         --btn-color-hover: #0f172a;
         --sep-color: rgba(15, 23, 42, 0.11);
 
         /* 4-Corner Translucent White Drop Placeholders (Light Mode) */
-        --drop-bg: rgba(255, 255, 255, 0.5);
+        --drop-bg: rgba(255, 255, 255, 0.42);
         --drop-border: rgba(15, 23, 42, 0.2);
-        --drop-active-bg: rgba(255, 255, 255, 0.85);
+        --drop-active-bg: rgba(255, 255, 255, 0.72);
         --drop-active-border: rgba(15, 23, 42, 0.38);
         --drop-active-shadow: 0 4px 14px rgba(15, 23, 42, 0.09);
       }
@@ -45,18 +49,22 @@
         --muted: #9ca3af;
         --border: #2e2c28;
 
-        /* Frosted-Glass Status Pill Tokens (Dark Mode / Night) */
-        --pill-bg: rgba(15, 23, 42, 0.78);
+        /* True Translucent Frosted-Glass Status Pill Tokens + Whisper-Ring Shadow (Dark Mode / Night) */
+        --pill-bg: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.13) 0%,
+          rgba(15, 23, 42, 0.44) 100%
+        );
         --pill-text: #f8fafc;
         --pill-muted: #94a3b8;
-        --pill-border: rgba(255, 255, 255, 0.14);
-        --pill-shadow: 0 6px 22px rgba(0, 0, 0, 0.42), 0 1px 4px rgba(0, 0, 0, 0.3);
-        --btn-bg: rgba(255, 255, 255, 0.07);
-        --btn-bg-hover: rgba(255, 255, 255, 0.15);
+        --pill-border: transparent;
+        --pill-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 6px 18px rgba(0, 0, 0, 0.42);
+        --btn-bg: rgba(255, 255, 255, 0.08);
+        --btn-bg-hover: rgba(255, 255, 255, 0.18);
         --btn-border: rgba(255, 255, 255, 0.14);
-        --btn-color: #cbd5e1;
+        --btn-color: #e2e8f0;
         --btn-color-hover: #ffffff;
-        --sep-color: rgba(255, 255, 255, 0.13);
+        --sep-color: rgba(255, 255, 255, 0.15);
 
         /* 4-Corner Translucent White Drop Placeholders (Dark Mode) */
         --drop-bg: rgba(255, 255, 255, 0.07);
@@ -326,8 +334,8 @@
         color: var(--pill-text);
         border: 1px solid var(--pill-border);
         box-shadow: var(--pill-shadow);
-        backdrop-filter: blur(12px) saturate(160%);
-        -webkit-backdrop-filter: blur(12px) saturate(160%);
+        backdrop-filter: blur(12px) saturate(180%);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
         user-select: none;
       }
 
@@ -476,43 +484,36 @@
         animation: naizoBootBR 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
       }
 
-      /* 2. Saving: Heartbeat 1-2-3 Wave (Green #10b981, 1.20x swell + 1.045x ring breath) */
+      /* 2. Saving: Seamless Clockwise Heartbeat 1-2-3 Wave (Top 17% -> BR 50% -> BL 83%, 1.35s, zero end-of-loop delay) */
       @keyframes naizoHeartTop {
         0%,
+        42%,
         100% {
           transform: translate(0, 0) scale(1);
         }
-        18% {
+        17% {
           transform: translate(0, -1px) scale(1.2);
-        }
-        38% {
-          transform: translate(0, 0) scale(1);
-        }
-      }
-      @keyframes naizoHeartBL {
-        0%,
-        16%,
-        100% {
-          transform: translate(0, 0) scale(1);
-        }
-        34% {
-          transform: translate(-0.8px, 0.8px) scale(1.2);
-        }
-        54% {
-          transform: translate(0, 0) scale(1);
         }
       }
       @keyframes naizoHeartBR {
         0%,
-        32%,
+        33%,
+        75%,
         100% {
           transform: translate(0, 0) scale(1);
         }
         50% {
           transform: translate(0.8px, 0.8px) scale(1.2);
         }
-        70% {
+      }
+      @keyframes naizoHeartBL {
+        0%,
+        66%,
+        100% {
           transform: translate(0, 0) scale(1);
+        }
+        83% {
+          transform: translate(-0.8px, 0.8px) scale(1.2);
         }
       }
       @keyframes naizoRingBreath {
@@ -520,31 +521,116 @@
         100% {
           transform: scale(1);
         }
-        34% {
+        50% {
           transform: scale(1.045);
-        }
-        75% {
-          transform: scale(1);
         }
       }
       .naizo-logo-btn.saving .ring,
       .anim-heartbeat .ring {
-        animation: naizoRingBreath 1.75s ease-in-out infinite;
+        animation: naizoRingBreath 1.35s ease-in-out infinite;
       }
       .naizo-logo-btn.saving .c-top,
       .anim-heartbeat .c-top {
-        animation: naizoHeartTop 1.75s ease-in-out infinite;
-      }
-      .naizo-logo-btn.saving .c-bl,
-      .anim-heartbeat .c-bl {
-        animation: naizoHeartBL 1.75s ease-in-out infinite;
+        animation: naizoHeartTop 1.35s ease-in-out infinite;
       }
       .naizo-logo-btn.saving .c-br,
       .anim-heartbeat .c-br {
-        animation: naizoHeartBR 1.75s ease-in-out infinite;
+        animation: naizoHeartBR 1.35s ease-in-out infinite;
+      }
+      .naizo-logo-btn.saving .c-bl,
+      .anim-heartbeat .c-bl {
+        animation: naizoHeartBL 1.35s ease-in-out infinite;
       }
 
-      /* 3. Error / Conflict: Sync Pulse (Air-cushioned radial push + 1.06x ring) */
+      /* 3. Conflict Backed Up: Conflict Clash — Spring Squash (+60ms delay, 1.75s) */
+      @keyframes naizoConflictBL {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        25% {
+          transform: translate(-2.5px, 0) scale(0.97, 1.02);
+        }
+        38%,
+        41% {
+          transform: translate(1.4px, 0) scale(1.04, 0.95);
+        }
+        54% {
+          transform: translate(-0.7px, 0) scale(1);
+        }
+        74% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoConflictBR {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        25% {
+          transform: translate(2.5px, 0) scale(0.97, 1.02);
+        }
+        38%,
+        41% {
+          transform: translate(-1.4px, 0) scale(1.04, 0.95);
+        }
+        54% {
+          transform: translate(0.7px, 0) scale(1);
+        }
+        74% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoConflictTop {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        25%,
+        37% {
+          transform: translate(0, 1.6px) scale(1.02, 0.97);
+        }
+        41.5% {
+          transform: translate(0, 2.2px) scale(1.05, 0.92);
+        }
+        54% {
+          transform: translate(0, -5.8px) scale(0.96, 1.06);
+        }
+        80% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoConflictRing {
+        0%,
+        40%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.055);
+        }
+        76% {
+          transform: scale(1);
+        }
+      }
+      .naizo-logo-btn.conflict .ring,
+      .anim-clash .ring {
+        animation: naizoConflictRing 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+      .naizo-logo-btn.conflict .c-top,
+      .anim-clash .c-top {
+        animation: naizoConflictTop 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+      .naizo-logo-btn.conflict .c-bl,
+      .anim-clash .c-bl {
+        animation: naizoConflictBL 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+      .naizo-logo-btn.conflict .c-br,
+      .anim-clash .c-br {
+        animation: naizoConflictBR 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+
+      /* 4. Error: Sync Pulse (Air-cushioned radial push + 1.06x ring) */
       @keyframes naizoSyncRing {
         0%,
         100% {
@@ -613,7 +699,7 @@
         animation: naizoSyncBR 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
 
-      /* 4. Conflict / Needs-Permission / Hover: Staggered Wave Pulse */
+      /* 5. Unlinked Cache / Needs-Permission / Hover: Clockwise Wave Pulse (Top -> BR -> BL) */
       @keyframes naizoWaveTop {
         0%,
         65%,
@@ -624,7 +710,7 @@
           transform: translate(0, -5.5px) scale(1.04);
         }
       }
-      @keyframes naizoWaveBL {
+      @keyframes naizoWaveBR {
         0%,
         14%,
         79%,
@@ -632,10 +718,10 @@
           transform: translate(0, 0) scale(1);
         }
         36% {
-          transform: translate(-2px, 2px) scale(1.04);
+          transform: translate(2px, 2px) scale(1.04);
         }
       }
-      @keyframes naizoWaveBR {
+      @keyframes naizoWaveBL {
         0%,
         28%,
         92%,
@@ -643,32 +729,28 @@
           transform: translate(0, 0) scale(1);
         }
         50% {
-          transform: translate(2px, 2px) scale(1.04);
+          transform: translate(-2px, 2px) scale(1.04);
         }
       }
-      .naizo-logo-btn.conflict .ring,
       .naizo-logo-btn.needs-permission .ring,
       .naizo-logo-btn:hover .ring,
       .anim-wave .ring {
         animation: naizoRingBreath 1.75s ease-in-out infinite;
       }
-      .naizo-logo-btn.conflict .c-top,
       .naizo-logo-btn.needs-permission .c-top,
       .naizo-logo-btn:hover .c-top,
       .anim-wave .c-top {
         animation: naizoWaveTop 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
-      .naizo-logo-btn.conflict .c-bl,
-      .naizo-logo-btn.needs-permission .c-bl,
-      .naizo-logo-btn:hover .c-bl,
-      .anim-wave .c-bl {
-        animation: naizoWaveBL 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
-      }
-      .naizo-logo-btn.conflict .c-br,
       .naizo-logo-btn.needs-permission .c-br,
       .naizo-logo-btn:hover .c-br,
       .anim-wave .c-br {
         animation: naizoWaveBR 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .naizo-logo-btn.needs-permission .c-bl,
+      .naizo-logo-btn:hover .c-bl,
+      .anim-wave .c-bl {
+        animation: naizoWaveBL 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
 
       .pill-sep {
@@ -840,8 +922,8 @@
         color: var(--pill-text);
         border: 1px solid var(--pill-border);
         box-shadow: var(--pill-shadow);
-        backdrop-filter: blur(12px) saturate(160%);
-        -webkit-backdrop-filter: blur(12px) saturate(160%);
+        backdrop-filter: blur(12px) saturate(180%);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
         font-size: 11px;
         font-weight: 500;
         letter-spacing: -0.01em;
@@ -881,8 +963,8 @@
         color: var(--pill-text);
         border: 1px solid var(--pill-border);
         box-shadow: var(--pill-shadow);
-        backdrop-filter: blur(12px) saturate(160%);
-        -webkit-backdrop-filter: blur(12px) saturate(160%);
+        backdrop-filter: blur(12px) saturate(180%);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
         font-size: 11px;
         font-weight: 500;
       }
@@ -985,16 +1067,16 @@
         transform-origin: 63px 63px;
       }
       .hero-crest-link:hover .ring {
-        animation: naizoRingBreath 1.75s ease-in-out infinite;
+        animation: naizoRingBreath 1.35s ease-in-out infinite;
       }
       .hero-crest-link:hover .c-top {
-        animation: naizoHeartTop 1.75s ease-in-out infinite;
-      }
-      .hero-crest-link:hover .c-bl {
-        animation: naizoHeartBL 1.75s ease-in-out infinite;
+        animation: naizoHeartTop 1.35s ease-in-out infinite;
       }
       .hero-crest-link:hover .c-br {
-        animation: naizoHeartBR 1.75s ease-in-out infinite;
+        animation: naizoHeartBR 1.35s ease-in-out infinite;
+      }
+      .hero-crest-link:hover .c-bl {
+        animation: naizoHeartBL 1.35s ease-in-out infinite;
       }
       .hero-preview-title {
         font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
@@ -1340,13 +1422,65 @@ Ring draws (dashoffset 263.89→0)
               </svg>
             </div>
             <div>
-              <div class="spec-card-title">2. Saving: Heartbeat Wave</div>
-              <div class="spec-card-sub">Green #10b981 · 1.75s · 1.20x swell</div>
+              <div class="spec-card-title">2. Saving: Seamless Clockwise 1-2-3</div>
+              <div class="spec-card-sub">Green #10b981 · 1.35s · Zero end delay</div>
             </div>
           </div>
           <pre class="spec-code">
-Top → BL → BR 1.20x cube swell
-+ 1.045x outer circle breath</pre>
+Top(17%) → BR(50%) → BL(83%)
+1.20x swell + 1.045x ring breath</pre>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-head">
+            <div class="naizo-logo-btn conflict">
+              <svg class="naizo-logo-svg" viewBox="0 0 100 100">
+                <circle
+                  class="ring"
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="8"
+                />
+                <rect
+                  class="c-top"
+                  x="39"
+                  y="26"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-bl"
+                  x="26"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+                <rect
+                  class="c-br"
+                  x="52"
+                  y="52"
+                  width="22"
+                  height="22"
+                  rx="4.5"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+            <div>
+              <div class="spec-card-title">3. Conflict: Clash &amp; Spring Squash</div>
+              <div class="spec-card-sub">Amber #f59e0b · 1.75s (+60ms squash)</div>
+            </div>
+          </div>
+          <pre class="spec-code">
+BL/BR pull apart → clash (1.2u gap)
+→ Top squashes (41.5%) &amp; pops (54%)</pre>
         </div>
 
         <div class="spec-card">
@@ -1392,12 +1526,12 @@ Top → BL → BR 1.20x cube swell
               </svg>
             </div>
             <div>
-              <div class="spec-card-title">3. Wave Pulse (Conflict / Perm / Hover)</div>
+              <div class="spec-card-title">4. Clockwise Wave (Perm / Hover)</div>
               <div class="spec-card-sub">Amber #f59e0b · 1.75s</div>
             </div>
           </div>
           <pre class="spec-code">
-Staggered radial wave (min 4.2u gap
+Top → BR → BL radial wave (4.2u gap
 inside ring) + 1.045x ring pulse</pre>
         </div>
 
@@ -1444,7 +1578,7 @@ inside ring) + 1.045x ring pulse</pre>
               </svg>
             </div>
             <div>
-              <div class="spec-card-title">4. Sync Pulse (Error Only)</div>
+              <div class="spec-card-title">5. Sync Pulse (Error Only)</div>
               <div class="spec-card-sub">Red #ef4444 · 1.6s</div>
             </div>
           </div>
@@ -1567,6 +1701,50 @@ Click #net to clear back to Idle</pre>
         </div>
         <h3 class="hero-preview-title">naizo.js</h3>
         <p class="hero-preview-sub">Self-persisting HTML for human &amp; AI workflows.</p>
+      </div>
+
+      <!-- SECTION 6: PHILOSOPHY, CULTURAL SYMBOLISM & REDESIGN RATIONALE -->
+      <h2 class="sec-title">
+        6. Brand Logo Concept, Cultural Symbolism &amp; Status Pill Redesign Philosophy
+        <span>丸に三つ石 (Maru ni Mitsuishi) · 品 (Hin / Shina) · 内蔵 / 内臓 (Naizō)</span>
+      </h2>
+      <div class="spec-grid">
+        <div class="spec-card">
+          <div class="spec-card-title">1. Architectural Metaphor (丸 + 三つ石)</div>
+          <div class="spec-card-sub">
+            <strong>Outer Ring (丸):</strong> The single <code>.html</code> file as a sealed,
+            dependency-free boundary. <strong>Three Stones (三つ石):</strong> The built-in engine
+            (<code>State + Logic + View</code> &amp; <code>HTML + CSS + JS</code>) inside the file.
+          </div>
+        </div>
+        <div class="spec-card">
+          <div class="spec-card-title">2. Kanji 「品」 &amp; Kamon 「丸に三つ石」</div>
+          <div class="spec-card-sub">
+            Forms <strong>品</strong> — <strong>品質</strong> (<em>Hinshitsu</em>, quality),
+            <strong>作品</strong> (<em>Sakuhin</em>, finished artifact), and
+            <strong>品格</strong> (<em>Hinkaku</em>, zero-bloat dignity) — and the Japanese heraldic
+            crest <strong>丸に三つ石</strong> (three interlocking foundation stones in a circle of
+            harmony <strong>和</strong>).
+          </div>
+        </div>
+        <div class="spec-card">
+          <div class="spec-card-title">3. Gestalt &amp; Collision Guardrails</div>
+          <div class="spec-card-sub">
+            Three upright rounded squares (<code>rx="4.5"</code> = <code>~20.5%</code> of
+            <code>22u</code> width) avoid 3-circle collisions (Asana, Banner of Peace, XLR pinouts,
+            GSI 史跡) and 4-diamond collisions (Figma Component, VS Code Extensions) while staying
+            crisp at <code>16px–20px</code>.
+          </div>
+        </div>
+        <div class="spec-card">
+          <div class="spec-card-title">4. Frosted Glass &amp; Narrative Motion</div>
+          <div class="spec-card-sub">
+            True translucent frosted glass (<code>blur(12px) saturate(180%)</code>) with a
+            whisper-ring shadow (<code>border: transparent</code>), 4-corner frosted drop
+            placeholders, Seamless Clockwise <code>Heartbeat</code> on save, and
+            <code>Conflict Clash</code> (Spring Squash) on external edit collisions.
+          </div>
+        </div>
       </div>
     </div>
 
