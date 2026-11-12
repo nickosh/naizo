@@ -2209,6 +2209,13 @@ function mountUi(): void {
       button.net-slot.error .net-globe-svg {
         animation: naizoGlobeErrorPulse 1.5s ease-in-out infinite;
       }
+      @media (prefers-reduced-motion: reduce) {
+        button.net-slot { transition: none; }
+        button.net-slot.active,
+        button.net-slot.active:hover { color: #10b981; }
+        button.net-slot.active .wave-band-rect,
+        button.net-slot.error .net-globe-svg { animation: none; }
+      }
       .confirm-pop {
         position: absolute; bottom: calc(100% + 8px); right: 0;
         display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
@@ -2582,39 +2589,43 @@ function extractByDotPath(rootValue: unknown, dotPath: string): { ok: boolean; v
   return { ok: true, value: current };
 }
 
-function resolveBodyPayload(bodyOption: unknown): string {
+function resolveDeclarativeBodySource(bodySource?: string): string {
   const db = ensureStore();
+  const trimmed = (bodySource ?? 'db').trim();
+  if (!trimmed || trimmed === 'db') {
+    return JSON.stringify(db, null, 2);
+  }
+  if (trimmed === 'fields') {
+    return JSON.stringify(db.fields, null, 2);
+  }
+  if (trimmed === 'custom') {
+    return JSON.stringify(db.custom, null, 2);
+  }
+  if (trimmed.startsWith('list:')) {
+    const listName = trimmed.slice('list:'.length).trim();
+    const rawList = hasOwn(db.lists, listName) ? getOwn(db.lists, listName) : [];
+    const arr = Array.isArray(rawList) ? rawList : [];
+    return JSON.stringify(arr, null, 2);
+  }
+  if (trimmed.startsWith('field:')) {
+    const fieldKey = trimmed.slice('field:'.length).trim();
+    const val = hasOwn(db.fields, fieldKey) ? getOwn(db.fields, fieldKey) : null;
+    return JSON.stringify(val ?? null);
+  }
+  return JSON.stringify(db, null, 2);
+}
+
+function resolveProgrammaticBody(bodyOption: unknown): string {
   if (bodyOption === undefined) {
-    return serializeDbJson(db);
+    return JSON.stringify(ensureStore(), null, 2);
   }
   if (typeof bodyOption === 'string') {
-    const trimmed = bodyOption.trim();
-    if (trimmed === 'db') {
-      return serializeDbJson(db);
-    }
-    if (trimmed === 'fields') {
-      return JSON.stringify(db.fields, null, 2).replace(/</g, '\\u003c');
-    }
-    if (trimmed === 'custom') {
-      return JSON.stringify(db.custom, null, 2).replace(/</g, '\\u003c');
-    }
-    if (trimmed.startsWith('list:')) {
-      const listName = trimmed.slice('list:'.length).trim();
-      const rawList = hasOwn(db.lists, listName) ? getOwn(db.lists, listName) : [];
-      const arr = Array.isArray(rawList) ? rawList : [];
-      return JSON.stringify(arr, null, 2).replace(/</g, '\\u003c');
-    }
-    if (trimmed.startsWith('field:')) {
-      const fieldKey = trimmed.slice('field:'.length).trim();
-      const val = hasOwn(db.fields, fieldKey) ? getOwn(db.fields, fieldKey) : null;
-      return JSON.stringify(val ?? null).replace(/</g, '\\u003c');
-    }
     return bodyOption;
   }
   if (!isValidJsonValue(bodyOption)) {
     throw new Error('Invalid non-JSON request body');
   }
-  return JSON.stringify(bodyOption).replace(/</g, '\\u003c');
+  return JSON.stringify(bodyOption);
 }
 
 function isValueEmptyForInit(val: unknown): boolean {
@@ -2666,7 +2677,7 @@ function isInitTargetEmpty(target: string | null, method: string): boolean {
       }
     }
   }
-  if (method === 'POST' && target === null) {
+  if (method !== 'GET' && target === null) {
     return false;
   }
   const fieldsEmpty = Object.keys(db.fields).every((k) =>
@@ -2695,6 +2706,14 @@ function writeSelectorTarget(selector: string, extracted: unknown): void {
       ? JSON.stringify(extracted, null, 2)
       : extracted;
   matched.forEach((el) => {
+    const boundKey = getElementKey(el);
+    if (boundKey) {
+      const inItem = Boolean(el.closest(ITEM_SELECTOR));
+      const hint = inItem ? 'naizo-into="list:<name>"' : `naizo-into="field:${boundKey}"`;
+      console.warn(
+        `[naizo.js] Selector target "${selector}" matched bound element [naizo="${boundKey}"]; selector targets update DOM only and do not persist to #naizodb. Use ${hint} to persist.`,
+      );
+    }
     if (isNonLeafElement(el)) {
       writeCleanTextContent(el, toTextValue(formatted));
     } else {
@@ -2704,32 +2723,10 @@ function writeSelectorTarget(selector: string, extracted: unknown): void {
 }
 
 function routeFetchPayload(target: string | null, method: string, extracted: unknown): void {
-  if (target === null) {
-    if (method === 'POST') {
-      return;
-    }
-    if (startupInvalidDb) {
-      throw new Error('Cannot hydrate #naizodb while startup JSON is invalid');
-    }
-    if (!isRemoteNaizoDbCandidate(extracted)) {
-      throw new Error('Response is not a valid NaizoDatabase object');
-    }
-    const normalized = validateAndNormalizeDb(extracted);
-    if (!normalized) {
-      throw new Error('Response failed NaizoDatabase validation');
-    }
-    store = normalized;
-    storeInitialized = true;
-    hydrateSubtreeFromStore(document, true, false);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
-    }
-    dispatchChangeEvent({ scope: 'db', action: 'set', value: store });
-    flushPersistence(true);
+  if (target === null && method !== 'GET') {
     return;
   }
-
-  if (target === 'db') {
+  if (target === null || target === 'db') {
     if (startupInvalidDb) {
       throw new Error('Cannot hydrate #naizodb while startup JSON is invalid');
     }
@@ -2786,7 +2783,11 @@ function routeFetchPayload(target: string | null, method: string, extracted: unk
   writeSelectorTarget(target, extracted);
 }
 
-async function executeFetch(url: string, options?: NaizoFetchOptions): Promise<NaizoFetchResult> {
+async function executeFetch(
+  url: string,
+  options?: NaizoFetchOptions,
+  declarativeBodySource?: string,
+): Promise<NaizoFetchResult> {
   const trimmedUrl = (url ?? '').trim();
   const method = (options?.method ?? 'GET').trim().toUpperCase() || 'GET';
   const rawInto = options?.into !== undefined ? options.into.trim() : '';
@@ -2818,13 +2819,18 @@ async function executeFetch(url: string, options?: NaizoFetchOptions): Promise<N
 
     const fetchInit: RequestInit = { method };
     const shouldSendBody =
-      method !== 'GET' && method !== 'HEAD' && (method === 'POST' || options?.body !== undefined);
+      method !== 'GET' &&
+      method !== 'HEAD' &&
+      (method === 'POST' || declarativeBodySource !== undefined || options?.body !== undefined);
 
     if (shouldSendBody) {
       if (persistTimeout !== null) {
         flushPersistence(true);
       }
-      const payload = resolveBodyPayload(options?.body);
+      const payload =
+        declarativeBodySource !== undefined
+          ? resolveDeclarativeBodySource(declarativeBodySource)
+          : resolveProgrammaticBody(options?.body);
       const mergedHeaders: Record<string, string> = {};
       let hasContentType = false;
       if (options?.headers) {
@@ -2875,10 +2881,10 @@ async function executeFetch(url: string, options?: NaizoFetchOptions): Promise<N
 
     const rawText = await res.text();
     const contentType = (res.headers?.get?.('content-type') ?? '').toLowerCase();
-    const isFireAndForgetPost = method === 'POST' && target === null;
+    const isFireAndForgetMutation = method !== 'GET' && target === null;
     const isStoreTarget =
       target === 'db' ||
-      (target === null && method !== 'POST') ||
+      (target === null && method === 'GET') ||
       (target !== null &&
         (target.startsWith('field:') ||
           target.startsWith('list:') ||
@@ -2886,7 +2892,7 @@ async function executeFetch(url: string, options?: NaizoFetchOptions): Promise<N
     const mustParseJson = isStoreTarget || rawPath.length > 0;
 
     let parsed: unknown;
-    if (isFireAndForgetPost && rawText.trim() === '' && rawPath.length === 0) {
+    if (isFireAndForgetMutation && rawText.trim() === '' && rawPath.length === 0) {
       parsed = null;
     } else if (mustParseJson || contentType.includes('json')) {
       try {
@@ -2991,13 +2997,16 @@ async function triggerDeclarativeRequest(
   }
 
   try {
-    return await executeFetch(cfg.url, {
-      method: cfg.method,
-      into: cfg.into,
-      path: cfg.path,
-      body: cfg.method === 'POST' ? (cfg.bodySource ?? 'db') : undefined,
-      mode: cfg.mode,
-    });
+    return await executeFetch(
+      cfg.url,
+      {
+        method: cfg.method,
+        into: cfg.into,
+        path: cfg.path,
+        mode: cfg.mode,
+      },
+      cfg.method === 'POST' ? (cfg.bodySource ?? 'db') : undefined,
+    );
   } finally {
     el.removeAttribute('data-naizo-loading');
     if (addedDisabled || el.hasAttribute('data-naizo-loading-disabled')) {
@@ -3040,21 +3049,6 @@ function handleListClicks(e: Event): void {
   const target = e.target as Element | null;
   if (!target || typeof target.closest !== 'function') return;
 
-  const reqEl = target.closest(API_REQUEST_SELECTOR);
-  if (reqEl && !isIgnoredElement(reqEl)) {
-    const cfg = getDeclarativeRequestConfig(reqEl);
-    if (cfg && cfg.trigger === 'click') {
-      if (
-        reqEl instanceof HTMLAnchorElement ||
-        (reqEl instanceof HTMLButtonElement && reqEl.form !== null && reqEl.type === 'submit')
-      ) {
-        e.preventDefault();
-      }
-      void triggerDeclarativeRequest(reqEl, true);
-      return;
-    }
-  }
-
   const addBtn = target.closest('[naizo-add], [data-naizo-add]');
   if (addBtn) {
     const listName = getAttr(addBtn, 'naizo-add');
@@ -3095,6 +3089,21 @@ function handleListClicks(e: Event): void {
       Naizo.moveItem(listName, idx, idx - 1);
     } else if (dir === 'down' && idx < rows.length - 1) {
       Naizo.moveItem(listName, idx, idx + 1);
+    }
+    return;
+  }
+
+  const reqEl = target.closest(API_REQUEST_SELECTOR);
+  if (reqEl && !isIgnoredElement(reqEl)) {
+    const cfg = getDeclarativeRequestConfig(reqEl);
+    if (cfg && cfg.trigger === 'click') {
+      if (
+        reqEl instanceof HTMLAnchorElement ||
+        (reqEl instanceof HTMLButtonElement && reqEl.form !== null && reqEl.type === 'submit')
+      ) {
+        e.preventDefault();
+      }
+      void triggerDeclarativeRequest(reqEl, true);
     }
   }
 }

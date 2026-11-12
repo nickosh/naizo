@@ -2770,9 +2770,9 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(protoRes.ok).toBe(false);
       expect(Naizo.getField('project')).toBe('Updated from API');
 
-      // 5. Pending debounced input is flushed before POST, sent as text/plain;charset=UTF-8, and fire-and-forget POST preserves store
+      // 5. Pending debounced input is flushed before POST, sent as text/plain;charset=UTF-8 with unescaped '<' over HTTP while #naizodb keeps \u003c, and fire-and-forget POST preserves store
       const projInput = document.getElementById('proj-input') as HTMLInputElement;
-      projInput.value = 'Edited Before POST';
+      projInput.value = 'Edited <Before> POST';
       projInput.dispatchEvent(new Event('input', { bubbles: true }));
       document.getElementById('post-webhook')?.click();
       await vi.waitFor(() =>
@@ -2783,26 +2783,121 @@ describe('naizo.js v0.1.0 core runtime', () => {
       const postHeaders = (postCall?.init?.headers ?? {}) as Record<string, string>;
       expect(postHeaders['Content-Type']).toBe('text/plain;charset=UTF-8');
       const rawPostBody = typeof postCall?.init?.body === 'string' ? postCall.init.body : '{}';
-      expect(JSON.parse(rawPostBody)).toEqual({ project: 'Edited Before POST' });
+      expect(rawPostBody).toContain('Edited <Before> POST');
+      expect(rawPostBody).not.toContain('\\u003c');
+      expect(document.getElementById('naizodb')?.textContent ?? '').toContain('\\u003cBefore>');
+      expect(JSON.parse(rawPostBody)).toEqual({ project: 'Edited <Before> POST' });
       expect(Naizo.getList('tasks').length).toBe(2);
       expect(Naizo.get('tokenCount')).toBe(3);
 
-      // 6. Programmatic Naizo.fetch() for custom:<key>, body variants, !res.ok guard, and full #naizodb hydration
+      // 6. Programmatic Naizo.fetch() literal string body, non-GET fire-and-forget (204 DELETE), bound #selector warning (D51), !res.ok guard, and full #naizodb hydration
       const badStatus = await Naizo.fetch('https://api.example.com/missing', {
         into: 'field:project',
       });
       expect(badStatus.ok).toBe(false);
       expect(badStatus.status).toBe(404);
-      expect(Naizo.getField('project')).toBe('Edited Before POST');
+      expect(Naizo.getField('project')).toBe('Edited <Before> POST');
+
+      const rawStringPost = await Naizo.fetch('https://hooks.example.com/notify', {
+        method: 'POST',
+        body: 'field: literal <note>',
+      });
+      expect(rawStringPost.ok).toBe(true);
+      const literalCall = fetchCalls[fetchCalls.length - 1];
+      expect(literalCall?.init?.body).toBe('field: literal <note>');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const previewRes = await Naizo.fetch('https://api.example.com/xss', {
+          into: '#proj-input',
+        });
+        expect(previewRes.ok).toBe(true);
+        expect(projInput.value).toBe('<img src=x onerror="window.__xss=true"><b>Literal</b>');
+        expect(Naizo.getField('project')).toBe('Edited <Before> POST');
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Use naizo-into="field:project" to persist.'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
 
       const fullHydrate = await Naizo.fetch('https://api.example.com/full-db');
       expect(fullHydrate.ok).toBe(true);
       expect(Naizo.getField('project')).toBe('Full Hydrate');
       expect(Naizo.getList('tasks')).toEqual([{ title: 'Remote Row' }]);
       expect(Naizo.get('synced')).toBe(true);
-      expect(fetchEvents.length).toBeGreaterThanOrEqual(5);
+      expect(fetchEvents.length).toBeGreaterThanOrEqual(7);
 
       window.removeEventListener('naizo:fetch', onFetch);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps non-GET Naizo.fetch() without into non-mutating on 204/ack responses and runs list item controls before ancestor API attributes (M8.1, D51)', async () => {
+    document.head.innerHTML = `
+      <script id="naizodb" type="application/json">
+      {
+        "_meta": {},
+        "fields": { "status": "keep" },
+        "lists": { "rows": [{ "title": "Row A" }, { "title": "Row B" }] },
+        "custom": {}
+      }
+      </script>
+    `;
+    document.body.innerHTML = `
+      <ul naizo-list="rows">
+        <li naizo-item naizo-post="https://hooks.example.com/row-click">
+          <span naizo="title">Seed</span>
+        </li>
+      </ul>
+    `;
+
+    await initNaizo();
+
+    const calledUrls: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      calledUrls.push(url);
+      if (url === 'https://api.example.com/items/1') {
+        return new Response(null, {
+          status: 204,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, fields: { clobbered: true } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const delRes = await Naizo.fetch('https://api.example.com/items/1', { method: 'DELETE' });
+      expect(delRes.ok).toBe(true);
+      expect(delRes.status).toBe(204);
+      expect(delRes.data).toBeNull();
+      expect(Naizo.getField('status')).toBe('keep');
+
+      const putRes = await Naizo.fetch('https://api.example.com/items/2', {
+        method: 'PUT',
+        body: { updated: true },
+      });
+      expect(putRes.ok).toBe(true);
+      expect(Naizo.getField('status')).toBe('keep');
+
+      calledUrls.length = 0;
+      const removeBtn = document.querySelector<HTMLButtonElement>(
+        '[naizo-list="rows"] [naizo-item] [naizo-remove]',
+      );
+      expect(removeBtn).not.toBeNull();
+      removeBtn?.click();
+      expect(Naizo.getList('rows')).toEqual([{ title: 'Row B' }]);
+      expect(calledUrls).toEqual([]);
+
+      const remainingItem = document.querySelector<HTMLElement>('[naizo-list="rows"] [naizo-item]');
+      remainingItem?.click();
+      await vi.waitFor(() => expect(calledUrls).toEqual(['https://hooks.example.com/row-click']));
     } finally {
       vi.unstubAllGlobals();
     }
@@ -2885,6 +2980,9 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(netBtn.style.display).toBe('inline-flex');
       expect(netBtn.querySelector('#naizo-net-wave-clip')).not.toBeNull();
       expect(netBtn.querySelector('.globe-lit')).not.toBeNull();
+      expect(shadow2?.querySelector('style')?.textContent ?? '').toContain(
+        'prefers-reduced-motion: reduce',
+      );
 
       // Fast 2xx completion holds #net active for >= 600ms before returning to idle
       expect(netBtn.classList.contains('active')).toBe(true);

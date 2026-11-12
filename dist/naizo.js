@@ -1540,6 +1540,13 @@
       button.net-slot.error .net-globe-svg {
         animation: naizoGlobeErrorPulse 1.5s ease-in-out infinite;
       }
+      @media (prefers-reduced-motion: reduce) {
+        button.net-slot { transition: none; }
+        button.net-slot.active,
+        button.net-slot.active:hover { color: #10b981; }
+        button.net-slot.active .wave-band-rect,
+        button.net-slot.error .net-globe-svg { animation: none; }
+      }
       .confirm-pop {
         position: absolute; bottom: calc(100% + 8px); right: 0;
         display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
@@ -1863,28 +1870,29 @@
 			value: current
 		};
 	}
-	function resolveBodyPayload(bodyOption) {
+	function resolveDeclarativeBodySource(bodySource) {
 		const db = ensureStore();
-		if (bodyOption === void 0) return serializeDbJson(db);
-		if (typeof bodyOption === "string") {
-			const trimmed = bodyOption.trim();
-			if (trimmed === "db") return serializeDbJson(db);
-			if (trimmed === "fields") return JSON.stringify(db.fields, null, 2).replace(/</g, "\\u003c");
-			if (trimmed === "custom") return JSON.stringify(db.custom, null, 2).replace(/</g, "\\u003c");
-			if (trimmed.startsWith("list:")) {
-				const listName = trimmed.slice(5).trim();
-				const rawList = hasOwn(db.lists, listName) ? getOwn(db.lists, listName) : [];
-				return JSON.stringify(Array.isArray(rawList) ? rawList : [], null, 2).replace(/</g, "\\u003c");
-			}
-			if (trimmed.startsWith("field:")) {
-				const fieldKey = trimmed.slice(6).trim();
-				const val = hasOwn(db.fields, fieldKey) ? getOwn(db.fields, fieldKey) : null;
-				return JSON.stringify(val ?? null).replace(/</g, "\\u003c");
-			}
-			return bodyOption;
+		const trimmed = (bodySource ?? "db").trim();
+		if (!trimmed || trimmed === "db") return JSON.stringify(db, null, 2);
+		if (trimmed === "fields") return JSON.stringify(db.fields, null, 2);
+		if (trimmed === "custom") return JSON.stringify(db.custom, null, 2);
+		if (trimmed.startsWith("list:")) {
+			const listName = trimmed.slice(5).trim();
+			const rawList = hasOwn(db.lists, listName) ? getOwn(db.lists, listName) : [];
+			return JSON.stringify(Array.isArray(rawList) ? rawList : [], null, 2);
 		}
+		if (trimmed.startsWith("field:")) {
+			const fieldKey = trimmed.slice(6).trim();
+			const val = hasOwn(db.fields, fieldKey) ? getOwn(db.fields, fieldKey) : null;
+			return JSON.stringify(val ?? null);
+		}
+		return JSON.stringify(db, null, 2);
+	}
+	function resolveProgrammaticBody(bodyOption) {
+		if (bodyOption === void 0) return JSON.stringify(ensureStore(), null, 2);
+		if (typeof bodyOption === "string") return bodyOption;
 		if (!isValidJsonValue(bodyOption)) throw new Error("Invalid non-JSON request body");
-		return JSON.stringify(bodyOption).replace(/</g, "\\u003c");
+		return JSON.stringify(bodyOption);
 	}
 	function isValueEmptyForInit(val) {
 		if (val === void 0 || val === null || val === "") return true;
@@ -1923,7 +1931,7 @@
 				return false;
 			}
 		}
-		if (method === "POST" && target === null) return false;
+		if (method !== "GET" && target === null) return false;
 		const fieldsEmpty = Object.keys(db.fields).every((k) => isValueEmptyForInit(getOwn(db.fields, k)));
 		const listsEmpty = Object.keys(db.lists).every((k) => {
 			const arr = getOwn(db.lists, k);
@@ -1942,30 +1950,18 @@
 		if (matched.length === 0) throw new Error(`Target selector "${selector}" matched no elements`);
 		const formatted = isPlainObject(extracted) || Array.isArray(extracted) ? JSON.stringify(extracted, null, 2) : extracted;
 		matched.forEach((el) => {
+			const boundKey = getElementKey(el);
+			if (boundKey) {
+				const hint = Boolean(el.closest(ITEM_SELECTOR)) ? "naizo-into=\"list:<name>\"" : `naizo-into="field:${boundKey}"`;
+				console.warn(`[naizo.js] Selector target "${selector}" matched bound element [naizo="${boundKey}"]; selector targets update DOM only and do not persist to #naizodb. Use ${hint} to persist.`);
+			}
 			if (isNonLeafElement(el)) writeCleanTextContent(el, toTextValue(formatted));
 			else writeElementValue(el, formatted);
 		});
 	}
 	function routeFetchPayload(target, method, extracted) {
-		if (target === null) {
-			if (method === "POST") return;
-			if (startupInvalidDb) throw new Error("Cannot hydrate #naizodb while startup JSON is invalid");
-			if (!isRemoteNaizoDbCandidate(extracted)) throw new Error("Response is not a valid NaizoDatabase object");
-			const normalized = validateAndNormalizeDb(extracted);
-			if (!normalized) throw new Error("Response failed NaizoDatabase validation");
-			store = normalized;
-			storeInitialized = true;
-			hydrateSubtreeFromStore(document, true, false);
-			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
-			dispatchChangeEvent({
-				scope: "db",
-				action: "set",
-				value: store
-			});
-			flushPersistence(true);
-			return;
-		}
-		if (target === "db") {
+		if (target === null && method !== "GET") return;
+		if (target === null || target === "db") {
 			if (startupInvalidDb) throw new Error("Cannot hydrate #naizodb while startup JSON is invalid");
 			if (!isRemoteNaizoDbCandidate(extracted)) throw new Error("Response is not a valid NaizoDatabase object");
 			const normalized = validateAndNormalizeDb(extracted);
@@ -2002,7 +1998,7 @@
 		}
 		writeSelectorTarget(target, extracted);
 	}
-	async function executeFetch(url, options) {
+	async function executeFetch(url, options, declarativeBodySource) {
 		const trimmedUrl = (url ?? "").trim();
 		const method = (options?.method ?? "GET").trim().toUpperCase() || "GET";
 		const rawInto = options?.into !== void 0 ? options.into.trim() : "";
@@ -2027,9 +2023,9 @@
 		try {
 			if (typeof fetch !== "function") throw new Error("Global fetch() is unavailable in this environment");
 			const fetchInit = { method };
-			if (method !== "GET" && method !== "HEAD" && (method === "POST" || options?.body !== void 0)) {
+			if (method !== "GET" && method !== "HEAD" && (method === "POST" || declarativeBodySource !== void 0 || options?.body !== void 0)) {
 				if (persistTimeout !== null) flushPersistence(true);
-				const payload = resolveBodyPayload(options?.body);
+				const payload = declarativeBodySource !== void 0 ? resolveDeclarativeBodySource(declarativeBodySource) : resolveProgrammaticBody(options?.body);
 				const mergedHeaders = {};
 				let hasContentType = false;
 				if (options?.headers) for (const [hk, hv] of Object.entries(options.headers)) {
@@ -2061,10 +2057,10 @@
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const rawText = await res.text();
 			const contentType = (res.headers?.get?.("content-type") ?? "").toLowerCase();
-			const isFireAndForgetPost = method === "POST" && target === null;
-			const mustParseJson = target === "db" || target === null && method !== "POST" || target !== null && (target.startsWith("field:") || target.startsWith("list:") || target.startsWith("custom:")) || rawPath.length > 0;
+			const isFireAndForgetMutation = method !== "GET" && target === null;
+			const mustParseJson = target === "db" || target === null && method === "GET" || target !== null && (target.startsWith("field:") || target.startsWith("list:") || target.startsWith("custom:")) || rawPath.length > 0;
 			let parsed;
-			if (isFireAndForgetPost && rawText.trim() === "" && rawPath.length === 0) parsed = null;
+			if (isFireAndForgetMutation && rawText.trim() === "" && rawPath.length === 0) parsed = null;
 			else if (mustParseJson || contentType.includes("json")) try {
 				parsed = JSON.parse(rawText);
 			} catch {
@@ -2148,9 +2144,8 @@
 				method: cfg.method,
 				into: cfg.into,
 				path: cfg.path,
-				body: cfg.method === "POST" ? cfg.bodySource ?? "db" : void 0,
 				mode: cfg.mode
-			});
+			}, cfg.method === "POST" ? cfg.bodySource ?? "db" : void 0);
 		} finally {
 			el.removeAttribute("data-naizo-loading");
 			if (addedDisabled || el.hasAttribute("data-naizo-loading-disabled")) {
@@ -2181,15 +2176,6 @@
 	function handleListClicks(e) {
 		const target = e.target;
 		if (!target || typeof target.closest !== "function") return;
-		const reqEl = target.closest(API_REQUEST_SELECTOR);
-		if (reqEl && !isIgnoredElement(reqEl)) {
-			const cfg = getDeclarativeRequestConfig(reqEl);
-			if (cfg && cfg.trigger === "click") {
-				if (reqEl instanceof HTMLAnchorElement || reqEl instanceof HTMLButtonElement && reqEl.form !== null && reqEl.type === "submit") e.preventDefault();
-				triggerDeclarativeRequest(reqEl, true);
-				return;
-			}
-		}
 		const addBtn = target.closest("[naizo-add], [data-naizo-add]");
 		if (addBtn) {
 			const listName = getAttr(addBtn, "naizo-add");
@@ -2224,6 +2210,15 @@
 			if (idx === -1) return;
 			if (dir === "up" && idx > 0) Naizo.moveItem(listName, idx, idx - 1);
 			else if (dir === "down" && idx < rows.length - 1) Naizo.moveItem(listName, idx, idx + 1);
+			return;
+		}
+		const reqEl = target.closest(API_REQUEST_SELECTOR);
+		if (reqEl && !isIgnoredElement(reqEl)) {
+			const cfg = getDeclarativeRequestConfig(reqEl);
+			if (cfg && cfg.trigger === "click") {
+				if (reqEl instanceof HTMLAnchorElement || reqEl instanceof HTMLButtonElement && reqEl.form !== null && reqEl.type === "submit") e.preventDefault();
+				triggerDeclarativeRequest(reqEl, true);
+			}
 		}
 	}
 	const handledKeyEvents = /* @__PURE__ */ new WeakSet();
