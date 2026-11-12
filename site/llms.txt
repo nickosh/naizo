@@ -1,6 +1,6 @@
 # naizo.js
 
-> Self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]`) for Human + AI Agent workflows. Turns any single `.html` file (dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, engineering notebooks, plans, specs, checklists, triage boards, and custom micro-tools) into a living, self-saving application whose state syncs between the browser DOM, `localStorage`, and `<script id="naizodb" type="application/json">` on disk. Zero dependencies, ~12.4 KB minified + gzipped, MIT License.
+> Self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]`) for Human + AI Agent workflows. Turns any single `.html` file (dashboards, interactive studios, personal trackers, design option labs, calculators, visual canvases, engineering notebooks, plans, specs, checklists, triage boards, and custom micro-tools) into a living, self-saving application whose state syncs between the browser DOM, `localStorage`, and `<script id="naizodb" type="application/json">` on disk. Zero dependencies, ~15.7 KB minified + gzipped, MIT License.
 
 In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed within)** and **内臓 (internal organs)**: `<script id="naizodb">` is the built-in JSON database inside `<head>`, and `naizo.js` provides the reactive internal organs that bind inputs, repeat lists, and sync human browser edits with AI agent disk edits.
 
@@ -32,14 +32,22 @@ In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed wi
 - `naizo-id="scope"` / `data-naizo-id="scope"` – Scope `localStorage` and IndexedDB keys (`<path>::<scope>`).
 - `naizo-mode="online|local|auto"` / `data-naizo-mode="online|local|auto"` – Override Local Mode vs. Online Mode detection.
 - `naizo-manual` / `data-naizo-manual` – Disable automatic `initNaizo()` boot.
+- `naizo-get="url"` / `data-naizo-get="url"` – Fetch JSON/text via `GET` and route `2xx` responses via `naizo-into` (or hydrate `#naizodb` when `naizo-into` is omitted).
+- `naizo-post="url"` / `data-naizo-post="url"` – Flush pending edits and send a CORS-safelisted `text/plain;charset=UTF-8` JSON `POST` payload (fire-and-forget unless `naizo-into` is set).
+- `naizo-into="target"` / `data-naizo-into="target"` – Route response into `field:<key>`, `list:<name>` (`Naizo.setList`), `custom:<key>`, `db`, or a DOM-only `#selector` (`textContent`, never `innerHTML`).
+- `naizo-path="a.b.0"` / `data-naizo-path="a.b.0"` – Extract nested JSON values via `Object.hasOwn()` dot-path traversal.
+- `naizo-body="source"` / `data-naizo-body="source"` – Select outgoing `POST` payload (`db`, `fields`, `custom`, `list:<name>`, or `field:<key>`).
+- `naizo-trigger="click|init|load"` / `data-naizo-trigger="click|init|load"` – Fire request on `click` (default), `init` (boot only when target is empty), or `load` (every boot).
+- `naizo-cors="no-cors"` / `data-naizo-cors="no-cors"` – Enable opaque fire-and-forget webhook `POST` delivery when `naizo-into` is omitted.
 
 ## Programmatic API (`window.Naizo` / `window.NaizoDB`)
 
 - Custom bucket (`db.custom`): `Naizo.get(key?)`, `Naizo.set(key, value)`, `Naizo.delete(key)`
 - Fields bucket (`db.fields`): `Naizo.getField(key)`, `Naizo.setField(key, value)`, `Naizo.deleteField(key)`
-- Lists bucket (`db.lists`): `Naizo.getList(name)`, `Naizo.addItem(name, data?)`, `Naizo.updateItem(name, index, partial)`, `Naizo.moveItem(name, from, to)`, `Naizo.removeItem(name, index)`
-- Lifecycle & Export: `Naizo.bind(root?)`, `await Naizo.save()`, `Naizo.reset()`, `await Naizo.unlink()`, `await Naizo.copyJSON()`, `Naizo.exportHTML()`, `Naizo.downloadHTML(filename?)`
-- Events on `window`: `'naizo:hydrate'`, `'naizo:change'`, `'naizo:item'`
+- Lists bucket (`db.lists`): `Naizo.getList(name)`, `Naizo.setList(name, items)`, `Naizo.addItem(name, data?)`, `Naizo.updateItem(name, index, partial)`, `Naizo.moveItem(name, from, to)`, `Naizo.removeItem(name, index)`
+- Mini-API Client, Lifecycle & Export: `await Naizo.fetch(url, options?)`, `Naizo.bind(root?)`, `await Naizo.save()`, `Naizo.reset()`, `await Naizo.unlink()`, `await Naizo.copyJSON()`, `Naizo.exportHTML()`, `Naizo.downloadHTML(filename?)`
+- Events on `window`: `'naizo:hydrate'`, `'naizo:change'`, `'naizo:item'`, `'naizo:fetch'`
+- Network & Mode Rules (`#net`, `D43`, `D50`, `D51`): Auto-shows rightmost `#net` wired-globe (`API idle`, `API active` `L→R` wave held `>= 600 ms`, `API request failed`) without altering `#dot`/`#status`; Local Mode persists fetched state surgically to `#naizodb` on disk (`file://` `Origin: null` needs `Access-Control-Allow-Origin: *` or `naizo-cors="no-cors"` and blocks relative `./data.json`); Online Mode supports relative `./preset.json` and bakes fetched state into `⬇ Save to PC` (blocking mixed `http://` and requiring `Access-Control-Allow-Private-Network: true` for `localhost`).
 
 ## AI Agent & LLM Documentation Endpoints
 

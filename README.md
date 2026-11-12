@@ -5,7 +5,7 @@
 **Self-persisting HTML for human & AI workflows.**
 
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#)
-[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~12.4_KB-blue.svg)](#)
+[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~15.7_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 _`naizo.js` is a zero-dependency JavaScript library that turns any single `.html` file into a self-saving local-first application — from custom dashboards, interactive studios, and personal trackers to calculators, notebooks, specs, and more._
@@ -127,7 +127,7 @@ Human in Browser  ──(Edit UI + Status Pill / ⌘S saves to file)──►  S
 <!-- jsDelivr CDN (readable bundle) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified bundle (~12.4 KB gzipped, works on either CDN) -->
+<!-- Prebuilt minified bundle (~15.7 KB gzipped, works on either CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- unpkg CDN (readable bundle) -->
@@ -192,21 +192,28 @@ mkdir -p .agents/skills/naizo && curl -fsSL https://raw.githubusercontent.com/ni
 
 **Start with simple HTML attributes; reach for JavaScript only when building custom widgets.** Every attribute supports both concise **`naizo` / `naizo-*`** syntax and HTML5-compliant **`data-naizo` / `data-naizo-*`** aliases (for example, `naizo="key"` or `data-naizo="key"`):
 
-| Attribute (or `data-*`)            | Target Element                                                              | Behavior                                                                                                                     |
-| ---------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `naizo="key"`                      | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf | Binds element state to `fields["key"]` (or item property inside `[naizo-item]`).                                             |
-| `naizo-list="name"`                | `<div>`, `<ul>`, `<tbody>`                                                  | Declares a repeating list bound to `lists["name"]` and appends `+ Add Item`.                                                 |
-| `naizo-item`                       | Direct child of `[naizo-list]`                                              | Marks a repeating row/card with hover `↑ ↓ ×` controls and `WeakMap` pass-through keys.                                      |
-| `naizo-template`                   | `<template>` in list                                                        | Optional explicit blueprint for new items (auto-inferred from first item when omitted).                                      |
-| `naizo-add="name"`                 | `<button>`                                                                  | Appends a new blank item to `[naizo-list="name"]`.                                                                           |
-| `naizo-remove`                     | `<button>` in item                                                          | Removes the enclosing `[naizo-item]` row.                                                                                    |
-| `naizo-move="up\|down"`            | `<button>` in item                                                          | Moves the enclosing `[naizo-item]` row up or down.                                                                           |
-| `naizo-no-controls`                | `[naizo-list]`                                                              | Disables automatic injection of `+ Add Item` and row toolbars.                                                               |
-| `naizo-ignore`                     | Any element                                                                 | Excludes element/subtree from state binding while preserving it in exported HTML.                                            |
-| `naizo-strip`                      | Any element                                                                 | Excludes element/subtree from state binding and strips it from auto-templates and exported/downloaded HTML (`⬇ Save to PC`). |
-| `naizo-id="scope"`                 | `<html>` or `<body>`                                                        | Optional document scope identifier to isolate storage keys on `localhost`.                                                   |
-| `naizo-mode="online\|local\|auto"` | `<html>` or `<body>`                                                        | Overrides automatic Local Mode vs. Online Mode detection.                                                                    |
-| `naizo-manual`                     | `<html>`, `<body>`, or `<script>`                                           | Opts out of automatic boot so you can call `Naizo.init()` manually.                                                          |
+| Attribute (or `data-*`)             | Target Element                                                              | Behavior                                                                                                                     |
+| ----------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `naizo="key"`                       | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf | Binds element state to `fields["key"]` (or item property inside `[naizo-item]`).                                             |
+| `naizo-list="name"`                 | `<div>`, `<ul>`, `<tbody>`                                                  | Declares a repeating list bound to `lists["name"]` and appends `+ Add Item`.                                                 |
+| `naizo-item`                        | Direct child of `[naizo-list]`                                              | Marks a repeating row/card with hover `↑ ↓ ×` controls and `WeakMap` pass-through keys.                                      |
+| `naizo-template`                    | `<template>` in list                                                        | Optional explicit blueprint for new items (auto-inferred from first item when omitted).                                      |
+| `naizo-add="name"`                  | `<button>`                                                                  | Appends a new blank item to `[naizo-list="name"]`.                                                                           |
+| `naizo-remove`                      | `<button>` in item                                                          | Removes the enclosing `[naizo-item]` row.                                                                                    |
+| `naizo-move="up\|down"`             | `<button>` in item                                                          | Moves the enclosing `[naizo-item]` row up or down.                                                                           |
+| `naizo-no-controls`                 | `[naizo-list]`                                                              | Disables automatic injection of `+ Add Item` and row toolbars.                                                               |
+| `naizo-ignore`                      | Any element                                                                 | Excludes element/subtree from state binding while preserving it in exported HTML.                                            |
+| `naizo-strip`                       | Any element                                                                 | Excludes element/subtree from state binding and strips it from auto-templates and exported/downloaded HTML (`⬇ Save to PC`). |
+| `naizo-id="scope"`                  | `<html>` or `<body>`                                                        | Optional document scope identifier to isolate storage keys on `localhost`.                                                   |
+| `naizo-mode="online\|local\|auto"`  | `<html>` or `<body>`                                                        | Overrides automatic Local Mode vs. Online Mode detection.                                                                    |
+| `naizo-manual`                      | `<html>`, `<body>`, or `<script>`                                           | Opts out of automatic boot so you can call `Naizo.init()` manually.                                                          |
+| `naizo-get="url"`                   | `<button>`, `<a>`, or any element                                           | Fetches JSON or text via `GET` and routes the result via `naizo-into` (or hydrates `#naizodb` when `naizo-into` is omitted). |
+| `naizo-post="url"`                  | `<button>` or any element                                                   | Sends a CORS-safelisted `text/plain;charset=UTF-8` JSON `POST` payload (fire-and-forget unless `naizo-into` is set).         |
+| `naizo-into="target"`               | With `naizo-get` / `naizo-post`                                             | Routes response into `field:<key>`, `list:<name>`, `custom:<key>`, `db`, or a DOM-only `#selector` (`textContent`).          |
+| `naizo-path="a.b.0"`                | With `naizo-get` / `naizo-post`                                             | Extracts a nested property or array index from parsed JSON using `Object.hasOwn()` at each step.                             |
+| `naizo-body="source"`               | With `naizo-post`                                                           | Selects outgoing `POST` payload: `db` (default), `fields`, `custom`, `list:<name>`, or `field:<key>`.                        |
+| `naizo-trigger="click\|init\|load"` | With `naizo-get` / `naizo-post`                                             | Fires on `click` (default), `init` (boot only when target is empty), or `load` (every boot).                                 |
+| `naizo-cors="no-cors"`              | With `naizo-post`                                                           | Enables opaque fire-and-forget webhook delivery when `naizo-into` is omitted.                                                |
 
 ```javascript
 // Programmatic JavaScript API (window.Naizo / window.NaizoDB)
@@ -218,11 +225,13 @@ Naizo.setField('owner', 'Kenji');
 Naizo.deleteField('flag');
 
 Naizo.getList('tasks');
+Naizo.setList('tasks', [{ done: false, title: 'Synced from API', priority: 'High' }]);
 Naizo.addItem('tasks', { done: false, title: 'Ship', priority: 'High' });
 Naizo.updateItem('tasks', 0, { done: true });
 Naizo.moveItem('tasks', 1, 0);
 Naizo.removeItem('tasks', 2);
 
+const res = await Naizo.fetch('https://api.example.com/tasks', { into: 'list:tasks' });
 Naizo.bind(rootEl);
 await Naizo.save();
 Naizo.reset();
@@ -231,7 +240,7 @@ await Naizo.copyJSON();
 const html = Naizo.exportHTML();
 const portable = Naizo.downloadHTML('app.html');
 
-// Events: 'naizo:hydrate', 'naizo:change', 'naizo:item'
+// Events: 'naizo:hydrate', 'naizo:change', 'naizo:item', 'naizo:fetch'
 ```
 
 See [docs/USAGE.md](docs/USAGE.md) for the complete API, event payloads, and architectural recipes.
@@ -240,13 +249,13 @@ See [docs/USAGE.md](docs/USAGE.md) for the complete API, event payloads, and arc
 
 ## Browser & Mode Capability Matrix
 
-**One HTML file that adapts to where you open it.** Whether you open a file locally from your computer (`file://` or `localhost`) or host it online (`https://`), `naizo.js` adapts automatically and keeps the bottom-right status pill clear about where your changes are saved:
+**One HTML file that adapts to where you open it.** Whether you open a file locally from your computer (`file://` or `localhost`) or host it online (`https://`), `naizo.js` adapts automatically and keeps the bottom-right status pill clear about where your changes are saved (and automatically reveals a rightmost wired-globe `#net` network indicator whenever `naizo-get`, `naizo-post`, or `Naizo.fetch()` is used):
 
-| Mode & Browsers                                                                    | Status Pill & Action                                                          | Persistence, Sync, & Recovery                                                                                                                                                                                                                                                                                                                       |
-| :--------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Local Mode (Live Disk)**<br>Chrome, Edge, Brave, Arc on `file://` or `localhost` | `Browser Cache · Click to Link Disk`<br>↓ _after linking_<br>`Synced to Disk` | `⌘S` / `Ctrl+S` links or saves immediately; surgical `<script id="naizodb">` in-place write; immediate disk flush on tab switch; IndexedDB handle persistence; ~2 s `file.lastModified` watch; 3-way shallow key merge with `↺ Restore` backup.                                                                                                     |
-| **Online Mode (Web Host)**<br>All modern browsers on GitHub Pages or `https://`    | `Saved in Browser`<br>Actions: `⬇ Save to PC` · `↺ Reset`                     | Instant `localStorage` persistence + cross-tab `storage` merge; `↺ Reset` with inline Shadow DOM confirmation and `↺ Restore` undo backup; `⬇ Save to PC` (`Naizo.downloadHTML()`) rewrites relative `naizo.js` paths to `dist/naizo.min.js` on the npm CDN and strips `naizo-mode="online"` so downloaded `.html` files run in Local Mode on a PC. |
-| **Local Mode (Fallback)**<br>Safari & Firefox on `file://` or `localhost`          | `Browser Cache · Click to Save HTML`<br>Action: `📋 Copy`                     | Full reactive bindings, `[naizo-list]` repeater, and `localStorage` cache; 1-click `📋 Copy` (`Naizo.copyJSON()`) to copy `#naizodb` JSON to clipboard; 1-click clean `.html` snapshot download via `Naizo.exportHTML()`.                                                                                                                           |
+| Mode & Browsers                                                                    | Status Pill & Action                                                          | Persistence, Sync, & Network Rules                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| :--------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Local Mode (Live Disk)**<br>Chrome, Edge, Brave, Arc on `file://` or `localhost` | `Browser Cache · Click to Link Disk`<br>↓ _after linking_<br>`Synced to Disk` | `⌘S` / `Ctrl+S` links or saves immediately; surgical `<script id="naizodb">` in-place write; immediate disk flush on tab switch; IndexedDB handle persistence; ~2 s `file.lastModified` watch; 3-way shallow key merge with `↺ Restore` backup. `naizo-get` writes fetched data straight into `#naizodb` on disk (`file://` `Origin: null` requires `Access-Control-Allow-Origin: *` to read responses, or `naizo-cors="no-cors"` for blind `POST` webhooks).        |
+| **Online Mode (Web Host)**<br>All modern browsers on GitHub Pages or `https://`    | `Saved in Browser`<br>Actions: `⬇ Save to PC` · `↺ Reset`                     | Instant `localStorage` persistence + cross-tab `storage` merge; `↺ Reset` with inline Shadow DOM confirmation and `↺ Restore` undo backup; `⬇ Save to PC` (`Naizo.downloadHTML()`) rewrites relative `naizo.js` paths to `dist/naizo.min.js` on the npm CDN and strips `naizo-mode="online"`. `naizo-get` supports relative `./data.json` URLs and bakes fetched state into `⬇ Save to PC` (browsers block mixed `http://` and require PNA headers for `localhost`). |
+| **Local Mode (Fallback)**<br>Safari & Firefox on `file://` or `localhost`          | `Browser Cache · Click to Save HTML`<br>Action: `📋 Copy`                     | Full reactive bindings, `[naizo-list]` repeater, Mini-API Client (`naizo-get` / `naizo-post` / `Naizo.fetch`), and `localStorage` cache; 1-click `📋 Copy` (`Naizo.copyJSON()`) to copy `#naizodb` JSON to clipboard; 1-click clean `.html` snapshot download via `Naizo.exportHTML()`.                                                                                                                                                                              |
 
 ---
 
@@ -262,7 +271,7 @@ Several tools explore reactive HTML, declarative persistence, or self-saving sin
 | **Zero-Server Local Disk Save**       | **Yes** (surgical `#naizodb` File System API + HTML fallback) | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                | **Yes** (`⌘S` File System Access API; Chromium only)        |
 | **Two-Way Human ↔ AI Disk Sync**      | **Yes** (~2 s live watch + shallow key merge + restore)       | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                | Manual reload only (`⌘S` overwrites external disk edits)    |
 | **Declarative List Repeater**         | **Yes** (`naizo-list` / `naizo-item`)                         | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    | N/A (hardcoded page sidebar)                                |
-| **Runtime Footprint (Gzip)**          | **~12.4 KB** (0 deps)                                         | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    | ~5.5 KB bundled app (0 deps)                                |
+| **Runtime Footprint (Gzip)**          | **~15.7 KB** (0 deps)                                         | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    | ~5.5 KB bundled app (0 deps)                                |
 
 ---
 

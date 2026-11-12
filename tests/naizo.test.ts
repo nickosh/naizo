@@ -3056,4 +3056,407 @@ describe('naizo.js v0.1.0 core runtime', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('executes the shipped dist/naizo.js IIFE bundle across Local Mode and Online Mode for Mini-API Client, Naizo.setList, and #net globe parity (M8.2, EC50)', async () => {
+    vi.useFakeTimers();
+    const postedPayloads: Array<{ url: string; init?: RequestInit }> = [];
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (init?.method === 'POST') {
+        postedPayloads.push({ url, init });
+      }
+      if (url === 'https://api.example.com/seed-issues') {
+        return new Response(JSON.stringify([{ id: 10, title: 'Seeded Issue' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url === 'https://api.example.com/live-tag') {
+        return new Response(JSON.stringify('v0.2.0'), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url === 'https://api.example.com/stats') {
+        return new Response(JSON.stringify({ nested: { items: [{ count: 42 }] } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url === 'https://api.example.com/xss-preview') {
+        return new Response('<script>window.__bundleXss=1</script><b>RawText</b>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        });
+      }
+      if (url === 'https://api.example.com/full-bundle-db') {
+        return new Response(
+          JSON.stringify({
+            _meta: { origin: 'api' },
+            fields: { release_tag: 'v1.0.0' },
+            lists: { issues: [{ id: 99, title: 'Full DB Issue' }] },
+            custom: { issueCount: 99 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url === 'https://hooks.example.com/sync') {
+        return new Response(JSON.stringify({ received: true, fields: { ignored: true } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url === 'https://hooks.example.com/blind') {
+        const opaqueRes = new Response(null, { status: 200 });
+        Object.defineProperty(opaqueRes, 'type', { value: 'opaque' });
+        Object.defineProperty(opaqueRes, 'status', { value: 0 });
+        Object.defineProperty(opaqueRes, 'ok', { value: false });
+        return opaqueRes;
+      }
+      if (url === './preset.json') {
+        return new Response(
+          JSON.stringify({ presets: [{ id: 'p-1', name: 'Online Preset', passThrough: true }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url === 'https://api.example.com/network-blocked') {
+        throw new TypeError('Failed to fetch');
+      }
+      return new Response(JSON.stringify({ error: 'Unavailable' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const flushMicrotasks = async (ticks = 8): Promise<void> => {
+      for (let i = 0; i < ticks; i += 1) {
+        await Promise.resolve();
+      }
+    };
+
+    document.documentElement.setAttribute('data-naizo-manual', '');
+    runInThisContext(iifeBundleCode);
+    const bundleNaizo = window.Naizo;
+
+    try {
+      expect(bundleNaizo).toBeDefined();
+      expect(bundleNaizo).not.toBe(Naizo);
+
+      // --- Part 1: Local Mode with linked FileSystemFileHandle ---
+      const initialLocalJson = JSON.stringify(
+        {
+          _meta: {},
+          fields: { release_tag: '' },
+          lists: { issues: [] },
+          custom: {},
+        },
+        null,
+        2,
+      );
+      let diskHtml = `<!doctype html><html><head><script id="naizodb" type="application/json">\n${initialLocalJson}\n</script></head><body class="local-shell"></body></html>`;
+      let diskMtime = 1000;
+
+      window.showSaveFilePicker = vi.fn().mockResolvedValue({
+        queryPermission: vi.fn().mockResolvedValue('granted'),
+        requestPermission: vi.fn().mockResolvedValue('granted'),
+        getFile: vi.fn().mockImplementation(async () => ({
+          lastModified: diskMtime,
+          arrayBuffer: async () => new TextEncoder().encode(diskHtml).buffer,
+          text: async () => diskHtml,
+        })),
+        createWritable: vi.fn().mockImplementation(async () => ({
+          write: async (data: string) => {
+            diskHtml = data;
+            diskMtime += 100;
+          },
+          close: async () => {},
+        })),
+      });
+
+      document.head.innerHTML = `<script id="naizodb" type="application/json">\n${initialLocalJson}\n</script>`;
+      document.body.innerHTML = `
+        <input id="tag-input" type="text" naizo="release_tag" value="">
+        <div id="preview-box">Initial</div>
+        <ul naizo-list="issues">
+          <template naizo-template><li naizo-item naizo="title"></li></template>
+        </ul>
+        <div naizo-get="https://api.example.com/seed-issues" naizo-into="list:issues" naizo-trigger="init"></div>
+        <div naizo-get="https://api.example.com/live-tag" naizo-into="field:release_tag" naizo-trigger="load"></div>
+        <button id="btn-stats" type="button" data-naizo-get="https://api.example.com/stats" data-naizo-path="nested.items.0.count" data-naizo-into="custom:issueCount">Stats</button>
+        <button id="btn-xss" type="button" naizo-get="https://api.example.com/xss-preview" naizo-into="#preview-box">Preview</button>
+        <button id="btn-post" type="button" naizo-post="https://hooks.example.com/sync" naizo-body="list:issues">Sync Webhook</button>
+        <button id="btn-blind" type="button" naizo-post="https://hooks.example.com/blind" naizo-cors="no-cors">Blind Webhook</button>
+      `;
+
+      await bundleNaizo.init();
+      await flushMicrotasks();
+
+      const shadowLocal = document.getElementById('__naizodb_host__')?.shadowRoot;
+      const netLocal = shadowLocal?.getElementById('net') as HTMLButtonElement;
+      expect(shadowLocal?.querySelector('.pill')?.lastElementChild?.id).toBe('net');
+      expect(netLocal.style.display).toBe('inline-flex');
+      expect(netLocal.querySelector('#naizo-net-wave-clip')).not.toBeNull();
+      expect(netLocal.classList.contains('active')).toBe(true);
+      expect(netLocal.title).toBe('API active');
+
+      // Hold >= 600 ms before returning to idle
+      vi.advanceTimersByTime(599);
+      expect(netLocal.classList.contains('active')).toBe(true);
+      vi.advanceTimersByTime(5);
+      expect(netLocal.classList.contains('idle')).toBe(true);
+      expect(netLocal.title).toBe('API idle');
+
+      expect(bundleNaizo.getList('issues')).toEqual([{ id: 10, title: 'Seeded Issue' }]);
+      expect(bundleNaizo.getField('release_tag')).toBe('v0.2.0');
+
+      // Link local file on disk first (diskHtml matches initial boot #naizodb baseline, so seeded state writes cleanly to disk)
+      const shadowLinked = document.getElementById('__naizodb_host__')?.shadowRoot;
+      (shadowLinked?.getElementById('action') as HTMLButtonElement | null)?.click();
+      await flushMicrotasks(12);
+      expect(shadowLinked?.getElementById('status')?.textContent).toBe('Synced to Disk');
+      expect(diskHtml).toContain('"Seeded Issue"');
+
+      // Naizo.setList() in shipped bundle replaces list, preserves pass-through keys, and surgically updates diskHtml
+      bundleNaizo.setList('issues', [{ id: 11, title: 'Bundle Issue <A>', repo: 'nickosh/naizo' }]);
+      vi.advanceTimersByTime(300);
+      await flushMicrotasks(12);
+      expect(document.querySelector('[naizo-list="issues"] > [naizo-item]')?.textContent).toContain(
+        'Bundle Issue <A>',
+      );
+      expect(diskHtml).toContain('\\u003cA>');
+
+      // Reload check (reading #naizodb from diskHtml): "init" skips non-empty list:issues while "load" runs again
+      const reloadDoc = new DOMParser().parseFromString(diskHtml, 'text/html');
+      document.head.innerHTML = reloadDoc.head.innerHTML;
+      fetchMock.mockClear();
+      await bundleNaizo.init();
+      await flushMicrotasks();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(bundleNaizo.getList('issues')).toEqual([
+        { id: 11, title: 'Bundle Issue <A>', repo: 'nickosh/naizo' },
+      ]);
+      vi.advanceTimersByTime(650);
+
+      // Re-confirm disk link after simulated reload
+      const shadowAfterReload = document.getElementById('__naizodb_host__')?.shadowRoot;
+      (shadowAfterReload?.getElementById('action') as HTMLButtonElement | null)?.click();
+      await flushMicrotasks(12);
+      expect(shadowAfterReload?.getElementById('status')?.textContent).toBe('Synced to Disk');
+
+      // Declarative custom:, #selector XSS guard, CORS-safelisted POST, and no-cors opaque webhook
+      document.getElementById('btn-stats')?.click();
+      await flushMicrotasks();
+      vi.advanceTimersByTime(300);
+      await flushMicrotasks(12);
+
+      expect(bundleNaizo.get('issueCount')).toBe(42);
+      expect(diskHtml).toContain('"issueCount": 42');
+      expect(diskHtml).toContain('<body class="local-shell"></body>');
+
+      document.getElementById('btn-xss')?.click();
+      await flushMicrotasks();
+      expect(document.getElementById('preview-box')?.textContent).toBe(
+        '<script>window.__bundleXss=1</script><b>RawText</b>',
+      );
+      expect(document.querySelector('#preview-box script')).toBeNull();
+
+      document.getElementById('btn-post')?.click();
+      await flushMicrotasks();
+      const syncCall = postedPayloads.find((p) => p.url === 'https://hooks.example.com/sync');
+      const syncHeaders = (syncCall?.init?.headers ?? {}) as Record<string, string>;
+      expect(syncHeaders['Content-Type']).toBe('text/plain;charset=UTF-8');
+      const syncBody = typeof syncCall?.init?.body === 'string' ? syncCall.init.body : '[]';
+      expect(syncBody).toContain('Bundle Issue <A>');
+      expect(syncBody).not.toContain('\\u003c');
+
+      document.getElementById('btn-blind')?.click();
+      await flushMicrotasks();
+      const blindCall = postedPayloads.find((p) => p.url === 'https://hooks.example.com/blind');
+      expect(blindCall?.init?.mode).toBe('no-cors');
+
+      // Full DB hydration on GET via shipped bundle
+      const fullRes = await bundleNaizo.fetch('https://api.example.com/full-bundle-db');
+      vi.advanceTimersByTime(300);
+      await flushMicrotasks(12);
+      expect(fullRes.ok).toBe(true);
+      expect(bundleNaizo.getField('release_tag')).toBe('v1.0.0');
+      expect(diskHtml).toContain('"Full DB Issue"');
+
+      // Prototype traversal, !res.ok (503), and file:// CORS network error leave Local Mode store & disk untouched
+      const protoFail = await bundleNaizo.fetch('https://api.example.com/stats', {
+        path: 'nested.__proto__.polluted',
+        into: 'custom:issueCount',
+      });
+      expect(protoFail.ok).toBe(false);
+
+      const httpFail = await bundleNaizo.fetch('https://api.example.com/down', {
+        into: 'field:release_tag',
+      });
+      expect(httpFail.ok).toBe(false);
+      expect(httpFail.status).toBe(503);
+
+      const netFail = await bundleNaizo.fetch('https://api.example.com/network-blocked', {
+        into: 'list:issues',
+      });
+      expect(netFail.ok).toBe(false);
+      expect(bundleNaizo.getField('release_tag')).toBe('v1.0.0');
+      expect(bundleNaizo.getList('issues')).toEqual([{ id: 99, title: 'Full DB Issue' }]);
+      expect(shadowAfterReload?.getElementById('status')?.textContent).toBe('Synced to Disk');
+      expect(shadowAfterReload?.getElementById('dot')?.className).toBe('dot saved');
+
+      const netAfterErr = shadowAfterReload?.getElementById('net') as HTMLButtonElement;
+      expect(netAfterErr.classList.contains('error')).toBe(true);
+      expect(netAfterErr.title).toBe('API request failed');
+      netAfterErr.click();
+      expect(netAfterErr.classList.contains('idle')).toBe(true);
+
+      await bundleNaizo.unlink();
+
+      // --- Part 2: Online Mode with relative .json fetch + Save to PC + non-destructive errors ---
+      localStorage.clear();
+      document.documentElement.setAttribute('naizo-mode', 'online');
+      document.head.innerHTML = `
+        <script id="naizodb" type="application/json">{"_meta":{},"fields":{},"lists":{"presets":[]},"custom":{}}</script>
+        <script src="../dist/naizo.js" defer></script>
+      `;
+      document.body.innerHTML = `
+        <ul naizo-list="presets">
+          <template naizo-template><li naizo-item naizo="name"></li></template>
+        </ul>
+        <button id="btn-online-preset" type="button" naizo-get="./preset.json" naizo-path="presets" naizo-into="list:presets">Load Presets</button>
+      `;
+
+      await bundleNaizo.init();
+      const shadowOnline = document.getElementById('__naizodb_host__')?.shadowRoot;
+      expect(shadowOnline?.getElementById('status')?.textContent).toBe('Saved in Browser');
+      expect((shadowOnline?.getElementById('reset') as HTMLButtonElement)?.style.display).toBe(
+        'none',
+      );
+
+      document.getElementById('btn-online-preset')?.click();
+      await flushMicrotasks();
+      vi.advanceTimersByTime(650);
+
+      expect(bundleNaizo.getList('presets')).toEqual([
+        { id: 'p-1', name: 'Online Preset', passThrough: true },
+      ]);
+      expect((shadowOnline?.getElementById('reset') as HTMLButtonElement)?.style.display).not.toBe(
+        'none',
+      );
+      expect(shadowOnline?.getElementById('status')?.textContent).toBe('Saved in Browser');
+
+      // !res.ok and network/PNA errors in Online Mode preserve store & Saved in Browser status
+      const online503 = await bundleNaizo.fetch('https://api.example.com/down', {
+        into: 'list:presets',
+      });
+      const onlineNetErr = await bundleNaizo.fetch('https://api.example.com/network-blocked', {
+        into: 'list:presets',
+      });
+      expect(online503.ok).toBe(false);
+      expect(onlineNetErr.ok).toBe(false);
+      expect(bundleNaizo.getList('presets')).toEqual([
+        { id: 'p-1', name: 'Online Preset', passThrough: true },
+      ]);
+      expect(shadowOnline?.getElementById('status')?.textContent).toBe('Saved in Browser');
+      expect(shadowOnline?.getElementById('dot')?.className).toBe('dot saved');
+      expect(shadowOnline?.getElementById('net')?.classList.contains('error')).toBe(true);
+
+      const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:online-preset');
+      const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+      const anchorClickSpy = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => {});
+      const portableOnlineHtml = bundleNaizo.downloadHTML('online-fetched.html');
+      createUrlSpy.mockRestore();
+      revokeUrlSpy.mockRestore();
+      anchorClickSpy.mockRestore();
+
+      expect(portableOnlineHtml).toContain('"Online Preset"');
+      expect(portableOnlineHtml).toContain('"passThrough": true');
+      expect(portableOnlineHtml).toContain(
+        'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js',
+      );
+      expect(portableOnlineHtml).not.toContain('naizo-mode="online"');
+      expect(shadowOnline?.getElementById('status')?.textContent).toBe(
+        'Saved to PC · Ready for Local Mode',
+      );
+    } finally {
+      window.__naizoCleanup?.();
+      Reflect.deleteProperty(window, 'showSaveFilePicker');
+      document.documentElement.removeAttribute('naizo-mode');
+      document.documentElement.removeAttribute('data-naizo-manual');
+      window.Naizo = Naizo;
+      window.NaizoDB = NaizoDB;
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps all three documentation tiers synchronized for Mini-API Client, Naizo.setList, and #net rules (M8.2, D46)', () => {
+    const readmeMd = readFileSync(resolve(process.cwd(), 'README.md'), 'utf-8');
+    const usageMd = readFileSync(resolve(process.cwd(), 'docs/USAGE.md'), 'utf-8');
+    const productMd = readFileSync(resolve(process.cwd(), 'docs/PRODUCT.md'), 'utf-8');
+    const agentsMd = readFileSync(resolve(process.cwd(), 'AGENTS.md'), 'utf-8');
+    const currentSiteHtml = readFileSync(resolve(process.cwd(), 'site/index.html'), 'utf-8');
+    const skillMd = readFileSync(resolve(process.cwd(), 'skills/naizo/SKILL.md'), 'utf-8');
+    const siteSkillMd = readFileSync(resolve(process.cwd(), 'site/SKILL.md'), 'utf-8');
+    const llmsTxt = readFileSync(resolve(process.cwd(), 'site/llms.txt'), 'utf-8');
+    const llmsFullTxt = readFileSync(resolve(process.cwd(), 'site/llms-full.txt'), 'utf-8');
+
+    expect(siteSkillMd).toBe(skillMd);
+
+    for (const docSurface of [
+      readmeMd,
+      usageMd,
+      productMd,
+      agentsMd,
+      currentSiteHtml,
+      skillMd,
+      llmsTxt,
+      llmsFullTxt,
+    ]) {
+      expect(docSurface).toContain('naizo-get');
+      expect(docSurface).toContain('naizo-post');
+      expect(docSurface).toContain('setList');
+      expect(docSurface).toContain('fetch');
+      expect(docSurface).toContain('#net');
+    }
+
+    for (const referenceSurface of [
+      readmeMd,
+      usageMd,
+      currentSiteHtml,
+      skillMd,
+      llmsTxt,
+      llmsFullTxt,
+    ]) {
+      expect(referenceSurface).toContain('naizo-into');
+      expect(referenceSurface).toContain('naizo-path');
+      expect(referenceSurface).toContain('naizo-body');
+      expect(referenceSurface).toContain('naizo-trigger');
+      expect(referenceSurface).toContain('naizo-cors');
+      expect(referenceSurface).toContain('naizo:fetch');
+      expect(referenceSurface).toContain('Access-Control-Allow-Origin');
+    }
+
+    // Verify every TOC #anchor in docs/USAGE.md resolves to a matching ## section heading
+    const headingSlugs = new Set(
+      Array.from(usageMd.matchAll(/^##\s+(.+)$/gm)).map((m) =>
+        (m[1] ?? '')
+          .toLowerCase()
+          .replace(/[^\w -]/g, '')
+          .trim()
+          .replace(/ /g, '-'),
+      ),
+    );
+    const tocAnchors = Array.from(usageMd.matchAll(/^\d+\.\s+\[[^\]]+\]\(#([a-z0-9-]+)\)/gm)).map(
+      (m) => m[1] ?? '',
+    );
+    expect(tocAnchors.length).toBe(15);
+    for (const anchor of tocAnchors) {
+      expect(headingSlugs.has(anchor)).toBe(true);
+    }
+  });
 });

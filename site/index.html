@@ -883,7 +883,7 @@
       <header class="doc-header">
         <div class="doc-topbar">
           <span class="doc-kicker">
-            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~12.4 KB
+            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~15.7 KB
             min+gzip · MIT
           </span>
           <button
@@ -1295,7 +1295,7 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>3. jsDelivr CDN (minified ~12.4 KB gzip)</span>
+          <span>3. jsDelivr CDN (minified ~15.7 KB gzip)</span>
           <button
             type="button"
             class="quiet-btn copy-snippet-btn"
@@ -1539,6 +1539,65 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
                   Opts out of automatic boot so you can call <code>Naizo.init()</code> manually.
                 </td>
               </tr>
+              <tr>
+                <td><code>naizo-get="url"</code></td>
+                <td><code>&lt;button&gt;</code>, <code>&lt;a&gt;</code>, or any element</td>
+                <td>
+                  Fetches JSON or text via <code>GET</code> and routes the response via
+                  <code>naizo-into</code> (or hydrates <code>#naizodb</code> when omitted).
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-post="url"</code></td>
+                <td><code>&lt;button&gt;</code> or any element</td>
+                <td>
+                  Sends a CORS-safelisted <code>text/plain;charset=UTF-8</code> JSON
+                  <code>POST</code> payload (fire-and-forget unless <code>naizo-into</code> is set).
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-into="target"</code></td>
+                <td>With <code>naizo-get</code> / <code>naizo-post</code></td>
+                <td>
+                  Routes response into <code>field:&lt;key&gt;</code>,
+                  <code>list:&lt;name&gt;</code>, <code>custom:&lt;key&gt;</code>, <code>db</code>,
+                  or a DOM-only <code>#selector</code>
+                  (<code>textContent</code>).
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-path="a.b.0"</code></td>
+                <td>With <code>naizo-get</code> / <code>naizo-post</code></td>
+                <td>
+                  Extracts a nested property or array index from parsed JSON using
+                  <code>Object.hasOwn()</code> at each step.
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-body="source"</code></td>
+                <td>With <code>naizo-post</code></td>
+                <td>
+                  Selects outgoing <code>POST</code> payload: <code>db</code> (default),
+                  <code>fields</code>, <code>custom</code>, <code>list:&lt;name&gt;</code>, or
+                  <code>field:&lt;key&gt;</code>.
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-trigger="click|init|load"</code></td>
+                <td>With <code>naizo-get</code> / <code>naizo-post</code></td>
+                <td>
+                  Fires on <code>click</code> (default), <code>init</code> (boot only when target is
+                  empty), or <code>load</code> (every boot).
+                </td>
+              </tr>
+              <tr>
+                <td><code>naizo-cors="no-cors"</code></td>
+                <td>With <code>naizo-post</code></td>
+                <td>
+                  Enables opaque fire-and-forget webhook delivery when <code>naizo-into</code> is
+                  omitted.
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -1547,14 +1606,16 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
 Naizo.get('rateLimitRps');              Naizo.set('rateLimitRps', 250);        Naizo.delete('oldKey');
 Naizo.getField('owner');                Naizo.setField('owner', 'Kenji');      Naizo.deleteField('flag');
 
-Naizo.getList('tasks');                 Naizo.addItem('tasks', { done: false, title: 'Ship', priority: 'High' });
+Naizo.getList('tasks');                 Naizo.setList('tasks', [{ done: false, title: 'Synced', priority: 'High' }]);
+Naizo.addItem('tasks', { done: false, title: 'Ship', priority: 'High' });
 Naizo.updateItem('tasks', 0, { done: true });  Naizo.moveItem('tasks', 1, 0);  Naizo.removeItem('tasks', 2);
 
+await Naizo.fetch('https://api.example.com/tasks', { into: 'list:tasks' });
 Naizo.bind(rootEl);                     await Naizo.save();                    Naizo.reset();
 await Naizo.unlink();                   await Naizo.copyJSON();
 const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app.html');
 
-// Events: 'naizo:hydrate', 'naizo:change', 'naizo:item'</code></pre>
+// Events: 'naizo:hydrate', 'naizo:change', 'naizo:item', 'naizo:fetch'</code></pre>
       </section>
 
       <!-- 07. BROWSER & MODE CAPABILITY MATRIX -->
@@ -1565,7 +1626,11 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
           <strong>One HTML file that adapts to where you open it.</strong> Whether you open a file
           locally from your computer (<code>file://</code> or <code>localhost</code>) or host it
           online (<code>https://</code>), <code>naizo.js</code> adapts automatically and keeps the
-          bottom-right status pill clear about where your changes are saved.
+          bottom-right status pill clear about where your changes are saved – while surfacing a
+          rightmost wired-globe <code>#net</code> indicator (<code>API idle</code>,
+          <code>API active</code> <code>L→R</code> wave held <code>&gt;= 600 ms</code>, or
+          <code>API request failed</code>) whenever <code>naizo-get</code>, <code>naizo-post</code>,
+          or <code>Naizo.fetch()</code> is used without altering storage status.
         </p>
 
         <div class="table-wrap">
@@ -1640,11 +1705,68 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                   Action: <code>📋 Copy</code>
                 </td>
                 <td>
-                  Full reactive bindings, <code>[naizo-list]</code> repeater, and
+                  Full reactive bindings, <code>[naizo-list]</code> repeater, Mini-API Client, and
                   <code>localStorage</code> cache; 1-click
                   <code>📋 Copy</code> (<code>Naizo.copyJSON()</code>) to copy
                   <code>#naizodb</code> JSON to clipboard; 1-click clean <code>.html</code> snapshot
                   download via <code>Naizo.exportHTML()</code>.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Mini-API Network Rule</th>
+                <th>Local Mode (<code>file://</code> or <code>http://localhost</code>)</th>
+                <th>Online Mode (Hosted <code>https://</code> Static Site)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Fetched State Persistence</strong></td>
+                <td>
+                  Writes fetched fields/lists into <code>localStorage</code> and surgically into
+                  <code>&lt;script id="naizodb"&gt;</code> on disk when linked – so CLI AI agents
+                  immediately read remote data from disk.
+                </td>
+                <td>
+                  Persists fetched state in <code>localStorage</code> (<code>Saved in Browser</code
+                  >), surfaces <code>↺ Reset</code>, and bakes fetched data into
+                  <code>⬇ Save to PC</code> downloads.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>HTTPS APIs &amp; Relative <code>.json</code></strong>
+                </td>
+                <td>
+                  <code>file://</code> sends <code>Origin: null</code> (requires
+                  <code>Access-Control-Allow-Origin: *</code> to read responses); relative
+                  <code>fetch('./data.json')</code> is blocked on <code>file://</code> but works on
+                  <code>http://localhost</code>.
+                </td>
+                <td>
+                  Same-origin relative URLs (<code>naizo-get="./preset.json"</code>) work out of the
+                  box; cross-origin APIs require standard CORS headers for the site origin or
+                  <code>*</code>.
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Webhooks &amp; Localhost Servers</strong></td>
+                <td>
+                  <code>naizo-post</code> sends preflight-free
+                  <code>text/plain;charset=UTF-8</code> JSON; add
+                  <code>naizo-cors="no-cors"</code> for blind webhooks; direct
+                  <code>http://localhost</code> agent servers work with CORS <code>*</code>.
+                </td>
+                <td>
+                  Same preflight-free <code>POST</code> + <code>naizo-cors="no-cors"</code> support;
+                  browsers block mixed-content <code>http://</code> on <code>https://</code> hosts
+                  and require <code>Access-Control-Allow-Private-Network: true</code> for loopback.
                 </td>
               </tr>
             </tbody>
