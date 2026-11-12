@@ -493,7 +493,7 @@
     <text x="106" y="182" font-family="monospace" font-size="10" fill="#334155" text-anchor="middle">1.75s · 1.2u gap (.conflict)</text>
   </g>
 
-  <!-- Motion 4: Cached / Needs-Perm / Hover — Clockwise Wave Pulse -->
+  <!-- Motion 4: Needs-Permission — Clockwise Wave Pulse (No Hover Animation on #dot) -->
   <g transform="translate(722, 992)">
     <rect x="0" y="0" width="212" height="200" rx="12" fill="#ffffff" stroke="#e5e0d8" />
     <g transform="translate(76, 18) scale(0.6)">
@@ -502,11 +502,11 @@
       <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
       <rect x="54" y="54" width="22" height="22" rx="4.5" fill="#f59e0b" />
     </g>
-    <text x="106" y="102" font-size="12.5" font-weight="bold" fill="#d97706" text-anchor="middle">4. Clockwise Wave Pulse</text>
+    <text x="106" y="102" font-size="12.5" font-weight="bold" fill="#d97706" text-anchor="middle">4. Needs-Perm: Wave Pulse</text>
     <text x="106" y="122" font-size="11" fill="#1c1917" font-weight="600" text-anchor="middle">Top → BR → BL Radial Wave</text>
     <text x="106" y="144" font-size="10.5" fill="#6b655e" text-anchor="middle">4.2u air cushion inside ring</text>
     <text x="106" y="162" font-size="10.5" fill="#6b655e" text-anchor="middle">+ 1.045x outer ring breath</text>
-    <text x="106" y="182" font-family="monospace" font-size="10" fill="#334155" text-anchor="middle">1.75s (perm / #dot :hover)</text>
+    <text x="106" y="182" font-family="monospace" font-size="10" fill="#334155" text-anchor="middle">1.75s (.needs-permission)</text>
   </g>
 
   <!-- Motion 5: Error — Sync Pulse -->

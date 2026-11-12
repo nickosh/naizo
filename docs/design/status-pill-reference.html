@@ -699,7 +699,7 @@
         animation: naizoSyncBR 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
 
-      /* 5. Unlinked Cache / Needs-Permission / Hover: Clockwise Wave Pulse (Top -> BR -> BL) */
+      /* 5. Needs-Permission: Clockwise Wave Pulse (Top -> BR -> BL; no hover animation on #dot) */
       @keyframes naizoWaveTop {
         0%,
         65%,
@@ -733,26 +733,18 @@
         }
       }
       .naizo-logo-btn.needs-permission .ring,
-      .naizo-logo-btn.saved:hover .ring,
-      .naizo-logo-btn.cached:hover .ring,
       .anim-wave .ring {
         animation: naizoRingBreath 1.75s ease-in-out infinite;
       }
       .naizo-logo-btn.needs-permission .c-top,
-      .naizo-logo-btn.saved:hover .c-top,
-      .naizo-logo-btn.cached:hover .c-top,
       .anim-wave .c-top {
         animation: naizoWaveTop 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
       .naizo-logo-btn.needs-permission .c-br,
-      .naizo-logo-btn.saved:hover .c-br,
-      .naizo-logo-btn.cached:hover .c-br,
       .anim-wave .c-br {
         animation: naizoWaveBR 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
       .naizo-logo-btn.needs-permission .c-bl,
-      .naizo-logo-btn.saved:hover .c-bl,
-      .naizo-logo-btn.cached:hover .c-bl,
       .anim-wave .c-bl {
         animation: naizoWaveBL 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
@@ -1530,8 +1522,8 @@ BL/BR pull apart → clash (1.2u gap)
               </svg>
             </div>
             <div>
-              <div class="spec-card-title">4. Clockwise Wave (Perm / Hover)</div>
-              <div class="spec-card-sub">Amber #f59e0b · 1.75s</div>
+              <div class="spec-card-title">4. Needs-Permission: Clockwise Wave</div>
+              <div class="spec-card-sub">Amber #f59e0b · 1.75s (Resume Disk Sync)</div>
             </div>
           </div>
           <pre class="spec-code">
