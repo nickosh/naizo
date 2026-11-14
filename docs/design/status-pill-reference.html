@@ -1258,7 +1258,7 @@
 
             <span class="pill-sep"></span>
 
-            <!-- #action: Link Disk (link-2) or Save to PC (download) -->
+            <!-- 1. #action (Local: Link Disk / Resume Disk Sync) or 2. #action (Online: Save to PC) -->
             <button
               type="button"
               id="action"
@@ -1271,7 +1271,19 @@
               <svg id="action-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
             </button>
 
-            <!-- #restore: Restore Backup (history) or Repair JSON (wrench) -->
+            <!-- 1. #unlink: Unlink Disk (Slashed Chain Link — always 1st in Local Mode when linked) -->
+            <button type="button" id="unlink" class="icon-btn danger-hover" data-tip="Unlink Disk">
+              <span class="sr-only">× Unlink</span>
+              <svg id="unlink-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+            </button>
+
+            <!-- 3. #copy: Copy JSON -> Checkmark (always 3rd) -->
+            <button type="button" id="copy" class="icon-btn" data-tip="Copy JSON">
+              <span class="sr-only" id="copy-sr">📋 Copy</span>
+              <svg id="copy-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+            </button>
+
+            <!-- 4. Repair JSON (wrench) / 5. Restore Backup (history) -->
             <button
               type="button"
               id="restore"
@@ -1283,13 +1295,7 @@
               <svg id="restore-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
             </button>
 
-            <!-- #copy: Copy JSON -> Checkmark -->
-            <button type="button" id="copy" class="icon-btn" data-tip="Copy JSON">
-              <span class="sr-only" id="copy-sr">📋 Copy</span>
-              <svg id="copy-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
-            </button>
-
-            <!-- #reset: Reset to Initial State (Red Eraser) -->
+            <!-- 6. #reset: Reset to Initial State (Red Eraser — always last action button) -->
             <button
               type="button"
               id="reset"
@@ -1299,12 +1305,6 @@
             >
               <span class="sr-only">↺ Reset</span>
               <svg id="reset-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
-            </button>
-
-            <!-- #unlink: Unlink Disk (Slashed Chain Link) -->
-            <button type="button" id="unlink" class="icon-btn danger-hover" data-tip="Unlink Disk">
-              <span class="sr-only">× Unlink</span>
-              <svg id="unlink-svg" viewBox="0 0 24 24" aria-hidden="true"></svg>
             </button>
 
             <!-- #net: Rightmost 18x18px Borderless Wired-Globe Network Indicator -->
@@ -1613,11 +1613,14 @@ cushion) + 1.06x magnetic ring</pre>
         </div>
       </div>
 
-      <!-- SECTION 3: ALL 8 ACTION BUTTON ICONS -->
+      <!-- SECTION 3: ALL 8 ACTION BUTTON ICONS IN STRICT LEFT-TO-RIGHT ORDER -->
       <h2 class="sec-title">
-        3. Action Button Icons (<code>22×22px</code> Circle, <code>13×13px</code> SVG at
-        <code>(12.0, 12.0)</code>)
-        <span>viewBox="0 0 24 24" · stroke-width="2.05"</span>
+        3. Action Button Icons in Strict Left-to-Right Order (<code>22×22px</code> Circle,
+        <code>13×13px</code> SVG at <code>(12.0, 12.0)</code>)
+        <span
+          >1. Link/Unlink → 2. Save to PC → 3. Copy JSON → 4. Repair JSON → 5. Restore Backup → 6.
+          Reset</span
+        >
       </h2>
       <div class="spec-grid" id="icon-spec-grid"></div>
 
@@ -1809,59 +1812,59 @@ Click #net to clear back to Idle</pre>
       const ICON_META = [
         {
           key: 'link',
-          id: '#action (Local)',
+          id: '1a. #action (Local · Link Disk)',
           label: 'Link Disk / Resume Disk Sync',
           sr: 'Link Disk',
           cls: 'icon-btn',
         },
         {
+          key: 'unlink',
+          id: '1b. #unlink (Local · Unlink Disk)',
+          label: 'Unlink Disk',
+          sr: '× Unlink',
+          cls: 'icon-btn danger-hover',
+        },
+        {
           key: 'download',
-          id: '#action (Online)',
+          id: '2. #action (Online · Save to PC)',
           label: 'Save to PC',
           sr: '⬇ Save to PC',
           cls: 'icon-btn',
         },
         {
           key: 'copy',
-          id: '#copy (Default)',
+          id: '3a. #copy (Copy JSON)',
           label: 'Copy JSON',
           sr: '📋 Copy',
           cls: 'icon-btn',
         },
         {
           key: 'check',
-          id: '#copy (1.5s Copied)',
+          id: '3b. #copy (1.5s ✓ Copied)',
           label: '✓ Copied',
           sr: '✓ Copied',
           cls: 'icon-btn copied',
         },
         {
+          key: 'wrench',
+          id: '4. #restore (Repair JSON)',
+          label: 'Repair JSON (rebuilds valid #naizodb)',
+          sr: '↺ Repair',
+          cls: 'icon-btn restore-btn',
+        },
+        {
           key: 'restore',
-          id: '#restore (Backup)',
+          id: '5. #restore (Restore Backup)',
           label: 'Restore Backup',
           sr: '↺ Restore',
           cls: 'icon-btn restore-btn',
         },
         {
-          key: 'wrench',
-          id: '#restore (Invalid JSON)',
-          label: 'Repair JSON',
-          sr: '↺ Repair',
-          cls: 'icon-btn restore-btn',
-        },
-        {
           key: 'eraser',
-          id: '#reset (Red Eraser)',
+          id: '6. #reset (Reset · Always Last)',
           label: 'Reset to Initial State',
           sr: '↺ Reset',
           cls: 'icon-btn reset-btn',
-        },
-        {
-          key: 'unlink',
-          id: '#unlink (Danger Hover)',
-          label: 'Unlink Disk',
-          sr: '× Unlink',
-          cls: 'icon-btn danger-hover',
         },
       ];
 

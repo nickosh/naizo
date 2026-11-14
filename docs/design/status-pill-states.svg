@@ -40,7 +40,7 @@
 
   <!-- Light Pill A: Local Synced + Active #net Wave (with Tooltip above) -->
   <text x="64" y="218" font-size="13" font-weight="600" fill="#1c1917">A. Local · Synced + #net Active</text>
-  <text x="64" y="238" font-size="11.5" fill="#6b655e">#dot Green · Copy · Unlink · #net Wave</text>
+  <text x="64" y="238" font-size="11.5" fill="#6b655e">#dot Green · Unlink · Copy · #net Wave</text>
   <!-- Tooltip -->
   <g transform="translate(476, 162)">
     <rect x="0" y="0" width="134" height="34" rx="17" fill="url(#frosted-light)" stroke="#0f172a" stroke-opacity="0.07" filter="url(#pill-shadow-light)" />
@@ -58,22 +58,22 @@
     </g>
     <!-- sep -->
     <line x1="31" y1="8.5" x2="31" y2="21.5" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
-    <!-- #copy (22x22 circle at x=36, y=4) -->
+    <!-- 1. #unlink (22x22 circle at x=36, y=4) -->
     <g transform="translate(36, 4)">
-      <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
-      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
-        <rect x="8" y="8" width="13" height="13" rx="2.5" />
-        <path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5" />
-      </g>
-    </g>
-    <!-- #unlink (22x22 circle at x=63, y=4) -->
-    <g transform="translate(63, 4)">
       <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
       <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
         <path d="M9 17H7A5 5 0 0 1 7 7" />
         <path d="M15 7h2a5 5 0 0 1 4 8" />
         <line x1="8" y1="12" x2="12" y2="12" />
         <line x1="3" y1="3" x2="21" y2="21" />
+      </g>
+    </g>
+    <!-- 3. #copy (22x22 circle at x=63, y=4) -->
+    <g transform="translate(63, 4)">
+      <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <rect x="8" y="8" width="13" height="13" rx="2.5" />
+        <path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5" />
       </g>
     </g>
     <!-- sep -->
@@ -198,7 +198,7 @@
 
   <!-- Dark Pill D: Conflict Backed Up (Conflict Clash) + #net Error Red -->
   <text x="752" y="346" font-size="13" font-weight="600" fill="#e7e5e4">D. Local · Conflict Clash + #net Error</text>
-  <text x="752" y="366" font-size="11.5" fill="#9ca3af">Clash &amp; Pop · Restore · Copy · Unlink · #net Red</text>
+  <text x="752" y="366" font-size="11.5" fill="#9ca3af">Clash &amp; Pop · Unlink · Copy · Restore · #net Red</text>
   <g transform="translate(1058, 326) scale(2)">
     <rect x="0" y="0" width="155" height="30" rx="15" fill="url(#frosted-dark)" stroke="#ffffff" stroke-opacity="0.09" stroke-width="0.5" filter="url(#pill-shadow-dark)" />
     <!-- #dot Amber (Conflict Clash mid-clash & upward pop pose!) -->
@@ -209,16 +209,17 @@
       <rect x="50.6" y="52" width="22" height="22" rx="4.5" fill="#f59e0b" />
     </g>
     <line x1="31" y1="8.5" x2="31" y2="21.5" stroke="#ffffff" stroke-opacity="0.13" stroke-width="1" />
-    <!-- #restore History Clock -->
+    <!-- 1. #unlink -->
     <g transform="translate(36, 4)">
-      <circle cx="11" cy="11" r="10.5" fill="#f59e0b" fill-opacity="0.14" stroke="#f59e0b" stroke-opacity="0.38" stroke-width="1" />
-      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#fbbf24" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
-        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-        <path d="M3 3v5h5" />
-        <path d="M12 7v5l3.5 2" />
+      <circle cx="11" cy="11" r="10.5" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#cbd5e1" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M9 17H7A5 5 0 0 1 7 7" />
+        <path d="M15 7h2a5 5 0 0 1 4 8" />
+        <line x1="8" y1="12" x2="12" y2="12" />
+        <line x1="3" y1="3" x2="21" y2="21" />
       </g>
     </g>
-    <!-- #copy -->
+    <!-- 3. #copy -->
     <g transform="translate(63, 4)">
       <circle cx="11" cy="11" r="10.5" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1" />
       <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#cbd5e1" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
@@ -226,14 +227,13 @@
         <path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5" />
       </g>
     </g>
-    <!-- #unlink -->
+    <!-- 5. #restore History Clock -->
     <g transform="translate(90, 4)">
-      <circle cx="11" cy="11" r="10.5" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1" />
-      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#cbd5e1" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
-        <path d="M9 17H7A5 5 0 0 1 7 7" />
-        <path d="M15 7h2a5 5 0 0 1 4 8" />
-        <line x1="8" y1="12" x2="12" y2="12" />
-        <line x1="3" y1="3" x2="21" y2="21" />
+      <circle cx="11" cy="11" r="10.5" fill="#f59e0b" fill-opacity="0.14" stroke="#f59e0b" stroke-opacity="0.38" stroke-width="1" />
+      <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#fbbf24" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M12 7v5l3.5 2" />
       </g>
     </g>
     <line x1="118" y1="8.5" x2="118" y2="21.5" stroke="#ffffff" stroke-opacity="0.13" stroke-width="1" />
@@ -247,13 +247,13 @@
   </g>
 
   <!-- ===================================================================
-       ROW 2: ALL 8 ACTION BUTTON ICONS + #net 3 WIRED-GLOBE STATES
+       ROW 2: ALL 8 ACTION BUTTON ICONS IN STRICT LEFT-TO-RIGHT ORDER
        =================================================================== -->
-  <text x="44" y="484" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">2. All 8 Action Button Icons (22×22px Circle, 13×13px SVG) &amp; 3 #net Wired-Globe States (18×18px Borderless)</text>
+  <text x="44" y="484" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">2. Strict Left-to-Right Action Button Order (1. Link/Unlink → 2. Save to PC → 3. Copy JSON → 4. Repair → 5. Restore → 6. Reset)</text>
 
-  <!-- 8 Action Button Cards -->
+  <!-- 8 Action Button Cards in Strict Left-to-Right Order -->
   <g transform="translate(44, 500)">
-    <!-- 1. Link Disk -->
+    <!-- 1a. Link Disk -->
     <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
     <g transform="translate(56, 16) scale(2)">
       <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
@@ -261,11 +261,24 @@
         <path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" /><line x1="8" y1="12" x2="16" y2="12" />
       </g>
     </g>
-    <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">1. Link Disk</text>
+    <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">1a. Link Disk</text>
     <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#action (link-2 · ⌘S)</text>
 
-    <!-- 2. Save to PC -->
+    <!-- 1b. Unlink Disk -->
     <g transform="translate(169, 0)">
+      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(56, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M9 17H7A5 5 0 0 1 7 7" /><path d="M15 7h2a5 5 0 0 1 4 8" /><line x1="8" y1="12" x2="12" y2="12" /><line x1="3" y1="3" x2="21" y2="21" />
+        </g>
+      </g>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">1b. Unlink Disk</text>
+      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#unlink (red on hover)</text>
+    </g>
+
+    <!-- 2. Save to PC -->
+    <g transform="translate(338, 0)">
       <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
       <g transform="translate(56, 16) scale(2)">
         <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
@@ -277,8 +290,8 @@
       <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#action (download)</text>
     </g>
 
-    <!-- 3. Copy JSON -->
-    <g transform="translate(338, 0)">
+    <!-- 3a. Copy JSON -->
+    <g transform="translate(507, 0)">
       <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
       <g transform="translate(56, 16) scale(2)">
         <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
@@ -286,12 +299,12 @@
           <rect x="8" y="8" width="13" height="13" rx="2.5" /><path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5" />
         </g>
       </g>
-      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">3. Copy JSON</text>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">3a. Copy JSON</text>
       <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#copy (default)</text>
     </g>
 
-    <!-- 4. Copied Check -->
-    <g transform="translate(507, 0)">
+    <!-- 3b. Copied Check -->
+    <g transform="translate(676, 0)">
       <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
       <g transform="translate(56, 16) scale(2)">
         <circle cx="11" cy="11" r="10.5" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-opacity="0.35" />
@@ -299,12 +312,25 @@
           <polyline points="20 6.5 9.5 17 4 11.5" />
         </g>
       </g>
-      <text x="78" y="84" font-size="12" font-weight="bold" fill="#10b981" text-anchor="middle">4. ✓ Copied (1.5s)</text>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#10b981" text-anchor="middle">3b. ✓ Copied (1.5s)</text>
       <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#copy (0px width shift)</text>
     </g>
 
+    <!-- 4. Repair JSON -->
+    <g transform="translate(845, 0)">
+      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(56, 16) scale(2)">
+        <circle cx="11" cy="11" r="10.5" fill="#f59e0b" fill-opacity="0.12" stroke="#f59e0b" stroke-opacity="0.35" />
+        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#d97706" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </g>
+      </g>
+      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">4. Repair JSON</text>
+      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#restore (wrench · EC02)</text>
+    </g>
+
     <!-- 5. Restore Backup -->
-    <g transform="translate(676, 0)">
+    <g transform="translate(1014, 0)">
       <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
       <g transform="translate(56, 16) scale(2)">
         <circle cx="11" cy="11" r="10.5" fill="#f59e0b" fill-opacity="0.12" stroke="#f59e0b" stroke-opacity="0.35" />
@@ -316,43 +342,17 @@
       <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#restore (history)</text>
     </g>
 
-    <!-- 6. Repair JSON -->
-    <g transform="translate(845, 0)">
-      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
-      <g transform="translate(56, 16) scale(2)">
-        <circle cx="11" cy="11" r="10.5" fill="#f59e0b" fill-opacity="0.12" stroke="#f59e0b" stroke-opacity="0.35" />
-        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#d97706" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
-          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-        </g>
-      </g>
-      <text x="78" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">6. Repair JSON</text>
-      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#restore (wrench)</text>
-    </g>
-
-    <!-- 7. Reset (Red Eraser) -->
-    <g transform="translate(1014, 0)">
-      <rect x="0" y="0" width="156" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
-      <g transform="translate(56, 16) scale(2)">
+    <!-- 6. Reset (Red Eraser — Always Last) -->
+    <g transform="translate(1183, 0)">
+      <rect x="0" y="0" width="169" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
+      <g transform="translate(62, 16) scale(2)">
         <circle cx="11" cy="11" r="10.5" fill="#ef4444" fill-opacity="0.09" stroke="#ef4444" stroke-opacity="0.32" />
         <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#ef4444" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
           <path d="m7 20-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 20" /><path d="M21 20H7" /><path d="m5 11 9 9" />
         </g>
       </g>
-      <text x="78" y="84" font-size="12" font-weight="bold" fill="#ef4444" text-anchor="middle">7. Reset (Red Eraser)</text>
-      <text x="78" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#reset (solid red hover)</text>
-    </g>
-
-    <!-- 8. Unlink Disk -->
-    <g transform="translate(1183, 0)">
-      <rect x="0" y="0" width="169" height="120" rx="10" fill="#ffffff" stroke="#e5e0d8" />
-      <g transform="translate(62, 16) scale(2)">
-        <circle cx="11" cy="11" r="10.5" fill="#0f172a" fill-opacity="0.045" stroke="#0f172a" stroke-opacity="0.12" />
-        <g transform="translate(4.5, 4.5) scale(0.5416)" stroke="#334155" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" fill="none">
-          <path d="M9 17H7A5 5 0 0 1 7 7" /><path d="M15 7h2a5 5 0 0 1 4 8" /><line x1="8" y1="12" x2="12" y2="12" /><line x1="3" y1="3" x2="21" y2="21" />
-        </g>
-      </g>
-      <text x="84.5" y="84" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">8. Unlink Disk</text>
-      <text x="84.5" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#unlink (red on hover)</text>
+      <text x="84.5" y="84" font-size="12" font-weight="bold" fill="#ef4444" text-anchor="middle">6. Reset (Always Last)</text>
+      <text x="84.5" y="102" font-size="10.5" fill="#6b655e" text-anchor="middle">#reset (red eraser)</text>
     </g>
   </g>
 
