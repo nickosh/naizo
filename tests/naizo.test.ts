@@ -3542,4 +3542,124 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(exportedHtml).not.toContain('__naizodb_host__');
     expect(exportedHtml).toContain('"trip_title": "Nagano Alpine Valley & Trail Outing"');
   });
+
+  it('validates M9.1 brand logo assets: site/logo.svg, site/index.html 62x62 Hero Crest with single-block beat completion, and README.md header without changing npm package files (M9.1, D50)', () => {
+    vi.useFakeTimers();
+    try {
+      const logoSvg = readFileSync(resolve(process.cwd(), 'site/logo.svg'), 'utf-8');
+      const currentSiteHtml = readFileSync(resolve(process.cwd(), 'site/index.html'), 'utf-8');
+      const readmeMd = readFileSync(resolve(process.cwd(), 'README.md'), 'utf-8');
+
+      // 1. Standalone site/logo.svg geometry (0.0 Exact Maru ni Mitsuishi / 品) & Light/Dark Sumi Ink
+      expect(logoSvg).toContain('viewBox="0 0 100 100"');
+      expect(logoSvg).toContain('#1c1917');
+      expect(logoSvg).toContain('@media (prefers-color-scheme: dark)');
+      expect(logoSvg).toContain('#e7e5e4');
+      const logoDoc = new DOMParser().parseFromString(logoSvg, 'image/svg+xml');
+      const circle = logoDoc.querySelector('circle');
+      expect(circle?.getAttribute('cx')).toBe('50');
+      expect(circle?.getAttribute('cy')).toBe('50');
+      expect(circle?.getAttribute('r')).toBe('42');
+      expect(circle?.getAttribute('stroke')).toBe('currentColor');
+      expect(circle?.getAttribute('stroke-width')).toBe('8');
+      const rects = Array.from(logoDoc.querySelectorAll('rect'));
+      expect(
+        rects.map((r) => ({
+          x: r.getAttribute('x'),
+          y: r.getAttribute('y'),
+          w: r.getAttribute('width'),
+          h: r.getAttribute('height'),
+          rx: r.getAttribute('rx'),
+        })),
+      ).toEqual([
+        { x: '39', y: '26', w: '22', h: '22', rx: '4.5' },
+        { x: '26', y: '52', w: '22', h: '22', rx: '4.5' },
+        { x: '52', y: '52', w: '22', h: '22', rx: '4.5' },
+      ]);
+
+      // 2. site/index.html favicon, 62x62 Hero Crest markup/keyframes, and single-block beat-boundary hover controller (516.67ms)
+      const siteDoc = new DOMParser().parseFromString(currentSiteHtml, 'text/html');
+      const favicon = siteDoc.querySelector(
+        'head link[rel="icon"][type="image/svg+xml"][href="./logo.svg"]',
+      );
+      expect(favicon).not.toBeNull();
+
+      const heroCrest = siteDoc.getElementById('hero-crest-link');
+      expect(heroCrest).not.toBeNull();
+      expect(heroCrest?.nextElementSibling?.tagName).toBe('H1');
+      expect(heroCrest?.nextElementSibling?.textContent).toBe('naizo.js');
+
+      const heroSvg = heroCrest?.querySelector('svg.hero-crest-svg');
+      expect(heroSvg?.getAttribute('viewBox')).toBe('0 0 100 100');
+      expect(heroSvg?.querySelector('circle.ring')?.getAttribute('r')).toBe('42');
+      expect(heroSvg?.querySelector('rect.c-top')?.getAttribute('x')).toBe('39');
+      expect(heroSvg?.querySelector('rect.c-top')?.getAttribute('y')).toBe('26');
+      expect(heroSvg?.querySelector('rect.c-bl')?.getAttribute('x')).toBe('26');
+      expect(heroSvg?.querySelector('rect.c-bl')?.getAttribute('y')).toBe('52');
+      expect(heroSvg?.querySelector('rect.c-br')?.getAttribute('x')).toBe('52');
+      expect(heroSvg?.querySelector('rect.c-br')?.getAttribute('y')).toBe('52');
+
+      expect(currentSiteHtml).toContain('width: 62px;');
+      expect(currentSiteHtml).toContain('height: 62px;');
+      expect(currentSiteHtml).toContain('margin: 0.35rem auto 2px;');
+      expect(currentSiteHtml).toContain('@keyframes naizoHeartTop');
+      expect(currentSiteHtml).toContain('11.5%');
+      expect(currentSiteHtml).toContain('@keyframes naizoHeartBR');
+      expect(currentSiteHtml).toContain('44.83%');
+      expect(currentSiteHtml).toContain('@keyframes naizoHeartBL');
+      expect(currentSiteHtml).toContain('78.17%');
+      expect(currentSiteHtml).toContain('@keyframes naizoRingBreath');
+      expect(currentSiteHtml).toContain('18.5%');
+      expect(currentSiteHtml).toContain('51.83%');
+      expect(currentSiteHtml).toContain('85.17%');
+      expect(currentSiteHtml).toContain('scale(1.064)');
+      expect(currentSiteHtml).toContain('1.55s');
+      expect(currentSiteHtml).toContain('const HERO_BEAT_MS = 1550 / 3;');
+
+      // Exercise the inline script's Hero Crest hover controller in DOM
+      document.head.innerHTML = siteDoc.head.innerHTML;
+      document.body.innerHTML = siteDoc.body.innerHTML;
+      const scripts = Array.from(siteDoc.body.querySelectorAll('script'));
+      const inlineScript = scripts[scripts.length - 1]?.textContent ?? '';
+      let nowMs = 1000;
+      const perfSpy = vi.spyOn(performance, 'now').mockImplementation(() => nowMs);
+      try {
+        runInThisContext(inlineScript);
+        const liveCrest = document.getElementById('hero-crest-link');
+        expect(liveCrest).not.toBeNull();
+        expect(liveCrest?.classList.contains('is-beating')).toBe(false);
+
+        liveCrest?.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(liveCrest?.classList.contains('is-beating')).toBe(true);
+
+        // Leave 200ms into the first 516.67ms single-block beat: should finish only the active block (~317ms left)
+        nowMs = 1200;
+        liveCrest?.dispatchEvent(new MouseEvent('mouseleave'));
+        expect(liveCrest?.classList.contains('is-beating')).toBe(true);
+
+        vi.advanceTimersByTime(310);
+        expect(liveCrest?.classList.contains('is-beating')).toBe(true);
+
+        vi.advanceTimersByTime(10);
+        expect(liveCrest?.classList.contains('is-beating')).toBe(false);
+      } finally {
+        perfSpy.mockRestore();
+      }
+
+      // 3. README.md header crest & unchanged 8-file npm package distribution
+      expect(readmeMd).toContain(
+        '<img src="site/logo.svg" width="62" height="62" alt="naizo.js logo" />',
+      );
+      expect(pkgJson.files).toEqual([
+        'dist/naizo.js',
+        'dist/naizo.min.js',
+        'dist/index.mjs',
+        'dist/index.d.mts',
+        'README.md',
+        'CHANGELOG.md',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

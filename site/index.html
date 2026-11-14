@@ -17,6 +17,7 @@
     <meta name="author" content="Nikolay Shishov" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://naizo.js.org/" />
+    <link rel="icon" type="image/svg+xml" href="./logo.svg" />
 
     <!-- Open Graph / Social Preview -->
     <meta property="og:type" content="website" />
@@ -247,7 +248,7 @@
 
       h1 {
         font-size: clamp(2.1rem, 3.8vw, 2.7rem);
-        margin: 0.35rem 0 0.25rem;
+        margin: 0 0 0.25rem;
         text-align: center;
       }
 
@@ -386,6 +387,116 @@
         }
         html:not([data-theme='light']) .theme-icon-btn .icon-moon {
           display: block;
+        }
+      }
+
+      /* Hero Brand Crest (丸に三つ石 / 品) & Seamless Clockwise Heartbeat (+105ms 3-Beat Ring Push, D50) */
+      .hero-crest-link {
+        display: flex;
+        width: 62px;
+        height: 62px;
+        margin: 0.35rem auto 2px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .hero-crest-svg {
+        width: 62px;
+        height: 62px;
+        overflow: visible;
+        display: block;
+      }
+
+      .hero-crest-svg .ring {
+        transform-origin: 50px 50px;
+      }
+
+      .hero-crest-svg .c-top {
+        transform-origin: 50px 37px;
+      }
+
+      .hero-crest-svg .c-bl {
+        transform-origin: 37px 63px;
+      }
+
+      .hero-crest-svg .c-br {
+        transform-origin: 63px 63px;
+      }
+
+      @keyframes naizoHeartTop {
+        0%,
+        29%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        11.5% {
+          transform: translate(0, -1.4px) scale(1.22);
+        }
+      }
+
+      @keyframes naizoHeartBR {
+        0%,
+        33.33%,
+        62.33%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        44.83% {
+          transform: translate(1.1px, 1.1px) scale(1.22);
+        }
+      }
+
+      @keyframes naizoHeartBL {
+        0%,
+        66.67%,
+        95.67%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        78.17% {
+          transform: translate(-1.1px, 1.1px) scale(1.22);
+        }
+      }
+
+      @keyframes naizoRingBreath {
+        0%,
+        6%,
+        33.33%,
+        39.33%,
+        66.67%,
+        72.67%,
+        100% {
+          transform: scale(1);
+        }
+        18.5%,
+        51.83%,
+        85.17% {
+          transform: scale(1.064);
+        }
+      }
+
+      .hero-crest-link.is-beating .ring {
+        animation: naizoRingBreath 1.55s ease-out infinite;
+      }
+
+      .hero-crest-link.is-beating .c-top {
+        animation: naizoHeartTop 1.55s ease-in-out infinite;
+      }
+
+      .hero-crest-link.is-beating .c-br {
+        animation: naizoHeartBR 1.55s ease-in-out infinite;
+      }
+
+      .hero-crest-link.is-beating .c-bl {
+        animation: naizoHeartBL 1.55s ease-in-out infinite;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .hero-crest-link.is-beating .ring,
+        .hero-crest-link.is-beating .c-top,
+        .hero-crest-link.is-beating .c-br,
+        .hero-crest-link.is-beating .c-bl {
+          animation: none !important;
         }
       }
 
@@ -905,6 +1016,28 @@
             </svg>
             <span id="theme-toggle-label" class="sr-only">Auto</span>
           </button>
+        </div>
+
+        <div
+          class="hero-crest-link"
+          id="hero-crest-link"
+          role="img"
+          aria-label="naizo.js brand crest (Maru ni Mitsuishi / 品)"
+        >
+          <svg class="hero-crest-svg" viewBox="0 0 100 100" aria-hidden="true">
+            <circle
+              class="ring"
+              cx="50"
+              cy="50"
+              r="42"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="8"
+            />
+            <rect class="c-top" x="39" y="26" width="22" height="22" rx="4.5" fill="currentColor" />
+            <rect class="c-bl" x="26" y="52" width="22" height="22" rx="4.5" fill="currentColor" />
+            <rect class="c-br" x="52" y="52" width="22" height="22" rx="4.5" fill="currentColor" />
+          </svg>
         </div>
 
         <h1>naizo.js</h1>
@@ -1821,6 +1954,43 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
         const simulateAgentBtn = document.getElementById('simulate-agent-btn');
         const downloadPageBtn = document.getElementById('download-page-btn');
         const resetPlaygroundBtn = document.getElementById('reset-playground-btn');
+        const heroCrestEl = document.getElementById('hero-crest-link');
+        const HERO_BEAT_MS = 1550 / 3; // 516.67ms per single-block beat + ring pulse
+        let heroCrestStart = 0;
+        let heroCrestTimer = null;
+
+        function prefersReducedMotion() {
+          return (
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          );
+        }
+
+        if (heroCrestEl) {
+          heroCrestEl.addEventListener('mouseenter', () => {
+            if (prefersReducedMotion()) return;
+            if (heroCrestTimer) {
+              clearTimeout(heroCrestTimer);
+              heroCrestTimer = null;
+            }
+            if (!heroCrestEl.classList.contains('is-beating')) {
+              heroCrestStart = performance.now();
+              heroCrestEl.classList.add('is-beating');
+            }
+          });
+
+          heroCrestEl.addEventListener('mouseleave', () => {
+            if (!heroCrestEl.classList.contains('is-beating')) return;
+            const elapsed = Math.max(0, performance.now() - heroCrestStart);
+            const nextBeatBoundary = (Math.floor(elapsed / HERO_BEAT_MS) + 1) * HERO_BEAT_MS;
+            const remainingMs = Math.max(16, Math.round(nextBeatBoundary - elapsed));
+            if (heroCrestTimer) clearTimeout(heroCrestTimer);
+            heroCrestTimer = setTimeout(() => {
+              heroCrestTimer = null;
+              heroCrestEl.classList.remove('is-beating');
+            }, remainingMs);
+          });
+        }
 
         function getSystemPrefersDark() {
           return (
@@ -1938,6 +2108,11 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
 
         if (downloadPageBtn) {
           downloadPageBtn.addEventListener('click', () => {
+            if (heroCrestTimer) {
+              clearTimeout(heroCrestTimer);
+              heroCrestTimer = null;
+            }
+            heroCrestEl?.classList.remove('is-beating');
             window.Naizo?.downloadHTML('naizo-playground.html');
           });
         }

@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="site/logo.svg" width="62" height="62" alt="naizo.js logo" />
+
 # `naizo.js`
 
 **Self-persisting HTML for human & AI workflows.**
