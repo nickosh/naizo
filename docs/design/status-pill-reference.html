@@ -373,15 +373,20 @@
         cursor: grabbing;
       }
       .naizo-logo-btn.saved,
-      .naizo-logo-btn.saving {
+      .naizo-logo-btn.saving,
+      .naizo-logo-btn[data-naizo-anim='saving'],
+      .naizo-logo-btn[data-naizo-anim='boot'] {
         color: #10b981;
       }
       .naizo-logo-btn.cached,
       .naizo-logo-btn.conflict,
-      .naizo-logo-btn.needs-permission {
+      .naizo-logo-btn.needs-permission,
+      .naizo-logo-btn[data-naizo-anim='conflict'],
+      .naizo-logo-btn[data-naizo-anim='needs-permission'] {
         color: #f59e0b;
       }
-      .naizo-logo-btn.error {
+      .naizo-logo-btn.error,
+      .naizo-logo-btn[data-naizo-anim='error'] {
         color: #ef4444;
       }
 
@@ -471,16 +476,20 @@
           opacity: 1;
         }
       }
-      .anim-boot .ring {
+      .anim-boot .ring,
+      .naizo-logo-btn[data-naizo-anim='boot'] .ring {
         animation: naizoBootRing 1.2s cubic-bezier(0.22, 1, 0.36, 1) 1;
       }
-      .anim-boot .c-top {
+      .anim-boot .c-top,
+      .naizo-logo-btn[data-naizo-anim='boot'] .c-top {
         animation: naizoBootTop 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
       }
-      .anim-boot .c-bl {
+      .anim-boot .c-bl,
+      .naizo-logo-btn[data-naizo-anim='boot'] .c-bl {
         animation: naizoBootBL 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
       }
-      .anim-boot .c-br {
+      .anim-boot .c-br,
+      .naizo-logo-btn[data-naizo-anim='boot'] .c-br {
         animation: naizoBootBR 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
       }
 
@@ -536,18 +545,22 @@
         }
       }
       .naizo-logo-btn.saving .ring,
+      .naizo-logo-btn[data-naizo-anim='saving'] .ring,
       .anim-heartbeat .ring {
         animation: naizoRingBreath 1.55s ease-out infinite;
       }
       .naizo-logo-btn.saving .c-top,
+      .naizo-logo-btn[data-naizo-anim='saving'] .c-top,
       .anim-heartbeat .c-top {
         animation: naizoHeartTop 1.55s ease-in-out infinite;
       }
       .naizo-logo-btn.saving .c-br,
+      .naizo-logo-btn[data-naizo-anim='saving'] .c-br,
       .anim-heartbeat .c-br {
         animation: naizoHeartBR 1.55s ease-in-out infinite;
       }
       .naizo-logo-btn.saving .c-bl,
+      .naizo-logo-btn[data-naizo-anim='saving'] .c-bl,
       .anim-heartbeat .c-bl {
         animation: naizoHeartBL 1.55s ease-in-out infinite;
       }
@@ -624,18 +637,22 @@
         }
       }
       .naizo-logo-btn.conflict .ring,
+      .naizo-logo-btn[data-naizo-anim='conflict'] .ring,
       .anim-clash .ring {
         animation: naizoConflictRing 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
       }
       .naizo-logo-btn.conflict .c-top,
+      .naizo-logo-btn[data-naizo-anim='conflict'] .c-top,
       .anim-clash .c-top {
         animation: naizoConflictTop 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
       }
       .naizo-logo-btn.conflict .c-bl,
+      .naizo-logo-btn[data-naizo-anim='conflict'] .c-bl,
       .anim-clash .c-bl {
         animation: naizoConflictBL 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
       }
       .naizo-logo-btn.conflict .c-br,
+      .naizo-logo-btn[data-naizo-anim='conflict'] .c-br,
       .anim-clash .c-br {
         animation: naizoConflictBR 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
       }
@@ -693,23 +710,36 @@
         }
       }
       .naizo-logo-btn.error .ring,
+      .naizo-logo-btn[data-naizo-anim='error'] .ring,
       .anim-sync .ring {
         animation: naizoSyncRing 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
       .naizo-logo-btn.error .c-top,
+      .naizo-logo-btn[data-naizo-anim='error'] .c-top,
       .anim-sync .c-top {
         animation: naizoSyncTop 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
       .naizo-logo-btn.error .c-bl,
+      .naizo-logo-btn[data-naizo-anim='error'] .c-bl,
       .anim-sync .c-bl {
         animation: naizoSyncBL 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
       .naizo-logo-btn.error .c-br,
+      .naizo-logo-btn[data-naizo-anim='error'] .c-br,
       .anim-sync .c-br {
         animation: naizoSyncBR 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
 
       /* 5. Needs-Permission: Clockwise Wave Pulse (Top -> BR -> BL; no hover animation on #dot) */
+      @keyframes naizoWaveRing {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.045);
+        }
+      }
       @keyframes naizoWaveTop {
         0%,
         65%,
@@ -743,18 +773,22 @@
         }
       }
       .naizo-logo-btn.needs-permission .ring,
+      .naizo-logo-btn[data-naizo-anim='needs-permission'] .ring,
       .anim-wave .ring {
-        animation: naizoRingBreath 1.75s ease-in-out infinite;
+        animation: naizoWaveRing 1.75s ease-in-out infinite;
       }
       .naizo-logo-btn.needs-permission .c-top,
+      .naizo-logo-btn[data-naizo-anim='needs-permission'] .c-top,
       .anim-wave .c-top {
         animation: naizoWaveTop 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
       .naizo-logo-btn.needs-permission .c-br,
+      .naizo-logo-btn[data-naizo-anim='needs-permission'] .c-br,
       .anim-wave .c-br {
         animation: naizoWaveBR 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
       .naizo-logo-btn.needs-permission .c-bl,
+      .naizo-logo-btn[data-naizo-anim='needs-permission'] .c-bl,
       .anim-wave .c-bl {
         animation: naizoWaveBL 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
       }
@@ -1072,16 +1106,16 @@
       .hero-crest-svg .c-br {
         transform-origin: 63px 63px;
       }
-      .hero-crest-link:hover .ring {
+      .hero-crest-link.is-beating .ring {
         animation: naizoRingBreath 1.55s ease-out infinite;
       }
-      .hero-crest-link:hover .c-top {
+      .hero-crest-link.is-beating .c-top {
         animation: naizoHeartTop 1.55s ease-in-out infinite;
       }
-      .hero-crest-link:hover .c-br {
+      .hero-crest-link.is-beating .c-br {
         animation: naizoHeartBR 1.55s ease-in-out infinite;
       }
-      .hero-crest-link:hover .c-bl {
+      .hero-crest-link.is-beating .c-bl {
         animation: naizoHeartBL 1.55s ease-in-out infinite;
       }
       .hero-preview-title {
@@ -1124,6 +1158,7 @@
         <button class="chip active" data-state="local-synced">
           <span class="dot-swatch" style="background: #10b981"></span>1. Local · Synced
         </button>
+        <button class="chip" id="fast-save-btn">⚡ Fast Save (10ms → 1 Full Cycle)</button>
         <button class="chip" data-state="local-saving">
           <span class="dot-swatch" style="background: #10b981"></span>2. Local · Saving (Heartbeat)
         </button>
@@ -1688,13 +1723,14 @@ Click #net to clear back to Idle</pre>
         5. <code>site/index.html</code> Hero Crest Lockup &amp; <code>site/logo.svg</code>
         <span
           >62×62px · margin-bottom: 2px · Sumi Ink · Seamless Clockwise 1-2-3 Heartbeat (+105ms
-          3-beat ring push, 1.55s) on :hover</span
+          3-beat ring push, 1.55s, finishes cycle on mouseleave)</span
         >
       </h2>
       <div class="hero-preview-box">
         <div
           class="hero-crest-link"
-          title="Hover to test Seamless Clockwise 1-2-3 Heartbeat (Top 11.5% → BR 44.8% → BL 78.2%, +105ms 3-beat ring push at 18.5% / 51.8% / 85.2%, 1.55s)"
+          id="hero-crest-link"
+          title="Hover & leave to test cycle-boundary completion (always finishes current 1.55s Heartbeat cycle before stopping)"
         >
           <svg class="hero-crest-svg" viewBox="0 0 100 100" aria-hidden="true">
             <circle
@@ -1714,11 +1750,11 @@ Click #net to clear back to Idle</pre>
         <h3 class="hero-preview-title">naizo.js</h3>
         <p class="hero-preview-sub">Self-persisting HTML for human &amp; AI workflows.</p>
         <pre class="spec-code" style="margin-top: 14px; text-align: left">
-/* site/index.html Hero Crest (:hover Seamless Clockwise 1-2-3 Heartbeat with +105ms 3-beat ring push, 1.55s) */
-.hero-crest-link:hover .ring  { animation: naizoRingBreath 1.55s ease-out    infinite; } /* 3-beat ring: 18.5%, 51.83%, 85.17% (+105ms after block) */
-.hero-crest-link:hover .c-top { animation: naizoHeartTop   1.55s ease-in-out infinite; } /* 1st block peak: 11.5% */
-.hero-crest-link:hover .c-br  { animation: naizoHeartBR    1.55s ease-in-out infinite; } /* 2nd block peak: 44.83% */
-.hero-crest-link:hover .c-bl  { animation: naizoHeartBL    1.55s ease-in-out infinite; } /* 3rd block peak: 78.17% */</pre>
+/* site/index.html Hero Crest (.is-beating latched on mouseenter &amp; cleared at 1.55s cycle boundary on mouseleave) */
+.hero-crest-link.is-beating .ring  { animation: naizoRingBreath 1.55s ease-out    infinite; } /* 3-beat ring: 18.5%, 51.83%, 85.17% (+105ms after block) */
+.hero-crest-link.is-beating .c-top { animation: naizoHeartTop   1.55s ease-in-out infinite; } /* 1st block peak: 11.5% */
+.hero-crest-link.is-beating .c-br  { animation: naizoHeartBR    1.55s ease-in-out infinite; } /* 2nd block peak: 44.83% */
+.hero-crest-link.is-beating .c-bl  { animation: naizoHeartBL    1.55s ease-in-out infinite; } /* 3rd block peak: 78.17% */</pre>
       </div>
 
       <!-- SECTION 6: PHILOSOPHY, CULTURAL SYMBOLISM & REDESIGN RATIONALE -->
@@ -1755,13 +1791,16 @@ Click #net to clear back to Idle</pre>
           </div>
         </div>
         <div class="spec-card">
-          <div class="spec-card-title">4. Frosted Glass &amp; Narrative Motion</div>
+          <div class="spec-card-title">4. Frosted Glass &amp; Cycle-Boundary Motion</div>
           <div class="spec-card-sub">
             True translucent frosted glass (<code>blur(12px) saturate(180%)</code>) with a
             whisper-ring shadow (<code>border: transparent</code>), 4-corner frosted drop
             placeholders remembered across sessions via <code>naizodb_ui_&lt;suffix&gt;</code> in
-            <code>localStorage</code>, Seamless Clockwise <code>Heartbeat</code> on save, and
-            <code>Conflict Clash</code> (Spring Squash) on external edit collisions.
+            <code>localStorage</code>, and cycle-boundary animation handoff (<code
+              >requestDotAnim()</code
+            >
+            — every logo animation plays at least 1 full cycle and always finishes its current cycle
+            before switching states or returning to static).
           </div>
         </div>
       </div>
@@ -1965,9 +2004,95 @@ Click #net to clear back to Idle</pre>
         tooltipEl.classList.add('visible');
       }
 
+      /* =====================================================================
+         CYCLE-BOUNDARY LOGO ANIMATION CONTROLLER (Never Interrupts Mid-Cycle)
+         Every active animation (boot 1.20s, saving 1.55s, conflict 1.75s,
+         needs-permission 1.75s, error 1.60s) plays at least 1 full cycle and
+         always finishes its current cycle (100% -> 0%) before switching
+         to another animation or returning to static rest ('').
+         ===================================================================== */
+      const DOT_ANIM_CYCLE_MS = {
+        boot: 1200,
+        saving: 1550,
+        conflict: 1750,
+        'needs-permission': 1750,
+        error: 1600,
+      };
+      let activeDotAnim = '';
+      let pendingDotAnim = null;
+      let dotAnimCycleStart = 0;
+      let dotAnimMinCycles = 1;
+      let dotCycleTimeout = null;
+
+      function scheduleDotCycleTransition(targetAnim) {
+        pendingDotAnim = targetAnim;
+        if (dotCycleTimeout) {
+          clearTimeout(dotCycleTimeout);
+          dotCycleTimeout = null;
+        }
+        const cycleMs = DOT_ANIM_CYCLE_MS[activeDotAnim] || 1550;
+        const elapsed = Math.max(0, performance.now() - dotAnimCycleStart);
+        const completedCycles = Math.floor(elapsed / cycleMs);
+        const targetCycles = Math.max(dotAnimMinCycles, completedCycles + 1);
+        const remainingMs = Math.max(16, targetCycles * cycleMs - elapsed);
+
+        dotCycleTimeout = setTimeout(() => {
+          dotCycleTimeout = null;
+          const next = pendingDotAnim ?? '';
+          pendingDotAnim = null;
+          activeDotAnim = next;
+          dotEl.dataset.naizoAnim = next;
+          if (next !== '') {
+            dotAnimCycleStart = performance.now();
+            dotAnimMinCycles = 1;
+          }
+        }, remainingMs);
+      }
+
+      function requestDotAnim(nextAnim) {
+        if (activeDotAnim === '') {
+          if (nextAnim === '') return;
+          activeDotAnim = nextAnim;
+          pendingDotAnim = null;
+          dotAnimCycleStart = performance.now();
+          dotAnimMinCycles = 1;
+          dotEl.dataset.naizoAnim = nextAnim;
+          if (nextAnim === 'boot') {
+            scheduleDotCycleTransition('');
+          }
+          return;
+        }
+        if (nextAnim === activeDotAnim) {
+          if (dotCycleTimeout) {
+            clearTimeout(dotCycleTimeout);
+            dotCycleTimeout = null;
+          }
+          pendingDotAnim = null;
+          const cycleMs = DOT_ANIM_CYCLE_MS[activeDotAnim] || 1550;
+          const elapsed = Math.max(0, performance.now() - dotAnimCycleStart);
+          dotAnimMinCycles = Math.max(1, Math.ceil((elapsed + 450) / cycleMs));
+          return;
+        }
+        scheduleDotCycleTransition(nextAnim);
+      }
+
       function applyState(key) {
         const s = STATES[key];
-        dotEl.className = 'naizo-logo-btn ' + s.dotClass;
+        const baseColorClass =
+          s.dotClass === 'saving' || s.dotClass === 'saved'
+            ? 'saved'
+            : s.dotClass === 'error'
+              ? 'error'
+              : 'cached';
+        dotEl.className = 'naizo-logo-btn ' + baseColorClass;
+        const animTarget =
+          s.dotClass === 'saving' ||
+          s.dotClass === 'conflict' ||
+          s.dotClass === 'needs-permission' ||
+          s.dotClass === 'error'
+            ? s.dotClass
+            : '';
+        requestDotAnim(animTarget);
         dotEl.dataset.tip = s.status;
         statusEl.textContent = s.status;
 
@@ -1999,11 +2124,26 @@ Click #net to clear back to Idle</pre>
       document.querySelectorAll('.chip[data-state]').forEach((btn) => {
         btn.addEventListener('click', () => {
           document
-            .querySelectorAll('.chip[data-state]')
+            .querySelectorAll('.chip[data-state], #fast-save-btn')
             .forEach((b) => b.classList.remove('active'));
           btn.classList.add('active');
           applyState(btn.dataset.state);
         });
+      });
+
+      document.getElementById('fast-save-btn').addEventListener('click', (e) => {
+        document
+          .querySelectorAll('.chip[data-state], #fast-save-btn')
+          .forEach((b) => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        applyState('local-saving');
+        setTimeout(() => {
+          applyState('local-synced');
+          document
+            .querySelectorAll('.chip[data-state], #fast-save-btn')
+            .forEach((b) => b.classList.remove('active'));
+          document.querySelector('.chip[data-state="local-synced"]').classList.add('active');
+        }, 10);
       });
 
       function applyNetState(net) {
@@ -2082,6 +2222,34 @@ Click #net to clear back to Idle</pre>
         el.classList.remove('anim-boot');
         void el.offsetWidth;
         el.classList.add('anim-boot');
+      });
+
+      // Hero Crest (:hover) Cycle-Boundary Controller: always finishes current 1.55s cycle on mouseleave
+      const heroCrestEl = document.getElementById('hero-crest-link');
+      let heroCrestStart = 0;
+      let heroCrestTimer = null;
+
+      heroCrestEl.addEventListener('mouseenter', () => {
+        if (heroCrestTimer) {
+          clearTimeout(heroCrestTimer);
+          heroCrestTimer = null;
+        }
+        if (!heroCrestEl.classList.contains('is-beating')) {
+          heroCrestStart = performance.now();
+          heroCrestEl.classList.add('is-beating');
+        }
+      });
+
+      heroCrestEl.addEventListener('mouseleave', () => {
+        if (!heroCrestEl.classList.contains('is-beating')) return;
+        const elapsed = Math.max(0, performance.now() - heroCrestStart);
+        const targetCycles = Math.max(1, Math.floor(elapsed / 1550) + 1);
+        const remainingMs = Math.max(16, targetCycles * 1550 - elapsed);
+        if (heroCrestTimer) clearTimeout(heroCrestTimer);
+        heroCrestTimer = setTimeout(() => {
+          heroCrestTimer = null;
+          heroCrestEl.classList.remove('is-beating');
+        }, remainingMs);
       });
 
       // 4-Corner Snap Drag with Translucent White Drop-Zone Placeholders & localStorage Persistence (getUiKey)

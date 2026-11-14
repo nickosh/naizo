@@ -435,13 +435,13 @@
     <text x="244.5" y="156" font-size="14.5" fill="#6b655e" text-anchor="middle">Self-persisting HTML for human &amp; AI workflows.</text>
     <line x1="40" y1="178" x2="449" y2="178" stroke="#e5e0d8" />
     <text x="244.5" y="202" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">site/index.html Hero Crest, site/logo.svg Favicon &amp; README.md</text>
-    <text x="244.5" y="222" font-family="monospace" font-size="10.5" fill="#6b655e" text-anchor="middle">62×62px · 2px gap · Sumi Ink · :hover 3-Beat Heartbeat (+105ms, 1.55s)</text>
+    <text x="244.5" y="222" font-family="monospace" font-size="10.5" fill="#6b655e" text-anchor="middle">62×62px · 2px gap · Sumi Ink · :hover 3-Beat Heartbeat (1.55s, finishes cycle)</text>
   </g>
 
   <!-- ===================================================================
        ROW 4: ALL 5 #dot NARRATIVE MOTION STATES + 4-CORNER DROP PLACEHOLDERS
        =================================================================== -->
-  <text x="44" y="976" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">4. All 5 #dot Narrative Motion States (r ≤ 34.2u Safe Halo) &amp; 4-Corner Frosted Drop Placeholders</text>
+  <text x="44" y="976" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">4. All 5 #dot Motion States (Always Finishes Current Cycle Before Switching/Stopping) &amp; 4-Corner Drop Zones</text>
 
   <!-- Motion 1: Boot-Up -->
   <g transform="translate(44, 992)">
