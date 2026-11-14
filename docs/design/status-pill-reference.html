@@ -484,62 +484,72 @@
         animation: naizoBootBR 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
       }
 
-      /* 2. Saving: Seamless Clockwise Heartbeat 1-2-3 Wave (Top 17% -> BR 50% -> BL 83%, 1.35s, zero end-of-loop delay) */
+      /* 2. Saving: Seamless Clockwise Heartbeat 1-2-3 Wave with +105ms Concentric Ring Push
+         Blocks peak at 11.5% (Top) -> 44.83% (BR) -> 78.17% (BL);
+         Outer ring waits until 6% (39.33%, 72.67%) and peaks +105ms later at 18.5% (51.83%, 85.17%) at 1.064x (1.55s) */
       @keyframes naizoHeartTop {
         0%,
-        42%,
+        29%,
         100% {
           transform: translate(0, 0) scale(1);
         }
-        17% {
-          transform: translate(0, -1px) scale(1.2);
+        11.5% {
+          transform: translate(0, -1.4px) scale(1.22);
         }
       }
       @keyframes naizoHeartBR {
         0%,
-        33%,
-        75%,
+        33.33%,
+        62.33%,
         100% {
           transform: translate(0, 0) scale(1);
         }
-        50% {
-          transform: translate(0.8px, 0.8px) scale(1.2);
+        44.83% {
+          transform: translate(1.1px, 1.1px) scale(1.22);
         }
       }
       @keyframes naizoHeartBL {
         0%,
-        66%,
+        66.67%,
+        95.67%,
         100% {
           transform: translate(0, 0) scale(1);
         }
-        83% {
-          transform: translate(-0.8px, 0.8px) scale(1.2);
+        78.17% {
+          transform: translate(-1.1px, 1.1px) scale(1.22);
         }
       }
       @keyframes naizoRingBreath {
         0%,
+        6%,
+        33.33%,
+        39.33%,
+        66.67%,
+        72.67%,
         100% {
           transform: scale(1);
         }
-        50% {
-          transform: scale(1.045);
+        18.5%,
+        51.83%,
+        85.17% {
+          transform: scale(1.064);
         }
       }
       .naizo-logo-btn.saving .ring,
       .anim-heartbeat .ring {
-        animation: naizoRingBreath 1.35s ease-in-out infinite;
+        animation: naizoRingBreath 1.55s ease-out infinite;
       }
       .naizo-logo-btn.saving .c-top,
       .anim-heartbeat .c-top {
-        animation: naizoHeartTop 1.35s ease-in-out infinite;
+        animation: naizoHeartTop 1.55s ease-in-out infinite;
       }
       .naizo-logo-btn.saving .c-br,
       .anim-heartbeat .c-br {
-        animation: naizoHeartBR 1.35s ease-in-out infinite;
+        animation: naizoHeartBR 1.55s ease-in-out infinite;
       }
       .naizo-logo-btn.saving .c-bl,
       .anim-heartbeat .c-bl {
-        animation: naizoHeartBL 1.35s ease-in-out infinite;
+        animation: naizoHeartBL 1.55s ease-in-out infinite;
       }
 
       /* 3. Conflict Backed Up: Conflict Clash — Spring Squash (+60ms delay, 1.75s) */
@@ -1063,16 +1073,16 @@
         transform-origin: 63px 63px;
       }
       .hero-crest-link:hover .ring {
-        animation: naizoRingBreath 1.35s ease-in-out infinite;
+        animation: naizoRingBreath 1.55s ease-out infinite;
       }
       .hero-crest-link:hover .c-top {
-        animation: naizoHeartTop 1.35s ease-in-out infinite;
+        animation: naizoHeartTop 1.55s ease-in-out infinite;
       }
       .hero-crest-link:hover .c-br {
-        animation: naizoHeartBR 1.35s ease-in-out infinite;
+        animation: naizoHeartBR 1.55s ease-in-out infinite;
       }
       .hero-crest-link:hover .c-bl {
-        animation: naizoHeartBL 1.35s ease-in-out infinite;
+        animation: naizoHeartBL 1.55s ease-in-out infinite;
       }
       .hero-preview-title {
         font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
@@ -1419,12 +1429,12 @@ Ring draws (dashoffset 263.89→0)
             </div>
             <div>
               <div class="spec-card-title">2. Saving: Seamless Clockwise 1-2-3</div>
-              <div class="spec-card-sub">Green #10b981 · 1.35s · Zero end delay</div>
+              <div class="spec-card-sub">Green #10b981 · 1.55s · +105ms 3-beat ring push</div>
             </div>
           </div>
           <pre class="spec-code">
-Top(17%) → BR(50%) → BL(83%)
-1.20x swell + 1.045x ring breath</pre>
+Top(11.5%) → BR(44.8%) → BL(78.2%)
+1.22x swell → +105ms 1.064x 3-beat ring</pre>
         </div>
 
         <div class="spec-card">
@@ -1677,14 +1687,14 @@ Click #net to clear back to Idle</pre>
       <h2 class="sec-title">
         5. <code>site/index.html</code> Hero Crest Lockup &amp; <code>site/logo.svg</code>
         <span
-          >62×62px · margin-bottom: 2px · Sumi Ink · Seamless Clockwise 1-2-3 Heartbeat (1.35s) on
-          :hover</span
+          >62×62px · margin-bottom: 2px · Sumi Ink · Seamless Clockwise 1-2-3 Heartbeat (+105ms
+          3-beat ring push, 1.55s) on :hover</span
         >
       </h2>
       <div class="hero-preview-box">
         <div
           class="hero-crest-link"
-          title="Hover to test Seamless Clockwise 1-2-3 Heartbeat (Top 17% → BR 50% → BL 83%, 1.35s)"
+          title="Hover to test Seamless Clockwise 1-2-3 Heartbeat (Top 11.5% → BR 44.8% → BL 78.2%, +105ms 3-beat ring push at 18.5% / 51.8% / 85.2%, 1.55s)"
         >
           <svg class="hero-crest-svg" viewBox="0 0 100 100" aria-hidden="true">
             <circle
@@ -1704,11 +1714,11 @@ Click #net to clear back to Idle</pre>
         <h3 class="hero-preview-title">naizo.js</h3>
         <p class="hero-preview-sub">Self-persisting HTML for human &amp; AI workflows.</p>
         <pre class="spec-code" style="margin-top: 14px; text-align: left">
-/* site/index.html Hero Crest (:hover Seamless Clockwise 1-2-3 Heartbeat, 1.35s, zero loop pause) */
-.hero-crest-link:hover .ring  { animation: naizoRingBreath 1.35s ease-in-out infinite; }
-.hero-crest-link:hover .c-top { animation: naizoHeartTop   1.35s ease-in-out infinite; } /* 1st: 17% */
-.hero-crest-link:hover .c-br  { animation: naizoHeartBR    1.35s ease-in-out infinite; } /* 2nd: 50% */
-.hero-crest-link:hover .c-bl  { animation: naizoHeartBL    1.35s ease-in-out infinite; } /* 3rd: 83% */</pre>
+/* site/index.html Hero Crest (:hover Seamless Clockwise 1-2-3 Heartbeat with +105ms 3-beat ring push, 1.55s) */
+.hero-crest-link:hover .ring  { animation: naizoRingBreath 1.55s ease-out    infinite; } /* 3-beat ring: 18.5%, 51.83%, 85.17% (+105ms after block) */
+.hero-crest-link:hover .c-top { animation: naizoHeartTop   1.55s ease-in-out infinite; } /* 1st block peak: 11.5% */
+.hero-crest-link:hover .c-br  { animation: naizoHeartBR    1.55s ease-in-out infinite; } /* 2nd block peak: 44.83% */
+.hero-crest-link:hover .c-bl  { animation: naizoHeartBL    1.55s ease-in-out infinite; } /* 3rd block peak: 78.17% */</pre>
       </div>
 
       <!-- SECTION 6: PHILOSOPHY, CULTURAL SYMBOLISM & REDESIGN RATIONALE -->
