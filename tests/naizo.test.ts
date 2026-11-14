@@ -7,6 +7,7 @@ import checklistHtml from '../examples/checklist.html?raw';
 import inventoryHtml from '../examples/inventory.html?raw';
 import notesHtml from '../examples/notes.html?raw';
 import starterHtml from '../examples/starter.html?raw';
+import weatherHtml from '../examples/weather.html?raw';
 import pkgJson from '../package.json';
 import siteHtml from '../site/index.html?raw';
 import * as NaizoModule from '../src/index';
@@ -2422,6 +2423,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(siteHtml).toContain('../examples/checklist.html');
     expect(siteHtml).toContain('../examples/notes.html');
     expect(siteHtml).toContain('../examples/inventory.html');
+    expect(siteHtml).toContain('../examples/weather.html');
     expect(siteHtml).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js');
     expect(siteHtml).toContain('https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js');
     expect(siteHtml).toContain('https://unpkg.com/naizojs@latest/dist/naizo.js');
@@ -2503,7 +2505,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     );
     expect(downloadedSiteHtml).not.toContain('src="../dist/naizo.js"');
 
-    for (const exampleHtml of [starterHtml, checklistHtml, notesHtml, inventoryHtml]) {
+    for (const exampleHtml of [starterHtml, checklistHtml, notesHtml, inventoryHtml, weatherHtml]) {
       expect(exampleHtml).not.toContain('cloudflareinsights');
       expect(exampleHtml).not.toContain('data-cf-beacon');
     }
@@ -2531,12 +2533,14 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(llmsTxt).toContain('https://naizo.js.org/SKILL.md');
     expect(llmsTxt).toContain('naizo-list="name"');
     expect(llmsTxt).toContain('window.Naizo');
+    expect(llmsTxt).toContain('https://naizo.js.org/examples/weather.html');
 
     expect(llmsFullTxt.startsWith('# naizo.js')).toBe(true);
     expect(llmsFullTxt).toContain('<script id="naizodb" type="application/json">');
     expect(llmsFullTxt).toContain('(_m, open, _inner, close) => `${open}\\n${json}\\n${close}`');
     expect(llmsFullTxt).toContain('examples/starter.html');
     expect(llmsFullTxt).toContain('examples/notes.html');
+    expect(llmsFullTxt).toContain('examples/weather.html');
 
     // 4. ci.yml enforces dist/naizo.js freshness, stages site/. with -RL (dereferencing symlinks) to _site/,
     // gates Pages deploy on release or workflow_dispatch (D48), and supports pages_source: 'main' | 'latest-release' (M7.12, D49)
@@ -2579,6 +2583,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(stagedIndexHtml).toContain('./examples/checklist.html');
     expect(stagedIndexHtml).toContain('./examples/notes.html');
     expect(stagedIndexHtml).toContain('./examples/inventory.html');
+    expect(stagedIndexHtml).toContain('./examples/weather.html');
     expect(stagedIndexHtml).toContain('./llms.txt');
     expect(stagedIndexHtml).toContain('./llms-full.txt');
     expect(stagedIndexHtml).toContain('./SKILL.md');
@@ -3458,7 +3463,13 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(referenceSurface).toContain('naizo-cors');
       expect(referenceSurface).toContain('naizo:fetch');
       expect(referenceSurface).toContain('Access-Control-Allow-Origin');
+      expect(referenceSurface).toContain('examples/weather.html');
+      expect(referenceSurface).toContain('DevTools');
+      expect(referenceSurface).toContain('Network');
     }
+    expect(agentsMd).toContain('examples/weather.html');
+    expect(productMd).toContain('DevTools');
+    expect(productMd).toContain('Network');
 
     // Verify every TOC #anchor in docs/USAGE.md resolves to a matching ## section heading
     const headingSlugs = new Set(
@@ -3477,5 +3488,58 @@ describe('naizo.js v0.1.0 core runtime', () => {
     for (const anchor of tocAnchors) {
       expect(headingSlugs.has(anchor)).toBe(true);
     }
+  });
+
+  it('hydrates examples/weather.html cleanly with wrapping <label> controls, pass-through route coordinates, #net auto-show, and clean HTML export (EC39, D15, D45, D47)', async () => {
+    expect(weatherHtml).toContain('https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css');
+    expect(weatherHtml).toContain('https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js');
+    expect(weatherHtml.toLowerCase()).not.toContain('leaflet');
+
+    const weatherDoc = new DOMParser().parseFromString(weatherHtml, 'text/html');
+    document.documentElement.setAttribute(
+      'naizo-id',
+      weatherDoc.documentElement.getAttribute('naizo-id') ?? '',
+    );
+    document.head.innerHTML = weatherDoc.head.innerHTML;
+    document.body.innerHTML = weatherDoc.body.innerHTML;
+
+    const initialRaw = document.getElementById('naizodb')?.textContent ?? '';
+    const parsedInitial = JSON.parse(initialRaw) as NaizoDatabase;
+    expect(parsedInitial._meta.id).toBe('naizo-weather-route-planner');
+    expect(parsedInitial.fields.theme).toBe('system');
+
+    await initNaizo();
+
+    // 1. Route list items hydrate with wrapping <label> controls (EC39) and pass-through geo/elevation keys (D15)
+    const routeItems = Array.from(
+      document.querySelectorAll<HTMLElement>('[naizo-list="route"] > [naizo-item]'),
+    );
+    expect(routeItems.length).toBe(2);
+    for (const item of routeItems) {
+      const labels = Array.from(item.querySelectorAll('label'));
+      expect(labels.length).toBeGreaterThan(0);
+      for (const label of labels) {
+        expect(label.control).not.toBeNull();
+        expect(item.contains(label.control)).toBe(true);
+      }
+    }
+    const route = Naizo.getList('route');
+    expect(route[0]?.id).toBe('stop-taisho-pond');
+    expect(route[0]?.elevation_m).toBe(1495);
+    expect(route[1]?.id).toBe('stop-myojin-pond');
+
+    // 2. Declarative naizo-get and naizo-post controls auto-reveal the rightmost #net wired-globe indicator
+    const host = document.getElementById('__naizodb_host__');
+    const netBtn = host?.shadowRoot?.getElementById('net') as HTMLButtonElement | null;
+    expect(netBtn).not.toBeNull();
+    expect(netBtn?.style.display).not.toBe('none');
+    expect(netBtn?.getAttribute('title')).toBe('API idle');
+
+    // 3. Clean HTML export strips [naizo-strip] / [data-naizo-strip] transient DOM elements while preserving #naizodb (D47)
+    const exportedHtml = Naizo.exportHTML();
+    const exportedDoc = new DOMParser().parseFromString(exportedHtml, 'text/html');
+    expect(exportedDoc.querySelectorAll('[naizo-strip], [data-naizo-strip]').length).toBe(0);
+    expect(exportedHtml).not.toContain('__naizodb_host__');
+    expect(exportedHtml).toContain('"trip_title": "Nagano Alpine Valley & Trail Outing"');
   });
 });

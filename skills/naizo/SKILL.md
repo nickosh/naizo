@@ -190,7 +190,7 @@ window.addEventListener('naizo:fetch', (e) => {
 
 ## 5. Canonical Application Blueprints
 
-Choose the blueprint that best matches the user's request (full templates live in `examples/starter.html`, `examples/checklist.html`, `examples/notes.html`, and `examples/inventory.html` in the `naizo` repository):
+Choose the blueprint that best matches the user's request (full templates live in `examples/starter.html`, `examples/checklist.html`, `examples/notes.html`, `examples/inventory.html`, and `examples/weather.html` in the `naizo` repository):
 
 ### Blueprint A: Project Spec & Milestones (`starter.html`) / Release Checklist (`checklist.html`)
 
@@ -393,7 +393,7 @@ Use `naizo-get`, `naizo-post`, or `Naizo.fetch()` when an HTML app needs to seed
 ```
 
 - **Store-first vs. DOM-only vs. raw fetch targets (`D15`, `D22`, `D51`, `D52`):** Use `naizo-into="field:<key>"`, `list:<name>`, `custom:<key>`, or `db` (also the default when `naizo-into` is omitted on declarative `naizo-get`) to persist into `#naizodb`. `naizo-into="#selector"` writes strictly via `textContent` (never `innerHTML`) as a transient DOM preview without mutating `#naizodb`. Omitting `naizo-into` on declarative `naizo-post` or omitting `options.into` on programmatic `await Naizo.fetch(url)` (any HTTP method) is non-mutating—returning `{ ok, status, data }` so custom JS can transform external API JSON before calling `Naizo.setList()` / `Naizo.setField()`.
-- **Rightmost `#net` wired-globe indicator (`D50`, `EC36`):** Automatically appears at the right end of the status pill (`API idle`, `API active` `L→R` wave held `>= 600 ms`, or `API request failed` red pulse with click-to-clear) while keeping `#dot` and `#status` exclusively for storage durability.
+- **Rightmost `#net` wired-globe indicator & debugging (`D50`, `EC36`):** Automatically appears at the right end of the status pill (`API idle`, `API active` `L→R` wave held `>= 600 ms`, or `API request failed` red pulse with click-to-clear) while keeping `#dot` and `#status` exclusively for storage durability (see `examples/weather.html` for a complete map + forecast + webhook blueprint). `naizo.js` intentionally omits a built-in network inspector so the runtime stays light and flexible—inspect failed requests in the browser's DevTools `Network` tab.
 - **Local Mode vs. Online Mode network rules (`D43`):**
   - **Local Mode (`file://` or `http://localhost`):** Fetched state persists into `localStorage` and surgically into `<script id="naizodb">` on disk when linked so CLI AI agents immediately see remote data. Note that `file://` sends `Origin: null` (requiring `Access-Control-Allow-Origin: *` to read responses, or `naizo-cors="no-cors"` without `naizo-into` for blind `POST` webhooks) and blocks relative `fetch('./data.json')` unless served via `http://localhost`.
   - **Online Mode (`https://` static hosts):** Relative `naizo-get="./preset.json"` works out of the box and bakes fetched data into **`⬇ Save to PC`** downloads; browsers block mixed-content `http://` on `https://` pages and require `Access-Control-Allow-Private-Network: true` for `localhost` loopback calls.

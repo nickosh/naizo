@@ -485,6 +485,7 @@ To keep the main Status Pill `#dot` and `#status` exclusively truthful about **s
   1. **Idle (`title="API idle"`):** Calm Shared Light Green wires (`rgba(16, 185, 129, 0.38)`).
   2. **Active (`title="API active"`):** Bright Emerald (`#10b981`) `L→R` light-band wave sweep across the globe, held for at least **`600 ms`** on fast `2xx` completions so local/cached calls remain perceptible.
   3. **Error (`title="API request failed"`):** Danger Red (`#ef4444`) `1.10x` attention pulse when the latest request failed; clears automatically on the next request or when clicking `#net`.
+- **Inspecting network errors (Browser DevTools `Network` tab):** To keep `naizo.js` lightweight and flexible, `#net` surfaces compact status feedback (`API request failed`, alongside programmatic `{ ok, status, error }` results and `'naizo:fetch'` window events) rather than embedding a built-in network inspector UI. Whenever a request fails, open your browser's **DevTools → `Network`** tab (and `Console` for CORS or mixed-content diagnostics) to inspect the live HTTP request, status code, response headers, and payload directly.
 
 ### Local Mode vs. Online Mode Network Matrix (`D43`)
 
@@ -589,7 +590,7 @@ If the same document is open in two tabs of the same browser, `handleStorageEven
 
 ## 13. Architectural Recipes (`examples/`)
 
-The [`examples/`](../examples/) directory provides four complete, self-contained single-file HTML applications illustrating progressively richer architectural patterns:
+The [`examples/`](../examples/) directory provides five complete, self-contained single-file HTML applications illustrating progressively richer architectural patterns:
 
 ### Recipe 1: Flat Checklist & Release Sign-Off ([`examples/starter.html`](../examples/starter.html) & [`examples/checklist.html`](../examples/checklist.html))
 
@@ -625,6 +626,16 @@ The [`examples/`](../examples/) directory provides four complete, self-contained
      }
      ```
   3. **Sidebar index is a `[naizo-ignore]` view over `Naizo.getList('notes')`:** The category filter dropdown (`<select id="category-filter" naizo="category_filter">`) is bound in `db.fields.category_filter`, while the ephemeral search input (`#note-search`) and rendered sidebar list (`<ul id="note-index-list">`) are marked `naizo-ignore` (`EC23`). Clicking a note in the sidebar calls `Naizo.set('activeNoteId', note.id)`, immediately revealing that note's live `[naizo-item]` editor pane with zero DOM destruction.
+
+### Recipe 4: Interactive Map, Live API Forecast Studio, & Persisted Route Builder ([`examples/weather.html`](../examples/weather.html))
+
+**Use when:** Combining third-party interactive canvases or maps (such as OpenLayers), live external HTTP JSON feeds (`Naizo.fetch()`), and declarative `naizo-get` / `naizo-post` webhooks with a durable `#naizodb` itinerary or workspace.
+
+- **Structure:** Persisted outing header and active scouting fields (`trip_title`, `location_name`, `latitude`, `longitude`, `elevation_m`, `map_layer`, `target_hour`, `temp_unit`, `trip_notes`, `share_open`, `webhook_url`) paired with a repeating `[naizo-list="route"]` itinerary (`done`, `place`, `note`, plus pass-through `id`, `lat`, `lon`, `elevation_m`, `date`, `time`, and snapshot forecast keys).
+- **Key patterns:**
+  1. **Transient live feeds vs. canonical `#naizodb` state (`D52`, `EC23`, `D47`):** Clicking or dragging on the OpenLayers map updates the active scouting coordinates and calls `await Naizo.fetch(url)` (without `options.into`) across a multi-provider fallback chain (`api.open-meteo.com` → `api.met.no` → `wttr.in`) to render live multi-day forecast cards and a day-to-night hourly sky slider inside `[naizo-ignore]` containers without polluting `#naizodb` with transient weather cache arrays. Runtime map containers, skeletons, and loading pills carry `data-naizo-strip="true"` so exported HTML stays clean.
+  2. **Selective promotion into `[naizo-list]` + 1-click clear/undo:** Clicking **`+ Add Active Pin to Outing`** promotes the scouted coordinates, `⛰️` elevation, and selected forecast slot into `Naizo.addItem('route', ...)`, while **`Clear Saved Pins`** calls `Naizo.setList('route', [])` and keeps an in-memory snapshot for 1-click `↺ Undo`.
+  3. **Declarative webhook sync + `'naizo:fetch'` receipts (`D43`, `D51`):** `naizo-get` (`naizo-path="results.day_length"`, `naizo-into="#api-receipt"`) and `naizo-post` (`naizo-body="db"`, `naizo-path="data"`, `naizo-into="#api-receipt"`) drive `#net` declaratively, while a tiny `'naizo:fetch'` listener formats human-readable confirmation summaries after each request completes.
 
 ---
 

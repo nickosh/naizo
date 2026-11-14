@@ -1,0 +1,4345 @@
+<!doctype html>
+<html lang="en" data-theme="system" naizo-id="naizo-weather-route-planner">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Outing &amp; Weather Route Planner – naizo.js Example</title>
+
+    <!-- 1. Canonical #naizodb JSON state (readable & editable by humans and AI agents) -->
+    <script id="naizodb" type="application/json">
+      {
+        "_meta": {
+          "id": "naizo-weather-route-planner"
+        },
+        "fields": {
+          "trip_title": "Nagano Alpine Valley & Trail Outing",
+          "location_name": "Kamikōchi, Nagano, Japan",
+          "latitude": 36.2478,
+          "longitude": 137.6356,
+          "elevation_m": 1505,
+          "timezone": "Asia/Tokyo",
+          "map_layer": "terrain",
+          "target_hour": 9,
+          "temp_unit": "C",
+          "theme": "system",
+          "trip_notes": "Pack rain shell, headlamp, and insulated thermos. Alpico valley bus departs Matsumoto early morning; carry cash for mountain huts.",
+          "share_open": false,
+          "webhook_url": ""
+        },
+        "lists": {
+          "route": [
+            {
+              "id": "stop-taisho-pond",
+              "done": true,
+              "place": "Taisho Pond Trailhead, Kamikōchi",
+              "note": "Dawn mirror reflection over Hotaka peaks -> flat riverside walk toward Tashiro Marsh",
+              "lat": 36.2361,
+              "lon": 137.6244,
+              "elevation_m": 1495,
+              "date": "Day 1",
+              "time": "09:00",
+              "temp_c": 8.4,
+              "rain_pct": 10,
+              "wind_kmh": 9,
+              "code": 1,
+              "condition": "Mainly clear"
+            },
+            {
+              "id": "stop-myojin-pond",
+              "done": false,
+              "place": "Kappa Bridge -> Myojin Pond",
+              "note": "Forest loop along Azusa River; lunch & grilled char at Kamonji-goya hut before afternoon clouds",
+              "lat": 36.2543,
+              "lon": 137.6669,
+              "elevation_m": 1530,
+              "date": "Day 1",
+              "time": "12:00",
+              "temp_c": 11.2,
+              "rain_pct": 15,
+              "wind_kmh": 11,
+              "code": 2,
+              "condition": "Partly cloudy"
+            }
+          ]
+        },
+        "custom": {}
+      }
+    </script>
+
+    <!-- 2. OpenLayers Interactive Map (OSGeo BSD-2-Clause CDN, zero API key; app remains usable offline) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css" />
+    <script
+      id="openlayers-cdn-script"
+      src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js"
+      defer
+    ></script>
+
+    <!-- 3. Load naizo.js locally or via CDN:
+         <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script> -->
+    <script src="../dist/naizo.js" defer></script>
+
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #faf8f5;
+        --surface: #ffffff;
+        --surface-subtle: #f3efe8;
+        --surface-tint: #f7f3ec;
+        --ink: #1c1b18;
+        --muted: #57534e;
+        --faint: #78716c;
+        --border: #e5e0d8;
+        --border-strong: #cfc7bc;
+        --accent: #a8432b;
+        --accent-soft: rgba(168, 67, 43, 0.1);
+        --ok: #15803d;
+        --ok-soft: rgba(21, 128, 61, 0.11);
+        --rain: #2563eb;
+        --rain-soft: rgba(37, 99, 235, 0.1);
+        --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+        --font-sans:
+          'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme='light']) {
+          --bg: #141311;
+          --surface: #1c1b18;
+          --surface-subtle: #24221e;
+          --surface-tint: #201e1a;
+          --ink: #ece8e1;
+          --muted: #a6a096;
+          --faint: #7c766d;
+          --border: #2e2c28;
+          --border-strong: #433f39;
+          --accent: #e07a5f;
+          --accent-soft: rgba(224, 122, 95, 0.15);
+          --ok: #34d399;
+          --ok-soft: rgba(52, 211, 153, 0.14);
+          --rain: #60a5fa;
+          --rain-soft: rgba(96, 165, 250, 0.15);
+        }
+      }
+
+      html[data-theme='dark'] {
+        --bg: #141311;
+        --surface: #1c1b18;
+        --surface-subtle: #24221e;
+        --surface-tint: #201e1a;
+        --ink: #ece8e1;
+        --muted: #a6a096;
+        --faint: #7c766d;
+        --border: #2e2c28;
+        --border-strong: #433f39;
+        --accent: #e07a5f;
+        --accent-soft: rgba(224, 122, 95, 0.15);
+        --ok: #34d399;
+        --ok-soft: rgba(52, 211, 153, 0.14);
+        --rain: #60a5fa;
+        --rain-soft: rgba(96, 165, 250, 0.15);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        font-size: 15px;
+        line-height: 1.65;
+        padding: 1.75rem 1.25rem 6rem;
+      }
+
+      .shell {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* Top Header & Title */
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        font-size: 0.78rem;
+        color: var(--faint);
+        letter-spacing: 0.02em;
+        margin-bottom: 0.6rem;
+      }
+
+      .topbar-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      h1[contenteditable='true'] {
+        font-family: var(--font-serif);
+        font-size: clamp(1.7rem, 3.3vw, 2.25rem);
+        font-weight: 600;
+        line-height: 1.2;
+        margin: 0 0 0.25rem;
+        padding: 0.15rem 0.4rem;
+        margin-left: -0.4rem;
+        border-radius: 6px;
+        outline: none;
+        border: 1px solid transparent;
+      }
+
+      h1[contenteditable='true']:hover,
+      h1[contenteditable='true']:focus {
+        border-color: var(--border);
+        background: var(--surface);
+      }
+
+      .hero-sub {
+        margin: 0 0 1.4rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      /* Three Big App Blocks */
+      .app-block {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 1.25rem 1.35rem 1.35rem;
+        margin-bottom: 1.35rem;
+      }
+
+      .block-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.95rem;
+      }
+
+      .block-eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--faint);
+        margin-bottom: 0.2rem;
+      }
+
+      .block-title {
+        font-family: var(--font-serif);
+        font-size: 1.28rem;
+        font-weight: 600;
+        line-height: 1.28;
+        margin: 0;
+      }
+
+      .block-desc {
+        margin: 0.2rem 0 0;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      /* Controls & Chips */
+      input[type='text'],
+      input[type='search'],
+      input[type='url'],
+      select {
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 0.44rem 0.65rem;
+      }
+
+      input[type='text']:focus,
+      input[type='search']:focus,
+      input[type='url']:focus,
+      select:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        padding: 0.44rem 0.8rem;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          border-color 0.15s ease,
+          background-color 0.15s ease,
+          transform 0.1s ease;
+      }
+
+      .btn:hover {
+        border-color: var(--border-strong);
+        background: var(--surface-subtle);
+      }
+
+      .btn:active:not(:disabled) {
+        transform: translateY(1px);
+      }
+
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .btn-danger-subtle:hover:not(:disabled) {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .btn-sm {
+        padding: 0.28rem 0.58rem;
+        font-size: 0.76rem;
+        border-radius: 6px;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #ffffff;
+      }
+
+      .btn-primary:hover {
+        background: var(--accent);
+        border-color: var(--accent);
+        opacity: 0.92;
+      }
+
+      /* Spinners & Shimmer Skeletons for Async Loading States */
+      @keyframes naizo-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes naizo-shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 13px;
+        height: 13px;
+        border-radius: 999px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        animation: naizo-spin 0.68s linear infinite;
+        vertical-align: -2px;
+        flex-shrink: 0;
+      }
+
+      .btn[data-loading='true'],
+      [data-naizo-loading='true'] {
+        opacity: 0.82;
+        pointer-events: none;
+      }
+
+      .btn[data-loading='true']::before,
+      [data-naizo-loading='true']::before {
+        content: '';
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        animation: naizo-spin 0.68s linear infinite;
+        flex-shrink: 0;
+      }
+
+      .skel {
+        display: block;
+        border-radius: 5px;
+        background: linear-gradient(
+          90deg,
+          var(--border) 22%,
+          var(--surface-subtle) 50%,
+          var(--border) 78%
+        );
+        background-size: 220% 100%;
+        animation: naizo-shimmer 1.35s ease-in-out infinite;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.28rem;
+        padding: 0.25rem 0.62rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface-tint);
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.76rem;
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          background-color 0.15s ease;
+      }
+
+      .chip:hover,
+      .chip.is-active {
+        border-color: var(--accent);
+        color: var(--ink);
+        background: var(--accent-soft);
+      }
+
+      /* ==========================================================================
+         BLOCK 1: MAP & LOCATION SEARCH
+         ========================================================================== */
+      .spot-meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.65rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface-tint);
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        color: var(--muted);
+      }
+
+      .search-wrap {
+        position: relative;
+        margin-bottom: 0.65rem;
+      }
+
+      .search-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+      }
+
+      .search-field-box {
+        position: relative;
+        flex: 1 1 260px;
+        display: flex;
+        align-items: center;
+      }
+
+      .search-field-box input {
+        width: 100%;
+        padding-right: 2rem;
+      }
+
+      .search-clear-btn {
+        position: absolute;
+        right: 0.4rem;
+        border: none;
+        background: transparent;
+        color: var(--faint);
+        font-size: 1rem;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0.2rem 0.35rem;
+        border-radius: 4px;
+      }
+
+      .search-clear-btn:hover {
+        color: var(--ink);
+        background: var(--surface-subtle);
+      }
+
+      .search-dropdown {
+        margin: 0.35rem 0 0;
+        padding: 0.35rem;
+        list-style: none;
+        border: 1px solid var(--border-strong);
+        border-radius: 9px;
+        background: var(--surface);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+        max-height: 250px;
+        overflow-y: auto;
+        z-index: 600;
+        position: relative;
+      }
+
+      .search-dropdown:empty {
+        display: none;
+      }
+
+      .search-status-li {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.48rem 0.6rem;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .search-skel-li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.44rem 0.6rem;
+      }
+
+      .search-option-btn {
+        width: 100%;
+        text-align: left;
+        background: transparent;
+        border: none;
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.84rem;
+        padding: 0.46rem 0.6rem;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+
+      .search-option-btn:hover,
+      .search-option-btn:focus-visible {
+        background: var(--accent-soft);
+        outline: none;
+      }
+
+      .search-option-meta {
+        font-family: var(--font-mono);
+        font-size: 0.74rem;
+        color: var(--faint);
+        flex-shrink: 0;
+      }
+
+      .preset-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .chip-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
+
+      .map-stage {
+        position: relative;
+        height: 330px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--surface-subtle);
+        overflow: hidden;
+      }
+
+      .map-canvas {
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+      }
+
+      /* Pure CSS hide: whenever #map-canvas is mounted by OpenLayers, fallback disappears */
+      .map-canvas:not(:empty) ~ .map-fallback {
+        display: none;
+      }
+
+      .map-loading-pill {
+        position: absolute;
+        top: 0.65rem;
+        right: 0.65rem;
+        z-index: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.42rem;
+        padding: 0.3rem 0.68rem;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        color: var(--ink);
+        font-family: var(--font-mono);
+        font-size: 0.73rem;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+        pointer-events: none;
+      }
+
+      .map-fallback {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        height: 100%;
+        padding: 1.25rem;
+        text-align: center;
+        font-size: 0.86rem;
+        color: var(--muted);
+      }
+
+      .map-footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+        margin-top: 0.6rem;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+
+      .map-legend {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.85rem;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .legend-scout-dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+        background: var(--accent);
+        border: 2px solid #ffffff;
+        box-shadow: 0 0 0 2px var(--accent);
+      }
+
+      .legend-route-dot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: #1c1b18;
+        color: #ffffff;
+        font-size: 0.65rem;
+        font-weight: 700;
+      }
+
+      /* Custom Map Overlay Pins & Route Popup (zero external marker PNG dependencies) */
+      .naizo-scout-pin {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        background: #a8432b;
+        border: 3px solid #ffffff;
+        box-shadow:
+          0 2px 8px rgba(0, 0, 0, 0.35),
+          0 0 0 5px rgba(168, 67, 43, 0.24);
+        cursor: grab;
+        touch-action: none;
+      }
+
+      .naizo-scout-pin.is-dragging {
+        cursor: grabbing;
+        transform: scale(1.1);
+      }
+
+      .naizo-route-pin {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border-radius: 999px;
+        background: #1c1b18;
+        color: #ffffff;
+        border: 2px solid #ffffff;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+      }
+
+      .naizo-scout-overlay-wrap {
+        z-index: 20;
+      }
+
+      .naizo-popup-overlay-wrap {
+        z-index: 30;
+      }
+
+      .naizo-map-popup {
+        background: var(--surface);
+        color: var(--ink);
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 0.42rem 0.62rem;
+        font-size: 12.5px;
+        line-height: 1.4;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+        max-width: 240px;
+      }
+
+      .naizo-map-popup:empty {
+        display: none;
+      }
+
+      /* ==========================================================================
+         BLOCK 2: LIVE WEATHER FORECAST STUDIO (CARDS + INTERACTIVE TIME SLIDER)
+         ========================================================================== */
+      .live-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.42rem;
+        padding: 0.24rem 0.62rem;
+        border-radius: 999px;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        border: 1px solid var(--border);
+        background: var(--surface-tint);
+        color: var(--muted);
+        text-transform: none;
+        letter-spacing: 0;
+      }
+
+      .live-status-pill[data-state='live'] {
+        border-color: rgba(21, 128, 61, 0.32);
+        background: var(--ok-soft);
+        color: var(--ok);
+      }
+
+      .live-status-pill[data-state='loading'] {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .live-status-pill[data-state='offline'] {
+        border-color: var(--border-strong);
+        background: var(--surface-subtle);
+        color: var(--muted);
+      }
+
+      .live-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: currentColor;
+        flex-shrink: 0;
+      }
+
+      .live-status-pill[data-state='loading'] .live-dot {
+        width: 11px;
+        height: 11px;
+        background: transparent;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        animation: naizo-spin 0.68s linear infinite;
+      }
+
+      .wx-pager-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem;
+      }
+
+      .wx-window-label {
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        color: var(--muted);
+        padding: 0 0.25rem;
+      }
+
+      /* Daily Forecast Cards Strip */
+      .forecast-days-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--day-cols, 7), minmax(118px, 1fr));
+        gap: 0.55rem;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+        margin-bottom: 1rem;
+      }
+
+      .wx-day-card.is-skeleton {
+        cursor: default;
+        pointer-events: none;
+        gap: 0.45rem;
+        min-height: 168px;
+      }
+
+      .wx-day-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-tint);
+        padding: 0.65rem 0.65rem 0.6rem;
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          background-color 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+
+      .wx-day-card:hover {
+        border-color: var(--border-strong);
+        background: var(--surface);
+      }
+
+      .wx-day-card.is-selected {
+        border-color: var(--accent);
+        background: var(--surface);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+
+      .wx-card-top {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.25rem;
+        margin-bottom: 0.35rem;
+      }
+
+      .wx-card-dow {
+        font-weight: 600;
+        font-size: 0.84rem;
+      }
+
+      .wx-card-date {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--faint);
+      }
+
+      .wx-card-main {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0.2rem 0;
+      }
+
+      .wx-card-icon {
+        font-size: 1.45rem;
+        line-height: 1;
+      }
+
+      .wx-card-temp {
+        font-family: var(--font-serif);
+        font-size: 1.32rem;
+        font-weight: 600;
+        line-height: 1.1;
+      }
+
+      .wx-card-hour-tag {
+        font-family: var(--font-mono);
+        font-size: 0.67rem;
+        color: var(--faint);
+      }
+
+      .wx-card-cond {
+        font-size: 0.75rem;
+        color: var(--muted);
+        line-height: 1.3;
+        min-height: 1.95em;
+        margin-bottom: 0.3rem;
+      }
+
+      .wx-card-stats {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: var(--font-mono);
+        font-size: 0.71rem;
+        color: var(--muted);
+        padding-top: 0.32rem;
+        border-top: 1px solid var(--border);
+        margin-bottom: 0.48rem;
+      }
+
+      .wx-rain-high {
+        color: var(--rain);
+        font-weight: 600;
+      }
+
+      .wx-card-add-btn {
+        width: 100%;
+        padding: 0.3rem 0.45rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.74rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background-color 0.15s ease,
+          border-color 0.15s ease,
+          color 0.15s ease;
+      }
+
+      .wx-card-add-btn:hover {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #ffffff;
+      }
+
+      .wx-card-add-btn.is-just-added {
+        background: var(--ok);
+        border-color: var(--ok);
+        color: #ffffff;
+      }
+
+      /* Atmospheric Day-to-Night Horizon Stage */
+      .sky-stage {
+        --sky-bg-start: #e6f3fb;
+        --sky-bg-end: #fbf8f1;
+        --sky-ink: #162430;
+        --sky-muted: #455a6b;
+        --sky-border: #c5dcea;
+        --sky-accent: #1d74a8;
+        --sky-card-bg: rgba(255, 255, 255, 0.66);
+        --sky-card-hover: rgba(255, 255, 255, 0.9);
+        border-radius: 12px;
+        border: 1px solid var(--sky-border);
+        background: linear-gradient(135deg, var(--sky-bg-start) 0%, var(--sky-bg-end) 100%);
+        color: var(--sky-ink);
+        padding: 1.1rem 1.15rem;
+        transition:
+          background 0.35s ease,
+          color 0.25s ease,
+          border-color 0.25s ease;
+      }
+
+      .sky-stage[data-sky-phase='dawn'] {
+        --sky-bg-start: #fae2d4;
+        --sky-bg-end: #e5e8f7;
+        --sky-ink: #2b1d28;
+        --sky-muted: #63485a;
+        --sky-border: #e4c5bb;
+        --sky-accent: #c85a32;
+        --sky-card-bg: rgba(255, 255, 255, 0.6);
+        --sky-card-hover: rgba(255, 255, 255, 0.88);
+      }
+
+      .sky-stage[data-sky-phase='morning'] {
+        --sky-bg-start: #e4f2fb;
+        --sky-bg-end: #fcf9f2;
+        --sky-ink: #162430;
+        --sky-muted: #455a6b;
+        --sky-border: #c2daea;
+        --sky-accent: #1971a6;
+        --sky-card-bg: rgba(255, 255, 255, 0.68);
+        --sky-card-hover: rgba(255, 255, 255, 0.92);
+      }
+
+      .sky-stage[data-sky-phase='midday'] {
+        --sky-bg-start: #dcf0fc;
+        --sky-bg-end: #fef8e4;
+        --sky-ink: #17212b;
+        --sky-muted: #475569;
+        --sky-border: #bcd6e8;
+        --sky-accent: #c47610;
+        --sky-card-bg: rgba(255, 255, 255, 0.7);
+        --sky-card-hover: rgba(255, 255, 255, 0.94);
+      }
+
+      .sky-stage[data-sky-phase='afternoon'] {
+        --sky-bg-start: #faeed7;
+        --sky-bg-end: #f1e6d6;
+        --sky-ink: #292015;
+        --sky-muted: #65543f;
+        --sky-border: #e2ceb0;
+        --sky-accent: #b8661c;
+        --sky-card-bg: rgba(255, 255, 255, 0.62);
+        --sky-card-hover: rgba(255, 255, 255, 0.9);
+      }
+
+      .sky-stage[data-sky-phase='sunset'] {
+        --sky-bg-start: #f5d3c3;
+        --sky-bg-end: #dbd7f0;
+        --sky-ink: #2c1b29;
+        --sky-muted: #60435c;
+        --sky-border: #dfb7ac;
+        --sky-accent: #c4492d;
+        --sky-card-bg: rgba(255, 255, 255, 0.58);
+        --sky-card-hover: rgba(255, 255, 255, 0.88);
+      }
+
+      .sky-stage[data-sky-phase='night'] {
+        --sky-bg-start: #131b2e;
+        --sky-bg-end: #222c47;
+        --sky-ink: #eef3fc;
+        --sky-muted: #a9b8d4;
+        --sky-border: #334266;
+        --sky-accent: #fbbf24;
+        --sky-card-bg: rgba(255, 255, 255, 0.09);
+        --sky-card-hover: rgba(255, 255, 255, 0.16);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme='light']) .sky-stage[data-sky-phase='dawn'] {
+          --sky-bg-start: #322029;
+          --sky-bg-end: #1e253a;
+          --sky-ink: #f6ebe6;
+          --sky-muted: #cbb6c0;
+          --sky-border: #4e3641;
+          --sky-accent: #f28b66;
+          --sky-card-bg: rgba(255, 255, 255, 0.08);
+          --sky-card-hover: rgba(255, 255, 255, 0.15);
+        }
+        html:not([data-theme='light']) .sky-stage[data-sky-phase='morning'] {
+          --sky-bg-start: #172836;
+          --sky-bg-end: #202421;
+          --sky-ink: #eaf2f7;
+          --sky-muted: #a5bac9;
+          --sky-border: #2c4152;
+          --sky-accent: #5cb8e6;
+          --sky-card-bg: rgba(255, 255, 255, 0.08);
+          --sky-card-hover: rgba(255, 255, 255, 0.15);
+        }
+        html:not([data-theme='light']) .sky-stage[data-sky-phase='midday'] {
+          --sky-bg-start: #1a2d3d;
+          --sky-bg-end: #2b271c;
+          --sky-ink: #f3f5f7;
+          --sky-muted: #b6c2cc;
+          --sky-border: #354a5c;
+          --sky-accent: #f6b73c;
+          --sky-card-bg: rgba(255, 255, 255, 0.09);
+          --sky-card-hover: rgba(255, 255, 255, 0.16);
+        }
+        html:not([data-theme='light']) .sky-stage[data-sky-phase='afternoon'] {
+          --sky-bg-start: #2e2418;
+          --sky-bg-end: #201e1a;
+          --sky-ink: #f3ece1;
+          --sky-muted: #c2b39d;
+          --sky-border: #473a28;
+          --sky-accent: #eba04b;
+          --sky-card-bg: rgba(255, 255, 255, 0.08);
+          --sky-card-hover: rgba(255, 255, 255, 0.15);
+        }
+        html:not([data-theme='light']) .sky-stage[data-sky-phase='sunset'] {
+          --sky-bg-start: #392026;
+          --sky-bg-end: #212038;
+          --sky-ink: #f7e9ee;
+          --sky-muted: #cbb1c6;
+          --sky-border: #533341;
+          --sky-accent: #f47c5d;
+          --sky-card-bg: rgba(255, 255, 255, 0.09);
+          --sky-card-hover: rgba(255, 255, 255, 0.16);
+        }
+      }
+
+      html[data-theme='dark'] .sky-stage[data-sky-phase='dawn'] {
+        --sky-bg-start: #322029;
+        --sky-bg-end: #1e253a;
+        --sky-ink: #f6ebe6;
+        --sky-muted: #cbb6c0;
+        --sky-border: #4e3641;
+        --sky-accent: #f28b66;
+        --sky-card-bg: rgba(255, 255, 255, 0.08);
+        --sky-card-hover: rgba(255, 255, 255, 0.15);
+      }
+      html[data-theme='dark'] .sky-stage[data-sky-phase='morning'] {
+        --sky-bg-start: #172836;
+        --sky-bg-end: #202421;
+        --sky-ink: #eaf2f7;
+        --sky-muted: #a5bac9;
+        --sky-border: #2c4152;
+        --sky-accent: #5cb8e6;
+        --sky-card-bg: rgba(255, 255, 255, 0.08);
+        --sky-card-hover: rgba(255, 255, 255, 0.15);
+      }
+      html[data-theme='dark'] .sky-stage[data-sky-phase='midday'] {
+        --sky-bg-start: #1a2d3d;
+        --sky-bg-end: #2b271c;
+        --sky-ink: #f3f5f7;
+        --sky-muted: #b6c2cc;
+        --sky-border: #354a5c;
+        --sky-accent: #f6b73c;
+        --sky-card-bg: rgba(255, 255, 255, 0.09);
+        --sky-card-hover: rgba(255, 255, 255, 0.16);
+      }
+      html[data-theme='dark'] .sky-stage[data-sky-phase='afternoon'] {
+        --sky-bg-start: #2e2418;
+        --sky-bg-end: #201e1a;
+        --sky-ink: #f3ece1;
+        --sky-muted: #c2b39d;
+        --sky-border: #473a28;
+        --sky-accent: #eba04b;
+        --sky-card-bg: rgba(255, 255, 255, 0.08);
+        --sky-card-hover: rgba(255, 255, 255, 0.15);
+      }
+      html[data-theme='dark'] .sky-stage[data-sky-phase='sunset'] {
+        --sky-bg-start: #392026;
+        --sky-bg-end: #212038;
+        --sky-ink: #f7e9ee;
+        --sky-muted: #cbb1c6;
+        --sky-border: #533341;
+        --sky-accent: #f47c5d;
+        --sky-card-bg: rgba(255, 255, 255, 0.09);
+        --sky-card-hover: rgba(255, 255, 255, 0.16);
+      }
+
+      .sky-spotlight {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.9rem;
+        margin-bottom: 0.85rem;
+      }
+
+      .sky-when-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: var(--font-serif);
+        font-size: 1.28rem;
+        font-weight: 600;
+        line-height: 1.2;
+      }
+
+      .sky-sun-meta {
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        color: var(--sky-muted);
+        margin-top: 0.2rem;
+      }
+
+      .sky-live-metrics {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .sky-big-wx {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 9px;
+        background: var(--sky-card-bg);
+        border: 1px solid var(--sky-border);
+      }
+
+      .sky-big-temp {
+        font-family: var(--font-serif);
+        font-size: 1.45rem;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .sky-big-detail {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--sky-muted);
+        line-height: 1.35;
+      }
+
+      .sky-add-hero-btn {
+        padding: 0.52rem 0.9rem;
+        border-radius: 8px;
+        border: none;
+        background: var(--sky-accent);
+        color: #ffffff;
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+      }
+
+      .sky-add-hero-btn:hover {
+        opacity: 0.92;
+      }
+
+      .sky-stage[data-sky-phase='night'] .sky-add-hero-btn {
+        color: #141311;
+      }
+
+      .slider-box {
+        margin-bottom: 0.85rem;
+      }
+
+      .hour-slider {
+        width: 100%;
+        accent-color: var(--sky-accent);
+        cursor: pointer;
+        margin: 0.15rem 0 0.2rem;
+      }
+
+      .slider-ticks {
+        display: flex;
+        justify-content: space-between;
+        font-family: var(--font-mono);
+        font-size: 0.69rem;
+        color: var(--sky-muted);
+      }
+
+      /* 6 Clickable Time-Slot Cards inside Sky Stage */
+      .time-slots-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(112px, 1fr));
+        gap: 0.45rem;
+        overflow-x: auto;
+      }
+
+      .time-slot-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.22rem;
+        padding: 0.5rem 0.55rem;
+        border-radius: 8px;
+        border: 1px solid var(--sky-border);
+        background: var(--sky-card-bg);
+        color: var(--sky-ink);
+        cursor: pointer;
+        transition:
+          background-color 0.15s ease,
+          border-color 0.15s ease;
+      }
+
+      .time-slot-card:hover {
+        background: var(--sky-card-hover);
+      }
+
+      .time-slot-card.is-active {
+        border-color: var(--sky-accent);
+        box-shadow: inset 0 0 0 1px var(--sky-accent);
+        background: var(--sky-card-hover);
+      }
+
+      .time-slot-card.is-skeleton {
+        cursor: default;
+        pointer-events: none;
+        gap: 0.34rem;
+        min-height: 78px;
+      }
+
+      .sky-stage .skel {
+        background: linear-gradient(
+          90deg,
+          rgba(128, 138, 155, 0.22) 22%,
+          rgba(255, 255, 255, 0.42) 50%,
+          rgba(128, 138, 155, 0.22) 78%
+        );
+        background-size: 220% 100%;
+      }
+
+      .ts-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        font-weight: 600;
+      }
+
+      .ts-phase {
+        font-size: 0.68rem;
+        color: var(--sky-muted);
+        font-weight: 500;
+      }
+
+      .ts-wx {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.25rem;
+        font-size: 0.86rem;
+        font-weight: 600;
+        margin-top: 0.1rem;
+      }
+
+      .ts-rain {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        font-weight: 400;
+        color: var(--sky-muted);
+      }
+
+      .ts-quick-add {
+        margin-top: 0.2rem;
+        padding: 0.18rem 0.35rem;
+        border-radius: 5px;
+        border: 1px solid var(--sky-border);
+        background: transparent;
+        color: var(--sky-ink);
+        font: inherit;
+        font-size: 0.69rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .ts-quick-add:hover {
+        background: var(--sky-accent);
+        border-color: var(--sky-accent);
+        color: #ffffff;
+      }
+
+      .sky-stage[data-sky-phase='night'] .ts-quick-add:hover {
+        color: #141311;
+      }
+
+      /* ==========================================================================
+         BLOCK 3: ROUTE PLAN & TRIP NOTES (#naizodb)
+         ========================================================================== */
+      .route-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        margin-bottom: 1.15rem;
+      }
+
+      .route-empty {
+        padding: 1.1rem;
+        border-radius: 10px;
+        border: 1px dashed var(--border-strong);
+        background: var(--surface-tint);
+        text-align: center;
+        font-size: 0.86rem;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+
+      .route-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-tint);
+        padding: 0.75rem 0.85rem;
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+
+      .route-card.is-highlighted {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent-soft);
+      }
+
+      .route-card-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.55rem;
+      }
+
+      .route-card-badges {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
+      .stop-num-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        background: var(--ink);
+        color: var(--bg);
+        font-family: var(--font-mono);
+        font-size: 0.73rem;
+        font-weight: 700;
+      }
+
+      .stop-wx-snapshot {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.38rem;
+        padding: 0.2rem 0.58rem;
+        border-radius: 999px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-family: var(--font-mono);
+        font-size: 0.74rem;
+        color: var(--ink);
+      }
+
+      .route-card-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.28rem;
+      }
+
+      .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 26px;
+        height: 26px;
+        padding: 0 0.42rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.75rem;
+        cursor: pointer;
+      }
+
+      .icon-btn:hover {
+        color: var(--ink);
+        border-color: var(--border-strong);
+      }
+
+      .icon-btn-danger:hover {
+        color: #dc2626;
+        border-color: rgba(220, 38, 38, 0.4);
+      }
+
+      .route-card-fields {
+        display: grid;
+        grid-template-columns: auto minmax(180px, 250px) 1fr;
+        align-items: center;
+        gap: 0.55rem;
+      }
+
+      .stop-done-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.32rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+        cursor: pointer;
+        user-select: none;
+        padding-right: 0.15rem;
+      }
+
+      .stop-place-label input,
+      .stop-note-label input {
+        width: 100%;
+      }
+
+      .stop-place-label input {
+        font-weight: 600;
+      }
+
+      /* Trip Notes Box & Share Drawer */
+      .notes-card {
+        border-top: 1px solid var(--border);
+        padding-top: 1rem;
+        margin-top: 0.35rem;
+      }
+
+      .sub-eyebrow {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--faint);
+        margin-bottom: 0.45rem;
+      }
+
+      .notes-field {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface-tint);
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.9rem;
+        line-height: 1.55;
+        padding: 0.65rem 0.8rem;
+        resize: vertical;
+      }
+
+      .share-details {
+        margin-top: 1rem;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-tint);
+      }
+
+      .share-summary {
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.7rem 0.9rem;
+        cursor: pointer;
+        font-size: 0.86rem;
+        font-weight: 600;
+      }
+
+      .share-summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .share-body {
+        border-top: 1px solid var(--border);
+        padding: 0.8rem 0.9rem 0.9rem;
+      }
+
+      .share-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.55rem;
+      }
+
+      .receipt-box {
+        padding: 0.48rem 0.68rem;
+        border-radius: 6px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        color: var(--muted);
+        word-break: break-all;
+      }
+
+      @media (max-width: 740px) {
+        .route-card-fields {
+          grid-template-columns: auto 1fr;
+        }
+        .stop-note-label {
+          grid-column: 1 / -1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="topbar">
+        <span>naizo.js · Outing &amp; Weather Route Planner · Live Weather APIs + #naizodb</span>
+        <div class="topbar-controls">
+          <label>
+            <span class="sr-only">Units</span>
+            <select id="temp-unit-select" naizo="temp_unit" title="Temperature &amp; wind units">
+              <option value="C">°C · km/h</option>
+              <option value="F">°F · mph</option>
+            </select>
+          </label>
+          <label>
+            <span class="sr-only">Theme</span>
+            <select id="theme-select" naizo="theme" title="Color theme">
+              <option value="system">Auto Theme</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <h1 contenteditable="true" naizo="trip_title">Nagano Alpine Valley &amp; Trail Outing</h1>
+      <p class="hero-sub">
+        1. Pin any peak, park, or city on the map &rarr; 2. Inspect live hourly weather cards &rarr;
+        3. Click <strong>+ Add</strong> on any weather window to build your persisted route below.
+      </p>
+
+      <!-- ========================================================================
+           BLOCK 1: INTERACTIVE MAP & DESTINATION SEARCH
+           ======================================================================== -->
+      <section class="app-block" id="block-map" aria-labelledby="heading-map">
+        <div class="block-head">
+          <div>
+            <div class="block-eyebrow">01 · Interactive Map &amp; Destination</div>
+            <h2 class="block-title" id="heading-map">
+              <span id="spot-heading" naizo="location_name">Kamikōchi, Nagano, Japan</span>
+            </h2>
+          </div>
+          <div
+            class="spot-meta-pill"
+            id="spot-coords-meta"
+            title="Coordinates and elevation above sea level"
+            naizo-ignore
+          >
+            36.2478°N, 137.6356°E · ⛰️ 1,505 m elev.
+          </div>
+        </div>
+
+        <div class="search-wrap" naizo-ignore>
+          <div class="search-bar">
+            <div class="search-field-box">
+              <input
+                type="search"
+                id="place-query"
+                autocomplete="off"
+                placeholder="Search mountain, park, trailhead, city, or paste lat, lon (e.g. 上高地, Mt. Takao, Yosemite)..."
+              />
+              <button
+                type="button"
+                id="clear-query-btn"
+                class="search-clear-btn"
+                aria-label="Clear search"
+                hidden
+              >
+                &times;
+              </button>
+            </div>
+            <button type="button" class="btn btn-primary" id="search-btn">Search</button>
+            <button
+              type="button"
+              class="btn"
+              id="near-me-btn"
+              title="Center on browser location (requested only on click)"
+            >
+              📍 Near Me
+            </button>
+          </div>
+          <ul id="search-results" class="search-dropdown" naizo-ignore hidden></ul>
+        </div>
+
+        <div class="preset-toolbar" naizo-ignore>
+          <div class="chip-group" aria-label="Sample destinations">
+            <button
+              type="button"
+              class="chip"
+              data-preset-spot="Kamikōchi, Nagano, Japan|36.2478|137.6356"
+            >
+              🇯🇵 Kamikōchi
+            </button>
+            <button
+              type="button"
+              class="chip"
+              data-preset-spot="Mt. Takao, Tokyo, Japan|35.6251|139.2436"
+            >
+              🇯🇵 Mt. Takao
+            </button>
+            <button
+              type="button"
+              class="chip"
+              data-preset-spot="Arashiyama, Kyoto, Japan|35.0094|135.667"
+            >
+              🇯🇵 Arashiyama
+            </button>
+            <button
+              type="button"
+              class="chip"
+              data-preset-spot="Lauterbrunnen, Switzerland|46.5935|7.9091"
+            >
+              🇨🇭 Lauterbrunnen
+            </button>
+            <button
+              type="button"
+              class="chip"
+              data-preset-spot="Yosemite Valley, USA|37.7456|-119.5936"
+            >
+              🇺🇸 Yosemite
+            </button>
+            <button
+              type="button"
+              class="chip"
+              data-preset-spot="Aoraki / Mt Cook, NZ|-43.7347|170.0963"
+            >
+              🇳🇿 Aoraki / Mt Cook
+            </button>
+          </div>
+
+          <div class="chip-group" aria-label="Map layer style">
+            <button type="button" class="chip" data-map-layer="terrain">Topo &amp; Streets</button>
+            <button type="button" class="chip" data-map-layer="satellite">Satellite</button>
+            <button
+              type="button"
+              class="chip"
+              data-map-layer="gsi"
+              title="Geospatial Information Authority of Japan contour map"
+            >
+              JP Topo 地理院
+            </button>
+          </div>
+        </div>
+
+        <!-- #map-canvas is injected before #map-fallback with data-naizo-strip="true" so exports stay clean -->
+        <div id="map-stage" class="map-stage" naizo-ignore>
+          <div class="map-fallback" id="map-fallback">
+            <strong>Interactive Map Ready When Online</strong>
+            <span>
+              Connect to the internet to browse tiles and click-to-pin coordinates, or enter
+              <code>lat, lon</code> in the search bar above.
+            </span>
+          </div>
+        </div>
+
+        <div class="map-footer" naizo-ignore>
+          <div class="map-legend">
+            <span class="legend-item">
+              <span class="legend-scout-dot" aria-hidden="true"></span>
+              <span>Active Forecast Pin (click map or drag)</span>
+            </span>
+            <span class="legend-item">
+              <span class="legend-route-dot" aria-hidden="true">1</span>
+              <span id="map-route-legend">Saved Route Stops (2)</span>
+            </span>
+          </div>
+          <div class="chip-group" id="map-footer-actions">
+            <button type="button" class="btn btn-sm" id="center-pin-btn">Center Active Pin</button>
+            <button type="button" class="btn btn-sm" id="fit-route-map-btn">Fit Saved Route</button>
+            <button
+              type="button"
+              class="btn btn-sm btn-danger-subtle"
+              id="clear-map-pins-btn"
+              title="Remove all saved route stops and pins"
+            >
+              Clear Saved Pins
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           BLOCK 2: LIVE WEATHER FORECAST STUDIO
+           ======================================================================== -->
+      <section class="app-block" id="block-weather" aria-labelledby="heading-weather">
+        <div class="block-head">
+          <div>
+            <div class="block-eyebrow">
+              <span>02 · Live Weather Forecast</span>
+              <span id="wx-live-badge" class="live-status-pill" data-state="loading" naizo-ignore>
+                <span class="live-dot" aria-hidden="true"></span>
+                <span id="wx-live-text">Connecting to live weather server…</span>
+              </span>
+            </div>
+            <h2 class="block-title" id="heading-weather">
+              Select Date &amp; Time Window to Add to Your Route
+            </h2>
+            <p class="block-desc" id="wx-spot-summary" naizo-ignore>
+              Click any day card to inspect its 24-hour sky timeline, drag the time slider to see
+              hourly changes across all days, and click <strong>+ Add</strong> to pin a slot below.
+            </p>
+          </div>
+
+          <div class="wx-pager-bar" naizo-ignore>
+            <button type="button" class="btn btn-sm" id="wx-prev-btn" disabled>&larr; Prev</button>
+            <span class="wx-window-label" id="wx-window-label">Days 1–7</span>
+            <button type="button" class="btn btn-sm" id="wx-next-btn">Next &rarr;</button>
+            <button type="button" class="btn btn-sm" id="refresh-wx-btn">↻ Refresh</button>
+          </div>
+        </div>
+
+        <!-- 7-Day Live Forecast Cards Grid -->
+        <div
+          id="day-cards-grid"
+          class="forecast-days-grid"
+          role="list"
+          aria-label="Daily forecast cards"
+          naizo-ignore
+        ></div>
+
+        <!-- Atmospheric Day-to-Night Horizon Stage for Selected Day -->
+        <div id="sky-stage" class="sky-stage" data-sky-phase="morning">
+          <div class="sky-spotlight" naizo-ignore>
+            <div>
+              <div class="sky-when-title">
+                <span id="sky-orb" aria-hidden="true">🌤️</span>
+                <span id="sky-when-label">Today · 09:00 Crisp Morning</span>
+              </div>
+              <div class="sky-sun-meta" id="sky-sun-meta">Kamikōchi, Nagano · ⛰️ Elev. 1,505 m</div>
+            </div>
+
+            <div class="sky-live-metrics">
+              <div class="sky-big-wx">
+                <span id="sky-wx-icon" style="font-size: 1.55rem" aria-hidden="true">🌤️</span>
+                <span id="sky-wx-temp" class="sky-big-temp">--°C</span>
+                <div id="sky-wx-detail" class="sky-big-detail">Loading live hourly data…</div>
+              </div>
+              <button type="button" class="sky-add-hero-btn" id="add-hero-slot-btn">
+                + Add Slot to Route
+              </button>
+            </div>
+          </div>
+
+          <div class="slider-box">
+            <label>
+              <span class="sr-only">Target Hour of Day (00:00 to 23:00)</span>
+              <input
+                type="range"
+                id="hour-slider"
+                class="hour-slider"
+                min="0"
+                max="23"
+                step="1"
+                naizo="target_hour"
+              />
+            </label>
+            <div class="slider-ticks" naizo-ignore>
+              <span>00:00 Midnight</span>
+              <span>06:00 Dawn</span>
+              <span>12:00 Midday</span>
+              <span>18:00 Sunset</span>
+              <span>23:00 Night</span>
+            </div>
+          </div>
+
+          <!-- 6 Clickable Time-of-Day Forecast Cards for the Selected Date -->
+          <div
+            id="time-slots-grid"
+            class="time-slots-grid"
+            aria-label="Time of day forecast windows"
+            naizo-ignore
+          ></div>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           BLOCK 3: ROUTE PLAN & TRIP NOTES (PERSISTED IN #naizodb)
+           ======================================================================== -->
+      <section class="app-block" id="block-route" aria-labelledby="heading-route">
+        <div class="block-head">
+          <div>
+            <div class="block-eyebrow">03 · Route Plan &amp; Field Notes · #naizodb</div>
+            <h2 class="block-title" id="heading-route">Planned Outing Stops &amp; Trip Notes</h2>
+            <p class="block-desc">
+              Every weather window you add from above lands here with its coordinates and forecast
+              snapshot, plotted in order on the map and saved inside <code>#naizodb</code>.
+            </p>
+          </div>
+
+          <div class="chip-group" id="route-header-actions" naizo-ignore>
+            <span class="spot-meta-pill" id="route-count-badge">2 stops</span>
+            <button type="button" class="btn btn-sm" id="add-blank-stop-btn" naizo-add="route">
+              + Custom Stop
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-danger-subtle"
+              id="clear-route-btn"
+              title="Remove all saved route stops and pins"
+            >
+              Clear All Pins
+            </button>
+          </div>
+        </div>
+
+        <div id="route-empty-state" class="route-empty" naizo-ignore hidden>
+          No route stops yet – click <strong>+ Add</strong> on any weather card above (or
+          <strong>+ Custom Stop</strong>) to start building your itinerary.
+        </div>
+
+        <!-- Declarative repeating route list persisted in #naizodb lists.route -->
+        <div id="route-list" class="route-list" naizo-list="route" naizo-no-controls>
+          <article class="route-card" naizo-item>
+            <div class="route-card-head">
+              <div class="route-card-badges" naizo-ignore>
+                <span class="stop-num-badge" data-stop-num>1</span>
+                <span class="stop-wx-snapshot" data-stop-wx>
+                  Custom stop · click + Add in Weather above to capture forecast
+                </span>
+              </div>
+              <div class="route-card-actions">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  data-focus-stop
+                  naizo-ignore
+                  title="Show this stop on the map and load its live forecast"
+                >
+                  📍 Map
+                </button>
+                <button type="button" class="icon-btn" naizo-move="up" title="Move stop earlier">
+                  &uarr;
+                </button>
+                <button type="button" class="icon-btn" naizo-move="down" title="Move stop later">
+                  &darr;
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn icon-btn-danger"
+                  naizo-remove
+                  title="Remove stop"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+
+            <div class="route-card-fields">
+              <label class="stop-done-label">
+                <input type="checkbox" naizo="done" />
+                <span>Go</span>
+              </label>
+              <label class="stop-place-label">
+                <span class="sr-only">Stop Location</span>
+                <input type="text" naizo="place" placeholder="Trailhead, park, peak, or town..." />
+              </label>
+              <label class="stop-note-label">
+                <span class="sr-only">Route Activity or Backup Plan</span>
+                <input
+                  type="text"
+                  naizo="note"
+                  placeholder="Trail plan, transport timing, lunch stop, or rainy-day backup..."
+                />
+              </label>
+            </div>
+          </article>
+        </div>
+
+        <!-- Dedicated Trip Notes & Gear Checklist -->
+        <div class="notes-card">
+          <label>
+            <span class="sub-eyebrow">Trip Notes, Gear &amp; Transport Checklist</span>
+            <textarea
+              class="notes-field"
+              naizo="trip_notes"
+              rows="3"
+              placeholder="Gear list, bus/train times, mountain hut reservations, emergency contacts..."
+            ></textarea>
+          </label>
+        </div>
+
+        <!-- Share Itinerary & Declarative Mini-API Showcase (naizo-get / naizo-post) -->
+        <details class="share-details" naizo="share_open">
+          <summary class="share-summary">
+            <span>Share Itinerary &amp; Webhook Sync (Declarative Mini-API Client)</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted)">
+              Copy brief · Save to PC · naizo-get / naizo-post
+            </span>
+          </summary>
+
+          <div class="share-body">
+            <div class="share-row">
+              <button type="button" class="btn" id="copy-summary-btn" naizo-ignore>
+                📋 Copy Route &amp; Notes
+              </button>
+              <!-- Declarative naizo-get: extracts live daylight length via naizo-path -->
+              <button
+                type="button"
+                class="btn"
+                id="check-dem-btn"
+                naizo-get="https://api.sunrise-sunset.org/json?lat=36.2478&amp;lng=137.6356"
+                naizo-path="results.day_length"
+                naizo-into="#api-receipt"
+              >
+                🌅 Check Daylight Hours (naizo-get)
+              </button>
+              <!-- Declarative naizo-post: sends CORS-safelisted text/plain;charset=UTF-8 #naizodb JSON and extracts echoed payload -->
+              <button
+                type="button"
+                class="btn"
+                id="echo-post-btn"
+                naizo-post="https://httpbin.org/post"
+                naizo-body="db"
+                naizo-path="data"
+                naizo-into="#api-receipt"
+              >
+                📡 Test Echo Webhook (naizo-post)
+              </button>
+            </div>
+
+            <div class="share-row">
+              <label style="flex: 1 1 240px">
+                <span class="sr-only">Custom Webhook URL</span>
+                <input
+                  type="url"
+                  id="custom-webhook-input"
+                  naizo="webhook_url"
+                  style="width: 100%"
+                  placeholder="Optional webhook URL (Slack, Discord, n8n, Make)..."
+                />
+              </label>
+              <label class="stop-done-label" naizo-ignore>
+                <input type="checkbox" id="webhook-nocors-check" />
+                <span>Blind webhook (no-cors)</span>
+              </label>
+              <button type="button" class="btn btn-primary" id="push-webhook-btn" naizo-ignore>
+                Send Plan JSON
+              </button>
+            </div>
+
+            <div id="api-receipt" class="receipt-box">
+              Ready – copy a formatted route brief, click Save to PC in the bottom-right pill, or
+              push #naizodb JSON to a webhook.
+            </div>
+          </div>
+        </details>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        const TILE_LAYERS = {
+          terrain: {
+            url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+            attribution: 'Tiles &copy; Esri &mdash; Esri, USGS, OpenStreetMap',
+            maxZoom: 19,
+          },
+          satellite: {
+            url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+            maxZoom: 18,
+          },
+          gsi: {
+            url: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',
+            attribution: '&copy; GSI Japan 国土地理院',
+            maxZoom: 18,
+          },
+        };
+
+        function resolveLayerKey(rawKey) {
+          const k = String(rawKey || 'terrain');
+          return Object.prototype.hasOwnProperty.call(TILE_LAYERS, k) ? k : 'terrain';
+        }
+
+        const TIME_SLOTS = [
+          { hour: 6, label: 'Dawn' },
+          { hour: 9, label: 'Morning' },
+          { hour: 12, label: 'Midday' },
+          { hour: 15, label: 'Afternoon' },
+          { hour: 18, label: 'Sunset' },
+          { hour: 21, label: 'Night' },
+        ];
+
+        // Transient live forecast state from weather APIs (kept out of #naizodb)
+        let liveForecast = {
+          status: 'loading', // 'loading' | 'live' | 'offline'
+          sourceLabel: 'api.open-meteo.com',
+          loadingHint: 'Fetching live 7-day forecast from api.open-meteo.com…',
+          fetchedAt: '',
+          timezone: '',
+          elevation: null,
+          current: null,
+          days: [], // [{ date, code, max_c, min_c, rain_max, wind_max, sunrise, sunset, hourly: { temp, rain, wind, code } }]
+        };
+        let selectedDateIso = '';
+        let dayPageOffset = 0;
+        let fetchSeq = 0;
+        let searchSeq = 0;
+        let openMeteoTimedOut = false;
+        let searchDebounceTimer = null;
+
+        // OpenLayers runtime instances & loading overlay flags
+        let olMap = null;
+        let baseTileLayer = null;
+        let activeLayerKey = '';
+        let routeVectorSource = null;
+        let scoutOverlay = null;
+        let popupOverlay = null;
+        let popupEl = null;
+        let routeOverlays = [];
+        let lastClearedRoute = null;
+        let mapTilesLoading = false;
+        let mapPinFetching = false;
+        let tileLoadSafetyTimer = null;
+        let syncingUi = false;
+
+        function wxMeta(code, isNight) {
+          const n = Number(code ?? 0);
+          if (n === 0) return { icon: isNight ? '🌙' : '☀️', label: 'Clear sky' };
+          if (n === 1) return { icon: isNight ? '🌙' : '🌤️', label: 'Mainly clear' };
+          if (n === 2) return { icon: '⛅', label: 'Partly cloudy' };
+          if (n === 3) return { icon: '☁️', label: 'Overcast' };
+          if (n === 45 || n === 48) return { icon: '🌫️', label: 'Mountain fog' };
+          if (n >= 51 && n <= 57) return { icon: '🌦️', label: 'Light drizzle' };
+          if (n >= 61 && n <= 67) return { icon: '🌧️', label: 'Rain' };
+          if (n >= 71 && n <= 77) return { icon: '❄️', label: 'Snowfall' };
+          if (n >= 80 && n <= 82) return { icon: '🌦️', label: 'Rain showers' };
+          if (n >= 85 && n <= 86) return { icon: '🌨️', label: 'Snow showers' };
+          if (n >= 95) return { icon: '⛈️', label: 'Thunderstorm' };
+          return { icon: '🌤️', label: 'Fair' };
+        }
+
+        function getSkyPhase(hour) {
+          const h = Math.max(0, Math.min(23, Math.round(Number(hour) || 0)));
+          const hh = String(h).padStart(2, '0') + ':00';
+          if (h >= 5 && h <= 7) {
+            return { phase: 'dawn', orb: '🌅', time: hh, title: 'Alpine Dawn', night: false };
+          }
+          if (h >= 8 && h <= 10) {
+            return { phase: 'morning', orb: '🌤️', time: hh, title: 'Crisp Morning', night: false };
+          }
+          if (h >= 11 && h <= 14) {
+            return { phase: 'midday', orb: '☀️', time: hh, title: 'High Sun Midday', night: false };
+          }
+          if (h >= 15 && h <= 16) {
+            return {
+              phase: 'afternoon',
+              orb: '⛅',
+              time: hh,
+              title: 'Golden Afternoon',
+              night: false,
+            };
+          }
+          if (h >= 17 && h <= 19) {
+            return {
+              phase: 'sunset',
+              orb: '🌇',
+              time: hh,
+              title: 'Alpenglow Sunset',
+              night: false,
+            };
+          }
+          return { phase: 'night', orb: '🌌', time: hh, title: 'Starry Night', night: true };
+        }
+
+        function formatTemp(celsius, unit) {
+          const num = Number(celsius);
+          if (!Number.isFinite(num)) return '--';
+          if (unit === 'F') return Math.round((num * 9) / 5 + 32) + '°F';
+          return Math.round(num) + '°C';
+        }
+
+        function formatTempShort(celsius, unit) {
+          const num = Number(celsius);
+          if (!Number.isFinite(num)) return '--';
+          if (unit === 'F') return Math.round((num * 9) / 5 + 32) + '°';
+          return Math.round(num) + '°';
+        }
+
+        function formatWind(kmh, unit) {
+          const num = Number(kmh);
+          if (!Number.isFinite(num)) return '--';
+          if (unit === 'F') return Math.round(num * 0.621371) + ' mph';
+          return Math.round(num) + ' km/h';
+        }
+
+        function parseIsoParts(isoDate) {
+          if (typeof isoDate !== 'string') return null;
+          const m = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (!m) return null;
+          return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+        }
+
+        function formatDayShort(isoDate) {
+          const dt = parseIsoParts(isoDate);
+          if (!dt) return { dow: String(isoDate || 'Stop'), md: '' };
+          return {
+            dow: dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }),
+            md: dt.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              timeZone: 'UTC',
+            }),
+          };
+        }
+
+        function formatDateReadable(isoDate) {
+          const dt = parseIsoParts(isoDate);
+          if (!dt) return String(isoDate || 'Custom date');
+          return dt.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            timeZone: 'UTC',
+          });
+        }
+
+        function getActiveHour() {
+          const slider = document.getElementById('hour-slider');
+          const raw =
+            slider && slider.value !== ''
+              ? Number(slider.value)
+              : Number(Naizo.getField('target_hour'));
+          return Math.max(0, Math.min(23, Math.round(Number.isFinite(raw) ? raw : 9)));
+        }
+
+        function getUnit() {
+          return String(Naizo.getField('temp_unit') || 'C') === 'F' ? 'F' : 'C';
+        }
+
+        function extractSlotSnapshot(dayObj, hour) {
+          const h = Math.max(0, Math.min(23, Math.round(Number(hour) || 0)));
+          const sky = getSkyPhase(h);
+          if (!dayObj) {
+            return {
+              temp_c: null,
+              rain_pct: null,
+              wind_kmh: null,
+              code: 1,
+              condition: 'Forecast pending',
+              isNight: sky.night,
+            };
+          }
+          const hourly = dayObj.hourly || {};
+          const hasHour = Array.isArray(hourly.temp) && hourly.temp[h] !== undefined;
+          const temp_c = hasHour ? hourly.temp[h] : dayObj.max_c;
+          const rain_pct =
+            hasHour && Array.isArray(hourly.rain) ? hourly.rain[h] : (dayObj.rain_max ?? 0);
+          const wind_kmh =
+            hasHour && Array.isArray(hourly.wind) ? hourly.wind[h] : (dayObj.wind_max ?? 0);
+          const code = hasHour && Array.isArray(hourly.code) ? hourly.code[h] : (dayObj.code ?? 1);
+          const meta = wxMeta(code, sky.night);
+          return {
+            temp_c: temp_c,
+            rain_pct: rain_pct,
+            wind_kmh: wind_kmh,
+            code: code,
+            condition: meta.label,
+            isNight: sky.night,
+          };
+        }
+
+        // ======================================================================
+        // OPENLAYERS MAP ENGINE (SCOUT PIN + NUMBERED ROUTE STOPS + POLYLINE)
+        // ======================================================================
+        function normalizeLon(rawLon) {
+          const n = Number(rawLon) || 0;
+          return ((((n + 180) % 360) + 360) % 360) - 180;
+        }
+
+        function clampLat(rawLat) {
+          return Math.max(-85, Math.min(85, Number(rawLat) || 0));
+        }
+
+        function syncMapLoadingPill() {
+          const stage = document.getElementById('map-stage');
+          if (!stage) return;
+          let pill = document.getElementById('map-loading-pill');
+          if (!mapPinFetching && !mapTilesLoading) {
+            if (pill) pill.hidden = true;
+            return;
+          }
+          if (!pill) {
+            pill = document.createElement('div');
+            pill.id = 'map-loading-pill';
+            pill.className = 'map-loading-pill';
+            pill.setAttribute('data-naizo-strip', 'true');
+            const spin = document.createElement('span');
+            spin.className = 'spinner';
+            spin.setAttribute('aria-hidden', 'true');
+            const txt = document.createElement('span');
+            txt.id = 'map-loading-text';
+            pill.appendChild(spin);
+            pill.appendChild(txt);
+            stage.appendChild(pill);
+          }
+          const txtEl = document.getElementById('map-loading-text');
+          if (txtEl) {
+            txtEl.textContent = mapPinFetching ? 'Loading pin weather…' : 'Loading map tiles…';
+          }
+          pill.hidden = false;
+        }
+
+        function ensureMapMounted() {
+          const ol = window.ol;
+          if (typeof ol === 'undefined') return;
+          const stage = document.getElementById('map-stage');
+          if (!stage) return;
+
+          if (!olMap) {
+            let canvas = document.getElementById('map-canvas');
+            if (!canvas) {
+              canvas = document.createElement('div');
+              canvas.id = 'map-canvas';
+              canvas.className = 'map-canvas';
+              canvas.setAttribute('data-naizo-strip', 'true');
+              stage.insertBefore(canvas, stage.firstChild);
+            }
+
+            const lat = Number(Naizo.getField('latitude')) || 36.2478;
+            const lon = Number(Naizo.getField('longitude')) || 137.6356;
+
+            baseTileLayer = new ol.layer.Tile();
+            routeVectorSource = new ol.source.Vector();
+            const routeVectorLayer = new ol.layer.Vector({
+              source: routeVectorSource,
+              style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                  color: 'rgba(168, 67, 43, 0.82)',
+                  width: 3,
+                  lineDash: [6, 6],
+                }),
+              }),
+            });
+
+            const ctrlDefaultsFn =
+              ol.control &&
+              (typeof ol.control.defaults === 'function'
+                ? ol.control.defaults
+                : ol.control.defaults && typeof ol.control.defaults.defaults === 'function'
+                  ? ol.control.defaults.defaults
+                  : null);
+            const controls = ctrlDefaultsFn
+              ? ctrlDefaultsFn({ attributionOptions: { collapsible: false } })
+              : undefined;
+            const interDefaultsFn =
+              ol.interaction &&
+              (typeof ol.interaction.defaults === 'function'
+                ? ol.interaction.defaults
+                : ol.interaction.defaults && typeof ol.interaction.defaults.defaults === 'function'
+                  ? ol.interaction.defaults.defaults
+                  : null);
+            const interactions = interDefaultsFn
+              ? interDefaultsFn({ mouseWheelZoom: false })
+              : undefined;
+
+            olMap = new ol.Map({
+              target: canvas,
+              controls: controls,
+              interactions: interactions,
+              layers: [baseTileLayer, routeVectorLayer],
+              view: new ol.View({
+                center: ol.proj.fromLonLat([lon, lat]),
+                zoom: 11,
+              }),
+            });
+
+            olMap.on('loadstart', function () {
+              mapTilesLoading = true;
+              syncMapLoadingPill();
+              if (tileLoadSafetyTimer) clearTimeout(tileLoadSafetyTimer);
+              tileLoadSafetyTimer = setTimeout(function () {
+                mapTilesLoading = false;
+                syncMapLoadingPill();
+              }, 4000);
+            });
+
+            olMap.on('loadend', function () {
+              if (tileLoadSafetyTimer) clearTimeout(tileLoadSafetyTimer);
+              mapTilesLoading = false;
+              syncMapLoadingPill();
+            });
+
+            // Draggable Active Scout Pin Overlay
+            const scoutPinEl = document.createElement('div');
+            scoutPinEl.className = 'naizo-scout-pin';
+            scoutPinEl.title = 'Active Forecast Pin (drag or click anywhere on map)';
+            scoutOverlay = new ol.Overlay({
+              element: scoutPinEl,
+              className: 'ol-overlay-container ol-selectable naizo-scout-overlay-wrap',
+              position: ol.proj.fromLonLat([lon, lat]),
+              positioning: 'center-center',
+              stopEvent: true,
+            });
+            olMap.addOverlay(scoutOverlay);
+
+            let draggingScout = false;
+            scoutPinEl.addEventListener('pointerdown', function (ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              draggingScout = true;
+              scoutPinEl.classList.add('is-dragging');
+              if (typeof scoutPinEl.setPointerCapture === 'function') {
+                try {
+                  scoutPinEl.setPointerCapture(ev.pointerId);
+                } catch {
+                  // Ignore synthetic pointer ids
+                }
+              }
+            });
+
+            scoutPinEl.addEventListener('pointermove', function (ev) {
+              if (!draggingScout || !olMap || !scoutOverlay) return;
+              const rect = canvas.getBoundingClientRect();
+              const px = [ev.clientX - rect.left, ev.clientY - rect.top];
+              const coord = olMap.getCoordinateFromPixel(px);
+              if (coord) scoutOverlay.setPosition(coord);
+            });
+
+            const finishScoutDrag = function (ev) {
+              if (!draggingScout) return;
+              draggingScout = false;
+              scoutPinEl.classList.remove('is-dragging');
+              if (typeof scoutPinEl.releasePointerCapture === 'function') {
+                try {
+                  scoutPinEl.releasePointerCapture(ev.pointerId);
+                } catch {
+                  // Ignore synthetic pointer ids
+                }
+              }
+              const pos = scoutOverlay ? scoutOverlay.getPosition() : null;
+              if (pos) {
+                const lonLat = ol.proj.toLonLat(pos);
+                const nextLat = Number(clampLat(lonLat[1]).toFixed(4));
+                const nextLon = Number(normalizeLon(lonLat[0]).toFixed(4));
+                void selectSpotAndFetch(nextLat, nextLon, '');
+              }
+            };
+            scoutPinEl.addEventListener('pointerup', finishScoutDrag);
+            scoutPinEl.addEventListener('pointercancel', finishScoutDrag);
+
+            // Route Stop Popup Overlay
+            popupEl = document.createElement('div');
+            popupEl.className = 'naizo-map-popup';
+            popupOverlay = new ol.Overlay({
+              element: popupEl,
+              className: 'ol-overlay-container ol-selectable naizo-popup-overlay-wrap',
+              positioning: 'bottom-center',
+              offset: [0, -16],
+              stopEvent: true,
+            });
+            olMap.addOverlay(popupOverlay);
+
+            olMap.on('singleclick', function (ev) {
+              if (popupOverlay) popupOverlay.setPosition(undefined);
+              const lonLat = ol.proj.toLonLat(ev.coordinate);
+              const clickLat = Number(clampLat(lonLat[1]).toFixed(4));
+              const clickLon = Number(normalizeLon(lonLat[0]).toFixed(4));
+              void selectSpotAndFetch(clickLat, clickLon, '');
+            });
+
+            if (typeof ResizeObserver === 'function') {
+              const ro = new ResizeObserver(function () {
+                if (olMap) olMap.updateSize();
+              });
+              ro.observe(stage);
+            }
+            setTimeout(function () {
+              if (olMap) olMap.updateSize();
+            }, 60);
+          }
+
+          const desiredLayer = resolveLayerKey(Naizo.getField('map_layer'));
+          const spec = TILE_LAYERS[desiredLayer];
+          if (activeLayerKey !== desiredLayer && baseTileLayer) {
+            baseTileLayer.setSource(
+              new ol.source.XYZ({
+                url: spec.url,
+                attributions: spec.attribution,
+                maxZoom: spec.maxZoom,
+              }),
+            );
+            activeLayerKey = desiredLayer;
+          }
+
+          const lat = Number(Naizo.getField('latitude'));
+          const lon = Number(Naizo.getField('longitude'));
+          if (Number.isFinite(lat) && Number.isFinite(lon) && scoutOverlay) {
+            scoutOverlay.setPosition(ol.proj.fromLonLat([lon, lat]));
+          }
+
+          renderRouteOnMap();
+        }
+
+        function renderRouteOnMap() {
+          const stops = Naizo.getList('route');
+          const legendEl = document.getElementById('map-route-legend');
+          if (legendEl) {
+            legendEl.textContent = 'Saved Route Stops (' + stops.length + ')';
+          }
+          const ol = window.ol;
+          if (!olMap || !routeVectorSource || typeof ol === 'undefined') return;
+
+          routeOverlays.forEach(function (ov) {
+            olMap.removeOverlay(ov);
+          });
+          routeOverlays = [];
+          routeVectorSource.clear();
+          if (popupOverlay) popupOverlay.setPosition(undefined);
+
+          const mercCoords = [];
+          const unit = getUnit();
+
+          stops.forEach(function (stop, idx) {
+            const sLat = Number(stop.lat);
+            const sLon = Number(stop.lon);
+            if (!Number.isFinite(sLat) || !Number.isFinite(sLon)) return;
+            const merc = ol.proj.fromLonLat([sLon, sLat]);
+            mercCoords.push(merc);
+
+            const titleTxt = String(stop.place || 'Stop ' + (idx + 1));
+            const whenTxt = [formatDateReadable(stop.date), stop.time].filter(Boolean).join(' · ');
+            const wxTxt =
+              stop.temp_c !== undefined && stop.temp_c !== null
+                ? formatTemp(stop.temp_c, unit) + ' · ' + (stop.condition || '')
+                : '';
+
+            const pinEl = document.createElement('button');
+            pinEl.type = 'button';
+            pinEl.className = 'naizo-route-pin';
+            pinEl.textContent = String(idx + 1);
+            pinEl.title = idx + 1 + '. ' + titleTxt;
+
+            pinEl.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              highlightRouteCard(idx);
+              if (popupEl && popupOverlay) {
+                popupEl.textContent = '';
+                const strong = document.createElement('strong');
+                strong.textContent = idx + 1 + '. ' + titleTxt;
+                popupEl.appendChild(strong);
+                if (whenTxt || wxTxt) {
+                  const sub = document.createElement('div');
+                  sub.textContent = [whenTxt, wxTxt].filter(Boolean).join(' – ');
+                  popupEl.appendChild(sub);
+                }
+                popupOverlay.setPosition(merc);
+              }
+            });
+
+            const ov = new ol.Overlay({
+              element: pinEl,
+              position: merc,
+              positioning: 'center-center',
+              stopEvent: true,
+            });
+            olMap.addOverlay(ov);
+            routeOverlays.push(ov);
+          });
+
+          if (mercCoords.length >= 2) {
+            routeVectorSource.addFeature(
+              new ol.Feature({
+                geometry: new ol.geom.LineString(mercCoords),
+              }),
+            );
+          }
+        }
+
+        function fitSavedRouteOnMap() {
+          const ol = window.ol;
+          if (!olMap || typeof ol === 'undefined') return;
+          const view = olMap.getView();
+          const mercCoords = [];
+          Naizo.getList('route').forEach(function (s) {
+            const lat = Number(s.lat);
+            const lon = Number(s.lon);
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+              mercCoords.push(ol.proj.fromLonLat([lon, lat]));
+            }
+          });
+          if (mercCoords.length === 0) {
+            const lat = Number(Naizo.getField('latitude')) || 36.2478;
+            const lon = Number(Naizo.getField('longitude')) || 137.6356;
+            view.setCenter(ol.proj.fromLonLat([lon, lat]));
+            view.setZoom(11);
+            return;
+          }
+          if (mercCoords.length === 1) {
+            view.setCenter(mercCoords[0]);
+            view.setZoom(13);
+            return;
+          }
+          view.fit(ol.extent.boundingExtent(mercCoords), {
+            padding: [40, 40, 40, 40],
+            maxZoom: 14,
+          });
+        }
+
+        // ======================================================================
+        // WEATHER FORECAST STUDIO RENDERING (DAY CARDS + SKY STAGE + TIME CARDS)
+        // ======================================================================
+        function makeSkelBar(widthCss, heightCss) {
+          const s = document.createElement('span');
+          s.className = 'skel';
+          s.style.width = widthCss;
+          s.style.height = heightCss;
+          return s;
+        }
+
+        function renderForecastStudio() {
+          const gridEl = document.getElementById('day-cards-grid');
+          const timeGridEl = document.getElementById('time-slots-grid');
+          const skyStage = document.getElementById('sky-stage');
+          if (!gridEl || !timeGridEl || !skyStage) return;
+
+          const unit = getUnit();
+          const hour = getActiveHour();
+          const sky = getSkyPhase(hour);
+          skyStage.setAttribute('data-sky-phase', sky.phase);
+
+          const isLoading = liveForecast.status === 'loading';
+          const liveBadge = document.getElementById('wx-live-badge');
+          const liveText = document.getElementById('wx-live-text');
+          if (liveBadge && liveText) {
+            liveBadge.setAttribute('data-state', liveForecast.status);
+            if (isLoading) {
+              liveText.textContent =
+                liveForecast.loadingHint || 'Fetching live forecast from weather server…';
+            } else if (liveForecast.status === 'live') {
+              liveText.textContent =
+                'Live · ' +
+                (liveForecast.sourceLabel || 'api.open-meteo.com') +
+                (liveForecast.timezone ? ' · ' + liveForecast.timezone : '') +
+                (liveForecast.fetchedAt ? ' · ' + liveForecast.fetchedAt : '');
+            } else {
+              liveText.textContent = 'Weather server unreachable – click ↻ Refresh to retry';
+            }
+          }
+
+          const days = liveForecast.days;
+          if (!selectedDateIso || !days.some((d) => d.date === selectedDateIso)) {
+            selectedDateIso = days[0] ? days[0].date : '';
+          }
+
+          const maxOffset = Math.max(0, days.length - 7);
+          dayPageOffset = Math.max(0, Math.min(maxOffset, dayPageOffset));
+          const prevBtn = document.getElementById('wx-prev-btn');
+          const nextBtn = document.getElementById('wx-next-btn');
+          const winLabel = document.getElementById('wx-window-label');
+          const showPager = !isLoading && days.length > 7;
+          if (prevBtn) {
+            prevBtn.hidden = !showPager;
+            prevBtn.disabled = dayPageOffset <= 0;
+          }
+          if (nextBtn) {
+            nextBtn.hidden = !showPager;
+            nextBtn.disabled = dayPageOffset >= maxOffset;
+          }
+          if (winLabel) {
+            if (isLoading) {
+              winLabel.textContent = 'Loading forecast…';
+            } else if (days.length > 7) {
+              const endIdx = Math.min(days.length, dayPageOffset + 7);
+              winLabel.textContent = 'Days ' + (dayPageOffset + 1) + '–' + endIdx;
+            } else if (days.length > 0) {
+              winLabel.textContent = days.length + '-Day Live Window';
+            } else {
+              winLabel.textContent = 'Offline';
+            }
+          }
+
+          // 1. Render Daily Forecast Cards (or 7 Shimmer Skeleton Cards while loading)
+          gridEl.textContent = '';
+          const visibleDays = days.slice(dayPageOffset, dayPageOffset + 7);
+
+          if (isLoading) {
+            gridEl.style.setProperty('--day-cols', '7');
+            for (let sIdx = 0; sIdx < 7; sIdx += 1) {
+              const skCard = document.createElement('div');
+              skCard.className = 'wx-day-card is-skeleton';
+              skCard.setAttribute('aria-hidden', 'true');
+              skCard.setAttribute('data-naizo-strip', 'true');
+              skCard.appendChild(makeSkelBar('72%', '12px'));
+              skCard.appendChild(makeSkelBar('56%', '26px'));
+              skCard.appendChild(makeSkelBar('86%', '12px'));
+              skCard.appendChild(makeSkelBar('100%', '11px'));
+              skCard.appendChild(makeSkelBar('100%', '26px'));
+              gridEl.appendChild(skCard);
+            }
+          } else if (visibleDays.length === 0) {
+            gridEl.style.setProperty('--day-cols', '1');
+            const emptyMsg = document.createElement('div');
+            emptyMsg.setAttribute('data-naizo-strip', 'true');
+            emptyMsg.style.gridColumn = '1 / -1';
+            emptyMsg.style.padding = '1.1rem';
+            emptyMsg.style.borderRadius = '10px';
+            emptyMsg.style.border = '1px dashed var(--border-strong)';
+            emptyMsg.style.textAlign = 'center';
+            emptyMsg.style.color = 'var(--muted)';
+            emptyMsg.style.fontSize = '0.86rem';
+            const msgSpan = document.createElement('div');
+            msgSpan.style.marginBottom = '0.55rem';
+            msgSpan.textContent =
+              'Live weather servers timed out or are offline. Your saved route stops below remain editable.';
+            const retryBtn = document.createElement('button');
+            retryBtn.type = 'button';
+            retryBtn.className = 'btn btn-sm btn-primary';
+            retryBtn.textContent = '↻ Retry Live Weather';
+            retryBtn.addEventListener('click', function () {
+              openMeteoTimedOut = false;
+              void fetchLiveForecast(true, true);
+            });
+            emptyMsg.appendChild(msgSpan);
+            emptyMsg.appendChild(retryBtn);
+            gridEl.appendChild(emptyMsg);
+          } else {
+            gridEl.style.setProperty('--day-cols', String(Math.max(1, visibleDays.length)));
+            visibleDays.forEach(function (dayObj, vIdx) {
+              const absIdx = dayPageOffset + vIdx;
+              const snap = extractSlotSnapshot(dayObj, hour);
+              const wx = wxMeta(snap.code, sky.night);
+              const dFmt = formatDayShort(dayObj.date);
+
+              const card = document.createElement('article');
+              card.className =
+                'wx-day-card' + (dayObj.date === selectedDateIso ? ' is-selected' : '');
+              card.setAttribute('role', 'listitem');
+              card.setAttribute('data-forecast-date', dayObj.date);
+              card.setAttribute('data-naizo-strip', 'true');
+
+              const top = document.createElement('div');
+              top.className = 'wx-card-top';
+              const dowEl = document.createElement('span');
+              dowEl.className = 'wx-card-dow';
+              dowEl.textContent = absIdx === 0 ? 'Today' : dFmt.dow;
+              const dateEl = document.createElement('span');
+              dateEl.className = 'wx-card-date';
+              dateEl.textContent = dFmt.md;
+              top.appendChild(dowEl);
+              top.appendChild(dateEl);
+
+              const main = document.createElement('div');
+              main.className = 'wx-card-main';
+              const iconEl = document.createElement('span');
+              iconEl.className = 'wx-card-icon';
+              iconEl.textContent = wx.icon;
+              const tempWrap = document.createElement('div');
+              const tempEl = document.createElement('div');
+              tempEl.className = 'wx-card-temp';
+              tempEl.textContent = formatTemp(snap.temp_c, unit);
+              const hTag = document.createElement('div');
+              hTag.className = 'wx-card-hour-tag';
+              hTag.textContent = '@ ' + sky.time;
+              tempWrap.appendChild(tempEl);
+              tempWrap.appendChild(hTag);
+              main.appendChild(iconEl);
+              main.appendChild(tempWrap);
+
+              const cond = document.createElement('div');
+              cond.className = 'wx-card-cond';
+              cond.textContent = wx.label;
+
+              const stats = document.createElement('div');
+              stats.className = 'wx-card-stats';
+              const hlSpan = document.createElement('span');
+              hlSpan.textContent =
+                'H ' +
+                formatTempShort(dayObj.max_c, unit) +
+                ' · L ' +
+                formatTempShort(dayObj.min_c, unit);
+              const rainSpan = document.createElement('span');
+              const rainNum = Math.round(Number(snap.rain_pct ?? 0));
+              if (rainNum >= 40) rainSpan.className = 'wx-rain-high';
+              rainSpan.textContent = '💧' + rainNum + '%';
+              stats.appendChild(hlSpan);
+              stats.appendChild(rainSpan);
+
+              const addBtn = document.createElement('button');
+              addBtn.type = 'button';
+              addBtn.className = 'wx-card-add-btn';
+              addBtn.textContent = '+ Add ' + sky.time;
+              addBtn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                selectedDateIso = dayObj.date;
+                addWeatherSlotToRoute(dayObj.date, hour, addBtn);
+              });
+
+              card.addEventListener('click', function () {
+                selectedDateIso = dayObj.date;
+                renderForecastStudio();
+              });
+
+              card.appendChild(top);
+              card.appendChild(main);
+              card.appendChild(cond);
+              card.appendChild(stats);
+              card.appendChild(addBtn);
+              gridEl.appendChild(card);
+            });
+          }
+
+          // 2. Render Selected Day Spotlight & 6 Time-Slot Cards
+          const activeDay = isLoading
+            ? null
+            : days.find(function (d) {
+                return d.date === selectedDateIso;
+              }) ||
+              days[0] ||
+              null;
+          const activeSnap = extractSlotSnapshot(activeDay, hour);
+          const activeWx = wxMeta(activeSnap.code, sky.night);
+
+          const orbEl = document.getElementById('sky-orb');
+          if (orbEl) orbEl.textContent = sky.orb;
+
+          const whenLabel = document.getElementById('sky-when-label');
+          if (whenLabel) {
+            const dTxt = activeDay ? formatDateReadable(activeDay.date) : 'Selected Day';
+            whenLabel.textContent = dTxt + ' · ' + sky.time + ' ' + sky.title;
+          }
+
+          const sunMeta = document.getElementById('sky-sun-meta');
+          if (sunMeta) {
+            const loc = String(Naizo.getField('location_name') || 'Selected Pin');
+            const elev = Naizo.getField('elevation_m');
+            const sr = activeDay && activeDay.sunrise ? 'Sunrise ' + activeDay.sunrise : '';
+            const ss = activeDay && activeDay.sunset ? 'Sunset ' + activeDay.sunset : '';
+            const elv =
+              elev !== null && elev !== undefined && elev !== ''
+                ? '⛰️ Elev. ' + Math.round(Number(elev)).toLocaleString('en-US') + ' m'
+                : '';
+            sunMeta.textContent = [loc, sr, ss, elv].filter(Boolean).join(' · ');
+          }
+
+          const wxIconEl = document.getElementById('sky-wx-icon');
+          const wxTempEl = document.getElementById('sky-wx-temp');
+          const wxDetailEl = document.getElementById('sky-wx-detail');
+          if (wxIconEl) wxIconEl.textContent = isLoading ? '⏳' : activeWx.icon;
+          if (wxTempEl) {
+            wxTempEl.textContent =
+              !isLoading && activeSnap.temp_c !== null ? formatTemp(activeSnap.temp_c, unit) : '--';
+          }
+          if (wxDetailEl) {
+            wxDetailEl.textContent = '';
+            if (isLoading) {
+              const sp = document.createElement('span');
+              sp.className = 'spinner';
+              sp.style.marginRight = '0.38rem';
+              sp.setAttribute('data-naizo-strip', 'true');
+              wxDetailEl.appendChild(sp);
+              wxDetailEl.appendChild(document.createTextNode('Loading hourly weather…'));
+            } else if (activeDay) {
+              wxDetailEl.textContent =
+                activeWx.label +
+                ' · 💧 ' +
+                Math.round(Number(activeSnap.rain_pct ?? 0)) +
+                '% rain · 💨 ' +
+                formatWind(activeSnap.wind_kmh, unit);
+            } else {
+              wxDetailEl.textContent = 'Click ↻ Refresh to retry live forecast';
+            }
+          }
+
+          const heroAddBtn = document.getElementById('add-hero-slot-btn');
+          if (heroAddBtn && !heroAddBtn.hasAttribute('data-flash')) {
+            const dShort = activeDay ? formatDayShort(activeDay.date) : { dow: 'Slot', md: '' };
+            heroAddBtn.textContent =
+              '+ Add ' + [dShort.dow, dShort.md].filter(Boolean).join(' ') + ' · ' + sky.time;
+          }
+
+          // 6 Clickable Time-of-Day Cards (or 6 Shimmer Skeletons while loading)
+          timeGridEl.textContent = '';
+          if (isLoading) {
+            TIME_SLOTS.forEach(function () {
+              const skSlot = document.createElement('div');
+              skSlot.className = 'time-slot-card is-skeleton';
+              skSlot.setAttribute('aria-hidden', 'true');
+              skSlot.setAttribute('data-naizo-strip', 'true');
+              skSlot.appendChild(makeSkelBar('76%', '11px'));
+              skSlot.appendChild(makeSkelBar('58%', '16px'));
+              skSlot.appendChild(makeSkelBar('100%', '19px'));
+              timeGridEl.appendChild(skSlot);
+            });
+            return;
+          }
+
+          TIME_SLOTS.forEach(function (slot) {
+            const sSky = getSkyPhase(slot.hour);
+            const sSnap = extractSlotSnapshot(activeDay, slot.hour);
+            const sWx = wxMeta(sSnap.code, sSky.night);
+
+            const tCard = document.createElement('div');
+            tCard.className = 'time-slot-card' + (slot.hour === hour ? ' is-active' : '');
+            tCard.setAttribute('data-slot-hour', String(slot.hour));
+            tCard.setAttribute('data-naizo-strip', 'true');
+
+            const top = document.createElement('div');
+            top.className = 'ts-top';
+            const timeSpan = document.createElement('span');
+            timeSpan.textContent = sSky.time;
+            const phaseSpan = document.createElement('span');
+            phaseSpan.className = 'ts-phase';
+            phaseSpan.textContent = slot.label;
+            top.appendChild(timeSpan);
+            top.appendChild(phaseSpan);
+
+            const mid = document.createElement('div');
+            mid.className = 'ts-wx';
+            const tempSpan = document.createElement('span');
+            tempSpan.textContent =
+              sWx.icon + ' ' + (sSnap.temp_c !== null ? formatTemp(sSnap.temp_c, unit) : '--');
+            const rainSpan = document.createElement('span');
+            rainSpan.className = 'ts-rain';
+            rainSpan.textContent =
+              sSnap.rain_pct !== null ? '💧' + Math.round(Number(sSnap.rain_pct)) + '%' : '';
+            mid.appendChild(tempSpan);
+            mid.appendChild(rainSpan);
+
+            const qAdd = document.createElement('button');
+            qAdd.type = 'button';
+            qAdd.className = 'ts-quick-add';
+            qAdd.textContent = '+ Route';
+            qAdd.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              Naizo.setField('target_hour', slot.hour);
+              const dateToUse = activeDay ? activeDay.date : 'Custom';
+              addWeatherSlotToRoute(dateToUse, slot.hour, qAdd);
+            });
+
+            tCard.addEventListener('click', function () {
+              Naizo.setField('target_hour', slot.hour);
+            });
+
+            tCard.appendChild(top);
+            tCard.appendChild(mid);
+            tCard.appendChild(qAdd);
+            timeGridEl.appendChild(tCard);
+          });
+        }
+
+        // ======================================================================
+        // ADD WEATHER-DATE-TIME SLOT TO PERSISTED ROUTE (#naizodb lists.route)
+        // ======================================================================
+        function addWeatherSlotToRoute(dateIso, hour, triggerBtn) {
+          const h = Math.max(0, Math.min(23, Math.round(Number(hour) || 0)));
+          const sky = getSkyPhase(h);
+          const dayObj =
+            liveForecast.days.find(function (d) {
+              return d.date === dateIso;
+            }) || null;
+          const snap = extractSlotSnapshot(dayObj, h);
+
+          const place = String(Naizo.getField('location_name') || 'Pinned Spot');
+          const lat = Number(Naizo.getField('latitude') ?? 36.2478);
+          const lon = Number(Naizo.getField('longitude') ?? 137.6356);
+          const elev = Naizo.getField('elevation_m');
+
+          const newStop = {
+            id: 'stop-' + Date.now().toString(36),
+            done: true,
+            place: place,
+            note: '',
+            lat: Number(lat.toFixed(4)),
+            lon: Number(lon.toFixed(4)),
+            elevation_m:
+              elev !== null && elev !== undefined && elev !== '' ? Math.round(Number(elev)) : null,
+            date: dateIso || 'Planned',
+            time: sky.time,
+            temp_c: snap.temp_c !== null && snap.temp_c !== undefined ? snap.temp_c : null,
+            rain_pct:
+              snap.rain_pct !== null && snap.rain_pct !== undefined
+                ? Math.round(Number(snap.rain_pct))
+                : null,
+            wind_kmh:
+              snap.wind_kmh !== null && snap.wind_kmh !== undefined
+                ? Math.round(Number(snap.wind_kmh))
+                : null,
+            code: snap.code ?? 1,
+            condition: snap.condition || '',
+          };
+
+          Naizo.addItem('route', newStop);
+          const newIndex = Naizo.getList('route').length - 1;
+          highlightRouteCard(newIndex);
+
+          if (triggerBtn) {
+            const origText = triggerBtn.textContent;
+            triggerBtn.setAttribute('data-flash', '1');
+            triggerBtn.classList.add('is-just-added');
+            triggerBtn.textContent = '✓ Added #' + (newIndex + 1);
+            setTimeout(function () {
+              triggerBtn.removeAttribute('data-flash');
+              triggerBtn.classList.remove('is-just-added');
+              triggerBtn.textContent = origText;
+              renderForecastStudio();
+            }, 1100);
+          }
+        }
+
+        function syncUndoClearButtons() {
+          ['map-footer-actions', 'route-header-actions'].forEach(function (groupId) {
+            const group = document.getElementById(groupId);
+            if (!group) return;
+            const existing = group.querySelector('[data-undo-clear]');
+            if (!lastClearedRoute || lastClearedRoute.length === 0) {
+              if (existing) existing.remove();
+              return;
+            }
+            const label = '↺ Undo (' + lastClearedRoute.length + ')';
+            if (existing) {
+              existing.textContent = label;
+              return;
+            }
+            const undoBtn = document.createElement('button');
+            undoBtn.type = 'button';
+            undoBtn.className = 'btn btn-sm';
+            undoBtn.setAttribute('data-undo-clear', '1');
+            undoBtn.setAttribute('data-naizo-strip', 'true');
+            undoBtn.title = 'Restore cleared route pins';
+            undoBtn.textContent = label;
+            undoBtn.addEventListener('click', function () {
+              if (!lastClearedRoute || lastClearedRoute.length === 0) return;
+              const toRestore = lastClearedRoute;
+              lastClearedRoute = null;
+              Naizo.setList('route', toRestore);
+            });
+            group.appendChild(undoBtn);
+          });
+        }
+
+        function clearAllSavedPins() {
+          const current = Naizo.getList('route');
+          if (!current || current.length === 0) return;
+          lastClearedRoute = JSON.parse(JSON.stringify(current));
+          Naizo.setList('route', []);
+        }
+
+        function highlightRouteCard(idx) {
+          const cards = document.querySelectorAll('#route-list > [naizo-item]');
+          const target = cards[idx];
+          if (!target) return;
+          target.classList.add('is-highlighted');
+          setTimeout(function () {
+            target.classList.remove('is-highlighted');
+          }, 1400);
+        }
+
+        // ======================================================================
+        // SYNC PERSISTED UI & ROUTE CARDS
+        // ======================================================================
+        function syncPersistedUi() {
+          if (
+            syncingUi ||
+            typeof window.Naizo === 'undefined' ||
+            !document.getElementById('block-weather')
+          ) {
+            return;
+          }
+          syncingUi = true;
+          try {
+            const theme = String(Naizo.getField('theme') || 'system');
+            document.documentElement.setAttribute('data-theme', theme);
+
+            const lat = Number(Naizo.getField('latitude') ?? 36.2478);
+            const lon = Number(Naizo.getField('longitude') ?? 137.6356);
+            const elev = Naizo.getField('elevation_m');
+            const unit = getUnit();
+
+            const coordsMeta = document.getElementById('spot-coords-meta');
+            if (coordsMeta && Number.isFinite(lat) && Number.isFinite(lon)) {
+              const ns = lat >= 0 ? lat.toFixed(4) + '°N' : Math.abs(lat).toFixed(4) + '°S';
+              const ew = lon >= 0 ? lon.toFixed(4) + '°E' : Math.abs(lon).toFixed(4) + '°W';
+              const elevTxt =
+                elev !== null && elev !== undefined && elev !== ''
+                  ? ' · ⛰️ ' + Math.round(Number(elev)).toLocaleString('en-US') + ' m elev.'
+                  : '';
+              coordsMeta.textContent = ns + ', ' + ew + elevTxt;
+            }
+
+            const demBtn = document.getElementById('check-dem-btn');
+            if (demBtn && Number.isFinite(lat) && Number.isFinite(lon)) {
+              demBtn.setAttribute(
+                'naizo-get',
+                'https://api.sunrise-sunset.org/json?lat=' +
+                  lat.toFixed(4) +
+                  '&lng=' +
+                  lon.toFixed(4),
+              );
+            }
+
+            const activeLayer = resolveLayerKey(Naizo.getField('map_layer'));
+            document.querySelectorAll('[data-map-layer]').forEach(function (btn) {
+              btn.classList.toggle('is-active', btn.getAttribute('data-map-layer') === activeLayer);
+            });
+
+            // Sync Block 3 Route Stop badges & weather snapshots
+            const stops = Naizo.getList('route');
+            const countBadge = document.getElementById('route-count-badge');
+            if (countBadge) {
+              countBadge.textContent = stops.length + (stops.length === 1 ? ' stop' : ' stops');
+            }
+            const emptyEl = document.getElementById('route-empty-state');
+            if (emptyEl) emptyEl.hidden = stops.length > 0;
+
+            if (stops.length > 0) {
+              lastClearedRoute = null;
+            }
+            const clearMapBtn = document.getElementById('clear-map-pins-btn');
+            if (clearMapBtn) clearMapBtn.disabled = stops.length === 0;
+            const clearRouteBtn = document.getElementById('clear-route-btn');
+            if (clearRouteBtn) clearRouteBtn.disabled = stops.length === 0;
+            const fitBtn = document.getElementById('fit-route-map-btn');
+            if (fitBtn) fitBtn.disabled = stops.length === 0;
+            syncUndoClearButtons();
+
+            const routeCards = document.querySelectorAll('#route-list > [naizo-item]');
+            routeCards.forEach(function (cardEl, idx) {
+              const stop = stops[idx] || {};
+              const numEl = cardEl.querySelector('[data-stop-num]');
+              if (numEl) numEl.textContent = String(idx + 1);
+
+              const wxChip = cardEl.querySelector('[data-stop-wx]');
+              if (wxChip) {
+                if (stop.date || (stop.temp_c !== undefined && stop.temp_c !== null)) {
+                  const sHour =
+                    typeof stop.time === 'string' && stop.time.includes(':')
+                      ? Number(stop.time.split(':')[0])
+                      : 9;
+                  const sNight = getSkyPhase(sHour).night;
+                  const wMeta = wxMeta(stop.code, sNight);
+                  const parts = [];
+                  if (stop.date) parts.push('📅 ' + formatDateReadable(stop.date));
+                  if (stop.time) parts.push(String(stop.time));
+                  if (stop.temp_c !== undefined && stop.temp_c !== null) {
+                    parts.push(
+                      wMeta.icon +
+                        ' ' +
+                        formatTemp(stop.temp_c, unit) +
+                        (stop.condition ? ' (' + stop.condition + ')' : ''),
+                    );
+                  }
+                  if (stop.rain_pct !== undefined && stop.rain_pct !== null) {
+                    parts.push('💧' + Math.round(Number(stop.rain_pct)) + '%');
+                  }
+                  if (stop.wind_kmh !== undefined && stop.wind_kmh !== null) {
+                    parts.push('💨' + formatWind(stop.wind_kmh, unit));
+                  }
+                  if (stop.elevation_m !== undefined && stop.elevation_m !== null) {
+                    parts.push(
+                      '⛰️ ' +
+                        Math.round(Number(stop.elevation_m)).toLocaleString('en-US') +
+                        ' m elev.',
+                    );
+                  }
+                  wxChip.textContent = parts.join(' · ');
+                } else {
+                  wxChip.textContent = 'Custom stop · pick a weather card above to attach forecast';
+                }
+              }
+            });
+
+            renderForecastStudio();
+            ensureMapMounted();
+          } finally {
+            syncingUi = false;
+          }
+        }
+
+        // ======================================================================
+        // MULTI-PROVIDER LIVE WEATHER FORECAST & NON-BLOCKING GEOCODING
+        // ======================================================================
+        function setButtonLoading(btn, loading) {
+          if (!btn) return;
+          if (loading) {
+            btn.setAttribute('data-loading', 'true');
+            btn.disabled = true;
+          } else {
+            btn.removeAttribute('data-loading');
+            btn.disabled = false;
+          }
+        }
+
+        async function fetchNaizoWithTimeout(url, options, timeoutMs) {
+          const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+          const timer = ctrl
+            ? setTimeout(function () {
+                ctrl.abort();
+              }, timeoutMs || 4000)
+            : null;
+          try {
+            const opts = Object.assign({}, options || {});
+            if (ctrl) opts.signal = ctrl.signal;
+            return await Naizo.fetch(url, opts);
+          } finally {
+            if (timer) clearTimeout(timer);
+          }
+        }
+
+        function wwoToWmoCode(rawCode) {
+          const c = Number(rawCode);
+          if (c === 113) return 0;
+          if (c === 116) return 2;
+          if (c === 119 || c === 122) return 3;
+          if (c === 143 || c === 248 || c === 260) return 45;
+          if (
+            c === 176 ||
+            c === 263 ||
+            c === 266 ||
+            c === 281 ||
+            c === 284 ||
+            c === 293 ||
+            c === 296
+          ) {
+            return 51;
+          }
+          if (
+            c === 299 ||
+            c === 302 ||
+            c === 305 ||
+            c === 308 ||
+            c === 311 ||
+            c === 314 ||
+            (c >= 353 && c <= 359)
+          ) {
+            return 61;
+          }
+          if (
+            c === 179 ||
+            c === 182 ||
+            c === 185 ||
+            c === 227 ||
+            c === 230 ||
+            (c >= 317 && c <= 350) ||
+            (c >= 362 && c <= 377)
+          ) {
+            return 71;
+          }
+          if (c === 200 || c >= 386) return 95;
+          return 2;
+        }
+
+        function format12hTo24h(rawTime) {
+          const m = String(rawTime || '')
+            .trim()
+            .match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+          if (!m) return String(rawTime || '');
+          let hh = Number(m[1]);
+          const mm = m[2];
+          const mer = m[3].toUpperCase();
+          if (mer === 'PM' && hh < 12) hh += 12;
+          if (mer === 'AM' && hh === 12) hh = 0;
+          return String(hh).padStart(2, '0') + ':' + mm;
+        }
+
+        function coerceJsonPayload(raw) {
+          if (!raw) return null;
+          if (typeof raw === 'object') return raw;
+          if (typeof raw === 'string') {
+            const trimmed = raw.trim();
+            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+              try {
+                return JSON.parse(trimmed);
+              } catch {
+                return null;
+              }
+            }
+          }
+          return null;
+        }
+
+        function estimateLocalOffsetHours(lat, lon) {
+          if (lat >= 24 && lat <= 46 && lon >= 123 && lon <= 146) {
+            return 9;
+          }
+          return Math.round(normalizeLon(lon) / 15);
+        }
+
+        function metSymbolToWmoCode(symbolCode, cloudPct) {
+          const s = String(symbolCode || '').toLowerCase();
+          if (s.includes('thunder')) return 95;
+          if (s.includes('snow') || s.includes('sleet')) return 71;
+          if (s.includes('rainshowers')) return 80;
+          if (s.includes('heavyrain') || s === 'rain' || s.startsWith('rain_')) return 61;
+          if (s.includes('lightrain') || s.includes('drizzle')) return 51;
+          if (s.includes('fog')) return 45;
+          if (s.startsWith('clearsky')) return 0;
+          if (s.startsWith('fair')) return 1;
+          if (s.startsWith('partlycloudy')) return 2;
+          if (s.startsWith('cloudy')) return 3;
+          const c = Number(cloudPct ?? 40);
+          if (c < 20) return 0;
+          if (c < 50) return 1;
+          if (c < 85) return 2;
+          return 3;
+        }
+
+        function parseOpenMeteoForecast(rawPayload) {
+          const payload = coerceJsonPayload(rawPayload);
+          if (!payload || typeof payload !== 'object') return null;
+          const daily = payload.daily || {};
+          const dailyTimes = Array.isArray(daily.time) ? daily.time : [];
+          if (dailyTimes.length === 0) return null;
+          const hourly = payload.hourly || {};
+          const hourlyTimes = Array.isArray(hourly.time) ? hourly.time : [];
+
+          const parsedDays = dailyTimes.map(function (dStr, dIdx) {
+            const hStart = hourlyTimes.findIndex(function (t) {
+              return typeof t === 'string' && t.startsWith(dStr + 'T');
+            });
+            const slice24 = function (arr) {
+              if (!Array.isArray(arr) || hStart === -1) return [];
+              return arr.slice(hStart, hStart + 24);
+            };
+            const rawSr = Array.isArray(daily.sunrise) ? String(daily.sunrise[dIdx] || '') : '';
+            const rawSs = Array.isArray(daily.sunset) ? String(daily.sunset[dIdx] || '') : '';
+            return {
+              date: dStr,
+              code: Array.isArray(daily.weather_code) ? daily.weather_code[dIdx] : 0,
+              max_c: Array.isArray(daily.temperature_2m_max)
+                ? daily.temperature_2m_max[dIdx]
+                : null,
+              min_c: Array.isArray(daily.temperature_2m_min)
+                ? daily.temperature_2m_min[dIdx]
+                : null,
+              rain_max: Array.isArray(daily.precipitation_probability_max)
+                ? daily.precipitation_probability_max[dIdx]
+                : 0,
+              wind_max: Array.isArray(daily.wind_speed_10m_max)
+                ? daily.wind_speed_10m_max[dIdx]
+                : 0,
+              sunrise: rawSr.includes('T') ? rawSr.split('T')[1] : rawSr,
+              sunset: rawSs.includes('T') ? rawSs.split('T')[1] : rawSs,
+              hourly: {
+                temp: slice24(hourly.temperature_2m),
+                rain: slice24(hourly.precipitation_probability),
+                wind: slice24(hourly.wind_speed_10m),
+                code: slice24(hourly.weather_code),
+              },
+            };
+          });
+
+          return {
+            sourceLabel: 'api.open-meteo.com',
+            timezone: typeof payload.timezone === 'string' ? payload.timezone : '',
+            elevation:
+              typeof payload.elevation === 'number' && Number.isFinite(payload.elevation)
+                ? Math.round(payload.elevation)
+                : null,
+            current: payload.current || null,
+            days: parsedDays,
+          };
+        }
+
+        function parseMetNoForecast(rawPayload, lat, lon) {
+          const payload = coerceJsonPayload(rawPayload);
+          const ts =
+            payload && payload.properties && Array.isArray(payload.properties.timeseries)
+              ? payload.properties.timeseries
+              : null;
+          if (!ts || ts.length === 0) return null;
+
+          const offsetHours = estimateLocalOffsetHours(lat, lon);
+          const dayMap = new Map();
+          let firstCurrent = null;
+
+          ts.forEach(function (entry) {
+            if (!entry || !entry.time || !entry.data) return;
+            const utcMs = Date.parse(entry.time);
+            if (!Number.isFinite(utcMs)) return;
+            const localDt = new Date(utcMs + offsetHours * 3600 * 1000);
+            const dateStr = localDt.toISOString().slice(0, 10);
+            const hour = localDt.getUTCHours();
+
+            const inst = (entry.data.instant && entry.data.instant.details) || {};
+            const next1 = entry.data.next_1_hours || null;
+            const next6 = entry.data.next_6_hours || null;
+            const next12 = entry.data.next_12_hours || null;
+            const symbol =
+              (next1 && next1.summary && next1.summary.symbol_code) ||
+              (next6 && next6.summary && next6.summary.symbol_code) ||
+              (next12 && next12.summary && next12.summary.symbol_code) ||
+              '';
+
+            const tempC = Math.round(Number(inst.air_temperature ?? 10) * 10) / 10;
+            const windKmh = Math.round(Number(inst.wind_speed ?? 0) * 3.6);
+            const cloudPct = Number(inst.cloud_area_fraction ?? 40);
+            const code = metSymbolToWmoCode(symbol, cloudPct);
+
+            const probExplicit =
+              next1 &&
+              next1.details &&
+              typeof next1.details.probability_of_precipitation === 'number'
+                ? next1.details.probability_of_precipitation
+                : next6 &&
+                    next6.details &&
+                    typeof next6.details.probability_of_precipitation === 'number'
+                  ? next6.details.probability_of_precipitation
+                  : null;
+            const mm1 =
+              next1 && next1.details && typeof next1.details.precipitation_amount === 'number'
+                ? next1.details.precipitation_amount
+                : null;
+            const mm6 =
+              next6 && next6.details && typeof next6.details.precipitation_amount === 'number'
+                ? next6.details.precipitation_amount / 6
+                : null;
+            const mm = mm1 !== null ? mm1 : mm6 !== null ? mm6 : 0;
+
+            let rainPct = 0;
+            if (probExplicit !== null) {
+              rainPct = Math.round(probExplicit);
+            } else if (mm >= 3) {
+              rainPct = 95;
+            } else if (mm >= 1) {
+              rainPct = 80;
+            } else if (mm >= 0.2) {
+              rainPct = 60;
+            } else if (mm > 0 || code >= 51) {
+              rainPct = 35;
+            } else {
+              rainPct = cloudPct > 85 ? 15 : cloudPct > 60 ? 10 : 5;
+            }
+
+            const pt = { hour: hour, tempC: tempC, rainPct: rainPct, windKmh: windKmh, code: code };
+            if (!firstCurrent) firstCurrent = pt;
+            if (!dayMap.has(dateStr)) dayMap.set(dateStr, []);
+            dayMap.get(dateStr).push(pt);
+          });
+
+          const parsedDays = [];
+          Array.from(dayMap.entries()).forEach(function (pair, dIdx) {
+            const dateStr = pair[0];
+            const pts = pair[1].sort(function (a, b) {
+              return a.hour - b.hour;
+            });
+            if (dIdx > 0 && pts.length < 3) return;
+
+            const temp = [];
+            const rain = [];
+            const wind = [];
+            const code = [];
+
+            for (let h = 0; h < 24; h += 1) {
+              if (h <= pts[0].hour) {
+                temp.push(pts[0].tempC);
+                rain.push(pts[0].rainPct);
+                wind.push(pts[0].windKmh);
+                code.push(pts[0].code);
+              } else if (h >= pts[pts.length - 1].hour) {
+                const last = pts[pts.length - 1];
+                temp.push(last.tempC);
+                rain.push(last.rainPct);
+                wind.push(last.windKmh);
+                code.push(last.code);
+              } else {
+                let p0 = pts[0];
+                let p1 = pts[pts.length - 1];
+                for (let i = 0; i < pts.length - 1; i += 1) {
+                  if (pts[i].hour <= h && h <= pts[i + 1].hour) {
+                    p0 = pts[i];
+                    p1 = pts[i + 1];
+                    break;
+                  }
+                }
+                const span = Math.max(1, p1.hour - p0.hour);
+                const frac = (h - p0.hour) / span;
+                temp.push(Math.round((p0.tempC + (p1.tempC - p0.tempC) * frac) * 10) / 10);
+                rain.push(Math.round(p0.rainPct + (p1.rainPct - p0.rainPct) * frac));
+                wind.push(Math.round(p0.windKmh + (p1.windKmh - p0.windKmh) * frac));
+                code.push(frac < 0.5 ? p0.code : p1.code);
+              }
+            }
+
+            parsedDays.push({
+              date: dateStr,
+              code: code[12] ?? pts[Math.floor(pts.length / 2)].code,
+              max_c: Math.max.apply(null, temp),
+              min_c: Math.min.apply(null, temp),
+              rain_max: Math.max.apply(null, rain),
+              wind_max: Math.max.apply(null, wind),
+              sunrise: '',
+              sunset: '',
+              hourly: { temp: temp, rain: rain, wind: wind, code: code },
+            });
+          });
+
+          if (parsedDays.length === 0) return null;
+
+          const coords =
+            payload.geometry && Array.isArray(payload.geometry.coordinates)
+              ? payload.geometry.coordinates
+              : [];
+          const elevation =
+            typeof coords[2] === 'number' && Number.isFinite(coords[2])
+              ? Math.round(coords[2])
+              : null;
+          const tzLabel =
+            lat >= 24 && lat <= 46 && lon >= 123 && lon <= 146
+              ? 'JST (UTC+9)'
+              : 'UTC' + (offsetHours >= 0 ? '+' : '') + offsetHours;
+
+          return {
+            sourceLabel: 'api.met.no (ECMWF)',
+            timezone: tzLabel,
+            elevation: elevation,
+            current: firstCurrent
+              ? {
+                  temperature_2m: firstCurrent.tempC,
+                  wind_speed_10m: firstCurrent.windKmh,
+                  weather_code: firstCurrent.code,
+                }
+              : null,
+            days: parsedDays,
+          };
+        }
+
+        function parseWttrForecast(rawPayload) {
+          const payload = coerceJsonPayload(rawPayload);
+          if (!payload || typeof payload !== 'object' || !Array.isArray(payload.weather)) {
+            return null;
+          }
+          if (payload.weather.length === 0) return null;
+
+          const parsedDays = payload.weather.map(function (w) {
+            const rawHourly = Array.isArray(w.hourly) ? w.hourly : [];
+            const temp = [];
+            const rain = [];
+            const wind = [];
+            const code = [];
+            const lastIdx = Math.max(0, rawHourly.length - 1);
+
+            for (let h = 0; h < 24; h += 1) {
+              if (rawHourly.length === 0) {
+                temp.push(Number(w.avgtempC ?? w.maxtempC ?? 10));
+                rain.push(0);
+                wind.push(0);
+                code.push(2);
+              } else {
+                const i0 = Math.min(lastIdx, Math.floor(h / 3));
+                const i1 = Math.min(lastIdx, i0 + 1);
+                const frac = i1 > i0 ? (h - i0 * 3) / 3 : 0;
+                const b0 = rawHourly[i0] || {};
+                const b1 = rawHourly[i1] || b0;
+                const lerp = function (a, b) {
+                  const n0 = Number(a ?? 0);
+                  const n1 = Number(b ?? n0);
+                  return Math.round((n0 + (n1 - n0) * frac) * 10) / 10;
+                };
+                temp.push(lerp(b0.tempC, b1.tempC));
+                rain.push(Math.round(lerp(b0.chanceofrain, b1.chanceofrain)));
+                wind.push(Math.round(lerp(b0.windspeedKmph, b1.windspeedKmph)));
+                const nearest = rawHourly[Math.min(lastIdx, Math.round(h / 3))] || b0;
+                code.push(wwoToWmoCode(nearest.weatherCode));
+              }
+            }
+
+            const astro = Array.isArray(w.astronomy) && w.astronomy[0] ? w.astronomy[0] : {};
+            const midBlock = rawHourly[Math.min(lastIdx, 4)] || rawHourly[0] || {};
+            return {
+              date: String(w.date || ''),
+              code: wwoToWmoCode(midBlock.weatherCode),
+              max_c: w.maxtempC !== undefined ? Number(w.maxtempC) : null,
+              min_c: w.mintempC !== undefined ? Number(w.mintempC) : null,
+              rain_max: rain.length ? Math.max.apply(null, rain) : 0,
+              wind_max: wind.length ? Math.max.apply(null, wind) : 0,
+              sunrise: format12hTo24h(astro.sunrise),
+              sunset: format12hTo24h(astro.sunset),
+              hourly: { temp: temp, rain: rain, wind: wind, code: code },
+            };
+          });
+
+          const cc =
+            Array.isArray(payload.current_condition) && payload.current_condition[0]
+              ? payload.current_condition[0]
+              : null;
+          const area =
+            Array.isArray(payload.nearest_area) && payload.nearest_area[0]
+              ? payload.nearest_area[0]
+              : null;
+          const regionName =
+            area && Array.isArray(area.region) && area.region[0] ? area.region[0].value : '';
+
+          return {
+            sourceLabel: 'wttr.in',
+            timezone: regionName || '',
+            elevation: null,
+            current: cc
+              ? {
+                  temperature_2m: Number(cc.temp_C),
+                  wind_speed_10m: Number(cc.windspeedKmph),
+                  weather_code: wwoToWmoCode(cc.weatherCode),
+                }
+              : null,
+            days: parsedDays,
+          };
+        }
+
+        async function fetchLiveForecast(mutateSpotMeta, forceRetryPrimary) {
+          const lat = Number(Naizo.getField('latitude'));
+          const lon = Number(Naizo.getField('longitude'));
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+          const mySeq = ++fetchSeq;
+          const refreshBtn = document.getElementById('refresh-wx-btn');
+          setButtonLoading(refreshBtn, true);
+
+          const tryPrimary = !openMeteoTimedOut || Boolean(forceRetryPrimary);
+          liveForecast.status = 'loading';
+          liveForecast.loadingHint = tryPrimary
+            ? 'Fetching live forecast from api.open-meteo.com…'
+            : 'Fetching live alpine forecast from api.met.no…';
+          renderForecastStudio();
+
+          try {
+            let parsed = null;
+
+            if (tryPrimary) {
+              const openMeteoUrl =
+                'https://api.open-meteo.com/v1/forecast?latitude=' +
+                encodeURIComponent(lat.toFixed(4)) +
+                '&longitude=' +
+                encodeURIComponent(lon.toFixed(4)) +
+                '&current=temperature_2m,wind_speed_10m,weather_code' +
+                '&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code' +
+                '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset' +
+                '&forecast_days=7&timezone=auto';
+
+              const primaryRes = await fetchNaizoWithTimeout(openMeteoUrl, undefined, 2400);
+              if (mySeq !== fetchSeq) return;
+
+              if (primaryRes.ok && primaryRes.data) {
+                parsed = parseOpenMeteoForecast(primaryRes.data);
+                if (parsed) {
+                  openMeteoTimedOut = false;
+                }
+              }
+
+              if (!parsed) {
+                openMeteoTimedOut = true;
+                liveForecast.loadingHint =
+                  'Open-Meteo timed out – switching to MET Norway (api.met.no)…';
+                const liveTextEl = document.getElementById('wx-live-text');
+                if (liveTextEl) liveTextEl.textContent = liveForecast.loadingHint;
+              }
+            }
+
+            if (!parsed) {
+              const metUrl =
+                'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=' +
+                encodeURIComponent(lat.toFixed(4)) +
+                '&lon=' +
+                encodeURIComponent(lon.toFixed(4));
+              const metRes = await fetchNaizoWithTimeout(metUrl, undefined, 5500);
+              if (mySeq !== fetchSeq) return;
+              if (metRes.ok && metRes.data) {
+                parsed = parseMetNoForecast(metRes.data, lat, lon);
+              }
+            }
+
+            if (!parsed) {
+              liveForecast.loadingHint = 'Switching to backup weather server (wttr.in)…';
+              const liveTextEl = document.getElementById('wx-live-text');
+              if (liveTextEl) liveTextEl.textContent = liveForecast.loadingHint;
+
+              const wttrUrl =
+                'https://wttr.in/' + lat.toFixed(4) + ',' + lon.toFixed(4) + '?format=j1';
+              const backupRes = await fetchNaizoWithTimeout(wttrUrl, undefined, 8000);
+              if (mySeq !== fetchSeq) return;
+              if (backupRes.ok && backupRes.data) {
+                parsed = parseWttrForecast(backupRes.data);
+              }
+            }
+
+            if (!parsed) {
+              liveForecast.status = 'offline';
+              renderForecastStudio();
+              return;
+            }
+
+            const nowStr = new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+            liveForecast = {
+              status: 'live',
+              sourceLabel: parsed.sourceLabel,
+              loadingHint: '',
+              fetchedAt: 'Updated ' + nowStr,
+              timezone: parsed.timezone,
+              elevation: parsed.elevation,
+              current: parsed.current,
+              days: parsed.days,
+            };
+
+            if (!selectedDateIso || !parsed.days.some((d) => d.date === selectedDateIso)) {
+              selectedDateIso = parsed.days[0] ? parsed.days[0].date : '';
+              dayPageOffset = 0;
+            }
+
+            // Only mutate #naizodb spot metadata on user-initiated location changes (never on initial boot, D45)
+            if (mutateSpotMeta) {
+              if (liveForecast.elevation !== null) {
+                Naizo.setField('elevation_m', liveForecast.elevation);
+              }
+              if (liveForecast.timezone && parsed.sourceLabel === 'api.open-meteo.com') {
+                Naizo.setField('timezone', liveForecast.timezone);
+              }
+            }
+
+            const spotSummary = document.getElementById('wx-spot-summary');
+            if (spotSummary && liveForecast.current) {
+              const unit = getUnit();
+              const cWx = wxMeta(liveForecast.current.weather_code, false);
+              spotSummary.textContent =
+                'Right now at active pin: ' +
+                cWx.icon +
+                ' ' +
+                formatTemp(liveForecast.current.temperature_2m, unit) +
+                ' (' +
+                cWx.label +
+                ', wind ' +
+                formatWind(liveForecast.current.wind_speed_10m, unit) +
+                '). Click any card or + Add button to save a slot to your route.';
+            }
+
+            renderForecastStudio();
+          } finally {
+            if (mySeq === fetchSeq) {
+              setButtonLoading(refreshBtn, false);
+            }
+          }
+        }
+
+        async function fetchAuxiliaryJson(url, timeoutMs) {
+          if (typeof fetch !== 'function') return null;
+          const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+          const timer = ctrl
+            ? setTimeout(function () {
+                ctrl.abort();
+              }, timeoutMs || 3000)
+            : null;
+          try {
+            const res = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+            if (!res.ok) return null;
+            return await res.json();
+          } catch {
+            return null;
+          } finally {
+            if (timer) clearTimeout(timer);
+          }
+        }
+
+        async function reverseGeocodeNonBlocking(lat, lon) {
+          const data = await fetchAuxiliaryJson(
+            'https://photon.komoot.io/reverse?lon=' +
+              encodeURIComponent(lon.toFixed(4)) +
+              '&lat=' +
+              encodeURIComponent(lat.toFixed(4)),
+            3000,
+          );
+          const p =
+            data && Array.isArray(data.features) && data.features[0] && data.features[0].properties;
+          if (!p) return '';
+          return [p.name, p.state || p.city || p.county, p.country].filter(Boolean).join(', ');
+        }
+
+        async function selectSpotAndFetch(lat, lon, explicitLabel) {
+          const cleanLat = Number(lat.toFixed(4));
+          const cleanLon = Number(lon.toFixed(4));
+          const fallbackLabel =
+            explicitLabel || 'Pinned Coordinate (' + cleanLat + ', ' + cleanLon + ')';
+
+          Naizo.setField('latitude', cleanLat);
+          Naizo.setField('longitude', cleanLon);
+          Naizo.setField('location_name', fallbackLabel);
+
+          if (olMap && typeof window.ol !== 'undefined') {
+            const view = olMap.getView();
+            view.setCenter(window.ol.proj.fromLonLat([cleanLon, cleanLat]));
+            if ((view.getZoom() || 11) < 11) view.setZoom(11);
+          }
+
+          mapPinFetching = true;
+          syncMapLoadingPill();
+          try {
+            // Fetch forecast immediately; resolve reverse-geocoded place name in parallel without blocking!
+            const forecastPromise = fetchLiveForecast(true, false);
+            if (!explicitLabel) {
+              void reverseGeocodeNonBlocking(cleanLat, cleanLon).then(function (resolved) {
+                if (
+                  resolved &&
+                  Number(Naizo.getField('latitude')) === cleanLat &&
+                  Number(Naizo.getField('longitude')) === cleanLon
+                ) {
+                  Naizo.setField('location_name', resolved);
+                }
+              });
+            }
+            await forecastPromise;
+          } finally {
+            mapPinFetching = false;
+            syncMapLoadingPill();
+          }
+        }
+
+        async function runPlaceSearch(isExplicitSubmit) {
+          const input = document.getElementById('place-query');
+          const listEl = document.getElementById('search-results');
+          const searchBtn = document.getElementById('search-btn');
+          if (!input || !listEl) return;
+          const rawQuery = input.value.trim();
+          if (!rawQuery) {
+            listEl.hidden = true;
+            return;
+          }
+
+          // 1. Direct "lat, lon" coordinate paste
+          const coordMatch = rawQuery.match(
+            /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/,
+          );
+          if (coordMatch) {
+            const lat = Number(coordMatch[1]);
+            const lon = Number(coordMatch[2]);
+            if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+              listEl.hidden = true;
+              await selectSpotAndFetch(lat, lon, '');
+              return;
+            }
+          }
+
+          const mySearchSeq = ++searchSeq;
+          setButtonLoading(searchBtn, true);
+
+          listEl.textContent = '';
+          const loadingLi = document.createElement('li');
+          loadingLi.className = 'search-status-li';
+          loadingLi.setAttribute('data-naizo-strip', 'true');
+          const spinEl = document.createElement('span');
+          spinEl.className = 'spinner';
+          spinEl.setAttribute('aria-hidden', 'true');
+          loadingLi.appendChild(spinEl);
+          loadingLi.appendChild(document.createTextNode('Searching "' + rawQuery + '"…'));
+          listEl.appendChild(loadingLi);
+          for (let k = 0; k < 3; k += 1) {
+            const skLi = document.createElement('li');
+            skLi.className = 'search-skel-li';
+            skLi.setAttribute('aria-hidden', 'true');
+            skLi.setAttribute('data-naizo-strip', 'true');
+            skLi.appendChild(makeSkelBar(k === 1 ? '54%' : '66%', '12px'));
+            skLi.appendChild(makeSkelBar('22%', '11px'));
+            listEl.appendChild(skLi);
+          }
+          listEl.hidden = false;
+
+          try {
+            // Normalize comma-separated or "Mt." queries for Open-Meteo's name index
+            const primaryTerm = rawQuery
+              .split(',')[0]
+              .replace(/^mt\.?\s+/i, 'Mount ')
+              .trim();
+            const hasCjk = /[\u3000-\u9fff]/.test(rawQuery);
+            const langParam = hasCjk ? 'ja' : 'en';
+
+            // Primary fast geocoder via Naizo.fetch (Photon OSM, 3.5s cap) + auxiliary Open-Meteo (2.8s cap)
+            const [photonRes, openMeteoGeo] = await Promise.all([
+              fetchNaizoWithTimeout(
+                'https://photon.komoot.io/api/?q=' + encodeURIComponent(rawQuery) + '&limit=6',
+                undefined,
+                3500,
+              ),
+              openMeteoTimedOut
+                ? Promise.resolve(null)
+                : fetchAuxiliaryJson(
+                    'https://geocoding-api.open-meteo.com/v1/search?name=' +
+                      encodeURIComponent(primaryTerm || rawQuery) +
+                      '&count=6&language=' +
+                      langParam +
+                      '&format=json',
+                    2800,
+                  ),
+            ]);
+            if (mySearchSeq !== searchSeq) return;
+
+            const seen = new Set();
+            const candidates = [];
+            const pushCandidate = function (label, meta, lat, lon) {
+              if (!Number.isFinite(lat) || !Number.isFinite(lon) || !label) return;
+              const dedupeKey = lat.toFixed(2) + ':' + lon.toFixed(2);
+              if (seen.has(dedupeKey)) return;
+              seen.add(dedupeKey);
+              candidates.push({ label: label, meta: meta, lat: lat, lon: lon });
+            };
+
+            if (openMeteoGeo && Array.isArray(openMeteoGeo.results)) {
+              openMeteoGeo.results.forEach(function (r) {
+                pushCandidate(
+                  [r.name, r.admin1, r.country].filter(Boolean).join(', '),
+                  r.elevation !== undefined ? '⛰️ ' + Math.round(r.elevation) + ' m' : '',
+                  Number(r.latitude),
+                  Number(r.longitude),
+                );
+              });
+            }
+
+            const photonData = photonRes.ok ? coerceJsonPayload(photonRes.data) : null;
+            if (photonData && Array.isArray(photonData.features)) {
+              photonData.features.forEach(function (f) {
+                const coords =
+                  f.geometry && Array.isArray(f.geometry.coordinates)
+                    ? f.geometry.coordinates
+                    : null;
+                const p = f.properties || {};
+                if (coords && coords.length >= 2) {
+                  pushCandidate(
+                    [p.name, p.state || p.city, p.country].filter(Boolean).join(', '),
+                    p.osm_value || '',
+                    Number(coords[1]),
+                    Number(coords[0]),
+                  );
+                }
+              });
+            }
+
+            // Fallback on explicit Enter / Search click (e.g. Japanese trail/park names)
+            if (candidates.length === 0 && isExplicitSubmit) {
+              const nomData = await fetchAuxiliaryJson(
+                'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' +
+                  encodeURIComponent(rawQuery),
+                3200,
+              );
+              if (mySearchSeq !== searchSeq) return;
+              if (Array.isArray(nomData)) {
+                nomData.forEach(function (item) {
+                  const parts = String(item.display_name || '')
+                    .split(',')
+                    .map(function (s) {
+                      return s.trim();
+                    })
+                    .filter(Boolean);
+                  const shortLabel =
+                    parts.length > 3
+                      ? [parts[0], parts[1], parts[parts.length - 1]].join(', ')
+                      : parts.join(', ');
+                  pushCandidate(shortLabel, item.type || '', Number(item.lat), Number(item.lon));
+                });
+              }
+            }
+
+            listEl.textContent = '';
+            if (candidates.length === 0) {
+              const emptyLi = document.createElement('li');
+              emptyLi.className = 'search-status-li';
+              emptyLi.setAttribute('data-naizo-strip', 'true');
+              emptyLi.textContent =
+                'No places matched "' +
+                rawQuery +
+                '" – try a nearby town, paste lat, lon coordinates, or click directly on the map.';
+              listEl.appendChild(emptyLi);
+              listEl.hidden = false;
+              return;
+            }
+
+            candidates.slice(0, 7).forEach(function (cand) {
+              const li = document.createElement('li');
+              li.setAttribute('data-naizo-strip', 'true');
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'search-option-btn';
+
+              const nameSpan = document.createElement('span');
+              nameSpan.textContent = cand.label;
+
+              const metaSpan = document.createElement('span');
+              metaSpan.className = 'search-option-meta';
+              metaSpan.textContent =
+                (cand.meta ? cand.meta + ' · ' : '') +
+                cand.lat.toFixed(2) +
+                ', ' +
+                cand.lon.toFixed(2);
+
+              btn.appendChild(nameSpan);
+              btn.appendChild(metaSpan);
+              btn.addEventListener('click', function () {
+                listEl.hidden = true;
+                input.value = cand.label;
+                const clearBtn = document.getElementById('clear-query-btn');
+                if (clearBtn) clearBtn.hidden = false;
+                void selectSpotAndFetch(cand.lat, cand.lon, cand.label);
+              });
+
+              li.appendChild(btn);
+              listEl.appendChild(li);
+            });
+            listEl.hidden = false;
+          } finally {
+            if (mySearchSeq === searchSeq) {
+              setButtonLoading(searchBtn, false);
+            }
+          }
+        }
+
+        // ======================================================================
+        // EVENT WIRING & BOOT
+        // ======================================================================
+        function wireEvents() {
+          const queryInput = document.getElementById('place-query');
+          const clearBtn = document.getElementById('clear-query-btn');
+          const resultsEl = document.getElementById('search-results');
+
+          if (queryInput) {
+            queryInput.addEventListener('input', function () {
+              const val = queryInput.value.trim();
+              if (clearBtn) clearBtn.hidden = val.length === 0;
+              if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+              if (val.length < 2) {
+                if (resultsEl) resultsEl.hidden = true;
+                return;
+              }
+              searchDebounceTimer = setTimeout(function () {
+                void runPlaceSearch(false);
+              }, 320);
+            });
+
+            queryInput.addEventListener('keydown', function (ev) {
+              if (ev.key === 'Enter') {
+                ev.preventDefault();
+                if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+                void runPlaceSearch(true);
+              } else if (ev.key === 'Escape' && resultsEl) {
+                resultsEl.hidden = true;
+              }
+            });
+          }
+
+          if (clearBtn && queryInput) {
+            clearBtn.addEventListener('click', function () {
+              queryInput.value = '';
+              clearBtn.hidden = true;
+              if (resultsEl) resultsEl.hidden = true;
+              queryInput.focus();
+            });
+          }
+
+          document.addEventListener('click', function (ev) {
+            const target = ev.target;
+            if (
+              resultsEl &&
+              !resultsEl.hidden &&
+              target instanceof Element &&
+              !target.closest('.search-wrap')
+            ) {
+              resultsEl.hidden = true;
+            }
+          });
+
+          const searchBtn = document.getElementById('search-btn');
+          if (searchBtn) {
+            searchBtn.addEventListener('click', function () {
+              if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+              void runPlaceSearch(true);
+            });
+          }
+
+          const nearMeBtn = document.getElementById('near-me-btn');
+          if (nearMeBtn) {
+            nearMeBtn.addEventListener('click', function () {
+              const liveText = document.getElementById('wx-live-text');
+              if (!navigator.geolocation) {
+                if (liveText) liveText.textContent = 'Geolocation unavailable in this browser';
+                return;
+              }
+              setButtonLoading(nearMeBtn, true);
+              navigator.geolocation.getCurrentPosition(
+                function (pos) {
+                  setButtonLoading(nearMeBtn, false);
+                  void selectSpotAndFetch(pos.coords.latitude, pos.coords.longitude, '');
+                },
+                function () {
+                  setButtonLoading(nearMeBtn, false);
+                  if (liveText) {
+                    liveText.textContent =
+                      'Location permission declined – search or click on the map';
+                  }
+                },
+                { enableHighAccuracy: false, timeout: 8000 },
+              );
+            });
+          }
+
+          document.querySelectorAll('[data-preset-spot]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              const parts = String(btn.getAttribute('data-preset-spot') || '').split('|');
+              if (parts.length === 3) {
+                void selectSpotAndFetch(Number(parts[1]), Number(parts[2]), parts[0]);
+              }
+            });
+          });
+
+          document.querySelectorAll('[data-map-layer]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              Naizo.setField('map_layer', btn.getAttribute('data-map-layer') || 'terrain');
+            });
+          });
+
+          const centerPinBtn = document.getElementById('center-pin-btn');
+          if (centerPinBtn) {
+            centerPinBtn.addEventListener('click', function () {
+              if (!olMap || typeof window.ol === 'undefined') return;
+              const lat = Number(Naizo.getField('latitude')) || 36.2478;
+              const lon = Number(Naizo.getField('longitude')) || 137.6356;
+              const view = olMap.getView();
+              view.setCenter(window.ol.proj.fromLonLat([lon, lat]));
+              view.setZoom(12);
+            });
+          }
+
+          const fitRouteBtn = document.getElementById('fit-route-map-btn');
+          if (fitRouteBtn) {
+            fitRouteBtn.addEventListener('click', fitSavedRouteOnMap);
+          }
+
+          const clearMapPinsBtn = document.getElementById('clear-map-pins-btn');
+          if (clearMapPinsBtn) {
+            clearMapPinsBtn.addEventListener('click', clearAllSavedPins);
+          }
+
+          const clearRouteBtn = document.getElementById('clear-route-btn');
+          if (clearRouteBtn) {
+            clearRouteBtn.addEventListener('click', clearAllSavedPins);
+          }
+
+          // Live slider feedback on every drag pixel (input event)
+          const hourSlider = document.getElementById('hour-slider');
+          if (hourSlider) {
+            hourSlider.addEventListener('input', function () {
+              renderForecastStudio();
+            });
+          }
+
+          const prevBtn = document.getElementById('wx-prev-btn');
+          if (prevBtn) {
+            prevBtn.addEventListener('click', function () {
+              dayPageOffset = Math.max(0, dayPageOffset - 7);
+              renderForecastStudio();
+            });
+          }
+
+          const nextBtn = document.getElementById('wx-next-btn');
+          if (nextBtn) {
+            nextBtn.addEventListener('click', function () {
+              dayPageOffset = Math.min(
+                Math.max(0, liveForecast.days.length - 7),
+                dayPageOffset + 7,
+              );
+              renderForecastStudio();
+            });
+          }
+
+          const refreshBtn = document.getElementById('refresh-wx-btn');
+          if (refreshBtn) {
+            refreshBtn.addEventListener('click', function () {
+              openMeteoTimedOut = false;
+              void fetchLiveForecast(true, true);
+            });
+          }
+
+          const heroAddBtn = document.getElementById('add-hero-slot-btn');
+          if (heroAddBtn) {
+            heroAddBtn.addEventListener('click', function () {
+              const dateToUse =
+                selectedDateIso || (liveForecast.days[0] ? liveForecast.days[0].date : 'Planned');
+              addWeatherSlotToRoute(dateToUse, getActiveHour(), heroAddBtn);
+            });
+          }
+
+          // Delegated click for "📍 Map" on Route Stop cards
+          const routeListEl = document.getElementById('route-list');
+          if (routeListEl) {
+            routeListEl.addEventListener('click', function (ev) {
+              const target = ev.target;
+              if (!(target instanceof Element)) return;
+              const focusBtn = target.closest('[data-focus-stop]');
+              if (!focusBtn) return;
+              const itemEl = focusBtn.closest('[naizo-item]');
+              if (!itemEl) return;
+              const allItems = Array.from(routeListEl.querySelectorAll(':scope > [naizo-item]'));
+              const idx = allItems.indexOf(itemEl);
+              const stop = Naizo.getList('route')[idx];
+              if (!stop) return;
+              const sLat = Number(stop.lat);
+              const sLon = Number(stop.lon);
+              if (Number.isFinite(sLat) && Number.isFinite(sLon)) {
+                void selectSpotAndFetch(sLat, sLon, String(stop.place || ''));
+                const mapBlock = document.getElementById('block-map');
+                if (mapBlock && typeof mapBlock.scrollIntoView === 'function') {
+                  mapBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }
+            });
+          }
+
+          // Copy formatted route & notes summary
+          const copyBtn = document.getElementById('copy-summary-btn');
+          if (copyBtn) {
+            copyBtn.addEventListener('click', async function () {
+              const unit = getUnit();
+              const lines = [String(Naizo.getField('trip_title') || 'Outing Route Plan'), ''];
+              const stops = Naizo.getList('route');
+              if (stops.length === 0) {
+                lines.push('(No stops added yet)');
+              } else {
+                stops.forEach(function (s, idx) {
+                  const mark = s.done ? '[x]' : '[ ]';
+                  const when = [formatDateReadable(s.date), s.time].filter(Boolean).join(' ');
+                  const wx =
+                    s.temp_c !== undefined && s.temp_c !== null
+                      ? formatTemp(s.temp_c, unit) +
+                        (s.rain_pct !== null && s.rain_pct !== undefined
+                          ? ', ' + Math.round(Number(s.rain_pct)) + '% rain'
+                          : '')
+                      : '';
+                  lines.push(
+                    idx +
+                      1 +
+                      '. ' +
+                      mark +
+                      ' ' +
+                      (s.place || 'Stop') +
+                      (when ? ' — ' + when : '') +
+                      (wx ? ' (' + wx + ')' : '') +
+                      (s.note ? '\n   Note: ' + s.note : ''),
+                  );
+                });
+              }
+              const notes = String(Naizo.getField('trip_notes') || '').trim();
+              if (notes) {
+                lines.push('', 'Notes: ' + notes);
+              }
+              const text = lines.join('\n');
+              try {
+                await navigator.clipboard?.writeText(text);
+              } catch {
+                // Ignore clipboard restrictions
+              }
+              const receipt = document.getElementById('api-receipt');
+              if (receipt) {
+                receipt.textContent =
+                  'Copied route brief (' + stops.length + ' stops) to clipboard.';
+              }
+            });
+          }
+
+          // Custom webhook sender
+          const pushBtn = document.getElementById('push-webhook-btn');
+          if (pushBtn) {
+            pushBtn.addEventListener('click', async function () {
+              const url = String(Naizo.getField('webhook_url') || '').trim();
+              const receipt = document.getElementById('api-receipt');
+              if (!url) {
+                if (receipt) {
+                  receipt.textContent =
+                    'Enter a webhook URL first (or click Test Echo Webhook above).';
+                }
+                return;
+              }
+              const noCorsEl = document.getElementById('webhook-nocors-check');
+              const mode = noCorsEl && noCorsEl.checked ? 'no-cors' : undefined;
+              setButtonLoading(pushBtn, true);
+              try {
+                const res = await Naizo.fetch(url, {
+                  method: 'POST',
+                  body: Naizo.get(),
+                  mode: mode,
+                });
+                if (receipt) {
+                  receipt.textContent = res.ok
+                    ? 'Sent full #naizodb route plan to ' + url
+                    : 'Webhook request failed: ' + (res.error || res.status);
+                }
+              } finally {
+                setButtonLoading(pushBtn, false);
+              }
+            });
+          }
+
+          // If OpenLayers CDN finishes loading asynchronously, mount map immediately
+          const olScript = document.getElementById('openlayers-cdn-script');
+          if (olScript && typeof window.ol === 'undefined') {
+            olScript.addEventListener('load', function () {
+              ensureMapMounted();
+            });
+          }
+
+          // Format human-friendly receipts for declarative naizo-get / naizo-post calls
+          const checkDemBtn = document.getElementById('check-dem-btn');
+          if (checkDemBtn) {
+            checkDemBtn.addEventListener('click', function () {
+              const receipt = document.getElementById('api-receipt');
+              if (receipt) {
+                receipt.textContent = 'Checking daylight hours via api.sunrise-sunset.org…';
+              }
+            });
+          }
+
+          const echoPostBtn = document.getElementById('echo-post-btn');
+          if (echoPostBtn) {
+            echoPostBtn.addEventListener('click', function () {
+              const receipt = document.getElementById('api-receipt');
+              if (receipt) {
+                receipt.textContent =
+                  'Posting full #naizodb plan JSON to https://httpbin.org/post…';
+              }
+            });
+          }
+
+          window.addEventListener('naizo:fetch', function (ev) {
+            const detail = ev && ev.detail;
+            if (!detail || detail.target !== '#api-receipt') return;
+            const receipt = document.getElementById('api-receipt');
+            if (!receipt) return;
+
+            if (!detail.ok) {
+              receipt.textContent =
+                '⚠ Declarative ' +
+                detail.method +
+                ' failed (' +
+                (detail.error || 'network error') +
+                ') – try again in a moment.';
+              return;
+            }
+
+            if (detail.url.includes('httpbin.org/post')) {
+              const rawEcho =
+                typeof detail.data === 'string' ? detail.data : JSON.stringify(detail.data || {});
+              const echoedDb = coerceJsonPayload(detail.data) || {};
+              const echoedTitle = (echoedDb.fields && echoedDb.fields.trip_title) || 'Outing Plan';
+              const echoedStops =
+                echoedDb.lists && Array.isArray(echoedDb.lists.route)
+                  ? echoedDb.lists.route.length
+                  : 0;
+              receipt.textContent =
+                '✓ Echo webhook verified (httpbin.org/post) – server received & echoed back "' +
+                echoedTitle +
+                '" (' +
+                echoedStops +
+                (echoedStops === 1 ? ' stop, ' : ' stops, ') +
+                rawEcho.length.toLocaleString('en-US') +
+                ' chars of #naizodb JSON).';
+              return;
+            }
+
+            if (detail.url.includes('sunrise-sunset.org')) {
+              const spot = String(Naizo.getField('location_name') || 'active pin');
+              receipt.textContent =
+                '✓ Daylight window at ' +
+                spot +
+                ': ' +
+                String(detail.data || '') +
+                ' of daylight today (GET api.sunrise-sunset.org).';
+            }
+          });
+
+          window.addEventListener('naizo:hydrate', syncPersistedUi);
+          window.addEventListener('naizo:change', syncPersistedUi);
+        }
+
+        function bootApp() {
+          wireEvents();
+          syncPersistedUi();
+          // Fetch live weather forecast on boot without mutating #naizodb (D45, D52)
+          void fetchLiveForecast(false, false);
+        }
+
+        if (document.readyState === 'loading') {
+          window.addEventListener('DOMContentLoaded', bootApp);
+        } else {
+          bootApp();
+        }
+      })();
+    </script>
+  </body>
+</html>

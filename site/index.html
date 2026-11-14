@@ -1414,6 +1414,21 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
               examples/inventory.html →
             </a>
           </div>
+
+          <div class="example-row">
+            <div class="example-row-main">
+              <div class="example-row-title">Outing &amp; Weather Route Planner</div>
+              <p class="example-row-desc">
+                Interactive OpenLayers topo, satellite, and GSI map with multi-provider hourly
+                weather forecast cards, day-to-night sky slider, persisted
+                <code>[naizo-list="route"]</code> itinerary, and declarative
+                <code>naizo-get</code> / <code>naizo-post</code> webhook sync.
+              </p>
+            </div>
+            <a href="../examples/weather.html" class="example-row-link">
+              examples/weather.html →
+            </a>
+          </div>
         </div>
       </section>
 
@@ -1772,6 +1787,14 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
             </tbody>
           </table>
         </div>
+
+        <p>
+          <strong>Inspecting network errors (<code>#net</code>):</strong> When
+          <code>#net</code> pulses red (<code>API request failed</code>), open your browser's
+          <strong>DevTools &rarr; Network</strong> tab to inspect HTTP status codes, CORS headers,
+          and request/response payloads directly – <code>naizo.js</code> intentionally omits a
+          built-in network inspector so the runtime stays lightweight and flexible.
+        </p>
       </section>
 
       <footer class="doc-footer">
