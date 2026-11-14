@@ -2254,87 +2254,110 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     // Execute notes.html application script
     const appScript = notesDoc.body.querySelector('script')?.textContent || '';
-    runInThisContext(appScript);
+    const notesListenerCleanup = new AbortController();
+    const origWindowAdd = window.addEventListener.bind(window);
+    const notesAddSpy = vi
+      .spyOn(window, 'addEventListener')
+      .mockImplementation(
+        (
+          type: string,
+          listener: EventListenerOrEventListenerObject,
+          options?: boolean | AddEventListenerOptions,
+        ) => {
+          const mergedOpts: AddEventListenerOptions =
+            typeof options === 'boolean'
+              ? { capture: options, signal: notesListenerCleanup.signal }
+              : { ...options, signal: notesListenerCleanup.signal };
+          origWindowAdd(type, listener, mergedOpts);
+        },
+      );
+    try {
+      runInThisContext(appScript);
 
-    // 1. Only note-101's [naizo-item] pane has .is-active; all 4 panes stay mounted in the DOM
-    expect(initialPanes[0]?.classList.contains('is-active')).toBe(true);
-    expect(initialPanes[1]?.classList.contains('is-active')).toBe(false);
-    expect(document.getElementById('stat-tasks')?.textContent).toBe('2/3 tasks');
-    expect(
-      Number.parseInt(document.getElementById('stat-words')?.textContent ?? '0', 10),
-    ).toBeGreaterThan(10);
+      // 1. Only note-101's [naizo-item] pane has .is-active; all 4 panes stay mounted in the DOM
+      expect(initialPanes[0]?.classList.contains('is-active')).toBe(true);
+      expect(initialPanes[1]?.classList.contains('is-active')).toBe(false);
+      expect(document.getElementById('stat-tasks')?.textContent).toBe('2/3 tasks');
+      expect(
+        Number.parseInt(document.getElementById('stat-words')?.textContent ?? '0', 10),
+      ).toBeGreaterThan(10);
 
-    // 2. Clicking second sidebar note switches active pane without recreating DOM nodes
-    const sidebarItems = Array.from(
-      document.querySelectorAll<HTMLElement>('#note-index-list > .note-index-item'),
-    );
-    expect(sidebarItems.length).toBe(4);
-    sidebarItems[1]?.click();
+      // 2. Clicking second sidebar note switches active pane without recreating DOM nodes
+      const sidebarItems = Array.from(
+        document.querySelectorAll<HTMLElement>('#note-index-list > .note-index-item'),
+      );
+      expect(sidebarItems.length).toBe(4);
+      sidebarItems[1]?.click();
 
-    expect(Naizo.get('activeNoteId')).toBe('note-102');
-    expect(initialPanes[0]?.classList.contains('is-active')).toBe(false);
-    expect(initialPanes[1]?.classList.contains('is-active')).toBe(true);
-    // Exact same DOM element reference preserved (zero DOM wipe!)
-    expect(document.querySelectorAll('#notes-list > [naizo-item]')[1]).toBe(initialPanes[1]);
+      expect(Naizo.get('activeNoteId')).toBe('note-102');
+      expect(initialPanes[0]?.classList.contains('is-active')).toBe(false);
+      expect(initialPanes[1]?.classList.contains('is-active')).toBe(true);
+      // Exact same DOM element reference preserved (zero DOM wipe!)
+      expect(document.querySelectorAll('#notes-list > [naizo-item]')[1]).toBe(initialPanes[1]);
 
-    // 3. Filtering by category in sidebar narrows visible index, persists category_filter in #naizodb.fields, and activates first matching note without deleting from #naizodb
-    const catFilter = document.getElementById('category-filter') as HTMLSelectElement;
-    expect(Naizo.getField('category_filter')).toBe('all');
-    catFilter.value = 'Research';
-    catFilter.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(Naizo.getField('category_filter')).toBe('Research');
-    expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(1);
-    expect(Naizo.get('activeNoteId')).toBe('note-103');
-    expect(Naizo.getList('notes').length).toBe(4);
+      // 3. Filtering by category in sidebar narrows visible index, persists category_filter in #naizodb.fields, and activates first matching note without deleting from #naizodb
+      const catFilter = document.getElementById('category-filter') as HTMLSelectElement;
+      expect(Naizo.getField('category_filter')).toBe('all');
+      catFilter.value = 'Research';
+      catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(Naizo.getField('category_filter')).toBe('Research');
+      expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(1);
+      expect(Naizo.get('activeNoteId')).toBe('note-103');
+      expect(Naizo.getList('notes').length).toBe(4);
 
-    catFilter.value = 'all';
-    catFilter.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(Naizo.getField('category_filter')).toBe('all');
-    expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(4);
+      catFilter.value = 'all';
+      catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(Naizo.getField('category_filter')).toBe('all');
+      expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(4);
 
-    // Searching with 0 matches shows empty state without overwriting activeNoteId in #naizodb
-    const searchIn = document.getElementById('note-search') as HTMLInputElement;
-    searchIn.value = 'nonexistent-query-xyz';
-    searchIn.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(0);
-    expect(document.getElementById('empty-editor-state')?.style.display).toBe('block');
-    expect(Naizo.get('activeNoteId')).toBe('note-103');
-    searchIn.value = '';
-    searchIn.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(document.getElementById('empty-editor-state')?.style.display).toBe('none');
-    expect(Naizo.get('activeNoteId')).toBe('note-103');
+      // Searching with 0 matches shows empty state without overwriting activeNoteId in #naizodb
+      const searchIn = document.getElementById('note-search') as HTMLInputElement;
+      searchIn.value = 'nonexistent-query-xyz';
+      searchIn.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(0);
+      expect(document.getElementById('empty-editor-state')?.style.display).toBe('block');
+      expect(Naizo.get('activeNoteId')).toBe('note-103');
+      searchIn.value = '';
+      searchIn.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(document.getElementById('empty-editor-state')?.style.display).toBe('none');
+      expect(Naizo.get('activeNoteId')).toBe('note-103');
 
-    // 4. Theme field (naizo="theme") updates html[data-theme]
-    Naizo.setField('theme', 'dark');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+      // 4. Theme field (naizo="theme") updates html[data-theme]
+      Naizo.setField('theme', 'dark');
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
-    // 5. Alt+N (including macOS Option+N where key==='Dead' and code==='KeyN') creates a new note and activates it; Alt+ArrowUp cycles visible notes
-    window.dispatchEvent(
-      new KeyboardEvent('keydown', {
-        key: 'Dead',
-        code: 'KeyN',
-        altKey: true,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
-    expect(Naizo.getList('notes').length).toBe(5);
-    const createdNoteId = Naizo.getList('notes')[4]?.id;
-    expect(Naizo.get('activeNoteId')).toBe(createdNoteId);
+      // 5. Alt+N (including macOS Option+N where key==='Dead' and code==='KeyN') creates a new note and activates it; Alt+ArrowUp cycles visible notes
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Dead',
+          code: 'KeyN',
+          altKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      expect(Naizo.getList('notes').length).toBe(5);
+      const createdNoteId = Naizo.getList('notes')[4]?.id;
+      expect(Naizo.get('activeNoteId')).toBe(createdNoteId);
 
-    window.dispatchEvent(
-      new KeyboardEvent('keydown', {
-        key: 'ArrowUp',
-        altKey: true,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
-    expect(Naizo.get('activeNoteId')).not.toBe(createdNoteId);
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'ArrowUp',
+          altKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      expect(Naizo.get('activeNoteId')).not.toBe(createdNoteId);
 
-    // 6. Exported HTML strips runtime-rendered sidebar #note-index-list items via data-naizo-strip (D47)
-    const exportedNotesDoc = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
-    expect(exportedNotesDoc.querySelectorAll('#note-index-list > *').length).toBe(0);
+      // 6. Exported HTML strips runtime-rendered sidebar #note-index-list items via data-naizo-strip (D47)
+      const exportedNotesDoc = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
+      expect(exportedNotesDoc.querySelectorAll('#note-index-list > *').length).toBe(0);
+    } finally {
+      notesListenerCleanup.abort();
+      notesAddSpy.mockRestore();
+      document.documentElement.removeAttribute('data-theme');
+    }
   });
 
   it('validates M5 deliverables (docs/USAGE.md, skills/naizo/SKILL.md) and safe surgical #naizodb CLI replacement with $1/$& payloads', () => {
@@ -2432,32 +2455,55 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
     // 3. Execute site/index.html script and verify live #naizodb JSON inspector, theme toggle, AI edit simulation, and reset
     const appScript = siteDoc.body.querySelector('script')?.textContent || '';
-    runInThisContext(appScript);
+    const siteListenerCleanup = new AbortController();
+    const origWindowAdd = window.addEventListener.bind(window);
+    const siteAddSpy = vi
+      .spyOn(window, 'addEventListener')
+      .mockImplementation(
+        (
+          type: string,
+          listener: EventListenerOrEventListenerObject,
+          options?: boolean | AddEventListenerOptions,
+        ) => {
+          const mergedOpts: AddEventListenerOptions =
+            typeof options === 'boolean'
+              ? { capture: options, signal: siteListenerCleanup.signal }
+              : { ...options, signal: siteListenerCleanup.signal };
+          origWindowAdd(type, listener, mergedOpts);
+        },
+      );
+    try {
+      runInThisContext(appScript);
 
-    const inspector = document.getElementById('live-json-inspector');
-    expect(inspector?.textContent).toContain('"feature_title": "OAuth2 & Rate-Limiting Spec"');
-    expect(inspector?.textContent).toContain('"rateLimitRps": 120');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('system');
+      const inspector = document.getElementById('live-json-inspector');
+      expect(inspector?.textContent).toContain('"feature_title": "OAuth2 & Rate-Limiting Spec"');
+      expect(inspector?.textContent).toContain('"rateLimitRps": 120');
+      expect(document.documentElement.getAttribute('data-theme')).toBe('system');
 
-    // Theme toggle button updates fields.theme and html[data-theme]
-    document.getElementById('theme-toggle-btn')?.click();
-    expect(Naizo.getField('theme')).toBe('dark');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(document.getElementById('theme-toggle-label')?.textContent).toBe('Dark');
+      // Theme toggle button updates fields.theme and html[data-theme]
+      document.getElementById('theme-toggle-btn')?.click();
+      expect(Naizo.getField('theme')).toBe('dark');
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+      expect(document.getElementById('theme-toggle-label')?.textContent).toBe('Dark');
 
-    // Simulate AI Edit button marks an unfinished task done and increments rateLimitRps
-    document.getElementById('simulate-agent-btn')?.click();
-    expect(Naizo.getList('tasks')[1]?.done).toBe(true);
-    expect(Naizo.get('rateLimitRps')).toBe(170);
-    expect(document.getElementById('rps-val')?.textContent).toBe('170');
-    expect(inspector?.textContent).toContain('"rateLimitRps": 170');
+      // Simulate AI Edit button marks an unfinished task done and increments rateLimitRps
+      document.getElementById('simulate-agent-btn')?.click();
+      expect(Naizo.getList('tasks')[1]?.done).toBe(true);
+      expect(Naizo.get('rateLimitRps')).toBe(170);
+      expect(document.getElementById('rps-val')?.textContent).toBe('170');
+      expect(inspector?.textContent).toContain('"rateLimitRps": 170');
 
-    // Reset button restores initial baseline state
-    document.getElementById('reset-playground-btn')?.click();
-    expect(Naizo.getField('theme')).toBe('system');
-    expect(Naizo.get('rateLimitRps')).toBe(120);
-    expect(Naizo.getList('tasks')[1]?.done).toBe(false);
-    expect(document.documentElement.getAttribute('data-theme')).toBe('system');
+      // Reset button restores initial baseline state
+      document.getElementById('reset-playground-btn')?.click();
+      expect(Naizo.getField('theme')).toBe('system');
+      expect(Naizo.get('rateLimitRps')).toBe(120);
+      expect(Naizo.getList('tasks')[1]?.done).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('system');
+    } finally {
+      siteListenerCleanup.abort();
+      siteAddSpy.mockRestore();
+      document.documentElement.removeAttribute('data-theme');
+    }
 
     // 4. Verify M6.4 Cloudflare Web Analytics script and SEO JSON-LD with naizo-strip are present in hosted DOM,
     // stripped by Naizo.exportHTML() / Naizo.downloadHTML() (Save to PC), and absent from examples/*.html (D47)
@@ -3623,6 +3669,23 @@ describe('naizo.js v0.1.0 core runtime', () => {
       const inlineScript = scripts[scripts.length - 1]?.textContent ?? '';
       let nowMs = 1000;
       const perfSpy = vi.spyOn(performance, 'now').mockImplementation(() => nowMs);
+      const inlineListenerCleanup = new AbortController();
+      const origWindowAddEventListener = window.addEventListener.bind(window);
+      const addListenerSpy = vi
+        .spyOn(window, 'addEventListener')
+        .mockImplementation(
+          (
+            type: string,
+            listener: EventListenerOrEventListenerObject,
+            options?: boolean | AddEventListenerOptions,
+          ) => {
+            const mergedOpts: AddEventListenerOptions =
+              typeof options === 'boolean'
+                ? { capture: options, signal: inlineListenerCleanup.signal }
+                : { ...options, signal: inlineListenerCleanup.signal };
+            origWindowAddEventListener(type, listener, mergedOpts);
+          },
+        );
       try {
         runInThisContext(inlineScript);
         const liveCrest = document.getElementById('hero-crest-link');
@@ -3643,6 +3706,8 @@ describe('naizo.js v0.1.0 core runtime', () => {
         vi.advanceTimersByTime(10);
         expect(liveCrest?.classList.contains('is-beating')).toBe(false);
       } finally {
+        inlineListenerCleanup.abort();
+        addListenerSpy.mockRestore();
         perfSpy.mockRestore();
       }
 
@@ -3659,6 +3724,209 @@ describe('naizo.js v0.1.0 core runtime', () => {
         'CHANGELOG.md',
       ]);
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('implements M9.2 translucent frosted-glass Status Pill, strict 1-6 icon buttons, 5 narrative #dot animations with 1.55s saving cycle completion, theme sync, and 4-corner snap drag persistence across source and dist/naizo.js (M9.2, D50, EC48)', async () => {
+    vi.useFakeTimers();
+    let nowMs = 1000;
+    const perfSpy = vi.spyOn(performance, 'now').mockImplementation(() => nowMs);
+    try {
+      document.documentElement.removeAttribute('data-theme');
+      document.documentElement.className = '';
+      document.body.removeAttribute('data-theme');
+      document.body.className = '';
+      document.documentElement.setAttribute('naizo-id', 'm9-2-pill-suite');
+      document.documentElement.setAttribute('naizo-mode', 'online');
+      document.head.innerHTML = `<script id="naizodb" type="application/json">
+{
+  "_meta": {},
+  "fields": { "title": "Initial Title" },
+  "lists": {},
+  "custom": {}
+}
+</script>`;
+      document.body.innerHTML = `<input type="text" naizo="title" value="Initial Title" /><button type="button" naizo-get="https://api.example.com/ping">Ping</button>`;
+
+      await initNaizo();
+
+      const host = document.getElementById('__naizodb_host__') as
+        | (HTMLDivElement & { _setDot?: (s: string) => void })
+        | null;
+      const shadow = host?.shadowRoot;
+      expect(host).not.toBeNull();
+      expect(shadow).not.toBeNull();
+
+      // 1. Strict 1..6 left-to-right element order inside .pill & 20px Balanced #dot SVG geometry
+      const pill = shadow?.getElementById('pill');
+      expect(pill).not.toBeNull();
+      const pillChildIds = Array.from(pill?.children ?? []).map((el) => el.id);
+      expect(pillChildIds).toEqual([
+        'status',
+        'dot',
+        'dot-sep',
+        'action',
+        'unlink',
+        'copy',
+        'restore',
+        'reset',
+        'net-sep',
+        'net',
+      ]);
+      expect(pill?.lastElementChild?.id).toBe('net');
+
+      const dotEl = shadow?.getElementById('dot') as HTMLButtonElement | null;
+      expect(dotEl?.className).toBe('dot saved');
+      expect(dotEl?.dataset.naizoBoot).toBe('1');
+      const dotSvg = dotEl?.querySelector('svg.naizo-logo-svg');
+      expect(dotSvg?.getAttribute('viewBox')).toBe('0 0 100 100');
+      expect(dotSvg?.querySelector('circle.ring')?.getAttribute('r')).toBe('42');
+      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('x')).toBe('41');
+      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('y')).toBe('28');
+      expect(dotSvg?.querySelector('rect.c-bl')?.getAttribute('x')).toBe('28');
+      expect(dotSvg?.querySelector('rect.c-bl')?.getAttribute('y')).toBe('54');
+      expect(dotSvg?.querySelector('rect.c-br')?.getAttribute('x')).toBe('54');
+      expect(dotSvg?.querySelector('rect.c-br')?.getAttribute('y')).toBe('54');
+
+      // Boot animation attribute clears after 1250ms
+      vi.advanceTimersByTime(1250);
+      expect(dotEl?.dataset.naizoBoot).toBeUndefined();
+
+      // 2. Light/Dark theme synchronization via MutationObserver on <html> and <body>
+      expect(host?.getAttribute('data-naizo-theme')).toBeNull();
+      document.documentElement.setAttribute('data-theme', 'dark');
+      await Promise.resolve();
+      expect(host?.getAttribute('data-naizo-theme')).toBe('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+      await Promise.resolve();
+      expect(host?.getAttribute('data-naizo-theme')).toBe('light');
+      document.documentElement.removeAttribute('data-theme');
+      document.body.classList.add('dark');
+      await Promise.resolve();
+      expect(host?.getAttribute('data-naizo-theme')).toBe('dark');
+      document.body.classList.remove('dark');
+      await Promise.resolve();
+      expect(host?.getAttribute('data-naizo-theme')).toBeNull();
+
+      // 3. Sweet-spot Saving -> Static cycle completion (1550ms) & urgent state immediate interrupt
+      nowMs = 2000;
+      host?._setDot?.('saving');
+      expect(dotEl?.className).toBe('dot saving');
+      expect(dotEl?.dataset.naizoSaving).toBe('1');
+
+      // Fast 10ms save finishes at t = 2010ms: dot class becomes 'dot saved', but data-naizo-saving holds for remaining 1540ms
+      nowMs = 2010;
+      host?._setDot?.('saved');
+      expect(dotEl?.className).toBe('dot saved');
+      expect(dotEl?.dataset.naizoSaving).toBe('1');
+
+      vi.advanceTimersByTime(1530);
+      expect(dotEl?.dataset.naizoSaving).toBe('1');
+      vi.advanceTimersByTime(15);
+      expect(dotEl?.dataset.naizoSaving).toBeUndefined();
+
+      // Urgent state (conflict / needs-permission / error) interrupts saving cycle immediately with 0ms lag
+      nowMs = 4000;
+      host?._setDot?.('saving');
+      expect(dotEl?.dataset.naizoSaving).toBe('1');
+      nowMs = 4100;
+      host?._setDot?.('conflict');
+      expect(dotEl?.className).toBe('dot conflict');
+      expect(dotEl?.dataset.naizoSaving).toBeUndefined();
+      host?._setDot?.('needs-permission');
+      expect(dotEl?.className).toBe('dot needs-permission');
+      host?._setDot?.('saved');
+      expect(dotEl?.className).toBe('dot saved');
+
+      // 4. Hover tooltip (#pill-tooltip) & #copy 1.5s checkmark morph (.copied)
+      const tooltipEl = shadow?.getElementById('pill-tooltip');
+      const tooltipText = shadow?.getElementById('tooltip-text');
+      const copyBtn = shadow?.getElementById('copy') as HTMLButtonElement | null;
+      expect(copyBtn?.textContent).toBe('📋 Copy');
+
+      copyBtn?.dispatchEvent(new MouseEvent('mouseenter'));
+      expect(tooltipEl?.classList.contains('visible')).toBe(true);
+      expect(tooltipText?.textContent).toBe('Copy JSON');
+      copyBtn?.dispatchEvent(new MouseEvent('mouseleave'));
+      expect(tooltipEl?.classList.contains('visible')).toBe(false);
+
+      copyBtn?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(copyBtn?.classList.contains('copied')).toBe(true);
+      expect(copyBtn?.textContent).toBe('✓ Copied');
+      expect(copyBtn?.querySelector('svg')?.innerHTML).toContain('points="20 6.5 9.5 17 4 11.5"');
+
+      vi.advanceTimersByTime(1500);
+      expect(copyBtn?.classList.contains('copied')).toBe(false);
+      expect(copyBtn?.textContent).toBe('📋 Copy');
+
+      // 5. 4-corner pointer snap drag, .pill-drop-zone placeholders, and naizodb_ui_<suffix> persistence (EC48)
+      const anchorEl = shadow?.getElementById('pill-anchor');
+      const resetBtn = shadow?.getElementById('reset') as HTMLButtonElement | null;
+      const beforeDbRaw = document.getElementById('naizodb')?.textContent;
+      expect(anchorEl?.dataset.corner).toBe('bottom-right');
+      expect(resetBtn?.style.display).toBe('none');
+
+      const makePointerEvent = (type: string, clientX: number, clientY: number) => {
+        const ev = new MouseEvent(type, { bubbles: true, clientX, clientY }) as PointerEvent;
+        Object.defineProperty(ev, 'pointerId', { value: 1 });
+        return ev;
+      };
+
+      dotEl?.dispatchEvent(makePointerEvent('pointerdown', 900, 700));
+      pill?.dispatchEvent(makePointerEvent('pointermove', 40, 40));
+      expect(host?.getAttribute('data-naizo-dragging')).toBe('1');
+      expect(anchorEl?.classList.contains('is-dragging')).toBe(true);
+      const topLeftZone = shadow?.querySelector('.pill-drop-zone[data-corner="top-left"]');
+      expect(topLeftZone?.classList.contains('active-target')).toBe(true);
+
+      pill?.dispatchEvent(makePointerEvent('pointerup', 40, 40));
+      expect(host?.getAttribute('data-naizo-dragging')).toBeNull();
+      expect(anchorEl?.classList.contains('is-dragging')).toBe(false);
+      expect(anchorEl?.dataset.corner).toBe('top-left');
+      expect(localStorage.getItem('naizodb_ui_/::m9-2-pill-suite')).toBe('{"corner":"top-left"}');
+
+      // Dragging the pill must NOT mutate #naizodb or dirty initialDiskDb (EC48)
+      expect(document.getElementById('naizodb')?.textContent).toBe(beforeDbRaw);
+      expect(resetBtn?.style.display).toBe('none');
+
+      // 6. Verify Repair mode (Wrench icon) vs Restore Backup mode and corner restoration across initNaizo() + shipped dist/naizo.js
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const scriptEl = document.getElementById('naizodb');
+        if (scriptEl) scriptEl.textContent = '{ broken json ';
+        window.__naizoCleanup?.();
+        document.getElementById('__naizodb_host__')?.remove();
+        document.documentElement.setAttribute('data-naizo-manual', 'true');
+        runInThisContext(iifeBundleCode);
+        await window.Naizo.init();
+
+        const distHost = document.getElementById('__naizodb_host__');
+        const distShadow = distHost?.shadowRoot;
+        const distAnchor = distShadow?.getElementById('pill-anchor');
+        const distRestoreBtn = distShadow?.getElementById('restore') as HTMLButtonElement | null;
+        const distDotEl = distShadow?.getElementById('dot') as HTMLButtonElement | null;
+        expect(distAnchor?.dataset.corner).toBe('top-left');
+        expect(distDotEl?.className).toBe('dot error');
+        expect(distRestoreBtn?.style.display).toBe('inline-block');
+        expect(distRestoreBtn?.textContent).toBe('↺ Repair');
+        expect(distRestoreBtn?.dataset.tip).toBe('Repair JSON');
+        expect(distRestoreBtn?.querySelector('svg')?.innerHTML).toContain('M14.7 6.3');
+      } finally {
+        warnSpy.mockRestore();
+      }
+    } finally {
+      perfSpy.mockRestore();
+      window.__naizoCleanup?.();
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('naizo-mode');
+      document.documentElement.removeAttribute('data-theme');
+      document.documentElement.removeAttribute('data-naizo-manual');
+      document.body.classList.remove('dark', 'light');
+      window.Naizo = Naizo;
+      window.NaizoDB = NaizoDB;
       vi.useRealTimers();
     }
   });

@@ -104,6 +104,7 @@ const PERSIST_DEBOUNCE_MS = 150;
 const DISK_DEBOUNCE_MS = 250;
 const DISK_WATCH_INTERVAL_MS = 2000;
 const NET_ACTIVE_HOLD_MS = 600;
+const SAVING_CYCLE_MS = 1550;
 const NAIZODB_SCRIPT_RE =
   /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
 const HEAD_OPEN_RE = /(<head\b[^>]*>)/i;
@@ -313,8 +314,39 @@ function getSnapshotKey(): string {
   return 'naizodb_disk_hash_' + getStorageSuffix();
 }
 
+type PillCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+const VALID_PILL_CORNERS: ReadonlySet<string> = new Set([
+  'bottom-right',
+  'bottom-left',
+  'top-right',
+  'top-left',
+]);
+
 function getBackupKey(): string {
   return 'naizodb_backup_' + getStorageSuffix();
+}
+
+function getUiKey(): string {
+  return 'naizodb_ui_' + getStorageSuffix();
+}
+
+function readSavedUiCorner(): PillCorner {
+  const raw = safeGetStorage(getUiKey());
+  if (!raw) return 'bottom-right';
+  try {
+    const parsed = JSON.parse(raw) as { corner?: unknown };
+    if (typeof parsed?.corner === 'string' && VALID_PILL_CORNERS.has(parsed.corner)) {
+      return parsed.corner as PillCorner;
+    }
+  } catch {
+    // Ignore invalid UI preference JSON
+  }
+  return 'bottom-right';
+}
+
+function saveUiCorner(corner: PillCorner): void {
+  safeSetStorage(getUiKey(), JSON.stringify({ corner }));
 }
 
 function safeGetStorage(key: string): string | null {
@@ -423,13 +455,29 @@ let watchInterval: ReturnType<typeof setInterval> | null = null;
 let writeInFlightPromise: Promise<boolean> | null = null;
 let writeQueued = false;
 let statusEl: HTMLElement | null = null;
+let dotBtnEl: HTMLButtonElement | null = null;
 let actionBtn: HTMLButtonElement | null = null;
+let actionSrEl: HTMLElement | null = null;
+let actionSvgEl: SVGElement | null = null;
 let restoreBtn: HTMLButtonElement | null = null;
+let restoreSrEl: HTMLElement | null = null;
+let restoreSvgEl: SVGElement | null = null;
+let copySrEl: HTMLElement | null = null;
+let copySvgEl: SVGElement | null = null;
 let resetBtn: HTMLButtonElement | null = null;
 let resetConfirmEl: HTMLElement | null = null;
 let unlinkBtn: HTMLButtonElement | null = null;
 let netSepEl: HTMLElement | null = null;
 let netBtn: HTMLButtonElement | null = null;
+let tooltipEl: HTMLElement | null = null;
+let tooltipTextEl: HTMLElement | null = null;
+let tooltipKbdEl: HTMLElement | null = null;
+let savingCycleStart = 0;
+let savingMinCycles = 1;
+let savingHoldTimeout: ReturnType<typeof setTimeout> | null = null;
+let copyResetTimeout: ReturnType<typeof setTimeout> | null = null;
+let bootClearTimeout: ReturnType<typeof setTimeout> | null = null;
+let themeObserver: MutationObserver | null = null;
 let netRevealed = false;
 let netState: 'idle' | 'active' | 'error' = 'idle';
 let netInFlightCount = 0;
@@ -2008,15 +2056,15 @@ function applyNetUiState(): void {
   if (netState === 'active') {
     netBtn.className = 'net-slot active';
     netBtn.title = 'API active';
-    netBtn.setAttribute('data-tip', 'API Active');
+    netBtn.dataset.tip = 'API Active';
   } else if (netState === 'error') {
     netBtn.className = 'net-slot error';
     netBtn.title = 'API request failed';
-    netBtn.setAttribute('data-tip', 'API Request Failed · Click to Clear');
+    netBtn.dataset.tip = 'API Request Failed · Click to Clear';
   } else {
     netBtn.className = 'net-slot idle';
     netBtn.title = 'API idle';
-    netBtn.setAttribute('data-tip', 'API Idle');
+    netBtn.dataset.tip = 'API Idle';
   }
 }
 
@@ -2097,6 +2145,114 @@ function endNetRequest(ok: boolean): void {
 }
 
 // --- 8. Lightweight Styles for Auto-Injected List Controls & Shadow Pill ---
+const PILL_ICONS = {
+  link: '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/>',
+  unlink:
+    '<path d="M9 17H7A5 5 0 0 1 7 7"/><path d="M15 7h2a5 5 0 0 1 4 8"/><line x1="8" y1="12" x2="12" y2="12"/><line x1="3" y1="3" x2="21" y2="21"/>',
+  download:
+    '<path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="4"/>',
+  copy: '<rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5"/>',
+  check: '<polyline points="20 6.5 9.5 17 4 11.5"/>',
+  restore:
+    '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3.5 2"/>',
+  wrench:
+    '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  eraser:
+    '<path d="m7 20-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 20"/><path d="M21 20H7"/><path d="m5 11 9 9"/>',
+} as const;
+
+function nowHighResMs(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+}
+
+function resolveExplicitPageTheme(): 'dark' | 'light' | null {
+  if (typeof document === 'undefined') return null;
+  for (const el of [document.documentElement, document.body]) {
+    if (!el) continue;
+    const attr = (el.getAttribute('data-theme') ?? '').trim().toLowerCase();
+    if (attr === 'dark' || attr === 'light') return attr;
+    if (el.classList?.contains('dark')) return 'dark';
+    if (el.classList?.contains('light')) return 'light';
+  }
+  return null;
+}
+
+function syncHostTheme(host: HTMLElement): void {
+  const explicit = resolveExplicitPageTheme();
+  const current = host.getAttribute('data-naizo-theme');
+  if (explicit === null) {
+    if (current !== null) host.removeAttribute('data-naizo-theme');
+  } else if (current !== explicit) {
+    host.setAttribute('data-naizo-theme', explicit);
+  }
+}
+
+function syncSavingBeat(state: string): void {
+  if (state === 'saving') {
+    if (savingHoldTimeout !== null) {
+      clearTimeout(savingHoldTimeout);
+      savingHoldTimeout = null;
+    }
+    if (savingCycleStart === 0) {
+      savingCycleStart = nowHighResMs();
+      savingMinCycles = 1;
+      if (dotBtnEl) dotBtnEl.dataset.naizoSaving = '1';
+    } else {
+      const elapsed = Math.max(0, nowHighResMs() - savingCycleStart);
+      savingMinCycles = Math.max(1, Math.ceil((elapsed + 450) / SAVING_CYCLE_MS));
+      if (dotBtnEl) dotBtnEl.dataset.naizoSaving = '1';
+    }
+    return;
+  }
+
+  if ((state === 'saved' || state === 'cached' || state === '') && savingCycleStart > 0) {
+    if (savingHoldTimeout !== null) {
+      clearTimeout(savingHoldTimeout);
+    }
+    const elapsed = Math.max(0, nowHighResMs() - savingCycleStart);
+    const targetCycles = Math.max(savingMinCycles, Math.floor(elapsed / SAVING_CYCLE_MS) + 1);
+    const remainingMs = Math.max(16, Math.round(targetCycles * SAVING_CYCLE_MS - elapsed));
+    savingHoldTimeout = setTimeout(() => {
+      savingHoldTimeout = null;
+      savingCycleStart = 0;
+      savingMinCycles = 1;
+      if (dotBtnEl) delete dotBtnEl.dataset.naizoSaving;
+    }, remainingMs);
+    return;
+  }
+
+  if (savingHoldTimeout !== null) {
+    clearTimeout(savingHoldTimeout);
+    savingHoldTimeout = null;
+  }
+  savingCycleStart = 0;
+  savingMinCycles = 1;
+  if (dotBtnEl) delete dotBtnEl.dataset.naizoSaving;
+}
+
+function showPillTooltip(text: string, kbd = ''): void {
+  if (!tooltipEl || !tooltipTextEl || !tooltipKbdEl) return;
+  if (!text) {
+    tooltipEl.classList.remove('visible');
+    return;
+  }
+  tooltipTextEl.textContent = text;
+  if (kbd) {
+    tooltipKbdEl.textContent = kbd;
+    tooltipKbdEl.style.display = 'inline-block';
+  } else {
+    tooltipKbdEl.textContent = '';
+    tooltipKbdEl.style.display = 'none';
+  }
+  tooltipEl.classList.add('visible');
+}
+
+function hidePillTooltip(): void {
+  tooltipEl?.classList.remove('visible');
+}
+
 function mountUi(): void {
   if (!document.getElementById(STYLE_ID)) {
     const style = document.createElement('style');
@@ -2132,37 +2288,348 @@ function mountUi(): void {
     document.head.appendChild(style);
   }
 
+  if (themeObserver !== null) {
+    themeObserver.disconnect();
+    themeObserver = null;
+  }
+  if (bootClearTimeout !== null) {
+    clearTimeout(bootClearTimeout);
+    bootClearTimeout = null;
+  }
+  if (copyResetTimeout !== null) {
+    clearTimeout(copyResetTimeout);
+    copyResetTimeout = null;
+  }
+  if (savingHoldTimeout !== null) {
+    clearTimeout(savingHoldTimeout);
+    savingHoldTimeout = null;
+  }
+  savingCycleStart = 0;
+  savingMinCycles = 1;
+
   const existingHost = document.getElementById(UI_ID);
   if (existingHost) existingHost.remove();
 
   const host = document.createElement('div') as NaizoHostElement;
   host.id = UI_ID;
   host.setAttribute('data-naizo-strip', 'true');
+  syncHostTheme(host);
   const shadow = host.attachShadow({ mode: 'open' });
+  const initialCorner = readSavedUiCorner();
 
   shadow.innerHTML = `
     <style>
+      :host {
+        --pill-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.36) 100%);
+        --pill-text: #0f172a;
+        --pill-muted: #64748b;
+        --pill-border: transparent;
+        --pill-shadow: 0 0 0 1px rgba(15, 23, 42, 0.07), 0 4px 14px rgba(15, 23, 42, 0.09);
+        --btn-bg: rgba(15, 23, 42, 0.055);
+        --btn-bg-hover: rgba(15, 23, 42, 0.12);
+        --btn-border: rgba(15, 23, 42, 0.11);
+        --btn-color: #334155;
+        --btn-color-hover: #0f172a;
+        --sep-color: rgba(15, 23, 42, 0.11);
+        --drop-bg: rgba(255, 255, 255, 0.42);
+        --drop-border: rgba(15, 23, 42, 0.2);
+        --drop-active-bg: rgba(255, 255, 255, 0.72);
+        --drop-active-border: rgba(15, 23, 42, 0.38);
+        --drop-active-shadow: 0 4px 14px rgba(15, 23, 42, 0.09);
+        --restore-color: #d97706;
+      }
+      @media (prefers-color-scheme: dark) {
+        :host(:not([data-naizo-theme="light"])) {
+          --pill-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.13) 0%, rgba(15, 23, 42, 0.44) 100%);
+          --pill-text: #f8fafc;
+          --pill-muted: #94a3b8;
+          --pill-border: transparent;
+          --pill-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 6px 18px rgba(0, 0, 0, 0.42);
+          --btn-bg: rgba(255, 255, 255, 0.08);
+          --btn-bg-hover: rgba(255, 255, 255, 0.18);
+          --btn-border: rgba(255, 255, 255, 0.14);
+          --btn-color: #e2e8f0;
+          --btn-color-hover: #ffffff;
+          --sep-color: rgba(255, 255, 255, 0.15);
+          --drop-bg: rgba(255, 255, 255, 0.07);
+          --drop-border: rgba(255, 255, 255, 0.24);
+          --drop-active-bg: rgba(255, 255, 255, 0.16);
+          --drop-active-border: rgba(255, 255, 255, 0.52);
+          --drop-active-shadow: 0 0 16px rgba(255, 255, 255, 0.1);
+          --restore-color: #fbbf24;
+        }
+      }
+      :host([data-naizo-theme="dark"]) {
+        --pill-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.13) 0%, rgba(15, 23, 42, 0.44) 100%);
+        --pill-text: #f8fafc;
+        --pill-muted: #94a3b8;
+        --pill-border: transparent;
+        --pill-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 6px 18px rgba(0, 0, 0, 0.42);
+        --btn-bg: rgba(255, 255, 255, 0.08);
+        --btn-bg-hover: rgba(255, 255, 255, 0.18);
+        --btn-border: rgba(255, 255, 255, 0.14);
+        --btn-color: #e2e8f0;
+        --btn-color-hover: #ffffff;
+        --sep-color: rgba(255, 255, 255, 0.15);
+        --drop-bg: rgba(255, 255, 255, 0.07);
+        --drop-border: rgba(255, 255, 255, 0.24);
+        --drop-active-bg: rgba(255, 255, 255, 0.16);
+        --drop-active-border: rgba(255, 255, 255, 0.52);
+        --drop-active-shadow: 0 0 16px rgba(255, 255, 255, 0.1);
+        --restore-color: #fbbf24;
+      }
+      .pill-drop-zone {
+        position: fixed; z-index: 2147483646;
+        width: 146px; height: 30px; border-radius: 999px;
+        background: var(--drop-bg); border: 1.5px dashed var(--drop-border);
+        backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        pointer-events: none; opacity: 0; transform: scale(0.96);
+        transition: opacity 0.16s ease, transform 0.16s ease, background-color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+      }
+      .pill-drop-zone[data-corner="bottom-right"] { bottom: 16px; right: 16px; }
+      .pill-drop-zone[data-corner="bottom-left"] { bottom: 16px; left: 16px; }
+      .pill-drop-zone[data-corner="top-right"] { top: 16px; right: 16px; }
+      .pill-drop-zone[data-corner="top-left"] { top: 16px; left: 16px; }
+      :host([data-naizo-dragging="1"]) .pill-drop-zone {
+        opacity: 1; transform: scale(1);
+      }
+      :host([data-naizo-dragging="1"]) .pill-drop-zone.active-target {
+        background: var(--drop-active-bg); border: 1.5px solid var(--drop-active-border);
+        box-shadow: var(--drop-active-shadow); transform: scale(1.03);
+      }
+      .pill-anchor {
+        position: fixed; z-index: 2147483647;
+        display: flex; flex-direction: column; align-items: flex-end; gap: 7px;
+        font: 500 12px/1.2 system-ui, -apple-system, sans-serif;
+        transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .pill-anchor.is-dragging {
+        transition: none; cursor: grabbing;
+      }
+      .pill-anchor.is-dragging .pill-tooltip {
+        opacity: 0 !important;
+      }
+      .pill-anchor[data-corner="bottom-right"] { bottom: 16px; right: 16px; align-items: flex-end; }
+      .pill-anchor[data-corner="bottom-left"] { bottom: 16px; left: 16px; align-items: flex-start; }
+      .pill-anchor[data-corner="top-right"] { top: 16px; right: 16px; align-items: flex-end; flex-direction: column-reverse; }
+      .pill-anchor[data-corner="top-left"] { top: 16px; left: 16px; align-items: flex-start; flex-direction: column-reverse; }
       .pill {
-        position: fixed; bottom: 16px; right: 16px; z-index: 2147483647;
-        display: flex; align-items: center; gap: 8px;
-        background: #0f172a; color: #f8fafc; padding: 6px 12px;
-        border-radius: 999px; font: 500 12px/1.2 system-ui, sans-serif;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.25); border: 1px solid #334155;
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 4px 6px; border-radius: 999px;
+        background: var(--pill-bg); color: var(--pill-text);
+        border: 1px solid var(--pill-border); box-shadow: var(--pill-shadow);
+        backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
+        user-select: none;
       }
-      .dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
-      .dot.saved { background: #10b981; }
-      .dot.saving { background: #3b82f6; }
-      .dot.error { background: #ef4444; }
-      button {
-        background: #1e293b; color: #e2e8f0; border: 1px solid #475569;
-        border-radius: 999px; padding: 4px 10px; font: inherit; cursor: pointer;
+      .sr-only {
+        position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+        overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
       }
-      button:hover { background: #334155; color: #fff; }
-      button.danger { background: #7f1d1d; border-color: #b91c1c; color: #fecaca; }
-      button.danger:hover { background: #991b1b; color: #fff; }
+      .dot {
+        width: 20px; height: 20px; padding: 0; border: none; background: transparent;
+        display: inline-flex; align-items: center; justify-content: center;
+        cursor: grab; color: #f59e0b; border-radius: 50%; flex-shrink: 0;
+        transition: color 0.2s ease, transform 0.15s ease;
+      }
+      .dot:active { cursor: grabbing; }
+      .dot.saved,
+      .dot.saving,
+      .dot[data-naizo-saving="1"] {
+        color: #10b981;
+      }
+      .dot.conflict,
+      .dot.needs-permission {
+        color: #f59e0b;
+      }
+      .dot.error {
+        color: #ef4444;
+      }
+      .naizo-logo-svg {
+        width: 21.5px; height: 21.5px; overflow: visible; display: block; flex-shrink: 0;
+      }
+      .naizo-logo-svg .ring { transform-origin: 50px 50px; }
+      .naizo-logo-svg .c-top { transform-origin: 50px 37px; }
+      .naizo-logo-svg .c-bl { transform-origin: 37px 63px; }
+      .naizo-logo-svg .c-br { transform-origin: 63px 63px; }
+      @keyframes naizoBootRing {
+        0% { stroke-dasharray: 263.89; stroke-dashoffset: 263.89; transform: scale(0.92); opacity: 0.3; }
+        65% { stroke-dasharray: 263.89; stroke-dashoffset: 0; transform: scale(1.03); opacity: 1; }
+        100% { stroke-dasharray: 263.89; stroke-dashoffset: 0; transform: scale(1); opacity: 1; }
+      }
+      @keyframes naizoBootTop {
+        0%, 15% { transform: translate(0px, 13px) scale(0); opacity: 0; }
+        70% { transform: translate(0px, -1.5px) scale(1.05); opacity: 1; }
+        100% { transform: translate(0px, 0px) scale(1); opacity: 1; }
+      }
+      @keyframes naizoBootBL {
+        0%, 26% { transform: translate(13px, -13px) scale(0); opacity: 0; }
+        78% { transform: translate(-1.2px, 1.2px) scale(1.05); opacity: 1; }
+        100% { transform: translate(0px, 0px) scale(1); opacity: 1; }
+      }
+      @keyframes naizoBootBR {
+        0%, 37% { transform: translate(-13px, -13px) scale(0); opacity: 0; }
+        86% { transform: translate(1.2px, 1.2px) scale(1.05); opacity: 1; }
+        100% { transform: translate(0px, 0px) scale(1); opacity: 1; }
+      }
+      .dot[data-naizo-boot="1"]:not(.saving):not([data-naizo-saving="1"]):not(.conflict):not(.needs-permission):not(.error) .ring {
+        animation: naizoBootRing 1.2s cubic-bezier(0.22, 1, 0.36, 1) 1;
+      }
+      .dot[data-naizo-boot="1"]:not(.saving):not([data-naizo-saving="1"]):not(.conflict):not(.needs-permission):not(.error) .c-top {
+        animation: naizoBootTop 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+      }
+      .dot[data-naizo-boot="1"]:not(.saving):not([data-naizo-saving="1"]):not(.conflict):not(.needs-permission):not(.error) .c-bl {
+        animation: naizoBootBL 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+      }
+      .dot[data-naizo-boot="1"]:not(.saving):not([data-naizo-saving="1"]):not(.conflict):not(.needs-permission):not(.error) .c-br {
+        animation: naizoBootBR 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+      }
+      @keyframes naizoHeartTop {
+        0%, 29%, 100% { transform: translate(0, 0) scale(1); }
+        11.5% { transform: translate(0, -1.4px) scale(1.22); }
+      }
+      @keyframes naizoHeartBR {
+        0%, 33.33%, 62.33%, 100% { transform: translate(0, 0) scale(1); }
+        44.83% { transform: translate(1.1px, 1.1px) scale(1.22); }
+      }
+      @keyframes naizoHeartBL {
+        0%, 66.67%, 95.67%, 100% { transform: translate(0, 0) scale(1); }
+        78.17% { transform: translate(-1.1px, 1.1px) scale(1.22); }
+      }
+      @keyframes naizoRingBreath {
+        0%, 6%, 33.33%, 39.33%, 66.67%, 72.67%, 100% { transform: scale(1); }
+        18.5%, 51.83%, 85.17% { transform: scale(1.064); }
+      }
+      .dot.saving .ring,
+      .dot[data-naizo-saving="1"] .ring {
+        animation: naizoRingBreath 1.55s ease-out infinite;
+      }
+      .dot.saving .c-top,
+      .dot[data-naizo-saving="1"] .c-top {
+        animation: naizoHeartTop 1.55s ease-in-out infinite;
+      }
+      .dot.saving .c-br,
+      .dot[data-naizo-saving="1"] .c-br {
+        animation: naizoHeartBR 1.55s ease-in-out infinite;
+      }
+      .dot.saving .c-bl,
+      .dot[data-naizo-saving="1"] .c-bl {
+        animation: naizoHeartBL 1.55s ease-in-out infinite;
+      }
+      @keyframes naizoConflictBL {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        25% { transform: translate(-2.5px, 0) scale(0.97, 1.02); }
+        38%, 41% { transform: translate(1.4px, 0) scale(1.04, 0.95); }
+        54% { transform: translate(-0.7px, 0) scale(1); }
+        74% { transform: translate(0, 0) scale(1); }
+      }
+      @keyframes naizoConflictBR {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        25% { transform: translate(2.5px, 0) scale(0.97, 1.02); }
+        38%, 41% { transform: translate(-1.4px, 0) scale(1.04, 0.95); }
+        54% { transform: translate(0.7px, 0) scale(1); }
+        74% { transform: translate(0, 0) scale(1); }
+      }
+      @keyframes naizoConflictTop {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        25%, 37% { transform: translate(0, 1.6px) scale(1.02, 0.97); }
+        41.5% { transform: translate(0, 2.2px) scale(1.05, 0.92); }
+        54% { transform: translate(0, -5.8px) scale(0.96, 1.06); }
+        80% { transform: translate(0, 0) scale(1); }
+      }
+      @keyframes naizoConflictRing {
+        0%, 40%, 100% { transform: scale(1); }
+        50% { transform: scale(1.055); }
+        76% { transform: scale(1); }
+      }
+      .dot.conflict .ring { animation: naizoConflictRing 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+      .dot.conflict .c-top { animation: naizoConflictTop 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+      .dot.conflict .c-bl { animation: naizoConflictBL 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+      .dot.conflict .c-br { animation: naizoConflictBR 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+      @keyframes naizoSyncRing {
+        0%, 100% { transform: scale(1); }
+        20% { transform: scale(0.97); }
+        52% { transform: scale(1.06); }
+        85% { transform: scale(1); }
+      }
+      @keyframes naizoSyncTop {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        20% { transform: translate(0, 2.2px) scale(0.93); }
+        50% { transform: translate(0, -5.5px) scale(1.04); }
+      }
+      @keyframes naizoSyncBL {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        20% { transform: translate(2px, -2px) scale(0.93); }
+        50% { transform: translate(-2px, 2px) scale(1.04); }
+      }
+      @keyframes naizoSyncBR {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        20% { transform: translate(-2px, -2px) scale(0.93); }
+        50% { transform: translate(2px, 2px) scale(1.04); }
+      }
+      .dot.error .ring { animation: naizoSyncRing 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite; }
+      .dot.error .c-top { animation: naizoSyncTop 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite; }
+      .dot.error .c-bl { animation: naizoSyncBL 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite; }
+      .dot.error .c-br { animation: naizoSyncBR 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite; }
+      @keyframes naizoWaveRing {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.045); }
+      }
+      @keyframes naizoWaveTop {
+        0%, 65%, 100% { transform: translate(0, 0) scale(1); }
+        22% { transform: translate(0, -5.5px) scale(1.04); }
+      }
+      @keyframes naizoWaveBR {
+        0%, 14%, 79%, 100% { transform: translate(0, 0) scale(1); }
+        36% { transform: translate(2px, 2px) scale(1.04); }
+      }
+      @keyframes naizoWaveBL {
+        0%, 28%, 92%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(-2px, 2px) scale(1.04); }
+      }
+      .dot.needs-permission .ring { animation: naizoWaveRing 1.75s ease-in-out infinite; }
+      .dot.needs-permission .c-top { animation: naizoWaveTop 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite; }
+      .dot.needs-permission .c-br { animation: naizoWaveBR 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite; }
+      .dot.needs-permission .c-bl { animation: naizoWaveBL 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite; }
       .pill-sep {
-        width: 1px; height: 13px; background: rgba(148, 163, 184, 0.3);
+        width: 1px; height: 13px; background: var(--sep-color);
         margin: 0 1px; flex-shrink: 0;
+      }
+      .icon-btn {
+        width: 22px; height: 22px; padding: 0; border-radius: 50%;
+        border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--btn-color);
+        display: inline-flex; align-items: center; justify-content: center;
+        cursor: pointer; flex-shrink: 0;
+        transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+      }
+      .icon-btn:not([style*="display: none"]) {
+        display: inline-flex !important;
+      }
+      .icon-btn:hover {
+        background: var(--btn-bg-hover); color: var(--btn-color-hover);
+        transform: translateY(-0.5px);
+      }
+      .icon-btn:active {
+        transform: translateY(0) scale(0.95);
+      }
+      .icon-btn svg {
+        width: 13px; height: 13px; stroke: currentColor; stroke-width: 2.05;
+        stroke-linecap: round; stroke-linejoin: round; fill: none;
+        display: block; flex-shrink: 0;
+      }
+      .icon-btn.copied {
+        color: #10b981; border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.12);
+      }
+      .icon-btn.restore-btn {
+        color: var(--restore-color); border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.12);
+      }
+      .icon-btn.reset-btn {
+        color: #ef4444; border-color: rgba(239, 68, 68, 0.32); background: rgba(239, 68, 68, 0.09);
+      }
+      .icon-btn.reset-btn:hover {
+        color: #ffffff; background: #ef4444; border-color: #ef4444;
+      }
+      .icon-btn.danger-hover:hover {
+        color: #ef4444; border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.12);
       }
       button.net-slot {
         width: 18px; height: 18px; padding: 0; border: none; background: transparent;
@@ -2209,74 +2676,156 @@ function mountUi(): void {
       button.net-slot.error .net-globe-svg {
         animation: naizoGlobeErrorPulse 1.5s ease-in-out infinite;
       }
-      @media (prefers-reduced-motion: reduce) {
-        button.net-slot { transition: none; }
-        button.net-slot.active,
-        button.net-slot.active:hover { color: #10b981; }
-        button.net-slot.active .wave-band-rect,
-        button.net-slot.error .net-globe-svg { animation: none; }
+      .pill-tooltip {
+        padding: 4px 10px; border-radius: 999px;
+        background: var(--pill-bg); color: var(--pill-text);
+        border: 1px solid var(--pill-border); box-shadow: var(--pill-shadow);
+        backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
+        font-size: 11px; font-weight: 500; letter-spacing: -0.01em;
+        white-space: nowrap; pointer-events: none;
+        opacity: 0; transform: translateY(4px) scale(0.97);
+        transition: opacity 0.14s ease, transform 0.14s ease;
+        display: inline-flex; align-items: center; gap: 6px;
+      }
+      .pill-tooltip.visible {
+        opacity: 1; transform: translateY(0) scale(1);
+      }
+      .pill-tooltip .kbd {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 10px; color: var(--pill-muted); padding: 0 4px;
+        border-radius: 4px; border: 1px solid var(--btn-border); background: var(--btn-bg);
       }
       .confirm-pop {
-        position: absolute; bottom: calc(100% + 8px); right: 0;
         display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
-        background: #0f172a; color: #f8fafc; padding: 6px 10px;
-        border-radius: 999px; border: 1px solid #475569;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+        padding: 5px 10px; border-radius: 999px;
+        background: var(--pill-bg); color: var(--pill-text);
+        border: 1px solid var(--pill-border); box-shadow: var(--pill-shadow);
+        backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
+        font-size: 11px; font-weight: 500;
+      }
+      .confirm-pop button {
+        font-family: inherit; font-size: 10.5px; font-weight: 600;
+        padding: 2px 8px; border-radius: 999px;
+        border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--pill-text);
+        cursor: pointer;
+      }
+      .confirm-pop button:hover {
+        background: var(--btn-bg-hover);
+      }
+      .confirm-pop button.danger {
+        background: #ef4444; border-color: #ef4444; color: #ffffff;
+      }
+      .confirm-pop button.danger:hover {
+        background: #dc2626; border-color: #dc2626;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .dot, .icon-btn, button.net-slot, .pill-anchor, .pill-tooltip { transition: none; }
+        .dot .ring, .dot .c-top, .dot .c-bl, .dot .c-br,
+        button.net-slot.active .wave-band-rect,
+        button.net-slot.error .net-globe-svg { animation: none !important; }
+        button.net-slot.active,
+        button.net-slot.active:hover { color: #10b981; }
       }
       @media print {
-        .pill { display: none !important; }
+        .pill-anchor, .pill-drop-zone, .pill { display: none !important; }
       }
     </style>
-    <div class="pill" role="region" aria-label="naizo.js sync status">
-      <span class="dot" id="dot" aria-hidden="true"></span>
-      <span id="status" role="status" aria-live="polite">Browser Cache · Click to Link Disk</span>
-      <button id="action" type="button" title="Link local HTML file on disk (⌘S / Ctrl+S)" aria-label="Link disk file">Link Disk</button>
-      <button id="restore" type="button" style="display: none" title="Restore browser state before conflict or reset" aria-label="Restore conflict backup">↺ Restore</button>
-      <button id="copy" type="button" title="Copy #naizodb JSON state" aria-label="Copy #naizodb JSON">📋 Copy</button>
-      <button id="reset" type="button" style="display: none" title="Reset app to initial published state" aria-label="Reset to initial state">↺ Reset</button>
+    <div class="pill-drop-zone" data-corner="top-left" aria-hidden="true"></div>
+    <div class="pill-drop-zone" data-corner="top-right" aria-hidden="true"></div>
+    <div class="pill-drop-zone" data-corner="bottom-left" aria-hidden="true"></div>
+    <div class="pill-drop-zone" data-corner="bottom-right" aria-hidden="true"></div>
+    <div class="pill-anchor" id="pill-anchor" data-corner="${initialCorner}">
       <div class="confirm-pop" id="reset-confirm" role="alertdialog" aria-label="Confirm reset" style="display: none">
         <span>Reset app to initial state?</span>
         <button id="reset-yes" type="button" class="danger" aria-label="Confirm reset to initial state">Reset</button>
         <button id="reset-cancel" type="button" aria-label="Cancel reset">Cancel</button>
       </div>
-      <button id="unlink" type="button" style="display: none" title="Forget linked disk file" aria-label="Unlink disk file">× Unlink</button>
-      <span class="pill-sep" id="net-sep" style="display: none" aria-hidden="true"></span>
-      <button type="button" id="net" class="net-slot idle" data-tip="API Idle" title="API idle" aria-label="API network status" style="display: none">
-        <svg class="net-globe-svg" viewBox="0 0 24 24" aria-hidden="true">
-          <defs>
-            <clipPath id="naizo-net-wave-clip">
-              <rect class="wave-band-rect" x="-4" y="0" width="9" height="24" rx="4" />
-            </clipPath>
-          </defs>
-          <g class="globe-base">
-            <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
-            <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
-            <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
-            <circle cx="12" cy="12" r="9.5" />
-          </g>
-          <g class="globe-lit" clip-path="url(#naizo-net-wave-clip)">
-            <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
-            <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
-            <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
-            <circle cx="12" cy="12" r="9.5" />
-          </g>
-        </svg>
-      </button>
+      <div class="pill-tooltip" id="pill-tooltip" role="tooltip" aria-hidden="true">
+        <span id="tooltip-text">Browser Cache · Click to Link Disk</span>
+        <span class="kbd" id="tooltip-kbd" style="display: none">⌘S</span>
+      </div>
+      <div class="pill" id="pill" role="region" aria-label="naizo.js sync status">
+        <span id="status" class="sr-only" role="status" aria-live="polite">Browser Cache · Click to Link Disk</span>
+        <button type="button" class="dot" id="dot" data-naizo-boot="1" data-tip="Browser Cache · Click to Link Disk" title="Browser Cache · Click to Link Disk" aria-label="Naizo sync status"><svg class="naizo-logo-svg" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="8" /><rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="currentColor" /><rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="currentColor" /><rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="currentColor" /></svg></button>
+        <span class="pill-sep" id="dot-sep" aria-hidden="true"></span>
+        <button id="action" type="button" class="icon-btn" data-tip="Link Disk" data-kbd="⌘S" title="Link local HTML file on disk (⌘S / Ctrl+S)" aria-label="Link disk file"><span class="sr-only" id="action-sr">Link Disk</span><svg id="action-svg" viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.link}</svg></button>
+        <button id="unlink" type="button" class="icon-btn danger-hover" style="display: none" data-tip="Unlink Disk" title="Forget linked disk file" aria-label="Unlink disk file"><span class="sr-only">× Unlink</span><svg viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.unlink}</svg></button>
+        <button id="copy" type="button" class="icon-btn" data-tip="Copy JSON" title="Copy #naizodb JSON state" aria-label="Copy #naizodb JSON"><span class="sr-only" id="copy-sr">📋 Copy</span><svg id="copy-svg" viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.copy}</svg></button>
+        <button id="restore" type="button" class="icon-btn restore-btn" style="display: none" data-tip="Restore Backup" title="Restore browser state before conflict or reset" aria-label="Restore conflict backup"><span class="sr-only" id="restore-sr">↺ Restore</span><svg id="restore-svg" viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.restore}</svg></button>
+        <button id="reset" type="button" class="icon-btn reset-btn" style="display: none" data-tip="Reset to Initial State" title="Reset app to initial published state" aria-label="Reset to initial state"><span class="sr-only">↺ Reset</span><svg viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.eraser}</svg></button>
+        <span class="pill-sep" id="net-sep" style="display: none" aria-hidden="true"></span>
+        <button type="button" id="net" class="net-slot idle" data-tip="API Idle" title="API idle" aria-label="API network status" style="display: none">
+          <svg class="net-globe-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <defs>
+              <clipPath id="naizo-net-wave-clip">
+                <rect class="wave-band-rect" x="-4" y="0" width="9" height="24" rx="4" />
+              </clipPath>
+            </defs>
+            <g class="globe-base">
+              <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+              <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+              <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+              <circle cx="12" cy="12" r="9.5" />
+            </g>
+            <g class="globe-lit" clip-path="url(#naizo-net-wave-clip)">
+              <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+              <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+              <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+              <circle cx="12" cy="12" r="9.5" />
+            </g>
+          </svg>
+        </button>
+      </div>
     </div>
   `;
 
   statusEl = shadow.getElementById('status');
+  dotBtnEl = shadow.getElementById('dot') as HTMLButtonElement | null;
   actionBtn = shadow.getElementById('action') as HTMLButtonElement | null;
+  actionSrEl = shadow.getElementById('action-sr');
+  actionSvgEl = shadow.getElementById('action-svg') as SVGElement | null;
   restoreBtn = shadow.getElementById('restore') as HTMLButtonElement | null;
+  restoreSrEl = shadow.getElementById('restore-sr');
+  restoreSvgEl = shadow.getElementById('restore-svg') as SVGElement | null;
+  copySrEl = shadow.getElementById('copy-sr');
+  copySvgEl = shadow.getElementById('copy-svg') as SVGElement | null;
   resetBtn = shadow.getElementById('reset') as HTMLButtonElement | null;
   resetConfirmEl = shadow.getElementById('reset-confirm');
   unlinkBtn = shadow.getElementById('unlink') as HTMLButtonElement | null;
   netSepEl = shadow.getElementById('net-sep');
   netBtn = shadow.getElementById('net') as HTMLButtonElement | null;
-  const dotEl = shadow.getElementById('dot');
+  tooltipEl = shadow.getElementById('pill-tooltip');
+  tooltipTextEl = shadow.getElementById('tooltip-text');
+  tooltipKbdEl = shadow.getElementById('tooltip-kbd');
+  const anchorEl = shadow.getElementById('pill-anchor');
+  const pillEl = shadow.getElementById('pill');
+  const dropZones = Array.from(shadow.querySelectorAll<HTMLElement>('.pill-drop-zone'));
   const copyBtn = shadow.getElementById('copy') as HTMLButtonElement | null;
   const resetYesBtn = shadow.getElementById('reset-yes') as HTMLButtonElement | null;
   const resetCancelBtn = shadow.getElementById('reset-cancel') as HTMLButtonElement | null;
+
+  bootClearTimeout = setTimeout(() => {
+    bootClearTimeout = null;
+    if (dotBtnEl) delete dotBtnEl.dataset.naizoBoot;
+  }, 1250);
+
+  if (typeof MutationObserver !== 'undefined') {
+    themeObserver = new MutationObserver(() => {
+      syncHostTheme(host);
+    });
+    if (document.documentElement) {
+      themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme', 'class'],
+      });
+    }
+    if (document.body) {
+      themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['data-theme', 'class'],
+      });
+    }
+  }
 
   actionBtn?.addEventListener('click', () => {
     if (isOnlineMode()) {
@@ -2290,9 +2839,18 @@ function mountUi(): void {
   });
   copyBtn?.addEventListener('click', () => {
     void Naizo.copyJSON().then(() => {
-      copyBtn.textContent = '✓ Copied';
-      setTimeout(() => {
-        copyBtn.textContent = '📋 Copy';
+      if (copyResetTimeout !== null) clearTimeout(copyResetTimeout);
+      copyBtn.classList.add('copied');
+      copyBtn.dataset.tip = '✓ Copied';
+      if (copySrEl) copySrEl.textContent = '✓ Copied';
+      if (copySvgEl) copySvgEl.innerHTML = PILL_ICONS.check;
+      showPillTooltip('✓ Copied', '');
+      copyResetTimeout = setTimeout(() => {
+        copyResetTimeout = null;
+        copyBtn.classList.remove('copied');
+        copyBtn.dataset.tip = 'Copy JSON';
+        if (copySrEl) copySrEl.textContent = '📋 Copy';
+        if (copySvgEl) copySvgEl.innerHTML = PILL_ICONS.copy;
       }, 1500);
     });
   });
@@ -2316,20 +2874,121 @@ function mountUi(): void {
       applyNetUiState();
     }
   });
+
+  [dotBtnEl, actionBtn, unlinkBtn, copyBtn, restoreBtn, resetBtn, netBtn].forEach((btn) => {
+    if (!btn) return;
+    const onEnter = () => {
+      showPillTooltip(btn.dataset.tip ?? '', btn.dataset.kbd ?? '');
+    };
+    btn.addEventListener('mouseenter', onEnter);
+    btn.addEventListener('focus', onEnter);
+    btn.addEventListener('mouseleave', hidePillTooltip);
+    btn.addEventListener('blur', hidePillTooltip);
+  });
+
+  const highlightDropZone = (corner: PillCorner) => {
+    dropZones.forEach((zone) => {
+      zone.classList.toggle('active-target', zone.dataset.corner === corner);
+    });
+  };
+  highlightDropZone(initialCorner);
+
+  const syncDropZoneSizes = () => {
+    const w = pillEl && pillEl.offsetWidth > 0 ? pillEl.offsetWidth : 146;
+    const h = pillEl && pillEl.offsetHeight > 0 ? pillEl.offsetHeight : 30;
+    dropZones.forEach((zone) => {
+      zone.style.width = `${w}px`;
+      zone.style.height = `${h}px`;
+    });
+  };
+
+  const getNearestViewportCorner = (clientX: number, clientY: number): PillCorner => {
+    const vw = typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth : 1024;
+    const vh = typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerHeight : 768;
+    const isRight = clientX >= vw / 2;
+    const isBottom = clientY >= vh / 2;
+    return isBottom
+      ? isRight
+        ? 'bottom-right'
+        : 'bottom-left'
+      : isRight
+        ? 'top-right'
+        : 'top-left';
+  };
+
+  let dragState: { pointerId: number; startX: number; startY: number; moved: boolean } | null =
+    null;
+
+  pillEl?.addEventListener('pointerdown', (e: PointerEvent) => {
+    const target = e.target as Element | null;
+    const clickedBtn = target?.closest('button');
+    if (clickedBtn && clickedBtn !== dotBtnEl) return;
+    syncDropZoneSizes();
+    dragState = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+    };
+    try {
+      pillEl.setPointerCapture?.(e.pointerId);
+    } catch {
+      // Ignore pointer capture errors in synthetic test environments
+    }
+  });
+
+  pillEl?.addEventListener('pointermove', (e: PointerEvent) => {
+    if (!dragState) return;
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+    if (!dragState.moved && Math.hypot(dx, dy) > 5) {
+      dragState.moved = true;
+      host.setAttribute('data-naizo-dragging', '1');
+      anchorEl?.classList.add('is-dragging');
+      hidePillTooltip();
+    }
+    if (dragState.moved && anchorEl) {
+      anchorEl.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+      highlightDropZone(getNearestViewportCorner(e.clientX, e.clientY));
+    }
+  });
+
+  const finishDrag = (e: PointerEvent) => {
+    if (!dragState) return;
+    const wasMoved = dragState.moved;
+    dragState = null;
+    host.removeAttribute('data-naizo-dragging');
+    anchorEl?.classList.remove('is-dragging');
+    if (anchorEl) anchorEl.style.transform = '';
+    if (wasMoved && anchorEl) {
+      const targetCorner = getNearestViewportCorner(e.clientX, e.clientY);
+      highlightDropZone(targetCorner);
+      anchorEl.dataset.corner = targetCorner;
+      saveUiCorner(targetCorner);
+    }
+  };
+  pillEl?.addEventListener('pointerup', finishDrag);
+  pillEl?.addEventListener('pointercancel', finishDrag);
+
   applyNetUiState();
 
   host._setDot = (state: string) => {
-    if (dotEl) {
+    if (dotBtnEl) {
       const cls =
         state === 'saved'
           ? 'saved'
           : state === 'saving'
             ? 'saving'
-            : state === 'error'
-              ? 'error'
-              : '';
-      dotEl.className = cls ? `dot ${cls}` : 'dot';
+            : state === 'conflict'
+              ? 'conflict'
+              : state === 'needs-permission'
+                ? 'needs-permission'
+                : state === 'error'
+                  ? 'error'
+                  : '';
+      dotBtnEl.className = cls ? `dot ${cls}` : 'dot';
     }
+    syncSavingBeat(state);
   };
 
   document.body.appendChild(host);
@@ -2340,10 +2999,29 @@ function isDirtyFromInitial(): boolean {
   return serializeContentBuckets(ensureStore()) !== serializeContentBuckets(initialDiskDb);
 }
 
+function setButtonIconAndSr(
+  srEl: HTMLElement | null,
+  svgEl: SVGElement | null,
+  srText: string,
+  svgInner: string,
+): void {
+  if (srEl && srEl.textContent !== srText) {
+    srEl.textContent = srText;
+  }
+  if (svgEl && svgEl.dataset.icon !== svgInner) {
+    svgEl.dataset.icon = svgInner;
+    svgEl.innerHTML = svgInner;
+  }
+}
+
 function updateUi(state: string, message: string): void {
   if (!statusEl || !actionBtn) return;
   const online = isOnlineMode();
   statusEl.textContent = message;
+  if (dotBtnEl) {
+    dotBtnEl.dataset.tip = message;
+    dotBtnEl.title = message;
+  }
   (document.getElementById(UI_ID) as NaizoHostElement | null)?._setDot?.(state);
 
   if (online) {
@@ -2351,7 +3029,9 @@ function updateUi(state: string, message: string): void {
       actionBtn.style.display = 'none';
     } else {
       actionBtn.style.display = 'inline-block';
-      actionBtn.textContent = '⬇ Save to PC';
+      setButtonIconAndSr(actionSrEl, actionSvgEl, '⬇ Save to PC', PILL_ICONS.download);
+      actionBtn.dataset.tip = 'Save to PC';
+      actionBtn.dataset.kbd = '';
       actionBtn.title =
         'Download portable HTML app to your computer (⌘S / Ctrl+S saves in browser)';
       actionBtn.setAttribute('aria-label', 'Save portable HTML to PC');
@@ -2361,7 +3041,9 @@ function updateUi(state: string, message: string): void {
     actionBtn.title = 'Save to disk (⌘S / Ctrl+S)';
   } else if (state === 'needs-permission') {
     actionBtn.style.display = 'inline-block';
-    actionBtn.textContent = 'Resume Disk Sync';
+    setButtonIconAndSr(actionSrEl, actionSvgEl, 'Resume Disk Sync', PILL_ICONS.link);
+    actionBtn.dataset.tip = 'Resume Disk Sync';
+    actionBtn.dataset.kbd = '⌘S';
     actionBtn.title = 'Resume disk sync (⌘S / Ctrl+S)';
     actionBtn.setAttribute('aria-label', 'Resume disk sync');
   } else if (fileHandle) {
@@ -2369,17 +3051,25 @@ function updateUi(state: string, message: string): void {
     actionBtn.title = 'Save to disk (⌘S / Ctrl+S)';
   } else {
     actionBtn.style.display = 'inline-block';
-    actionBtn.textContent = 'Link Disk';
+    setButtonIconAndSr(actionSrEl, actionSvgEl, 'Link Disk', PILL_ICONS.link);
+    actionBtn.dataset.tip = 'Link Disk';
+    actionBtn.dataset.kbd = '⌘S';
     actionBtn.title = 'Link local HTML file on disk (⌘S / Ctrl+S)';
     actionBtn.setAttribute('aria-label', 'Link disk file');
   }
 
   if (restoreBtn) {
     if (startupInvalidDb) {
-      restoreBtn.textContent = '↺ Repair';
+      setButtonIconAndSr(restoreSrEl, restoreSvgEl, '↺ Repair', PILL_ICONS.wrench);
+      restoreBtn.dataset.tip = 'Repair JSON';
+      restoreBtn.title = 'Repair invalid #naizodb JSON';
+      restoreBtn.setAttribute('aria-label', 'Repair invalid #naizodb JSON');
       restoreBtn.style.display = 'inline-block';
     } else {
-      restoreBtn.textContent = '↺ Restore';
+      setButtonIconAndSr(restoreSrEl, restoreSvgEl, '↺ Restore', PILL_ICONS.restore);
+      restoreBtn.dataset.tip = 'Restore Backup';
+      restoreBtn.title = 'Restore browser state before conflict or reset';
+      restoreBtn.setAttribute('aria-label', 'Restore conflict backup');
       const hasBackup = safeGetStorage(getBackupKey()) !== null;
       restoreBtn.style.display = hasBackup || state === 'conflict' ? 'inline-block' : 'none';
     }
@@ -3260,6 +3950,24 @@ function detachListeners(): void {
     clearTimeout(netHoldTimeout);
     netHoldTimeout = null;
   }
+  if (savingHoldTimeout !== null) {
+    clearTimeout(savingHoldTimeout);
+    savingHoldTimeout = null;
+  }
+  if (copyResetTimeout !== null) {
+    clearTimeout(copyResetTimeout);
+    copyResetTimeout = null;
+  }
+  if (bootClearTimeout !== null) {
+    clearTimeout(bootClearTimeout);
+    bootClearTimeout = null;
+  }
+  if (themeObserver !== null) {
+    themeObserver.disconnect();
+    themeObserver = null;
+  }
+  savingCycleStart = 0;
+  savingMinCycles = 1;
   if (listenerController !== null) {
     listenerController.abort();
     listenerController = null;
@@ -3625,9 +4333,9 @@ export async function initNaizo(): Promise<void> {
   netPendingError = false;
   autoTriggeredElements = new WeakSet<Element>();
 
+  attachListeners();
   mountUi();
   ensureListBlueprints(document, true);
-  attachListeners();
   syncNetVisibility(document);
 
   const scriptEl = getDbScript();
