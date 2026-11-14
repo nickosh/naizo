@@ -1749,7 +1749,8 @@ Click #net to clear back to Idle</pre>
           <div class="spec-card-sub">
             True translucent frosted glass (<code>blur(12px) saturate(180%)</code>) with a
             whisper-ring shadow (<code>border: transparent</code>), 4-corner frosted drop
-            placeholders, Seamless Clockwise <code>Heartbeat</code> on save, and
+            placeholders remembered across sessions via <code>naizodb_ui_&lt;suffix&gt;</code> in
+            <code>localStorage</code>, Seamless Clockwise <code>Heartbeat</code> on save, and
             <code>Conflict Clash</code> (Spring Squash) on external edit collisions.
           </div>
         </div>
@@ -2073,12 +2074,38 @@ Click #net to clear back to Idle</pre>
         el.classList.add('anim-boot');
       });
 
-      // 4-Corner Snap Drag with Translucent White Drop-Zone Placeholders
+      // 4-Corner Snap Drag with Translucent White Drop-Zone Placeholders & localStorage Persistence (getUiKey)
       const stage = document.getElementById('stage');
       const anchor = document.getElementById('pill-anchor');
       const pillEl = document.getElementById('pill');
       const zones = Array.from(document.querySelectorAll('.pill-drop-zone'));
       const toggleZonesBtn = document.getElementById('toggle-zones-btn');
+      const UI_STORAGE_KEY = 'naizodb_ui_status-pill-reference';
+
+      function saveUiCorner(cornerClass) {
+        try {
+          localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({ corner: cornerClass }));
+        } catch {
+          // Ignore storage errors
+        }
+      }
+
+      function restoreUiCorner() {
+        try {
+          const raw = localStorage.getItem(UI_STORAGE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (
+            parsed &&
+            ['corner-br', 'corner-bl', 'corner-tr', 'corner-tl'].includes(parsed.corner)
+          ) {
+            highlightCorner(parsed.corner);
+            anchor.className = 'pill-anchor ' + parsed.corner;
+          }
+        } catch {
+          // Ignore invalid JSON
+        }
+      }
 
       function syncZoneSizes() {
         const w = pillEl.offsetWidth;
@@ -2089,6 +2116,7 @@ Click #net to clear back to Idle</pre>
         });
       }
       syncZoneSizes();
+      restoreUiCorner();
 
       toggleZonesBtn.addEventListener('click', () => {
         syncZoneSizes();
@@ -2146,6 +2174,7 @@ Click #net to clear back to Idle</pre>
           const targetCorner = getNearestCorner(e.clientX, e.clientY);
           highlightCorner(targetCorner);
           anchor.className = 'pill-anchor ' + targetCorner;
+          saveUiCorner(targetCorner);
         }
       }
       dotEl.addEventListener('pointerup', finishDrag);
