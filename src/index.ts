@@ -2722,11 +2722,11 @@ function writeSelectorTarget(selector: string, extracted: unknown): void {
   });
 }
 
-function routeFetchPayload(target: string | null, method: string, extracted: unknown): void {
-  if (target === null && method !== 'GET') {
+function routeFetchPayload(target: string | null, extracted: unknown): void {
+  if (target === null) {
     return;
   }
-  if (target === null || target === 'db') {
+  if (target === 'db') {
     if (startupInvalidDb) {
       throw new Error('Cannot hydrate #naizodb while startup JSON is invalid');
     }
@@ -2881,18 +2881,16 @@ async function executeFetch(
 
     const rawText = await res.text();
     const contentType = (res.headers?.get?.('content-type') ?? '').toLowerCase();
-    const isFireAndForgetMutation = method !== 'GET' && target === null;
     const isStoreTarget =
-      target === 'db' ||
-      (target === null && method === 'GET') ||
-      (target !== null &&
-        (target.startsWith('field:') ||
-          target.startsWith('list:') ||
-          target.startsWith('custom:')));
+      target !== null &&
+      (target === 'db' ||
+        target.startsWith('field:') ||
+        target.startsWith('list:') ||
+        target.startsWith('custom:'));
     const mustParseJson = isStoreTarget || rawPath.length > 0;
 
     let parsed: unknown;
-    if (isFireAndForgetMutation && rawText.trim() === '' && rawPath.length === 0) {
+    if (target === null && rawText.trim() === '' && rawPath.length === 0) {
       parsed = null;
     } else if (mustParseJson || contentType.includes('json')) {
       try {
@@ -2913,7 +2911,7 @@ async function executeFetch(
       extracted = pathRes.value;
     }
 
-    routeFetchPayload(target, method, extracted);
+    routeFetchPayload(target, extracted);
 
     endNetRequest(true);
     const okResult: NaizoFetchResult = {
@@ -3001,7 +2999,7 @@ async function triggerDeclarativeRequest(
       cfg.url,
       {
         method: cfg.method,
-        into: cfg.into,
+        into: cfg.into ?? (cfg.method === 'GET' ? 'db' : undefined),
         path: cfg.path,
         mode: cfg.mode,
       },

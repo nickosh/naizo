@@ -1,6 +1,6 @@
 # naizo — Product Definition
 
-Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-11-13 (`D38`–`D51`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status), [USAGE.md](USAGE.md) (comprehensive usage and authoring reference).
+Status: `v0.1.0` specification adopted 2026-10-18, updated 2026-11-14 (`D38`–`D52`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status), [USAGE.md](USAGE.md) (comprehensive usage and authoring reference).
 
 ## One-liner
 
@@ -57,7 +57,7 @@ A `naizo.js` HTML file is a self-contained application that moves seamlessly bet
    - When the same `.html` file is hosted online (`https://...`), no direct server-file write is possible, yet `localStorage` persistence and 3-way merge against future server deploys work out of the box.
    - Instead of showing a misleading amber _"Click to Link Disk"_ warning, `naizo.js` enters **Online Mode**: the status pill shows **`Saved in Browser`**, `⌘S` / `Ctrl+S` flushes to browser storage with visual confirmation, and **`↺ Reset`** (with an inline Shadow DOM confirmation popover + backup) lets visitors restore the published template state.
    - At any moment, clicking **`⬇ Save to PC`** (`Naizo.downloadHTML()`) downloads the single `.html` file with the user's current `#naizodb` data, baked form attributes, and a portable CDN `<script src>` URL. When the user opens that downloaded `.html` file on their computer (`file://`), it automatically boots in **Local Mode** at the exact state they had on the web—ready for local disk sync and AI agent collaboration.
-3. **Declarative Mini-API Client (`naizo-get` / `naizo-post`) — Bridging External APIs & Webhooks into `#naizodb` (`D43`, `D50`, `D51`):**
+3. **Declarative Mini-API Client (`naizo-get` / `naizo-post`) — Bridging External APIs & Webhooks into `#naizodb` (`D43`, `D50`, `D51`, `D52`):**
    - Elements with `naizo-get` / `naizo-post` (or `Naizo.fetch()`) pull JSON/text from HTTP endpoints into `#naizodb` (`fields`, `lists` via `Naizo.setList()`, `custom`, or full store) or push `#naizodb` payloads out to webhooks and local agent servers using CORS-safelisted `text/plain;charset=UTF-8` requests (with optional `naizo-cors="no-cors"` for blind webhooks) that work even from `file://` (`Origin: null`), while surfacing network status via the rightmost `18×18px` `#net` wired-globe indicator without altering `#dot` or `#status` (`EC36`).
    - In **Local Mode**, fetched API data is persisted directly into `<script id="naizodb">` on disk so a local CLI AI agent can immediately read and act on remote data without needing network credentials itself; in **Online Mode**, fetched data is persisted in `localStorage` (`Saved in Browser`) and included whenever the user clicks **`⬇ Save to PC`**.
 

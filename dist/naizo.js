@@ -1959,9 +1959,9 @@
 			else writeElementValue(el, formatted);
 		});
 	}
-	function routeFetchPayload(target, method, extracted) {
-		if (target === null && method !== "GET") return;
-		if (target === null || target === "db") {
+	function routeFetchPayload(target, extracted) {
+		if (target === null) return;
+		if (target === "db") {
 			if (startupInvalidDb) throw new Error("Cannot hydrate #naizodb while startup JSON is invalid");
 			if (!isRemoteNaizoDbCandidate(extracted)) throw new Error("Response is not a valid NaizoDatabase object");
 			const normalized = validateAndNormalizeDb(extracted);
@@ -2057,10 +2057,9 @@
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const rawText = await res.text();
 			const contentType = (res.headers?.get?.("content-type") ?? "").toLowerCase();
-			const isFireAndForgetMutation = method !== "GET" && target === null;
-			const mustParseJson = target === "db" || target === null && method === "GET" || target !== null && (target.startsWith("field:") || target.startsWith("list:") || target.startsWith("custom:")) || rawPath.length > 0;
+			const mustParseJson = target !== null && (target === "db" || target.startsWith("field:") || target.startsWith("list:") || target.startsWith("custom:")) || rawPath.length > 0;
 			let parsed;
-			if (isFireAndForgetMutation && rawText.trim() === "" && rawPath.length === 0) parsed = null;
+			if (target === null && rawText.trim() === "" && rawPath.length === 0) parsed = null;
 			else if (mustParseJson || contentType.includes("json")) try {
 				parsed = JSON.parse(rawText);
 			} catch {
@@ -2073,7 +2072,7 @@
 				if (!pathRes.ok) throw new Error(`Path "${rawPath}" not found in response`);
 				extracted = pathRes.value;
 			}
-			routeFetchPayload(target, method, extracted);
+			routeFetchPayload(target, extracted);
 			endNetRequest(true);
 			const okResult = {
 				url: trimmedUrl,
@@ -2142,7 +2141,7 @@
 		try {
 			return await executeFetch(cfg.url, {
 				method: cfg.method,
-				into: cfg.into,
+				into: cfg.into ?? (cfg.method === "GET" ? "db" : void 0),
 				path: cfg.path,
 				mode: cfg.mode
 			}, cfg.method === "POST" ? cfg.bodySource ?? "db" : void 0);

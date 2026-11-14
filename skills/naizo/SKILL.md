@@ -364,7 +364,7 @@ When helping a user compare design directions, layout options, architecture trad
 - Listen to `naizo:hydrate` and `naizo:change` to switch live preview styles or layout attributes (`document.documentElement.dataset.direction = Naizo.getField('direction')`) in real time.
 - Ask the user to explore the options in their browser, write feedback in the notes box, and press **`⌘S` / `Ctrl+S`** to save to disk. On the next turn, read `<script id="naizodb" type="application/json">` directly from disk to apply their exact selected options and written notes.
 
-### Blueprint F: Declarative Mini-API Client, Webhooks, & `#net` Network Rules (`naizo-get` / `naizo-post`, `D43`, `D50`, `D51`)
+### Blueprint F: Declarative Mini-API Client, Webhooks, & `#net` Network Rules (`naizo-get` / `naizo-post`, `D43`, `D50`, `D51`, `D52`)
 
 Use `naizo-get`, `naizo-post`, or `Naizo.fetch()` when an HTML app needs to seed or sync `#naizodb` from public JSON APIs, static `.json` files, or a `localhost` agent server, or push `#naizodb` payloads to webhooks:
 
@@ -392,7 +392,7 @@ Use `naizo-get`, `naizo-post`, or `Naizo.fetch()` when an HTML app needs to seed
 </button>
 ```
 
-- **Store-first vs. DOM-only targets (`D15`, `D22`, `D51`):** Use `naizo-into="field:<key>"`, `list:<name>`, `custom:<key>`, or `db` to persist into `#naizodb`. `naizo-into="#selector"` writes strictly via `textContent` (never `innerHTML`) as a transient DOM preview without mutating `#naizodb`. Omitting `naizo-into` on `POST` (or programmatic `PUT`/`PATCH`/`DELETE`) is a non-mutating fire-and-forget request.
+- **Store-first vs. DOM-only vs. raw fetch targets (`D15`, `D22`, `D51`, `D52`):** Use `naizo-into="field:<key>"`, `list:<name>`, `custom:<key>`, or `db` (also the default when `naizo-into` is omitted on declarative `naizo-get`) to persist into `#naizodb`. `naizo-into="#selector"` writes strictly via `textContent` (never `innerHTML`) as a transient DOM preview without mutating `#naizodb`. Omitting `naizo-into` on declarative `naizo-post` or omitting `options.into` on programmatic `await Naizo.fetch(url)` (any HTTP method) is non-mutating—returning `{ ok, status, data }` so custom JS can transform external API JSON before calling `Naizo.setList()` / `Naizo.setField()`.
 - **Rightmost `#net` wired-globe indicator (`D50`, `EC36`):** Automatically appears at the right end of the status pill (`API idle`, `API active` `L→R` wave held `>= 600 ms`, or `API request failed` red pulse with click-to-clear) while keeping `#dot` and `#status` exclusively for storage durability.
 - **Local Mode vs. Online Mode network rules (`D43`):**
   - **Local Mode (`file://` or `http://localhost`):** Fetched state persists into `localStorage` and surgically into `<script id="naizodb">` on disk when linked so CLI AI agents immediately see remote data. Note that `file://` sends `Origin: null` (requiring `Access-Control-Allow-Origin: *` to read responses, or `naizo-cors="no-cors"` without `naizo-into` for blind `POST` webhooks) and blocks relative `fetch('./data.json')` unless served via `http://localhost`.

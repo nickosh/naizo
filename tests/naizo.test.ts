@@ -2671,6 +2671,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
       <button id="get-field" type="button" naizo-get="https://api.example.com/meta" naizo-path="nested.items.0.label" naizo-into="field:project">Fetch Field</button>
       <button id="get-list" type="button" data-naizo-get="https://api.example.com/tasks" data-naizo-path="payload.rows" data-naizo-into="list:tasks">Fetch List</button>
       <button id="get-xss" type="button" naizo-get="https://api.example.com/xss" naizo-into="#xss-box">Fetch Preview</button>
+      <button id="get-full-db" type="button" naizo-get="https://api.example.com/full-db">Hydrate DB</button>
       <button id="post-webhook" type="button" naizo-post="https://hooks.example.com/notify" naizo-body="fields">Send Fields</button>
     `;
 
@@ -2821,12 +2822,28 @@ describe('naizo.js v0.1.0 core runtime', () => {
         warnSpy.mockRestore();
       }
 
-      const fullHydrate = await Naizo.fetch('https://api.example.com/full-db');
-      expect(fullHydrate.ok).toBe(true);
-      expect(Naizo.getField('project')).toBe('Full Hydrate');
+      // Programmatic Naizo.fetch() without options.into returns parsed data without mutating store (D52);
+      // declarative naizo-get without naizo-into and programmatic { into: 'db' } both hydrate #naizodb
+      const rawExternalJson = await Naizo.fetch('https://api.example.com/meta');
+      expect(rawExternalJson.ok).toBe(true);
+      expect(rawExternalJson.target).toBeNull();
+      expect(rawExternalJson.data).toEqual({ nested: { items: [{ label: 'Updated from API' }] } });
+
+      const rawFetchOnly = await Naizo.fetch('https://api.example.com/full-db');
+      expect(rawFetchOnly.ok).toBe(true);
+      expect(rawFetchOnly.target).toBeNull();
+      expect(Naizo.getField('project')).toBe('Edited <Before> POST');
+
+      document.getElementById('get-full-db')?.click();
+      await vi.waitFor(() => expect(Naizo.getField('project')).toBe('Full Hydrate'));
       expect(Naizo.getList('tasks')).toEqual([{ title: 'Remote Row' }]);
       expect(Naizo.get('synced')).toBe(true);
-      expect(fetchEvents.length).toBeGreaterThanOrEqual(7);
+
+      Naizo.setField('project', 'Reset Before Programmatic DB');
+      const fullHydrate = await Naizo.fetch('https://api.example.com/full-db', { into: 'db' });
+      expect(fullHydrate.ok).toBe(true);
+      expect(Naizo.getField('project')).toBe('Full Hydrate');
+      expect(fetchEvents.length).toBeGreaterThanOrEqual(9);
 
       window.removeEventListener('naizo:fetch', onFetch);
     } finally {
@@ -3276,8 +3293,10 @@ describe('naizo.js v0.1.0 core runtime', () => {
       const blindCall = postedPayloads.find((p) => p.url === 'https://hooks.example.com/blind');
       expect(blindCall?.init?.mode).toBe('no-cors');
 
-      // Full DB hydration on GET via shipped bundle
-      const fullRes = await bundleNaizo.fetch('https://api.example.com/full-bundle-db');
+      // Full DB hydration via shipped bundle with explicit into: 'db'
+      const fullRes = await bundleNaizo.fetch('https://api.example.com/full-bundle-db', {
+        into: 'db',
+      });
       vi.advanceTimersByTime(300);
       await flushMicrotasks(12);
       expect(fullRes.ok).toBe(true);

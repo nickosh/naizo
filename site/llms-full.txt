@@ -154,7 +154,7 @@ Naizo.removeItem('tasks', 1);
 const apiRes = await Naizo.fetch('https://api.example.com/tasks', {
   method: 'GET', // 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   path: 'data.items',
-  into: 'list:tasks', // 'field:<key>' | 'list:<name>' | 'custom:<key>' | 'db' | '#selector'
+  into: 'list:tasks', // 'field:<key>' | 'list:<name>' | 'custom:<key>' | 'db' | '#selector' (omit to return data without mutating store, D52)
 }); // Resolves { url, method, ok, status, target, data, error } without throwing
 Naizo.bind(containerEl); // Hydrate dynamically inserted DOM from store
 const ok = await Naizo.save(); // Flush cache + await single-flight disk write (Promise<boolean>)
@@ -424,7 +424,7 @@ When helping a user compare design directions, layout options, architecture trad
 2. Let the human explore options interactively in their browser, write feedback in `<textarea naizo="design_notes">`, and press **`⌘S` / `Ctrl+S`** to save `#naizodb` to disk.
 3. Read `<script id="naizodb" type="application/json">` directly from disk on the next turn to apply the exact selected options and written notes, then remove the temporary lab file.
 
-### Template 4: Declarative Mini-API Client & Webhook Sync (`naizo-get` / `naizo-post`, `D43`, `D50`, `D51`)
+### Template 4: Declarative Mini-API Client & Webhook Sync (`naizo-get` / `naizo-post`, `D43`, `D50`, `D51`, `D52`)
 
 ```html
 <!-- Seed a list once on first boot only when empty (never overwrites user edits on F5 reload) -->
