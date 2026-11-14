@@ -1707,14 +1707,14 @@ Click #net to clear back to Idle</pre>
         5. <code>site/index.html</code> Hero Crest Lockup &amp; <code>site/logo.svg</code>
         <span
           >62×62px · margin-bottom: 2px · Sumi Ink · Seamless Clockwise 1-2-3 Heartbeat (+105ms
-          3-beat ring push, 1.55s, finishes cycle on mouseleave)</span
+          3-beat ring push, 1.55s, stops after active cube beat on mouseleave)</span
         >
       </h2>
       <div class="hero-preview-box">
         <div
           class="hero-crest-link"
           id="hero-crest-link"
-          title="Hover & leave to test cycle-boundary completion (always finishes current 1.55s Heartbeat cycle before stopping)"
+          title="Hover & leave: finishes the active cube's beat (516.7ms) and stops before pushing the next cube!"
         >
           <svg class="hero-crest-svg" viewBox="0 0 100 100" aria-hidden="true">
             <circle
@@ -1734,11 +1734,11 @@ Click #net to clear back to Idle</pre>
         <h3 class="hero-preview-title">naizo.js</h3>
         <p class="hero-preview-sub">Self-persisting HTML for human &amp; AI workflows.</p>
         <pre class="spec-code" style="margin-top: 14px; text-align: left">
-/* site/index.html Hero Crest (.is-beating latched on mouseenter &amp; cleared at 1.55s cycle boundary on mouseleave) */
+/* site/index.html Hero Crest (.is-beating cleared at next 516.67ms single-block beat boundary on mouseleave) */
 .hero-crest-link.is-beating .ring  { animation: naizoRingBreath 1.55s ease-out    infinite; } /* 3-beat ring: 18.5%, 51.83%, 85.17% (+105ms after block) */
-.hero-crest-link.is-beating .c-top { animation: naizoHeartTop   1.55s ease-in-out infinite; } /* 1st block peak: 11.5% */
-.hero-crest-link.is-beating .c-br  { animation: naizoHeartBR    1.55s ease-in-out infinite; } /* 2nd block peak: 44.83% */
-.hero-crest-link.is-beating .c-bl  { animation: naizoHeartBL    1.55s ease-in-out infinite; } /* 3rd block peak: 78.17% */</pre>
+.hero-crest-link.is-beating .c-top { animation: naizoHeartTop   1.55s ease-in-out infinite; } /* 1st block peak: 11.5% (rest by 33.33%) */
+.hero-crest-link.is-beating .c-br  { animation: naizoHeartBR    1.55s ease-in-out infinite; } /* 2nd block peak: 44.83% (rest by 66.67%) */
+.hero-crest-link.is-beating .c-bl  { animation: naizoHeartBL    1.55s ease-in-out infinite; } /* 3rd block peak: 78.17% (rest by 100%) */</pre>
       </div>
 
       <!-- SECTION 6: PHILOSOPHY, CULTURAL SYMBOLISM & REDESIGN RATIONALE -->
@@ -2174,8 +2174,11 @@ Click #net to clear back to Idle</pre>
         el.classList.add('anim-boot');
       });
 
-      // Hero Crest (:hover) Cycle-Boundary Controller: always finishes current 1.55s cycle on mouseleave
+      // Hero Crest (:hover) Single-Block Beat Controller (516.67ms = 1/3 of 1.55s):
+      // On mouseleave, finishes only the currently beating block + ring pulse (33.33%, 66.67%, or 100%)
+      // and stops BEFORE pushing the next block to beat!
       const heroCrestEl = document.getElementById('hero-crest-link');
+      const HERO_BEAT_MS = 1550 / 3; // 516.67ms per single-block beat + ring pulse
       let heroCrestStart = 0;
       let heroCrestTimer = null;
 
@@ -2193,8 +2196,8 @@ Click #net to clear back to Idle</pre>
       heroCrestEl.addEventListener('mouseleave', () => {
         if (!heroCrestEl.classList.contains('is-beating')) return;
         const elapsed = Math.max(0, performance.now() - heroCrestStart);
-        const targetCycles = Math.max(1, Math.floor(elapsed / 1550) + 1);
-        const remainingMs = Math.max(16, targetCycles * 1550 - elapsed);
+        const nextBeatBoundary = (Math.floor(elapsed / HERO_BEAT_MS) + 1) * HERO_BEAT_MS;
+        const remainingMs = Math.max(16, Math.round(nextBeatBoundary - elapsed));
         if (heroCrestTimer) clearTimeout(heroCrestTimer);
         heroCrestTimer = setTimeout(() => {
           heroCrestTimer = null;

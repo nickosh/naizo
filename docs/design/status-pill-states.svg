@@ -435,7 +435,7 @@
     <text x="244.5" y="156" font-size="14.5" fill="#6b655e" text-anchor="middle">Self-persisting HTML for human &amp; AI workflows.</text>
     <line x1="40" y1="178" x2="449" y2="178" stroke="#e5e0d8" />
     <text x="244.5" y="202" font-size="12" font-weight="bold" fill="#1c1917" text-anchor="middle">site/index.html Hero Crest, site/logo.svg Favicon &amp; README.md</text>
-    <text x="244.5" y="222" font-family="monospace" font-size="10.5" fill="#6b655e" text-anchor="middle">62×62px · 2px gap · Sumi Ink · :hover 3-Beat Heartbeat (1.55s, finishes cycle)</text>
+    <text x="244.5" y="222" font-family="monospace" font-size="10.5" fill="#6b655e" text-anchor="middle">62×62px · 2px gap · Sumi Ink · :hover 3-Beat Heartbeat (stops after active cube beat)</text>
   </g>
 
   <!-- ===================================================================
