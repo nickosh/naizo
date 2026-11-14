@@ -441,7 +441,7 @@
   <!-- ===================================================================
        ROW 4: ALL 5 #dot NARRATIVE MOTION STATES + 4-CORNER DROP PLACEHOLDERS
        =================================================================== -->
-  <text x="44" y="976" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">4. All 5 #dot Motion States (Always Finishes Current Cycle Before Switching/Stopping) &amp; 4-Corner Drop Zones</text>
+  <text x="44" y="976" font-family="Georgia, serif" font-size="16" font-weight="bold" fill="#1c1917">4. All 5 #dot Motion States (Saving → Static Completes 1.55s Cycle · Urgent States Instant) &amp; 4-Corner Drop Zones</text>
 
   <!-- Motion 1: Boot-Up -->
   <g transform="translate(44, 992)">
