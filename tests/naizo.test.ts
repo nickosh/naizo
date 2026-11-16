@@ -3526,8 +3526,13 @@ describe('naizo.js v0.1.0 core runtime', () => {
       const svgRaw = readFileSync(resolve(process.cwd(), svgPath), 'utf-8');
       const svgDoc = new DOMParser().parseFromString(svgRaw, 'image/svg+xml');
       expect(svgDoc.querySelector('parsererror')).toBeNull();
+      expect(svgDoc.querySelectorAll('svg svg').length).toBe(0);
       const styleBlock = svgDoc.querySelector('style')?.textContent ?? '';
       expect(styleBlock).not.toMatch(/&(?!amp;|lt;|gt;|quot;|apos;)/);
+      if (svgPath !== 'docs/design/status-pill-anatomy.svg') {
+        expect(styleBlock).toContain('transform-box: fill-box');
+        expect(styleBlock).toContain('transform-origin: center');
+      }
     }
 
     for (const referenceSurface of [

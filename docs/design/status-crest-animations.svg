@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 148" role="img" aria-label="naizo.js Status Pill live crest and network globe animations">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 148" width="920" height="148" role="img" aria-label="naizo.js Status Pill live crest and network globe animations">
+  <defs>
+    <clipPath id="net-wave-clip">
+      <rect class="wave-band-rect" x="-4" y="0" width="9" height="24" rx="4" />
+    </clipPath>
+  </defs>
   <style>
     .bg-panel {
       fill: #faf8f5;
@@ -44,10 +49,14 @@
       }
     }
 
-    .ring { transform-origin: 50px 50px; }
-    .c-top { transform-origin: 50px 37px; }
-    .c-bl { transform-origin: 37px 63px; }
-    .c-br { transform-origin: 63px 63px; }
+    .ring,
+    .c-top,
+    .c-bl,
+    .c-br,
+    .anim-net-error {
+      transform-box: fill-box;
+      transform-origin: center;
+    }
 
     /* 1. Boot-Up Seal (1.2s loop with pause for showcase) */
     @keyframes naizoBootRingLoop {
@@ -192,7 +201,6 @@
       50% { transform: scale(1.1); opacity: 1; }
     }
     .anim-net-error {
-      transform-origin: 12px 12px;
       animation: naizoGlobeErrorPulse 1.5s ease-in-out infinite;
     }
     @media (prefers-reduced-motion: reduce) {
@@ -207,12 +215,12 @@
   <!-- Card 1: Synced / Saved (Static Green) -->
   <g transform="translate(10, 10)">
     <rect class="card" x="0" y="0" width="122" height="128" rx="9" />
-    <svg x="41" y="14" width="40" height="40" viewBox="0 0 100 100">
+    <g transform="translate(41, 14) scale(0.4)">
       <circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
       <rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="#10b981" />
       <rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="#10b981" />
       <rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="#10b981" />
-    </svg>
+    </g>
     <text class="title" x="61" y="74" text-anchor="middle">Synced / Saved</text>
     <text class="sub" x="61" y="91" text-anchor="middle">Calm at rest</text>
     <text class="badge" x="61" y="111" fill="#10b981" text-anchor="middle">Green · Static</text>
@@ -221,12 +229,12 @@
   <!-- Card 2: Saving... (Live Heartbeat) -->
   <g transform="translate(140, 10)">
     <rect class="card" x="0" y="0" width="122" height="128" rx="9" />
-    <svg class="anim-saving" x="41" y="14" width="40" height="40" viewBox="0 0 100 100">
+    <g class="anim-saving" transform="translate(41, 14) scale(0.4)">
       <circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
       <rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="#10b981" />
       <rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="#10b981" />
       <rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="#10b981" />
-    </svg>
+    </g>
     <text class="title" x="61" y="74" text-anchor="middle">Saving...</text>
     <text class="sub" x="61" y="91" text-anchor="middle">3-beat ring push</text>
     <text class="badge" x="61" y="111" fill="#10b981" text-anchor="middle">Heartbeat · 1.55s</text>
@@ -235,12 +243,12 @@
   <!-- Card 3: Browser Cache (Static Amber) -->
   <g transform="translate(270, 10)">
     <rect class="card" x="0" y="0" width="122" height="128" rx="9" />
-    <svg x="41" y="14" width="40" height="40" viewBox="0 0 100 100">
+    <g transform="translate(41, 14) scale(0.4)">
       <circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="#f59e0b" stroke-width="8" />
       <rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="#f59e0b" />
       <rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="#f59e0b" />
       <rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="#f59e0b" />
-    </svg>
+    </g>
     <text class="title" x="61" y="74" text-anchor="middle">Browser Cache</text>
     <text class="sub" x="61" y="91" text-anchor="middle">Ready to link file</text>
     <text class="badge" x="61" y="111" fill="#d97706" text-anchor="middle">Amber · Static</text>
@@ -249,12 +257,12 @@
   <!-- Card 4: Resume Disk Sync (Live Wave Pulse) -->
   <g transform="translate(400, 10)">
     <rect class="card" x="0" y="0" width="122" height="128" rx="9" />
-    <svg class="anim-wave" x="41" y="14" width="40" height="40" viewBox="0 0 100 100">
+    <g class="anim-wave" transform="translate(41, 14) scale(0.4)">
       <circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="#f59e0b" stroke-width="8" />
       <rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="#f59e0b" />
       <rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="#f59e0b" />
       <rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="#f59e0b" />
-    </svg>
+    </g>
     <text class="title" x="61" y="74" text-anchor="middle">Resume Sync</text>
     <text class="sub" x="61" y="91" text-anchor="middle">Needs 1-click allow</text>
     <text class="badge" x="61" y="111" fill="#d97706" text-anchor="middle">Wave Pulse · 1.75s</text>
@@ -263,12 +271,12 @@
   <!-- Card 5: Conflict Backed Up (Live Conflict Clash) -->
   <g transform="translate(530, 10)">
     <rect class="card" x="0" y="0" width="122" height="128" rx="9" />
-    <svg class="anim-conflict" x="41" y="14" width="40" height="40" viewBox="0 0 100 100">
+    <g class="anim-conflict" transform="translate(41, 14) scale(0.4)">
       <circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="#f59e0b" stroke-width="8" />
       <rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="#f59e0b" />
       <rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="#f59e0b" />
       <rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="#f59e0b" />
-    </svg>
+    </g>
     <text class="title" x="61" y="74" text-anchor="middle">Conflict</text>
     <text class="sub" x="61" y="91" text-anchor="middle">Backup ready</text>
     <text class="badge" x="61" y="111" fill="#d97706" text-anchor="middle">Clash &amp; Pop · 1.75s</text>
@@ -277,12 +285,12 @@
   <!-- Card 6: Invalid JSON (Live Error Sync Pulse) -->
   <g transform="translate(660, 10)">
     <rect class="card" x="0" y="0" width="122" height="128" rx="9" />
-    <svg class="anim-error" x="41" y="14" width="40" height="40" viewBox="0 0 100 100">
+    <g class="anim-error" transform="translate(41, 14) scale(0.4)">
       <circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="#ef4444" stroke-width="8" />
       <rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="#ef4444" />
       <rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="#ef4444" />
       <rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="#ef4444" />
-    </svg>
+    </g>
     <text class="title" x="61" y="74" text-anchor="middle">Invalid JSON</text>
     <text class="sub" x="61" y="91" text-anchor="middle">Click Repair JSON</text>
     <text class="badge" x="61" y="111" fill="#ef4444" text-anchor="middle">Sync Pulse · 1.6s</text>
@@ -292,12 +300,7 @@
   <g transform="translate(790, 10)">
     <rect class="card" x="0" y="0" width="120" height="128" rx="9" />
     <!-- Active Globe (left) -->
-    <svg x="22" y="18" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
-      <defs>
-        <clipPath id="net-wave-clip">
-          <rect class="wave-band-rect" x="-4" y="0" width="9" height="24" rx="4" />
-        </clipPath>
-      </defs>
+    <g transform="translate(22, 18) scale(1.333)" fill="none" stroke-linecap="round" stroke-linejoin="round">
       <g stroke="#10b981" stroke-opacity="0.38" stroke-width="1.85">
         <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
         <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
@@ -310,16 +313,16 @@
         <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
         <circle cx="12" cy="12" r="9.5" />
       </g>
-    </svg>
+    </g>
     <!-- Error Globe (right) -->
-    <svg x="66" y="18" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(66, 18) scale(1.333)" fill="none" stroke="#ef4444" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
       <g class="anim-net-error">
         <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
         <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
         <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
         <circle cx="12" cy="12" r="9.5" />
       </g>
-    </svg>
+    </g>
     <text class="title" x="60" y="74" text-anchor="middle">Network Globe</text>
     <text class="sub" x="60" y="91" text-anchor="middle">Active &amp; Error</text>
     <text class="badge" x="60" y="111" fill="#10b981" text-anchor="middle">L→R Wave / Pulse</text>
