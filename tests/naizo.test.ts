@@ -3498,6 +3498,15 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(docSurface).toContain('naizodb_ui_');
     }
 
+    expect(currentSiteHtml).not.toContain('class="status-dot');
+    expect(currentSiteHtml).toContain('class="status-crest is-amber"');
+    expect(currentSiteHtml).toContain('class="status-crest is-green"');
+    expect(currentSiteHtml).toContain('class="pill-icon-inline"');
+    expect(currentSiteHtml).toContain(
+      'Status Pill (<code>#dot</code> Crest &amp; <code>1..6</code> Buttons)',
+    );
+    expect(readmeMd).toContain('Status Pill (`#dot` Crest & `1..6` Buttons)');
+
     for (const referenceSurface of [
       readmeMd,
       usageMd,

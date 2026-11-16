@@ -956,26 +956,44 @@
         color: var(--code-text);
         border: 1px solid var(--rule);
         border-radius: 999px;
-        padding: 0.12rem 0.55rem;
+        padding: 0.14rem 0.6rem;
         font-family: var(--font-mono);
         font-size: 0.78rem;
         line-height: 1.45;
-        margin: 0.1rem 0;
+        margin: 0.12rem 0;
       }
 
-      .status-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
+      .status-crest {
+        width: 14px;
+        height: 14px;
         flex-shrink: 0;
+        display: inline-block;
+        vertical-align: -2px;
       }
 
-      .status-dot.is-amber {
-        background: #f59e0b;
+      .status-crest.is-amber {
+        color: #f59e0b;
       }
 
-      .status-dot.is-green {
-        background: #10b981;
+      .status-crest.is-green {
+        color: #10b981;
+      }
+
+      .status-crest.is-red {
+        color: #ef4444;
+      }
+
+      .pill-icon-inline {
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        stroke-width: 2.05;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+        display: inline-block;
+        vertical-align: -2px;
+        margin-right: 0.2rem;
       }
 
       .sr-only {
@@ -1800,7 +1818,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
             <thead>
               <tr>
                 <th>Mode &amp; Browsers</th>
-                <th>Status Pill &amp; Action</th>
+                <th>Status Pill (<code>#dot</code> Crest &amp; <code>1..6</code> Buttons)</th>
                 <th>Persistence, Sync, &amp; Recovery</th>
               </tr>
             </thead>
@@ -1812,22 +1830,52 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 </td>
                 <td>
                   <span class="status-chip">
-                    <span class="status-dot is-amber" aria-hidden="true"></span>
+                    <svg class="status-crest is-amber" viewBox="0 0 100 100" aria-hidden="true">
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="8"
+                      />
+                      <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
+                      <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                      <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                    </svg>
                     Browser Cache · Click to Link Disk
                   </span>
                   <br />
+                  Buttons: <code>1. Link Disk (⌘S)</code> · <code>3. Copy JSON</code><br />
                   ↓ <em>after linking</em><br />
                   <span class="status-chip">
-                    <span class="status-dot is-green" aria-hidden="true"></span>
+                    <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="8"
+                      />
+                      <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
+                      <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                      <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                    </svg>
                     Synced to Disk
                   </span>
+                  <br />
+                  Buttons: <code>1. Unlink Disk</code> · <code>3. Copy JSON</code> (plus
+                  <code>4. Repair JSON</code> / <code>5. Restore Backup</code> when needed)
                 </td>
                 <td>
-                  <code>⌘S</code> / <code>Ctrl+S</code> links or saves immediately; surgical
+                  <code>⌘S</code> / <code>Ctrl+S</code> links or saves immediately (playing the
+                  <code>1.55s</code> <code>Saving Heartbeat</code> cycle); surgical
                   <code>&lt;script id="naizodb"&gt;</code> in-place write; immediate disk flush on
                   tab switch; IndexedDB handle persistence; ~2 s
                   <code>file.lastModified</code> watch; 3-way shallow key merge with
-                  <code>↺ Restore</code> backup.
+                  <code>5. Restore Backup</code> (<code>↺ Restore</code>) and 4-corner snap drag
+                  persisted in <code>naizodb_ui_&lt;key&gt;</code>.
                 </td>
               </tr>
               <tr>
@@ -1837,20 +1885,35 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 </td>
                 <td>
                   <span class="status-chip">
-                    <span class="status-dot is-green" aria-hidden="true"></span>
+                    <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="8"
+                      />
+                      <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
+                      <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                      <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                    </svg>
                     Saved in Browser
                   </span>
                   <br />
-                  Actions: <code>⬇ Save to PC</code> · <code>↺ Reset</code>
+                  Buttons: <code>2. Save to PC</code> · <code>3. Copy JSON</code> ·
+                  <code>6. Reset</code> (plus <code>4. Repair JSON</code> /
+                  <code>5. Restore Backup</code> when needed)
                 </td>
                 <td>
                   Instant <code>localStorage</code> persistence + cross-tab
-                  <code>storage</code> merge; <code>↺ Reset</code> with inline Shadow DOM
-                  confirmation and <code>↺ Restore</code> undo backup;
-                  <code>⬇ Save to PC</code> (<code>Naizo.downloadHTML()</code>) rewrites relative
-                  <code>naizo.js</code> paths to <code>dist/naizo.min.js</code> on the npm CDN and
-                  strips <code>naizo-mode="online"</code> so downloaded <code>.html</code> files run
-                  in Local Mode on a PC.
+                  <code>storage</code> merge; <code>6. Reset</code> (<code>↺ Reset</code>) with
+                  frosted Shadow DOM confirmation and <code>5. Restore Backup</code> undo;
+                  <code>2. Save to PC</code> (<code>⬇ Save to PC</code> /
+                  <code>Naizo.downloadHTML()</code>) rewrites relative <code>naizo.js</code> paths
+                  to <code>dist/naizo.min.js</code> on the npm CDN and strips
+                  <code>naizo-mode="online"</code> so downloaded <code>.html</code> files run in
+                  Local Mode on a PC.
                 </td>
               </tr>
               <tr>
@@ -1860,18 +1923,33 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 </td>
                 <td>
                   <span class="status-chip">
-                    <span class="status-dot is-amber" aria-hidden="true"></span>
-                    Browser Cache · Click to Save HTML
+                    <svg class="status-crest is-amber" viewBox="0 0 100 100" aria-hidden="true">
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="8"
+                      />
+                      <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
+                      <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                      <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                    </svg>
+                    Browser Cache · Click to Link Disk
                   </span>
                   <br />
-                  Action: <code>📋 Copy</code>
+                  Buttons: <code>1. Link Disk</code> (HTML download fallback) ·
+                  <code>3. Copy JSON</code>
                 </td>
                 <td>
-                  Full reactive bindings, <code>[naizo-list]</code> repeater, Mini-API Client, and
-                  <code>localStorage</code> cache; 1-click
-                  <code>📋 Copy</code> (<code>Naizo.copyJSON()</code>) to copy
-                  <code>#naizodb</code> JSON to clipboard; 1-click clean <code>.html</code> snapshot
-                  download via <code>Naizo.exportHTML()</code>.
+                  Full reactive bindings, <code>[naizo-list]</code> repeater, Mini-API Client,
+                  4-corner snap drag, and <code>localStorage</code> cache; clicking
+                  <code>1. Link Disk</code> (or pressing <code>⌘S</code> / <code>Ctrl+S</code>)
+                  automatically downloads a clean <code>.html</code> snapshot when
+                  <code>showSaveFilePicker</code> is unavailable; 1-click
+                  <code>3. Copy JSON</code> (<code>Naizo.copyJSON()</code>) copies
+                  <code>#naizodb</code> JSON to your clipboard.
                 </td>
               </tr>
             </tbody>
@@ -1947,6 +2025,19 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
             <tbody>
               <tr>
                 <td>
+                  <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="8"
+                    />
+                    <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
+                    <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                    <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                  </svg>
                   <strong><code>#dot</code> Brand Crest</strong><br />
                   <em>Maru ni Mitsuishi</em> (<code>丸に三つ石</code> / <code>品</code>)
                 </td>
@@ -1966,6 +2057,11 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               </tr>
               <tr>
                 <td>
+                  <svg class="pill-icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+                    <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
+                  </svg>
                   <strong>1. <code>Link Disk</code> / <code>Unlink Disk</code></strong
                   ><br />
                   <code>#action</code> (Local) &amp; <code>#unlink</code>
@@ -1985,6 +2081,11 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               </tr>
               <tr>
                 <td>
+                  <svg class="pill-icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="4" />
+                  </svg>
                   <strong>2. <code>Save to PC</code></strong
                   ><br />
                   <code>#action</code> (Online)
@@ -1999,6 +2100,12 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               </tr>
               <tr>
                 <td>
+                  <svg class="pill-icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="8" y="8" width="13" height="13" rx="2.5" />
+                    <path
+                      d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5"
+                    />
+                  </svg>
                   <strong>3. <code>Copy JSON</code> / <code>✓ Copied</code></strong
                   ><br />
                   <code>#copy</code>
@@ -2012,6 +2119,16 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               </tr>
               <tr>
                 <td>
+                  <svg
+                    class="pill-icon-inline"
+                    style="color: #d97706"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                    />
+                  </svg>
                   <strong>4. <code>Repair JSON</code></strong
                   ><br />
                   <code>#restore</code> (Repair mode)
@@ -2029,6 +2146,16 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               </tr>
               <tr>
                 <td>
+                  <svg
+                    class="pill-icon-inline"
+                    style="color: #d97706"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                    <path d="M12 7v5l3.5 2" />
+                  </svg>
                   <strong>5. <code>Restore Backup</code></strong
                   ><br />
                   <code>#restore</code> (Backup mode)
@@ -2042,6 +2169,18 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               </tr>
               <tr>
                 <td>
+                  <svg
+                    class="pill-icon-inline"
+                    style="color: #ef4444"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="m7 20-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 20"
+                    />
+                    <path d="M21 20H7" />
+                    <path d="m5 11 9 9" />
+                  </svg>
                   <strong>6. <code>Reset to Initial State</code></strong
                   ><br />
                   <code>#reset</code> (Always Last Action Button)
@@ -2059,6 +2198,17 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               </tr>
               <tr>
                 <td>
+                  <svg
+                    class="pill-icon-inline"
+                    style="color: #10b981"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                    <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                    <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                    <circle cx="12" cy="12" r="9.5" />
+                  </svg>
                   <strong><code>#net</code> Wired Globe</strong><br />
                   Rightmost network slot (<code>18&times;18px</code>)
                 </td>
