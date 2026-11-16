@@ -3729,7 +3729,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
 
       expect(currentSiteHtml).toContain('width: 62px;');
       expect(currentSiteHtml).toContain('height: 62px;');
-      expect(currentSiteHtml).toContain('margin: 0.35rem auto 2px;');
+      expect(currentSiteHtml).toContain('margin: 1.5rem auto 2px;');
       expect(currentSiteHtml).toContain('@keyframes naizoHeartTop');
       expect(currentSiteHtml).toContain('11.5%');
       expect(currentSiteHtml).toContain('@keyframes naizoHeartBR');
