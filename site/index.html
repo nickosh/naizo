@@ -1935,12 +1935,161 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
           </table>
         </div>
 
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Status Pill Element (Left &rarr; Right)</th>
+                <th>When It Appears</th>
+                <th>Visual State &amp; What It Does</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <strong><code>#dot</code> Brand Crest</strong><br />
+                  <em>Maru ni Mitsuishi</em> (<code>丸に三つ石</code> / <code>品</code>)
+                </td>
+                <td>Always visible (leftmost slot; drag handle for 4-corner snap)</td>
+                <td>
+                  <strong>Colors:</strong> Green (<code>#10b981</code>) for
+                  <code>Synced to Disk</code> / <code>Saved in Browser</code> /
+                  <code>Saving...</code>; Amber (<code>#f59e0b</code>) for
+                  <code>Browser Cache</code> / <code>Resume Disk Sync</code> /
+                  <code>Conflict</code>; Red (<code>#ef4444</code>) for <code>Error</code>.<br />
+                  <strong>5 Motion States:</strong> <code>Boot-Up</code> (<code>1.2s</code> ring
+                  seal), <code>Saving Heartbeat</code> (<code>1.55s</code> clockwise 3-beat ring
+                  push with <code>syncSavingBeat()</code> cycle completion),
+                  <code>Conflict Clash</code> (spring squash),
+                  <code>Needs Permission Wave Pulse</code>, and <code>Error Sync Pulse</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>1. <code>Link Disk</code> / <code>Unlink Disk</code></strong
+                  ><br />
+                  <code>#action</code> (Local) &amp; <code>#unlink</code>
+                </td>
+                <td>Local Mode (<code>file://</code>, <code>localhost</code>, or linked file)</td>
+                <td>
+                  <strong
+                    >Chain Link (<code>Link Disk</code> / <code>Resume Disk Sync</code>,
+                    <code>⌘S</code>):</strong
+                  >
+                  Links your local <code>.html</code> file via the File System Access API for
+                  surgical <code>#naizodb</code> updates.<br />
+                  <strong>Slashed Chain Link (<code>× Unlink</code>):</strong> Swaps into Slot 1
+                  once linked (so <code>Copy JSON</code> never shifts) to forget the linked file
+                  handle (<code>Naizo.unlink()</code>).
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>2. <code>Save to PC</code></strong
+                  ><br />
+                  <code>#action</code> (Online)
+                </td>
+                <td>Online Mode (<code>http:</code> / <code>https:</code> web hosts)</td>
+                <td>
+                  <strong>Download Tray (<code>⬇ Save to PC</code>):</strong> Downloads a standalone
+                  <code>.html</code> copy (<code>Naizo.downloadHTML()</code>) with current
+                  <code>#naizodb</code> and form state baked in, ready to run in Local Mode on your
+                  computer.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>3. <code>Copy JSON</code> / <code>✓ Copied</code></strong
+                  ><br />
+                  <code>#copy</code>
+                </td>
+                <td>Always visible</td>
+                <td>
+                  <strong>Copy Squares &rarr; Emerald Checkmark:</strong> Copies formatted 2-space
+                  <code>#naizodb</code> JSON to your clipboard (<code>Naizo.copyJSON()</code>) and
+                  morphs in place to a green checkmark for <code>1.5s</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>4. <code>Repair JSON</code></strong
+                  ><br />
+                  <code>#restore</code> (Repair mode)
+                </td>
+                <td>
+                  Only when startup <code>&lt;script id="naizodb"&gt;</code> contains invalid JSON
+                </td>
+                <td>
+                  <strong>Amber Wrench (<code>↺ Repair</code>):</strong> When hand-edited
+                  <code>#naizodb</code> JSON is malformed on boot, <code>naizo.js</code> pauses
+                  automatic writes so broken edits are never silently wiped and falls back to
+                  <code>localStorage</code> cache. Clicking <strong>Repair JSON</strong> rebuilds
+                  and writes clean, valid 2-space JSON from current live DOM + store values.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>5. <code>Restore Backup</code></strong
+                  ><br />
+                  <code>#restore</code> (Backup mode)
+                </td>
+                <td>When <code>naizodb_backup_&lt;key&gt;</code> exists in browser storage</td>
+                <td>
+                  <strong>Amber History Clock-Undo (<code>↺ Restore</code>):</strong> Restores your
+                  backed-up browser state in 1 click after a same-key external disk collision or
+                  after confirming <code>Reset</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>6. <code>Reset to Initial State</code></strong
+                  ><br />
+                  <code>#reset</code> (Always Last Action Button)
+                </td>
+                <td>
+                  Online Mode when browser state differs from initial published baseline
+                  (<code>initialDiskDb</code>)
+                </td>
+                <td>
+                  <strong>Red Eraser (<code>↺ Reset</code>):</strong> Opens the frosted
+                  <code>#reset-confirm</code> popover, backs up current edits to
+                  <code>Restore Backup</code>, and resets the app to its initial baseline
+                  (<code>Naizo.reset()</code>).
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong><code>#net</code> Wired Globe</strong><br />
+                  Rightmost network slot (<code>18&times;18px</code>)
+                </td>
+                <td>
+                  Auto-shown when <code>naizo-get</code>, <code>naizo-post</code>, or
+                  <code>Naizo.fetch()</code> is used
+                </td>
+                <td>
+                  <strong>3 States:</strong> <code>API Idle</code> (Shared Light Green),
+                  <code>API Active</code> (Bright Emerald <code>L&rarr;R</code> wave sweep held
+                  <code>&gt;= 600 ms</code>), and
+                  <code>API Request Failed &middot; Click to Clear</code> (Danger Red pulse; inspect
+                  HTTP status codes, CORS headers, and payloads in browser
+                  <strong>DevTools &rarr; Network</strong>).
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <p>
-          <strong>Inspecting network errors (<code>#net</code>):</strong> When
-          <code>#net</code> pulses red (<code>API request failed</code>), open your browser's
-          <strong>DevTools &rarr; Network</strong> tab to inspect HTTP status codes, CORS headers,
-          and request/response payloads directly – <code>naizo.js</code> intentionally omits a
-          built-in network inspector so the runtime stays lightweight and flexible.
+          <strong>4-corner snap drag &amp; inspecting network errors (<code>#net</code>):</strong>
+          Drag <code>#dot</code> (or the frosted pill) to snap it into any of the 4 viewport corners
+          (<code>bottom-right</code>, <code>bottom-left</code>, <code>top-right</code>,
+          <code>top-left</code>), persisted per app in
+          <code>localStorage</code> (<code>naizodb_ui_&lt;key&gt;</code>) without touching
+          <code>#naizodb</code>. When <code>#net</code> pulses red (<code>API request failed</code
+          >), open your browser's <strong>DevTools &rarr; Network</strong> tab to inspect HTTP
+          status codes, CORS headers, and request/response payloads directly –
+          <code>naizo.js</code> intentionally omits a built-in network inspector so the runtime
+          stays lightweight and flexible.
         </p>
       </section>
 

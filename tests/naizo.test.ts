@@ -3464,7 +3464,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     }
   });
 
-  it('keeps all three documentation tiers synchronized for Mini-API Client, Naizo.setList, and #net rules (M8.2, D46)', () => {
+  it('keeps all three documentation tiers synchronized for Mini-API Client, Naizo.setList, Status Pill 1-6 buttons (including Repair JSON), #dot Logo States, and #net rules (M8.2, M9.3, D46, D50)', () => {
     const readmeMd = readFileSync(resolve(process.cwd(), 'README.md'), 'utf-8');
     const usageMd = readFileSync(resolve(process.cwd(), 'docs/USAGE.md'), 'utf-8');
     const productMd = readFileSync(resolve(process.cwd(), 'docs/PRODUCT.md'), 'utf-8');
@@ -3492,6 +3492,10 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(docSurface).toContain('setList');
       expect(docSurface).toContain('fetch');
       expect(docSurface).toContain('#net');
+      expect(docSurface).toContain('丸に三つ石');
+      expect(docSurface).toContain('Repair JSON');
+      expect(docSurface).toContain('Restore Backup');
+      expect(docSurface).toContain('naizodb_ui_');
     }
 
     for (const referenceSurface of [
