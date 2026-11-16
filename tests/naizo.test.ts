@@ -3623,12 +3623,53 @@ describe('naizo.js v0.1.0 core runtime', () => {
         { x: '52', y: '52', w: '22', h: '22', rx: '4.5' },
       ]);
 
-      // 2. site/index.html favicon, 62x62 Hero Crest markup/keyframes, and single-block beat-boundary hover controller (516.67ms)
+      // 2. site/index.html favicon + SEO metadata (Open Graph, Twitter Card, JSON-LD), examples/*.html favicons, 62x62 Hero Crest markup/keyframes, and single-block beat-boundary hover controller (516.67ms)
       const siteDoc = new DOMParser().parseFromString(currentSiteHtml, 'text/html');
       const favicon = siteDoc.querySelector(
         'head link[rel="icon"][type="image/svg+xml"][href="./logo.svg"]',
       );
       expect(favicon).not.toBeNull();
+      expect(
+        siteDoc.querySelector(
+          'head link[rel="shortcut icon"][type="image/svg+xml"][href="./logo.svg"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        siteDoc.querySelector('head link[rel="apple-touch-icon"][href="./logo.svg"]'),
+      ).not.toBeNull();
+      expect(siteDoc.querySelector('head meta[property="og:image"]')?.getAttribute('content')).toBe(
+        'https://naizo.js.org/logo.svg',
+      );
+      expect(
+        siteDoc.querySelector('head meta[property="og:image:type"]')?.getAttribute('content'),
+      ).toBe('image/svg+xml');
+      expect(
+        siteDoc.querySelector('head meta[property="og:image:alt"]')?.getAttribute('content'),
+      ).toContain('Maru ni Mitsuishi');
+      expect(
+        siteDoc.querySelector('head meta[name="twitter:image"]')?.getAttribute('content'),
+      ).toBe('https://naizo.js.org/logo.svg');
+      expect(
+        siteDoc.querySelector('head meta[name="twitter:image:alt"]')?.getAttribute('content'),
+      ).toContain('Maru ni Mitsuishi');
+      const siteJsonLd = JSON.parse(
+        siteDoc.querySelector('head script[type="application/ld+json"]')?.textContent ?? '{}',
+      ) as { image?: string };
+      expect(siteJsonLd.image).toBe('https://naizo.js.org/logo.svg');
+
+      for (const exFile of [
+        'examples/starter.html',
+        'examples/checklist.html',
+        'examples/notes.html',
+        'examples/inventory.html',
+        'examples/weather.html',
+      ]) {
+        const exHtml = readFileSync(resolve(process.cwd(), exFile), 'utf-8');
+        const exDoc = new DOMParser().parseFromString(exHtml, 'text/html');
+        const exFavicon = exDoc.querySelector('head link[rel="icon"][type="image/svg+xml"]');
+        expect(exFavicon?.getAttribute('href')).toContain('data:image/svg+xml');
+        expect(exFavicon?.getAttribute('href')).toContain("r='42'");
+      }
 
       const heroCrest = siteDoc.getElementById('hero-crest-link');
       expect(heroCrest).not.toBeNull();
