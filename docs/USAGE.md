@@ -527,6 +527,10 @@ A single `naizo.js` `.html` file adapts automatically depending on whether it is
 
 ### Status Pill, Action Buttons (`1..6`), `#dot` Logo States, & `#net` Indicator Reference (`#__naizodb_host__`, `D50`)
 
+<p align="center">
+  <img src="design/status-crest-animations.svg" alt="naizo.js live Status Pill crest and network globe animations" width="100%" />
+</p>
+
 The floating translucent frosted-glass Status Pill is isolated inside an open Shadow DOM root (`#__naizodb_host__`) with a whisper-thin `1px` shadow ring (`backdrop-filter: blur(12px) saturate(180%)`), automatically syncing with OS `@media (prefers-color-scheme: dark)` and `<html>` / `<body>` `data-theme="dark|light"` or `.dark` / `.light` classes:
 
 1. **Leftmost `#dot` (`丸に三つ石` / `品` Brand Crest, Semantic Colors, & 5 Narrative Motion States):**

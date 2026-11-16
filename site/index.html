@@ -969,23 +969,314 @@
         flex-shrink: 0;
         display: inline-block;
         vertical-align: -2px;
+        overflow: visible;
       }
 
-      .status-crest.is-amber {
+      .status-crest-lg {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+        display: inline-block;
+        vertical-align: -5px;
+        margin-right: 0.35rem;
+        overflow: visible;
+      }
+
+      .status-crest .ring,
+      .status-crest-lg .ring {
+        transform-origin: 50px 50px;
+      }
+
+      .status-crest .c-top,
+      .status-crest-lg .c-top {
+        transform-origin: 50px 37px;
+      }
+
+      .status-crest .c-bl,
+      .status-crest-lg .c-bl {
+        transform-origin: 37px 63px;
+      }
+
+      .status-crest .c-br,
+      .status-crest-lg .c-br {
+        transform-origin: 63px 63px;
+      }
+
+      .status-crest.is-amber,
+      .status-crest-lg.is-amber {
         color: #f59e0b;
       }
 
-      .status-crest.is-green {
+      .status-crest.is-green,
+      .status-crest-lg.is-green {
         color: #10b981;
       }
 
-      .status-crest.is-red {
+      .status-crest.is-red,
+      .status-crest-lg.is-red {
         color: #ef4444;
       }
 
+      /* Live Status Crest & #net Globe Animations for Documentation Table */
+      .anim-saving .ring {
+        animation: naizoRingBreath 1.55s ease-out infinite;
+      }
+      .anim-saving .c-top {
+        animation: naizoHeartTop 1.55s ease-in-out infinite;
+      }
+      .anim-saving .c-br {
+        animation: naizoHeartBR 1.55s ease-in-out infinite;
+      }
+      .anim-saving .c-bl {
+        animation: naizoHeartBL 1.55s ease-in-out infinite;
+      }
+
+      @keyframes naizoConflictBL {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        25% {
+          transform: translate(-2.5px, 0) scale(0.97, 1.02);
+        }
+        38%,
+        41% {
+          transform: translate(1.4px, 0) scale(1.04, 0.95);
+        }
+        54% {
+          transform: translate(-0.7px, 0) scale(1);
+        }
+        74% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoConflictBR {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        25% {
+          transform: translate(2.5px, 0) scale(0.97, 1.02);
+        }
+        38%,
+        41% {
+          transform: translate(-1.4px, 0) scale(1.04, 0.95);
+        }
+        54% {
+          transform: translate(0.7px, 0) scale(1);
+        }
+        74% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoConflictTop {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        25%,
+        37% {
+          transform: translate(0, 1.6px) scale(1.02, 0.97);
+        }
+        41.5% {
+          transform: translate(0, 2.2px) scale(1.05, 0.92);
+        }
+        54% {
+          transform: translate(0, -5.8px) scale(0.96, 1.06);
+        }
+        80% {
+          transform: translate(0, 0) scale(1);
+        }
+      }
+      @keyframes naizoConflictRing {
+        0%,
+        40%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.055);
+        }
+        76% {
+          transform: scale(1);
+        }
+      }
+      .anim-conflict .ring {
+        animation: naizoConflictRing 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+      .anim-conflict .c-top {
+        animation: naizoConflictTop 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+      .anim-conflict .c-bl {
+        animation: naizoConflictBL 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+      .anim-conflict .c-br {
+        animation: naizoConflictBR 1.75s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+
+      @keyframes naizoWaveRing {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.045);
+        }
+      }
+      @keyframes naizoWaveTop {
+        0%,
+        65%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        22% {
+          transform: translate(0, -5.5px) scale(1.04);
+        }
+      }
+      @keyframes naizoWaveBR {
+        0%,
+        14%,
+        79%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        36% {
+          transform: translate(2px, 2px) scale(1.04);
+        }
+      }
+      @keyframes naizoWaveBL {
+        0%,
+        28%,
+        92%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(-2px, 2px) scale(1.04);
+        }
+      }
+      .anim-wave .ring {
+        animation: naizoWaveRing 1.75s ease-in-out infinite;
+      }
+      .anim-wave .c-top {
+        animation: naizoWaveTop 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .anim-wave .c-br {
+        animation: naizoWaveBR 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .anim-wave .c-bl {
+        animation: naizoWaveBL 1.75s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+
+      @keyframes naizoSyncRing {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        20% {
+          transform: scale(0.97);
+        }
+        52% {
+          transform: scale(1.06);
+        }
+        85% {
+          transform: scale(1);
+        }
+      }
+      @keyframes naizoSyncTop {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        20% {
+          transform: translate(0, 2.2px) scale(0.93);
+        }
+        50% {
+          transform: translate(0, -5.5px) scale(1.04);
+        }
+      }
+      @keyframes naizoSyncBL {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        20% {
+          transform: translate(2px, -2px) scale(0.93);
+        }
+        50% {
+          transform: translate(-2px, 2px) scale(1.04);
+        }
+      }
+      @keyframes naizoSyncBR {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        20% {
+          transform: translate(-2px, -2px) scale(0.93);
+        }
+        50% {
+          transform: translate(2px, 2px) scale(1.04);
+        }
+      }
+      .anim-error .ring {
+        animation: naizoSyncRing 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .anim-error .c-top {
+        animation: naizoSyncTop 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .anim-error .c-bl {
+        animation: naizoSyncBL 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+      .anim-error .c-br {
+        animation: naizoSyncBR 1.6s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+      }
+
+      @keyframes naizoDocGlobeWave {
+        0% {
+          transform: translateX(-11px);
+        }
+        56% {
+          transform: translateX(25px);
+        }
+        56.01%,
+        100% {
+          transform: translateX(-11px);
+        }
+      }
+      .doc-wave-band-rect {
+        animation: naizoDocGlobeWave 1.65s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes naizoDocGlobeErr {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.72;
+        }
+        50% {
+          transform: scale(1.1);
+          opacity: 1;
+        }
+      }
+      .anim-net-error {
+        transform-origin: 12px 12px;
+        animation: naizoDocGlobeErr 1.5s ease-in-out infinite;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .status-crest-lg .ring,
+        .status-crest-lg .c-top,
+        .status-crest-lg .c-bl,
+        .status-crest-lg .c-br,
+        .doc-wave-band-rect,
+        .anim-net-error {
+          animation: none !important;
+        }
+      }
+
       .pill-icon-inline {
-        width: 13px;
-        height: 13px;
+        width: 14px;
+        height: 14px;
         stroke: currentColor;
         stroke-width: 2.05;
         stroke-linecap: round;
@@ -993,7 +1284,7 @@
         fill: none;
         display: inline-block;
         vertical-align: -2px;
-        margin-right: 0.2rem;
+        margin-right: 0.25rem;
       }
 
       .sr-only {
@@ -1798,34 +2089,32 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
 // Events: 'naizo:hydrate', 'naizo:change', 'naizo:item', 'naizo:fetch'</code></pre>
       </section>
 
-      <!-- 07. BROWSER & MODE CAPABILITY MATRIX -->
+      <!-- 07. BROWSER & MODE CAPABILITY MATRIX & STATUS PILL GUIDE -->
       <section class="doc-section" id="matrix" aria-labelledby="heading-matrix">
-        <span class="section-index">07 / ENVIRONMENTS</span>
-        <h2 id="heading-matrix">Browser &amp; Mode Capability Matrix</h2>
+        <span class="section-index">07 / ENVIRONMENTS &amp; STATUS PILL</span>
+        <h2 id="heading-matrix">Where Your File Runs &amp; How the Status Pill Works</h2>
         <p>
-          <strong>One HTML file that adapts to where you open it.</strong> Whether you open a file
-          locally from your computer (<code>file://</code> or <code>localhost</code>) or host it
-          online (<code>https://</code>), <code>naizo.js</code> adapts automatically and keeps the
-          bottom-right status pill clear about where your changes are saved – while surfacing a
-          rightmost wired-globe <code>#net</code> indicator (<code>API idle</code>,
-          <code>API active</code> <code>L→R</code> wave held <code>&gt;= 600 ms</code>, or
-          <code>API request failed</code>) whenever <code>naizo-get</code>, <code>naizo-post</code>,
-          or <code>Naizo.fetch()</code> is used without altering storage status.
+          <strong>One HTML file that adapts to where you open it.</strong> Whether you open a
+          <code>.html</code> file directly from your computer or visit it on the web,
+          <code>naizo.js</code> automatically chooses the right way to save your work and shows a
+          small frosted-glass <strong>Status Pill</strong> in the corner of your screen. You can
+          <strong>drag the crest to any of the 4 screen corners</strong> – it snaps into place and
+          remembers your favorite corner automatically.
         </p>
 
         <div class="table-wrap">
           <table class="clean-table">
             <thead>
               <tr>
-                <th>Mode &amp; Browsers</th>
+                <th>Where You Open the File</th>
                 <th>Status Pill (<code>#dot</code> Crest &amp; <code>1..6</code> Buttons)</th>
-                <th>Persistence, Sync, &amp; Recovery</th>
+                <th>How Your Changes Are Saved</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>
-                  <strong>Local Mode (Live Disk)</strong><br />
+                  <strong>On Your Computer (Live File Sync)</strong><br />
                   Chrome, Edge, Brave, Arc on <code>file://</code> or <code>localhost</code>
                 </td>
                 <td>
@@ -1846,8 +2135,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     Browser Cache · Click to Link Disk
                   </span>
                   <br />
-                  Buttons: <code>1. Link Disk (⌘S)</code> · <code>3. Copy JSON</code><br />
-                  ↓ <em>after linking</em><br />
+                  ↓ <em>after linking your file</em><br />
                   <span class="status-chip">
                     <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
                       <circle
@@ -1864,23 +2152,17 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     </svg>
                     Synced to Disk
                   </span>
-                  <br />
-                  Buttons: <code>1. Unlink Disk</code> · <code>3. Copy JSON</code> (plus
-                  <code>4. Repair JSON</code> / <code>5. Restore Backup</code> when needed)
                 </td>
                 <td>
-                  <code>⌘S</code> / <code>Ctrl+S</code> links or saves immediately (playing the
-                  <code>1.55s</code> <code>Saving Heartbeat</code> cycle); surgical
-                  <code>&lt;script id="naizodb"&gt;</code> in-place write; immediate disk flush on
-                  tab switch; IndexedDB handle persistence; ~2 s
-                  <code>file.lastModified</code> watch; 3-way shallow key merge with
-                  <code>5. Restore Backup</code> (<code>↺ Restore</code>) and 4-corner snap drag
-                  persisted in <code>naizodb_ui_&lt;key&gt;</code>.
+                  Press <code>⌘S</code> / <code>Ctrl+S</code> (or click <strong>Link Disk</strong>)
+                  once to connect your <code>.html</code> file. Every edit saves straight into that
+                  file on your computer, and any changes made by an AI agent on disk appear in your
+                  open tab within ~2 seconds.
                 </td>
               </tr>
               <tr>
                 <td>
-                  <strong>Online Mode (Web Host)</strong><br />
+                  <strong>On the Web (Hosted Page)</strong><br />
                   All modern browsers on GitHub Pages or <code>https://</code>
                 </td>
                 <td>
@@ -1900,25 +2182,17 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     </svg>
                     Saved in Browser
                   </span>
-                  <br />
-                  Buttons: <code>2. Save to PC</code> · <code>3. Copy JSON</code> ·
-                  <code>6. Reset</code> (plus <code>4. Repair JSON</code> /
-                  <code>5. Restore Backup</code> when needed)
                 </td>
                 <td>
-                  Instant <code>localStorage</code> persistence + cross-tab
-                  <code>storage</code> merge; <code>6. Reset</code> (<code>↺ Reset</code>) with
-                  frosted Shadow DOM confirmation and <code>5. Restore Backup</code> undo;
-                  <code>2. Save to PC</code> (<code>⬇ Save to PC</code> /
-                  <code>Naizo.downloadHTML()</code>) rewrites relative <code>naizo.js</code> paths
-                  to <code>dist/naizo.min.js</code> on the npm CDN and strips
-                  <code>naizo-mode="online"</code> so downloaded <code>.html</code> files run in
-                  Local Mode on a PC.
+                  Your edits save immediately in your browser so you can experiment freely. Click
+                  <strong>Save to PC</strong> anytime to download your customized
+                  <code>.html</code> file to your computer, or click <strong>Reset</strong> to
+                  return the page to its original state.
                 </td>
               </tr>
               <tr>
                 <td>
-                  <strong>Local Mode (Fallback)</strong><br />
+                  <strong>On Your Computer (Safari &amp; Firefox)</strong><br />
                   Safari &amp; Firefox on <code>file://</code> or <code>localhost</code>
                 </td>
                 <td>
@@ -1938,95 +2212,45 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     </svg>
                     Browser Cache · Click to Link Disk
                   </span>
-                  <br />
-                  Buttons: <code>1. Link Disk</code> (HTML download fallback) ·
-                  <code>3. Copy JSON</code>
                 </td>
                 <td>
-                  Full reactive bindings, <code>[naizo-list]</code> repeater, Mini-API Client,
-                  4-corner snap drag, and <code>localStorage</code> cache; clicking
-                  <code>1. Link Disk</code> (or pressing <code>⌘S</code> / <code>Ctrl+S</code>)
-                  automatically downloads a clean <code>.html</code> snapshot when
-                  <code>showSaveFilePicker</code> is unavailable; 1-click
-                  <code>3. Copy JSON</code> (<code>Naizo.copyJSON()</code>) copies
-                  <code>#naizodb</code> JSON to your clipboard.
+                  Edits save immediately in your browser. Because Safari and Firefox do not support
+                  direct in-place file writing yet, clicking <strong>Link Disk</strong> (or pressing
+                  <code>⌘S</code> / <code>Ctrl+S</code>) downloads an updated
+                  <code>.html</code> copy, and <strong>Copy JSON</strong> copies your data in 1
+                  click.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <div class="table-wrap">
-          <table class="clean-table">
-            <thead>
-              <tr>
-                <th>Mini-API Network Rule</th>
-                <th>Local Mode (<code>file://</code> or <code>http://localhost</code>)</th>
-                <th>Online Mode (Hosted <code>https://</code> Static Site)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Fetched State Persistence</strong></td>
-                <td>
-                  Writes fetched fields/lists into <code>localStorage</code> and surgically into
-                  <code>&lt;script id="naizodb"&gt;</code> on disk when linked – so CLI AI agents
-                  immediately read remote data from disk.
-                </td>
-                <td>
-                  Persists fetched state in <code>localStorage</code> (<code>Saved in Browser</code
-                  >), surfaces <code>↺ Reset</code>, and bakes fetched data into
-                  <code>⬇ Save to PC</code> downloads.
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>HTTPS APIs &amp; Relative <code>.json</code></strong>
-                </td>
-                <td>
-                  <code>file://</code> sends <code>Origin: null</code> (requires
-                  <code>Access-Control-Allow-Origin: *</code> to read responses); relative
-                  <code>fetch('./data.json')</code> is blocked on <code>file://</code> but works on
-                  <code>http://localhost</code>.
-                </td>
-                <td>
-                  Same-origin relative URLs (<code>naizo-get="./preset.json"</code>) work out of the
-                  box; cross-origin APIs require standard CORS headers for the site origin or
-                  <code>*</code>.
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Webhooks &amp; Localhost Servers</strong></td>
-                <td>
-                  <code>naizo-post</code> sends preflight-free
-                  <code>text/plain;charset=UTF-8</code> JSON; add
-                  <code>naizo-cors="no-cors"</code> for blind webhooks; direct
-                  <code>http://localhost</code> agent servers work with CORS <code>*</code>.
-                </td>
-                <td>
-                  Same preflight-free <code>POST</code> + <code>naizo-cors="no-cors"</code> support;
-                  browsers block mixed-content <code>http://</code> on <code>https://</code> hosts
-                  and require <code>Access-Control-Allow-Private-Network: true</code> for loopback.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <h3 style="margin: 2rem 0 0.5rem; font-size: 1.15rem">
+          1. What the Status Crest (<code>丸に三つ石</code> / <code>品</code>) Tells You
+        </h3>
+        <p style="margin-top: 0">
+          The leftmost icon in the pill is the <strong><em>Maru ni Mitsuishi</em></strong> crest –
+          an outer circle representing your self-contained <code>.html</code> file and three inner
+          stones representing its data, logic, and view. It stays calm at rest and animates
+          <strong>only when something is happening</strong> (hover over it anytime to read the
+          status text):
+        </p>
 
         <div class="table-wrap">
           <table class="clean-table">
             <thead>
               <tr>
-                <th>Status Pill Element (Left &rarr; Right)</th>
-                <th>When It Appears</th>
-                <th>Visual State &amp; What It Does</th>
+                <th>Live Crest &amp; Color</th>
+                <th>Hover Label</th>
+                <th>What It Means in Plain English</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>
-                  <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
+                  <svg class="status-crest-lg is-green" viewBox="0 0 100 100" aria-hidden="true">
                     <circle
+                      class="ring"
                       cx="50"
                       cy="50"
                       r="42"
@@ -2034,27 +2258,329 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                       stroke="currentColor"
                       stroke-width="8"
                     />
-                    <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
-                    <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
-                    <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                    <rect
+                      class="c-top"
+                      x="41"
+                      y="28"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-bl"
+                      x="28"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-br"
+                      x="54"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
                   </svg>
-                  <strong><code>#dot</code> Brand Crest</strong><br />
-                  <em>Maru ni Mitsuishi</em> (<code>丸に三つ石</code> / <code>品</code>)
+                  <strong>Green · Calm</strong>
                 </td>
-                <td>Always visible (leftmost slot; drag handle for 4-corner snap)</td>
                 <td>
-                  <strong>Colors:</strong> Green (<code>#10b981</code>) for
-                  <code>Synced to Disk</code> / <code>Saved in Browser</code> /
-                  <code>Saving...</code>; Amber (<code>#f59e0b</code>) for
-                  <code>Browser Cache</code> / <code>Resume Disk Sync</code> /
-                  <code>Conflict</code>; Red (<code>#ef4444</code>) for <code>Error</code>.<br />
-                  <strong>5 Motion States:</strong> <code>Boot-Up</code> (<code>1.2s</code> ring
-                  seal), <code>Saving Heartbeat</code> (<code>1.55s</code> clockwise 3-beat ring
-                  push with <code>syncSavingBeat()</code> cycle completion),
-                  <code>Conflict Clash</code> (spring squash),
-                  <code>Needs Permission Wave Pulse</code>, and <code>Error Sync Pulse</code>.
+                  <code>Synced to Disk</code> /<br />
+                  <code>Saved in Browser</code>
+                </td>
+                <td>
+                  Everything is saved and up to date (written to your linked <code>.html</code> file
+                  on disk in Local Mode, or saved in your browser on a hosted web page).
                 </td>
               </tr>
+              <tr>
+                <td>
+                  <svg
+                    class="status-crest-lg is-green anim-saving"
+                    viewBox="0 0 100 100"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      class="ring"
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="8"
+                    />
+                    <rect
+                      class="c-top"
+                      x="41"
+                      y="28"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-bl"
+                      x="28"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-br"
+                      x="54"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <strong>Green · Heartbeat</strong>
+                </td>
+                <td><code>Saving...</code></td>
+                <td>
+                  Writing your latest changes into the linked <code>.html</code> file right now.
+                  Each stone pulses in a clockwise wave and gently pushes the outer circle outward
+                  for one full beat before returning to rest.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <svg class="status-crest-lg is-amber" viewBox="0 0 100 100" aria-hidden="true">
+                    <circle
+                      class="ring"
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="8"
+                    />
+                    <rect
+                      class="c-top"
+                      x="41"
+                      y="28"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-bl"
+                      x="28"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-br"
+                      x="54"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <strong>Amber · Calm</strong>
+                </td>
+                <td><code>Browser Cache · Click to Link Disk</code></td>
+                <td>
+                  Your edits are safely remembered in this browser tab, but not yet connected to the
+                  <code>.html</code> file on your computer. Click <strong>Link Disk</strong> (or
+                  press <code>⌘S</code> / <code>Ctrl+S</code>) to connect your file.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <svg
+                    class="status-crest-lg is-amber anim-wave"
+                    viewBox="0 0 100 100"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      class="ring"
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="8"
+                    />
+                    <rect
+                      class="c-top"
+                      x="41"
+                      y="28"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-bl"
+                      x="28"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-br"
+                      x="54"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <strong>Amber · Wave Pulse</strong>
+                </td>
+                <td><code>Resume Disk Sync</code></td>
+                <td>
+                  You reopened a file that was linked earlier, and your browser needs a 1-click
+                  confirmation to keep writing to disk. Click <strong>Resume Disk Sync</strong> (or
+                  press <code>⌘S</code> / <code>Ctrl+S</code>).
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <svg
+                    class="status-crest-lg is-amber anim-conflict"
+                    viewBox="0 0 100 100"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      class="ring"
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="8"
+                    />
+                    <rect
+                      class="c-top"
+                      x="41"
+                      y="28"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-bl"
+                      x="28"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-br"
+                      x="54"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <strong>Amber · Conflict Clash</strong>
+                </td>
+                <td><code>External Disk Edit · Conflict Backed Up</code></td>
+                <td>
+                  You and an AI agent (or text editor) changed the exact same field at the same
+                  time. The file's newest version is shown on screen, and your browser version was
+                  automatically saved – click <strong>Restore Backup</strong> if you want your
+                  version back.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <svg
+                    class="status-crest-lg is-red anim-error"
+                    viewBox="0 0 100 100"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      class="ring"
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="8"
+                    />
+                    <rect
+                      class="c-top"
+                      x="41"
+                      y="28"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-bl"
+                      x="28"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      class="c-br"
+                      x="54"
+                      y="54"
+                      width="18"
+                      height="18"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <strong>Red · Sync Pulse</strong>
+                </td>
+                <td><code>Invalid #naizodb JSON</code></td>
+                <td>
+                  Someone edited the file's data block by hand and left a typo. Automatic saving
+                  pauses immediately so your file is never damaged – click
+                  <strong>Repair JSON</strong> to rebuild clean, valid data from the page.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin: 2rem 0 0.5rem; font-size: 1.15rem">
+          2. Buttons (<code>1..6</code> Left to Right) &amp; Network Globe (<code>#net</code>)
+        </h3>
+        <p style="margin-top: 0">
+          To keep the bar compact and easy to scan, buttons appear only when they are relevant and
+          always stay in the same <strong>left-to-right order</strong>:
+        </p>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Icon &amp; Hover Name</th>
+                <th>When You See It</th>
+                <th>What Clicking It Does</th>
+              </tr>
+            </thead>
+            <tbody>
               <tr>
                 <td>
                   <svg class="pill-icon-inline" viewBox="0 0 24 24" aria-hidden="true">
@@ -2062,21 +2588,21 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
                     <line x1="8" y1="12" x2="16" y2="12" />
                   </svg>
-                  <strong>1. <code>Link Disk</code> / <code>Unlink Disk</code></strong
-                  ><br />
-                  <code>#action</code> (Local) &amp; <code>#unlink</code>
+                  <strong>1. Link Disk</strong> (<code>⌘S</code>)<br />
+                  <svg class="pill-icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 17H7A5 5 0 0 1 7 7" />
+                    <path d="M15 7h2a5 5 0 0 1 4 8" />
+                    <line x1="8" y1="12" x2="12" y2="12" />
+                    <line x1="3" y1="3" x2="21" y2="21" />
+                  </svg>
+                  <strong>1. Unlink Disk</strong>
                 </td>
-                <td>Local Mode (<code>file://</code>, <code>localhost</code>, or linked file)</td>
+                <td>When opening a local file on your computer</td>
                 <td>
-                  <strong
-                    >Chain Link (<code>Link Disk</code> / <code>Resume Disk Sync</code>,
-                    <code>⌘S</code>):</strong
-                  >
-                  Links your local <code>.html</code> file via the File System Access API for
-                  surgical <code>#naizodb</code> updates.<br />
-                  <strong>Slashed Chain Link (<code>× Unlink</code>):</strong> Swaps into Slot 1
-                  once linked (so <code>Copy JSON</code> never shifts) to forget the linked file
-                  handle (<code>Naizo.unlink()</code>).
+                  <strong>Link Disk</strong> connects your open tab to the <code>.html</code> file
+                  on your computer so edits save straight to disk. Once connected, this same first
+                  slot turns into <strong>Unlink Disk</strong> in case you want to stop syncing to
+                  that file.
                 </td>
               </tr>
               <tr>
@@ -2086,16 +2612,13 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     <polyline points="7 10 12 15 17 10" />
                     <line x1="12" y1="15" x2="12" y2="4" />
                   </svg>
-                  <strong>2. <code>Save to PC</code></strong
-                  ><br />
-                  <code>#action</code> (Online)
+                  <strong>2. Save to PC</strong>
                 </td>
-                <td>Online Mode (<code>http:</code> / <code>https:</code> web hosts)</td>
+                <td>When viewing a page online (<code>https://</code>)</td>
                 <td>
-                  <strong>Download Tray (<code>⬇ Save to PC</code>):</strong> Downloads a standalone
-                  <code>.html</code> copy (<code>Naizo.downloadHTML()</code>) with current
-                  <code>#naizodb</code> and form state baked in, ready to run in Local Mode on your
-                  computer.
+                  Downloads a complete, self-contained <code>.html</code> file to your computer with
+                  all your current changes baked in, ready to open locally and use offline or with
+                  AI agents.
                 </td>
               </tr>
               <tr>
@@ -2106,15 +2629,13 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                       d="M5 16H4.5A1.5 1.5 0 0 1 3 14.5v-10A1.5 1.5 0 0 1 4.5 3h10A1.5 1.5 0 0 1 16 4.5V5"
                     />
                   </svg>
-                  <strong>3. <code>Copy JSON</code> / <code>✓ Copied</code></strong
-                  ><br />
-                  <code>#copy</code>
+                  <strong>3. Copy JSON</strong> &rarr; <code>✓ Copied</code>
                 </td>
                 <td>Always visible</td>
                 <td>
-                  <strong>Copy Squares &rarr; Emerald Checkmark:</strong> Copies formatted 2-space
-                  <code>#naizodb</code> JSON to your clipboard (<code>Naizo.copyJSON()</code>) and
-                  morphs in place to a green checkmark for <code>1.5s</code>.
+                  Copies the page's built-in JSON data (<code>#naizodb</code>) to your clipboard and
+                  briefly turns into a green checkmark – handy for pasting your current state into
+                  an AI chat.
                 </td>
               </tr>
               <tr>
@@ -2129,19 +2650,12 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                       d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
                     />
                   </svg>
-                  <strong>4. <code>Repair JSON</code></strong
-                  ><br />
-                  <code>#restore</code> (Repair mode)
+                  <strong>4. Repair JSON</strong>
                 </td>
+                <td>Only if the file's data block has a syntax error on startup</td>
                 <td>
-                  Only when startup <code>&lt;script id="naizodb"&gt;</code> contains invalid JSON
-                </td>
-                <td>
-                  <strong>Amber Wrench (<code>↺ Repair</code>):</strong> When hand-edited
-                  <code>#naizodb</code> JSON is malformed on boot, <code>naizo.js</code> pauses
-                  automatic writes so broken edits are never silently wiped and falls back to
-                  <code>localStorage</code> cache. Clicking <strong>Repair JSON</strong> rebuilds
-                  and writes clean, valid 2-space JSON from current live DOM + store values.
+                  Rebuilds and saves a clean, valid JSON data block from the values currently shown
+                  on the page, unlocking normal saving after a broken manual edit.
                 </td>
               </tr>
               <tr>
@@ -2156,15 +2670,12 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     <path d="M3 3v5h5" />
                     <path d="M12 7v5l3.5 2" />
                   </svg>
-                  <strong>5. <code>Restore Backup</code></strong
-                  ><br />
-                  <code>#restore</code> (Backup mode)
+                  <strong>5. Restore Backup</strong>
                 </td>
-                <td>When <code>naizodb_backup_&lt;key&gt;</code> exists in browser storage</td>
+                <td>After a simultaneous edit conflict or after clicking <strong>Reset</strong></td>
                 <td>
-                  <strong>Amber History Clock-Undo (<code>↺ Restore</code>):</strong> Restores your
-                  backed-up browser state in 1 click after a same-key external disk collision or
-                  after confirming <code>Reset</code>.
+                  Restores your previous browser version in 1 click so you never lose work when an
+                  external edit or a reset replaces what was on screen.
                 </td>
               </tr>
               <tr>
@@ -2181,66 +2692,154 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     <path d="M21 20H7" />
                     <path d="m5 11 9 9" />
                   </svg>
-                  <strong>6. <code>Reset to Initial State</code></strong
-                  ><br />
-                  <code>#reset</code> (Always Last Action Button)
+                  <strong>6. Reset to Initial State</strong>
                 </td>
+                <td>On hosted web pages after you make edits (always the last button)</td>
                 <td>
-                  Online Mode when browser state differs from initial published baseline
-                  (<code>initialDiskDb</code>)
-                </td>
-                <td>
-                  <strong>Red Eraser (<code>↺ Reset</code>):</strong> Opens the frosted
-                  <code>#reset-confirm</code> popover, backs up current edits to
-                  <code>Restore Backup</code>, and resets the app to its initial baseline
-                  (<code>Naizo.reset()</code>).
+                  Opens a small confirmation prompt (<em>"Reset app to initial state?"</em>), saves
+                  a backup under <strong>Restore Backup</strong> just in case, and returns the page
+                  to its original published state.
                 </td>
               </tr>
               <tr>
                 <td>
                   <svg
                     class="pill-icon-inline"
-                    style="color: #10b981"
+                    style="width: 18px; height: 18px; vertical-align: -4px"
                     viewBox="0 0 24 24"
                     aria-hidden="true"
                   >
-                    <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
-                    <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
-                    <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
-                    <circle cx="12" cy="12" r="9.5" />
+                    <defs>
+                      <clipPath id="doc-net-wave-clip">
+                        <rect
+                          class="doc-wave-band-rect"
+                          x="-4"
+                          y="0"
+                          width="9"
+                          height="24"
+                          rx="4"
+                        />
+                      </clipPath>
+                    </defs>
+                    <g stroke="#10b981" stroke-opacity="0.38" stroke-width="1.85">
+                      <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                      <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                      <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                      <circle cx="12" cy="12" r="9.5" />
+                    </g>
+                    <g stroke="#10b981" stroke-width="1.85" clip-path="url(#doc-net-wave-clip)">
+                      <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                      <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                      <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                      <circle cx="12" cy="12" r="9.5" />
+                    </g>
                   </svg>
-                  <strong><code>#net</code> Wired Globe</strong><br />
-                  Rightmost network slot (<code>18&times;18px</code>)
+                  <svg
+                    class="pill-icon-inline"
+                    style="width: 18px; height: 18px; vertical-align: -4px; color: #ef4444"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <g class="anim-net-error">
+                      <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
+                      <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
+                      <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
+                      <circle cx="12" cy="12" r="9.5" />
+                    </g>
+                  </svg>
+                  <strong>Network Globe (<code>#net</code>)</strong>
                 </td>
+                <td>Appears at the far right only on pages that fetch or send live web data</td>
                 <td>
-                  Auto-shown when <code>naizo-get</code>, <code>naizo-post</code>, or
-                  <code>Naizo.fetch()</code> is used
-                </td>
-                <td>
-                  <strong>3 States:</strong> <code>API Idle</code> (Shared Light Green),
-                  <code>API Active</code> (Bright Emerald <code>L&rarr;R</code> wave sweep held
-                  <code>&gt;= 600 ms</code>), and
-                  <code>API Request Failed &middot; Click to Clear</code> (Danger Red pulse; inspect
-                  HTTP status codes, CORS headers, and payloads in browser
-                  <strong>DevTools &rarr; Network</strong>).
+                  <strong>Calm Green (<code>API Idle</code>):</strong> Ready, no request running.<br />
+                  <strong>Sweeping Green Wave (<code>API Active</code>):</strong> Fetching or
+                  sending data right now.<br />
+                  <strong>Pulsing Red (<code>API Request Failed · Click to Clear</code>):</strong>
+                  The last network request could not reach the server; click the globe to clear the
+                  alert.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <p>
-          <strong>4-corner snap drag &amp; inspecting network errors (<code>#net</code>):</strong>
-          Drag <code>#dot</code> (or the frosted pill) to snap it into any of the 4 viewport corners
-          (<code>bottom-right</code>, <code>bottom-left</code>, <code>top-right</code>,
-          <code>top-left</code>), persisted per app in
-          <code>localStorage</code> (<code>naizodb_ui_&lt;key&gt;</code>) without touching
-          <code>#naizodb</code>. When <code>#net</code> pulses red (<code>API request failed</code
-          >), open your browser's <strong>DevTools &rarr; Network</strong> tab to inspect HTTP
-          status codes, CORS headers, and request/response payloads directly –
-          <code>naizo.js</code> intentionally omits a built-in network inspector so the runtime
-          stays lightweight and flexible.
-        </p>
+        <details class="inspector-panel" naizo-ignore>
+          <summary class="inspector-summary">
+            <span>For Developers — Network Rules, CORS, &amp; Storage Keys</span>
+            <span style="color: var(--faint)"
+              >Local vs. Online API behavior &amp; DevTools debugging</span
+            >
+          </summary>
+          <div class="inspector-body">
+            <div class="table-wrap">
+              <table class="clean-table" style="margin-top: 0.5rem">
+                <thead>
+                  <tr>
+                    <th>Mini-API Network Rule</th>
+                    <th>Local Mode (<code>file://</code> or <code>http://localhost</code>)</th>
+                    <th>Online Mode (Hosted <code>https://</code> Static Site)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Fetched State Persistence</strong></td>
+                    <td>
+                      Writes fetched fields/lists into <code>localStorage</code> and surgically into
+                      <code>&lt;script id="naizodb"&gt;</code> on disk when linked – so CLI AI
+                      agents immediately read remote data from disk.
+                    </td>
+                    <td>
+                      Persists fetched state in <code>localStorage</code> (<code
+                        >Saved in Browser</code
+                      >), surfaces <code>↺ Reset</code>, and bakes fetched data into
+                      <code>⬇ Save to PC</code> downloads.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>HTTPS APIs &amp; Relative <code>.json</code></strong>
+                    </td>
+                    <td>
+                      <code>file://</code> sends <code>Origin: null</code> (requires
+                      <code>Access-Control-Allow-Origin: *</code> to read responses); relative
+                      <code>fetch('./data.json')</code> is blocked on <code>file://</code> but works
+                      on <code>http://localhost</code>.
+                    </td>
+                    <td>
+                      Same-origin relative URLs (<code>naizo-get="./preset.json"</code>) work out of
+                      the box; cross-origin APIs require standard CORS headers for the site origin
+                      or <code>*</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><strong>Webhooks &amp; Localhost Servers</strong></td>
+                    <td>
+                      <code>naizo-post</code> sends preflight-free
+                      <code>text/plain;charset=UTF-8</code> JSON; add
+                      <code>naizo-cors="no-cors"</code> for blind webhooks; direct
+                      <code>http://localhost</code> agent servers work with CORS <code>*</code>.
+                    </td>
+                    <td>
+                      Same preflight-free <code>POST</code> +
+                      <code>naizo-cors="no-cors"</code> support; browsers block mixed-content
+                      <code>http://</code> on <code>https://</code> hosts and require
+                      <code>Access-Control-Allow-Private-Network: true</code> for loopback.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p style="margin: 0.5rem 0 0; font-size: 0.9em; color: var(--muted)">
+              <strong>Corner storage &amp; inspecting network errors (<code>#net</code>):</strong>
+              The pill's snapped 4-corner position is stored per app in
+              <code>localStorage</code> under <code>naizodb_ui_&lt;key&gt;</code> without mutating
+              <code>#naizodb</code>. When <code>#net</code> pulses red (<code
+                >API request failed</code
+              >), open your browser's <strong>DevTools &rarr; Network</strong> tab to inspect HTTP
+              status codes, CORS headers, and request/response payloads directly.
+            </p>
+          </div>
+        </details>
       </section>
 
       <footer class="doc-footer">

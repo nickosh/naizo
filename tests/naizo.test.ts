@@ -3501,11 +3501,17 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(currentSiteHtml).not.toContain('class="status-dot');
     expect(currentSiteHtml).toContain('class="status-crest is-amber"');
     expect(currentSiteHtml).toContain('class="status-crest is-green"');
+    expect(currentSiteHtml).toContain('class="status-crest-lg is-green anim-saving"');
+    expect(currentSiteHtml).toContain('class="status-crest-lg is-amber anim-wave"');
+    expect(currentSiteHtml).toContain('class="status-crest-lg is-amber anim-conflict"');
+    expect(currentSiteHtml).toContain('class="status-crest-lg is-red anim-error"');
     expect(currentSiteHtml).toContain('class="pill-icon-inline"');
     expect(currentSiteHtml).toContain(
       'Status Pill (<code>#dot</code> Crest &amp; <code>1..6</code> Buttons)',
     );
     expect(readmeMd).toContain('Status Pill (`#dot` Crest & `1..6` Buttons)');
+    expect(readmeMd).toContain('docs/design/status-crest-animations.svg');
+    expect(usageMd).toContain('design/status-crest-animations.svg');
 
     for (const referenceSurface of [
       readmeMd,
