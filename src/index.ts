@@ -2092,7 +2092,6 @@ function syncNetVisibility(root: ParentNode = document): void {
 
 function beginNetRequest(): void {
   revealNetIndicator();
-  netPendingError = false;
   if (netHoldTimeout !== null) {
     clearTimeout(netHoldTimeout);
     netHoldTimeout = null;
@@ -2101,7 +2100,7 @@ function beginNetRequest(): void {
     netActiveStartMs = Date.now();
   }
   netInFlightCount += 1;
-  netState = 'active';
+  netState = netPendingError ? 'error' : 'active';
   applyNetUiState();
 }
 
@@ -2109,18 +2108,24 @@ function endNetRequest(ok: boolean): void {
   netInFlightCount = Math.max(0, netInFlightCount - 1);
   if (!ok) {
     netPendingError = true;
-  }
-  if (netInFlightCount > 0) {
-    return;
-  }
-  if (netPendingError) {
-    netPendingError = false;
     if (netHoldTimeout !== null) {
       clearTimeout(netHoldTimeout);
       netHoldTimeout = null;
     }
     netState = 'error';
     applyNetUiState();
+    return;
+  }
+  if (netPendingError) {
+    if (netHoldTimeout !== null) {
+      clearTimeout(netHoldTimeout);
+      netHoldTimeout = null;
+    }
+    netState = 'error';
+    applyNetUiState();
+    return;
+  }
+  if (netInFlightCount > 0) {
     return;
   }
   const elapsed = Date.now() - netActiveStartMs;
@@ -2133,7 +2138,7 @@ function endNetRequest(ok: boolean): void {
     }
     netHoldTimeout = setTimeout(() => {
       netHoldTimeout = null;
-      if (netInFlightCount === 0 && netState === 'active') {
+      if (netInFlightCount === 0 && !netPendingError && netState === 'active') {
         netState = 'idle';
         applyNetUiState();
       }
@@ -2869,9 +2874,20 @@ function mountUi(): void {
     void Naizo.unlink();
   });
   netBtn?.addEventListener('click', () => {
-    if (netState === 'error' && netInFlightCount === 0) {
-      netState = 'idle';
+    if (netState === 'error' || netPendingError) {
+      netPendingError = false;
+      if (netHoldTimeout !== null) {
+        clearTimeout(netHoldTimeout);
+        netHoldTimeout = null;
+      }
+      if (netInFlightCount > 0) {
+        netActiveStartMs = Date.now();
+        netState = 'active';
+      } else {
+        netState = 'idle';
+      }
       applyNetUiState();
+      hidePillTooltip();
     }
   });
 

@@ -3099,7 +3099,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(slowBtn.hasAttribute('data-naizo-loading')).toBe(false);
       vi.advanceTimersByTime(650);
 
-      // Failed request turns #net red without altering #dot or #status (EC36), and clicking #net clears error
+      // Failed request turns #net red without altering #dot or #status (EC36), persists across subsequent successful requests, and clears on click
       const shadow3 = document.getElementById('__naizodb_host__')?.shadowRoot;
       const net3 = shadow3?.getElementById('net') as HTMLButtonElement;
       const statusBefore =
@@ -3115,6 +3115,17 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(shadow3?.getElementById('status')?.textContent).toBe(statusBefore);
       expect(shadow3?.getElementById('dot')?.className).toBe(dotClassBefore);
       expect(Naizo.getField('live_feed')).toBe('Slow Done');
+
+      // Subsequent successful request updates data normally but keeps #net red until user clicks #net
+      const okAfterErr = await Naizo.fetch('https://api.example.com/live', {
+        into: 'field:live_feed',
+      });
+      expect(okAfterErr.ok).toBe(true);
+      expect(Naizo.getField('live_feed')).toBe('Live Tick');
+      expect(net3.classList.contains('error')).toBe(true);
+      vi.advanceTimersByTime(650);
+      expect(net3.classList.contains('error')).toBe(true);
+      expect(net3.title).toBe('API request failed');
 
       net3.click();
       expect(net3.classList.contains('idle')).toBe(true);
@@ -3379,6 +3390,18 @@ describe('naizo.js v0.1.0 core runtime', () => {
       const netAfterErr = shadowAfterReload?.getElementById('net') as HTMLButtonElement;
       expect(netAfterErr.classList.contains('error')).toBe(true);
       expect(netAfterErr.title).toBe('API request failed');
+
+      // Subsequent successful request in shipped bundle does not overwrite #net error state
+      const okAfterBundleErr = await bundleNaizo.fetch('https://api.example.com/stats', {
+        path: 'nested.items.0.count',
+        into: 'custom:issueCount',
+      });
+      expect(okAfterBundleErr.ok).toBe(true);
+      vi.advanceTimersByTime(650);
+      await flushMicrotasks(12);
+      expect(netAfterErr.classList.contains('error')).toBe(true);
+      expect(netAfterErr.title).toBe('API request failed');
+
       netAfterErr.click();
       expect(netAfterErr.classList.contains('idle')).toBe(true);
 

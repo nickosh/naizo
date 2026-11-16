@@ -1427,22 +1427,19 @@
 	}
 	function beginNetRequest() {
 		revealNetIndicator();
-		netPendingError = false;
 		if (netHoldTimeout !== null) {
 			clearTimeout(netHoldTimeout);
 			netHoldTimeout = null;
 		}
 		if (netInFlightCount === 0) netActiveStartMs = Date.now();
 		netInFlightCount += 1;
-		netState = "active";
+		netState = netPendingError ? "error" : "active";
 		applyNetUiState();
 	}
 	function endNetRequest(ok) {
 		netInFlightCount = Math.max(0, netInFlightCount - 1);
-		if (!ok) netPendingError = true;
-		if (netInFlightCount > 0) return;
-		if (netPendingError) {
-			netPendingError = false;
+		if (!ok) {
+			netPendingError = true;
 			if (netHoldTimeout !== null) {
 				clearTimeout(netHoldTimeout);
 				netHoldTimeout = null;
@@ -1451,6 +1448,16 @@
 			applyNetUiState();
 			return;
 		}
+		if (netPendingError) {
+			if (netHoldTimeout !== null) {
+				clearTimeout(netHoldTimeout);
+				netHoldTimeout = null;
+			}
+			netState = "error";
+			applyNetUiState();
+			return;
+		}
+		if (netInFlightCount > 0) return;
 		const elapsed = Date.now() - netActiveStartMs;
 		const remaining = NET_ACTIVE_HOLD_MS - elapsed;
 		if (remaining > 0) {
@@ -1459,7 +1466,7 @@
 			if (netHoldTimeout !== null) clearTimeout(netHoldTimeout);
 			netHoldTimeout = setTimeout(() => {
 				netHoldTimeout = null;
-				if (netInFlightCount === 0 && netState === "active") {
+				if (netInFlightCount === 0 && !netPendingError && netState === "active") {
 					netState = "idle";
 					applyNetUiState();
 				}
@@ -2158,9 +2165,18 @@
 			Naizo.unlink();
 		});
 		netBtn?.addEventListener("click", () => {
-			if (netState === "error" && netInFlightCount === 0) {
-				netState = "idle";
+			if (netState === "error" || netPendingError) {
+				netPendingError = false;
+				if (netHoldTimeout !== null) {
+					clearTimeout(netHoldTimeout);
+					netHoldTimeout = null;
+				}
+				if (netInFlightCount > 0) {
+					netActiveStartMs = Date.now();
+					netState = "active";
+				} else netState = "idle";
 				applyNetUiState();
+				hidePillTooltip();
 			}
 		});
 		[

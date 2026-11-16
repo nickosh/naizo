@@ -297,7 +297,7 @@ Buttons appear only when they are relevant and always stay in the same **left-to
 5. **Restore Backup** _(Amber History Clock-Undo — `↺ Restore`)_ — Appears whenever a backup is available (after a simultaneous edit conflict or after clicking **Reset**). Restores your previous browser version in 1 click.
 6. **Reset to Initial State** _(Red Eraser — `↺ Reset`, always the last action button)_ — Shown on hosted web pages after you make edits. Asks for confirmation (_"Reset app to initial state?"_), saves a backup under **Restore Backup** just in case, and returns the page to its original state.
 
-- **Network Globe (`#net` — Rightmost Wired Globe):** Appears at the far right of the pill only on pages that connect to live web APIs or webhooks — showing **Calm Green (`API Idle`)** when ready, **Sweeping Green Wave (`API Active`)** while fetching or sending data, or **Pulsing Red (`API Request Failed · Click to Clear`)** if a request could not reach the server.
+- **Network Globe (`#net` — Rightmost Wired Globe):** Appears at the far right of the pill only on pages that connect to live web APIs or webhooks — showing **Calm Green (`API Idle`)** when ready, **Sweeping Green Wave (`API Active`)** while fetching or sending data, or **Pulsing Red (`API Request Failed · Click to Clear`)** if a request could not reach the server (the red alert stays visible even if later requests succeed, until you click the globe to clear it or refresh the page).
 
 <details>
 <summary><strong>For Developers</strong> — Network Rules, CORS, &amp; Storage Keys</summary>
