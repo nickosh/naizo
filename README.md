@@ -42,10 +42,9 @@ Humans prefer interacting with visual controls in the browser (and writing clean
 3. **Saved Straight to Your File:** Click the status pill in the bottom-right corner (or press `⌘S` / `Ctrl+S`) once to link your local `.html` file. From then on, saving writes your updated data directly back into that file on your computer — no shortcuts to memorize, clean `git diff` history, and one self-contained file.
 4. **Live Co-Editing with AI Agents:** While your file is linked, you and your AI agent (Claude Code, Cursor, Antigravity, Codex, or Gemini CLI) can work on it together. When the agent updates the file on disk, your open browser tab picks up the changes automatically within ~2 seconds without interrupting what you are typing.
 
-```text
-Human in Browser  ──(Edit UI + Status Pill / ⌘S saves to file)──►  Single .html file on disk (#naizodb)
-                  ◄──(Auto-syncs external disk edits in ~2 s)────  CLI / IDE AI Agent or Editor
-```
+<p align="center">
+  <img src="docs/design/human-ai-sync-flow.svg" alt="How a human in the browser and an AI agent on disk co-edit one single .html file via #naizodb" width="100%" />
+</p>
 
 <details>
 <summary><strong>Under the Hood</strong> — Technical architecture & sync guarantees</summary>
@@ -284,6 +283,10 @@ The leftmost icon in the pill is the **_Maru ni Mitsuishi_ (`丸に三つ石` / 
 | **Red · Sync Pulse**       | `Invalid #naizodb JSON`                   | Someone edited the file's data block by hand and left a typo. Automatic saving pauses immediately so your file is never damaged — click **Repair JSON** to fix it in 1 click.                  |
 
 #### 2. What Each Button (`1..6` Left to Right) & the Network Globe (`#net`) Do
+
+<p align="center">
+  <img src="docs/design/status-pill-anatomy.svg" alt="Visual anatomy of the naizo.js Status Pill: Maru ni Mitsuishi crest, 1 to 6 action buttons, rightmost #net network globe, and 4-corner snap drag" width="100%" />
+</p>
 
 Buttons appear only when they are relevant and always stay in the same **left-to-right order**:
 

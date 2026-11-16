@@ -3510,7 +3510,11 @@ describe('naizo.js v0.1.0 core runtime', () => {
       'Status Pill (<code>#dot</code> Crest &amp; <code>1..6</code> Buttons)',
     );
     expect(readmeMd).toContain('Status Pill (`#dot` Crest & `1..6` Buttons)');
+    expect(readmeMd).toContain('docs/design/human-ai-sync-flow.svg');
+    expect(readmeMd).toContain('docs/design/status-pill-anatomy.svg');
     expect(readmeMd).toContain('docs/design/status-crest-animations.svg');
+    expect(usageMd).toContain('design/human-ai-sync-flow.svg');
+    expect(usageMd).toContain('design/status-pill-anatomy.svg');
     expect(usageMd).toContain('design/status-crest-animations.svg');
 
     for (const referenceSurface of [

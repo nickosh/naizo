@@ -41,6 +41,10 @@ Under decisions `D15`, `D16`, and `D23`, `naizo.js` strictly separates **data** 
 
 > **Golden Rule for Humans and AI Agents:** Edit `<script id="naizodb">` on disk to change **data**; edit `<body>` markup on disk to change the **view**.
 
+<p align="center">
+  <img src="design/human-ai-sync-flow.svg" alt="How a human in the browser and an AI agent on disk co-edit one single .html file via #naizodb" width="100%" />
+</p>
+
 ---
 
 ## 2. The `#naizodb` Canonical JSON Schema
@@ -527,6 +531,9 @@ A single `naizo.js` `.html` file adapts automatically depending on whether it is
 
 ### Status Pill, Action Buttons (`1..6`), `#dot` Logo States, & `#net` Indicator Reference (`#__naizodb_host__`, `D50`)
 
+<p align="center">
+  <img src="design/status-pill-anatomy.svg" alt="Visual anatomy of the naizo.js Status Pill: Maru ni Mitsuishi crest, 1 to 6 action buttons, rightmost #net network globe, and 4-corner snap drag" width="100%" />
+</p>
 <p align="center">
   <img src="design/status-crest-animations.svg" alt="naizo.js live Status Pill crest and network globe animations" width="100%" />
 </p>

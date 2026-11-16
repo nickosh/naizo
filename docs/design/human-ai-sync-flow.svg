@@ -1,0 +1,231 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 196" width="920" height="196" role="img" aria-label="How a human in the browser and an AI agent on disk co-edit one single .html file via #naizodb">
+  <style>
+    .bg-panel {
+      fill: #faf8f5;
+      stroke: #e5e0d8;
+      stroke-width: 1;
+    }
+    .card {
+      fill: #ffffff;
+      stroke: #e5e0d8;
+      stroke-width: 1;
+    }
+    .card-accent {
+      fill: #ffffff;
+      stroke: #10b981;
+      stroke-width: 1.5;
+    }
+    .sub-box {
+      fill: #f3efe8;
+      stroke: #e5e0d8;
+      stroke-width: 1;
+    }
+    .title {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      font-size: 12.5px;
+      font-weight: 700;
+      fill: #1c1917;
+    }
+    .sub {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      font-size: 10.5px;
+      font-weight: 500;
+      fill: #6b655e;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      fill: #334155;
+    }
+    .flow-label {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      font-size: 10.5px;
+      font-weight: 600;
+      fill: #1c1917;
+    }
+    .pill-mini {
+      fill: #ffffff;
+      fill-opacity: 0.85;
+      stroke: #0f172a;
+      stroke-opacity: 0.14;
+      stroke-width: 1;
+    }
+    @media (prefers-color-scheme: dark) {
+      .bg-panel {
+        fill: #141311;
+        stroke: #2e2c28;
+      }
+      .card {
+        fill: #1c1917;
+        stroke: #2e2c28;
+      }
+      .card-accent {
+        fill: #1c1917;
+        stroke: #10b981;
+      }
+      .sub-box {
+        fill: #24211d;
+        stroke: #36322d;
+      }
+      .title, .flow-label {
+        fill: #e7e5e4;
+      }
+      .sub {
+        fill: #a6a096;
+      }
+      .mono {
+        fill: #cbd5e1;
+      }
+      .pill-mini {
+        fill: #0f172a;
+        fill-opacity: 0.75;
+        stroke: #ffffff;
+        stroke-opacity: 0.18;
+      }
+    }
+
+    @keyframes flowDashForward {
+      to { stroke-dashoffset: -24; }
+    }
+    @keyframes flowDashBack {
+      to { stroke-dashoffset: 24; }
+    }
+    .flow-line-fwd {
+      stroke-dasharray: 6 6;
+      animation: flowDashForward 1.1s linear infinite;
+    }
+    .flow-line-back {
+      stroke-dasharray: 6 6;
+      animation: flowDashBack 1.1s linear infinite;
+    }
+
+    .ring { transform-origin: 50px 50px; }
+    .c-top { transform-origin: 50px 37px; }
+    .c-bl { transform-origin: 37px 63px; }
+    .c-br { transform-origin: 63px 63px; }
+    @keyframes naizoHeartTop {
+      0%, 29%, 100% { transform: translate(0, 0) scale(1); }
+      11.5% { transform: translate(0, -1.4px) scale(1.22); }
+    }
+    @keyframes naizoHeartBR {
+      0%, 33.33%, 62.33%, 100% { transform: translate(0, 0) scale(1); }
+      44.83% { transform: translate(1.1px, 1.1px) scale(1.22); }
+    }
+    @keyframes naizoHeartBL {
+      0%, 66.67%, 95.67%, 100% { transform: translate(0, 0) scale(1); }
+      78.17% { transform: translate(-1.1px, 1.1px) scale(1.22); }
+    }
+    @keyframes naizoRingBreath {
+      0%, 6%, 33.33%, 39.33%, 66.67%, 72.67%, 100% { transform: scale(1); }
+      18.5%, 51.83%, 85.17% { transform: scale(1.064); }
+    }
+    .anim-saving .ring { animation: naizoRingBreath 1.55s ease-out infinite; }
+    .anim-saving .c-top { animation: naizoHeartTop 1.55s ease-in-out infinite; }
+    .anim-saving .c-br { animation: naizoHeartBR 1.55s ease-in-out infinite; }
+    .anim-saving .c-bl { animation: naizoHeartBL 1.55s ease-in-out infinite; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .flow-line-fwd, .flow-line-back, .ring, .c-top, .c-bl, .c-br {
+        animation: none !important;
+      }
+    }
+  </style>
+
+  <rect class="bg-panel" x="0.5" y="0.5" width="919" height="195" rx="12" />
+
+  <!-- 1. LEFT CARD: HUMAN IN BROWSER -->
+  <g transform="translate(18, 22)">
+    <rect class="card" x="0" y="0" width="224" height="152" rx="10" />
+    <!-- Browser window dots -->
+    <circle cx="16" cy="15" r="3.5" fill="#ef4444" fill-opacity="0.7" />
+    <circle cx="27" cy="15" r="3.5" fill="#f59e0b" fill-opacity="0.7" />
+    <circle cx="38" cy="15" r="3.5" fill="#10b981" fill-opacity="0.7" />
+    <text class="title" x="112" y="19" text-anchor="middle">1. Human in Browser</text>
+    <line x1="0" y1="28" x2="224" y2="28" stroke="#e5e0d8" stroke-opacity="0.5" />
+
+    <!-- Mini UI preview -->
+    <rect class="sub-box" x="14" y="38" width="196" height="24" rx="5" />
+    <text class="mono" x="22" y="54">Title: "Launch Plan"</text>
+
+    <rect class="sub-box" x="14" y="68" width="196" height="24" rx="5" />
+    <rect x="22" y="75" width="10" height="10" rx="2" fill="#10b981" />
+    <polyline points="24 80 26.5 82.5 30.5 77.5" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    <text class="sub" x="38" y="84">Draft specification</text>
+
+    <!-- Mini Frosted Status Pill in bottom-right of browser card -->
+    <g transform="translate(114, 104)">
+      <rect class="pill-mini" x="0" y="0" width="96" height="26" rx="13" />
+      <svg class="anim-saving" x="6" y="4" width="18" height="18" viewBox="0 0 100 100">
+        <circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
+        <rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="#10b981" />
+        <rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="#10b981" />
+        <rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="#10b981" />
+      </svg>
+      <text class="mono" x="30" y="16" fill="#10b981">⌘S · Synced</text>
+    </g>
+    <text class="sub" x="14" y="121">Edits UI directly</text>
+    <text class="sub" x="14" y="139" fill="#10b981">Instant cache + disk save</text>
+  </g>
+
+  <!-- FLOW ARROWS: LEFT <-> CENTER -->
+  <g>
+    <text class="flow-label" x="296" y="54" text-anchor="middle" fill="#10b981">Saves #naizodb (⌘S)</text>
+    <line class="flow-line-fwd" x1="248" y1="64" x2="338" y2="64" stroke="#10b981" stroke-width="2" />
+    <polygon points="344,64 335,59 335,69" fill="#10b981" />
+
+    <line class="flow-line-back" x1="254" y1="128" x2="344" y2="128" stroke="#f59e0b" stroke-width="2" />
+    <polygon points="248,128 257,123 257,133" fill="#f59e0b" />
+    <text class="sub" x="296" y="146" text-anchor="middle">Auto-syncs (~2 s)</text>
+  </g>
+
+  <!-- 2. CENTER CARD: SINGLE .HTML FILE ON DISK -->
+  <g transform="translate(350, 16)">
+    <rect class="card-accent" x="0" y="0" width="220" height="164" rx="10" />
+    <svg x="16" y="11" width="22" height="22" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
+      <rect x="39" y="26" width="22" height="22" rx="4.5" fill="#10b981" />
+      <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+      <rect x="52" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+    </svg>
+    <text class="title" x="45" y="26">2. Single .html File</text>
+    <line x1="0" y1="38" x2="220" y2="38" stroke="#e5e0d8" stroke-opacity="0.5" />
+
+    <!-- <head> #naizodb block -->
+    <rect class="sub-box" x="12" y="46" width="196" height="54" rx="6" />
+    <text class="mono" x="20" y="62" fill="#10b981">&lt;script id="naizodb"&gt;</text>
+    <text class="sub" x="20" y="77">Built-in JSON data (内蔵):</text>
+    <text class="mono" x="20" y="92">{ fields, lists, custom }</text>
+
+    <!-- <body> template block -->
+    <rect class="sub-box" x="12" y="106" width="196" height="46" rx="6" />
+    <text class="mono" x="20" y="122">&lt;body&gt; HTML Template</text>
+    <text class="sub" x="20" y="140">naizo="key" · naizo-list</text>
+  </g>
+
+  <!-- FLOW ARROWS: CENTER <-> RIGHT -->
+  <g>
+    <text class="sub" x="624" y="54" text-anchor="middle">Reads #naizodb JSON</text>
+    <line class="flow-line-fwd" x1="576" y1="64" x2="666" y2="64" stroke="#10b981" stroke-width="2" />
+    <polygon points="672,64 663,59 663,69" fill="#10b981" />
+
+    <line class="flow-line-back" x1="582" y1="128" x2="672" y2="128" stroke="#f59e0b" stroke-width="2" />
+    <polygon points="576,128 585,123 585,133" fill="#f59e0b" />
+    <text class="flow-label" x="624" y="146" text-anchor="middle" fill="#d97706">Edits #naizodb on disk</text>
+  </g>
+
+  <!-- 3. RIGHT CARD: AI AGENT / EDITOR ON DISK -->
+  <g transform="translate(678, 22)">
+    <rect class="card" x="0" y="0" width="224" height="152" rx="10" />
+    <text class="title" x="112" y="19" text-anchor="middle">3. AI Agent / Editor</text>
+    <line x1="0" y1="28" x2="224" y2="28" stroke="#e5e0d8" stroke-opacity="0.5" />
+
+    <rect class="sub-box" x="14" y="38" width="196" height="62" rx="6" />
+    <text class="mono" x="22" y="54">$ agent update plan.html</text>
+    <text class="sub" x="22" y="72">+ Reads human edits from</text>
+    <text class="mono" x="22" y="88">  &lt;script id="naizodb"&gt;</text>
+
+    <text class="sub" x="14" y="119">Claude Code · Cursor · Codex</text>
+    <text class="sub" x="14" y="137">Antigravity · Gemini CLI</text>
+  </g>
+</svg>
