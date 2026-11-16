@@ -3516,6 +3516,19 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(usageMd).toContain('design/human-ai-sync-flow.svg');
     expect(usageMd).toContain('design/status-pill-anatomy.svg');
     expect(usageMd).toContain('design/status-crest-animations.svg');
+    expect(currentSiteHtml).toContain('Status Pill Anatomy — Strict Left-to-Right Slot Order');
+
+    for (const svgPath of [
+      'docs/design/human-ai-sync-flow.svg',
+      'docs/design/status-pill-anatomy.svg',
+      'docs/design/status-crest-animations.svg',
+    ]) {
+      const svgRaw = readFileSync(resolve(process.cwd(), svgPath), 'utf-8');
+      const svgDoc = new DOMParser().parseFromString(svgRaw, 'image/svg+xml');
+      expect(svgDoc.querySelector('parsererror')).toBeNull();
+      const styleBlock = svgDoc.querySelector('style')?.textContent ?? '';
+      expect(styleBlock).not.toMatch(/&(?!amp;|lt;|gt;|quot;|apos;)/);
+    }
 
     for (const referenceSurface of [
       readmeMd,
