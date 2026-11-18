@@ -21,7 +21,7 @@ For product vision and scope boundaries, see [PRODUCT.md](PRODUCT.md). For archi
 11. [Local Mode vs. Online Mode & Web-to-Local App Exchange](#11-local-mode-vs-online-mode--web-to-local-app-exchange)
 12. [Two-Way Disk Sync, Live Watch, & Conflict Resolution](#12-two-way-disk-sync-live-watch--conflict-resolution)
 13. [Architectural Recipes (`examples/`)](#13-architectural-recipes-examples)
-14. [Lightweight Vanilla UI Patterns (Search/Filter & Tabs)](#14-lightweight-vanilla-ui-patterns-searchfilter--tabs)
+14. [Vanilla HTML5 UI Patterns & Why Widget Directives Are Omitted](#14-vanilla-html5-ui-patterns--why-widget-directives-are-omitted)
 15. [Local-First & AI Agent Workflows](#15-local-first--ai-agent-workflows)
 
 ---
@@ -33,11 +33,12 @@ In Japanese, **_naizō_ (ないぞう)** carries two meanings that define the ar
 - **内蔵 (_built-in / housed within_):** Every `.html` file embeds its canonical state inside `<script id="naizodb" type="application/json">` in `<head>`.
 - **内臓 (_internal organs_):** `naizo.js` acts as the document's reactive internal organs, keeping the live DOM, `localStorage`, and `<script id="naizodb">` on disk synchronized.
 
-Under decisions `D15`, `D16`, and `D23`, `naizo.js` strictly separates **data** from **view markup**:
+Under decisions `D15`, `D16`, `D23`, and `D57`, `naizo.js` strictly separates **data** from **view markup** while keeping store and DOM ergonomics 100% synchronous:
 
 1. **`<script id="naizodb">` is the canonical data:** On boot, `naizo.js` parses `#naizodb` (and any newer `localStorage` state) into an in-memory `NaizoDatabase` store and hydrates bound elements and list items in `<body>`.
 2. **`<body>` is the declarative template:** When linked to a local file via the File System Access API (`showSaveFilePicker`), saving rewrites **only** the `<script id="naizodb">...</script>` block on disk (`D16`). Every other byte of the file stays untouched—so third-party runtime scripts (Tailwind Play CDN, Lucide icons, Mermaid diagrams, syntax highlighters) never pollute your file on disk or create noisy Git diffs.
 3. **HTML attributes are baked only on full-HTML export (`D23`):** Live edits update the in-memory store in `O(1)` without mutating DOM attributes (`setAttribute('value', ...)`), preventing `<textarea>` cursor jumps and preserving native `form.reset()`. Full attribute baking and runtime UI stripping run only on a cloned document when calling `Naizo.exportHTML()` or `Naizo.downloadHTML()`.
+4. **100% synchronous store & bound DOM operations (`D57`):** Reading and writing `store` (`Naizo.getField`, `Naizo.setField`, `Naizo.addItem`, `Naizo.updateItem`, etc.) and updating bound DOM nodes always execute synchronously (`< 0.5 ms`), preserving zero-`await` read-after-write guarantees and immediate `[naizo-item]` DOM availability, with `Naizo.batch(fn, options?)` coalescing multi-step updates and high-frequency 60fps scrubs while disk I/O (`250 ms` single-flight) and `Naizo.fetch()` remain asynchronous.
 
 > **Golden Rule for Humans and AI Agents:** Edit `<script id="naizodb">` on disk to change **data**; edit `<body>` markup on disk to change the **view**.
 
@@ -93,13 +94,14 @@ Place `<script id="naizodb" type="application/json">` near the top of `<head>` (
 | `lists`  | `Record<string, Array<Record<string, unknown>>>` | Repeating arrays of plain item objects bound to `[naizo-list="name"]` containers, or manipulated via `Naizo.getList`, `setList`, `addItem`, `updateItem`, `moveItem`, and `removeItem`.                                        |
 | `custom` | `Record<string, unknown>`                        | Arbitrary JSON-serializable state for custom JavaScript widgets, read/written via `Naizo.get(key)`, `Naizo.set(key, value)`, and `Naizo.delete(key)`.                                                                          |
 
-### Pass-Through Keys (`D15`, `EC14`)
+### Pass-Through Keys (`D15`, `D58`, `EC14`)
 
 `naizo.js` never resets `fields` or `lists` to `{}` when capturing DOM edits. Instead, the in-memory store merges bound DOM changes into existing objects and maps each rendered `[naizo-item]` DOM element to its backing item object via a `WeakMap`:
 
 - **Unbound `fields` keys** (e.g., metadata written by an AI agent that has no matching input in `<body>`) remain intact.
 - **Unbound `lists` arrays** (lists stored in `#naizodb` without a corresponding `[naizo-list]` container on the current page) remain intact.
-- **Extra list-item keys** (such as agent-assigned `"id"`, `"estimate"`, `"updatedAt"`, or custom per-card dictionary attributes in [`examples/inventory.html`](../examples/inventory.html)) survive edits, reordering (`moveItem`), and partial updates (`updateItem`).
+- **Extra list-item keys** (such as agent-assigned `"id"`, `"estimate"`, `"updatedAt"`, external URLs, nested sub-arrays, or custom per-card dictionary attributes in [`examples/inventory.html`](../examples/inventory.html)) survive edits, reordering (`moveItem`), and partial updates (`updateItem`).
+- **No `.sr-only` dummy bindings required (`D58`):** Never add hidden `<input class="sr-only" naizo="id">` controls just to keep extra item properties alive. Render rich HTML (`<a>`, formatted Markdown, badges, or sub-lists) into `[naizo-ignore]` containers directly from `Naizo.getList()` while `WeakMap` row bindings preserve unbound keys automatically.
 - Deleting a key is always explicit via `Naizo.deleteField(key)`, `Naizo.delete(key)`, or `Naizo.removeItem(listName, index)`.
 
 ### Script-Safe `\u003c` Escaping (`D13`, `EC08`)
@@ -131,10 +133,10 @@ JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
 Load one provider in `<head>` with `defer` (`D34`, `D39`):
 
 ```html
-<!-- Readable IIFE bundle (~31.9 KB gzipped / ~144.2 KB raw, jsDelivr) -->
+<!-- Readable IIFE bundle (~32.9 KB gzipped / ~144.8 KB raw, jsDelivr) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified IIFE bundle (~22.4 KB gzipped) -->
+<!-- Prebuilt minified IIFE bundle (~23.0 KB gzipped) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- Alternative: unpkg -->
@@ -153,7 +155,7 @@ When an HTML file using a relative path like `../dist/naizo.js` or `./dist/naizo
 
 ### Option C: Side-Effect-Free ESM Import (`naizojs`)
 
-While the browser IIFE (`dist/naizo.js`) sets `window.Naizo` / `window.NaizoDB` and auto-runs `initNaizo()` on load, the ESM entrypoint (`dist/index.mjs`) is completely side-effect free (`D25`, `EC37`, `EC49`):
+While the browser IIFE (`dist/naizo.js`) sets `window.Naizo` / `window.NaizoDB` and auto-runs `initNaizo()` on load, the ESM entrypoint (`dist/index.mjs`) is completely side-effect free (`D25`, `EC37`, `EC49` — keeping runtime value exports strictly `Naizo`, `NaizoDB`, and `initNaizo`):
 
 ```typescript
 import {
@@ -161,6 +163,7 @@ import {
   NaizoDB,
   initNaizo,
   type NaizoAPI,
+  type NaizoBatchOptions,
   type NaizoDatabase,
   type NaizoFetchOptions,
   type NaizoFetchResult,
@@ -172,35 +175,55 @@ await initNaizo();
 
 To use the browser IIFE bundle without auto-initializing on `DOMContentLoaded`, add `naizo-manual` (or `data-naizo-manual`) to `<html>`, `<body>`, or the `<script>` tag and call `await Naizo.init()` when ready.
 
+### Boot Timing with `<script defer>` & `Naizo.ready(callback)` (`D57`, `D58`, `EC57`)
+
+By HTML5 specification, an external `<script src="...naizo.js" defer></script>` executes at `document.readyState === 'interactive'` **before** `DOMContentLoaded` callbacks fire—and inline `<script type="module">` blocks or dynamically appended scripts may execute _after_ `initNaizo()` has already finished its initial hydration. As a result, registering `window.addEventListener('naizo:hydrate', syncUi)` _inside_ a `DOMContentLoaded` listener misses the initial boot event (`EC57`):
+
+```javascript
+// Recommended Pattern 1: Naizo.ready(callback) — safe whether called before or after initNaizo()
+Naizo.ready((db) => {
+  syncCustomUi(db);
+});
+window.addEventListener('naizo:change', (e) => syncCustomUi(e.detail.db));
+
+// Recommended Pattern 2: Attach top-level window listeners directly (never inside DOMContentLoaded)
+window.addEventListener('naizo:hydrate', (e) => syncCustomUi(e.detail));
+window.addEventListener('naizo:change', (e) => syncCustomUi(e.detail.db));
+```
+
+- **`Naizo.ready(callback)` contract (`EC57`):** Tracks `bootHydrated` across `initNaizo()` cycles (resetting `bootHydrated = false` at the start of `initNaizo()` and setting `bootHydrated = true` right before dispatching boot `naizo:hydrate`, including the `startupInvalidDb` boot path). When `bootHydrated === true`, `Naizo.ready(cb)` invokes `cb(store)` synchronously; when boot has not finished yet, it registers a `{ once: true }` `'naizo:hydrate'` listener on `window`.
+- **Preventing pre-hydration flash & boot-time dirtying (`D45`, `D58`, `EC48`):** Match static `hidden` attributes in HTML to your initial `#naizodb` defaults (e.g., `<section data-tab-panel="metrics" hidden>`), make `[naizo-ignore]` enhancements inside `[naizo-item]` idempotent across `naizo:hydrate` and `naizo:change`, and use `"theme": "system"` with CSS `@media (prefers-color-scheme: dark)` rather than calling `Naizo.setField('theme', 'dark')` on boot (which would mark `store` dirty against `initialDiskDb` and prematurely reveal `↺ Reset`).
+
 ---
 
 ## 4. Declarative HTML Attributes Reference
 
 `naizo.js` supports both concise **`naizo` / `naizo-*`** attributes and HTML5-compliant **`data-naizo` / `data-naizo-*`** attributes everywhere (`D08`). Every short attribute has a strict 1-to-1 `data-*` counterpart (`EC49`):
 
-| Short Attribute                     | HTML5 `data-*` Alias                     | Placement                                                                                              | Behavior                                                                                                                                                                                                                                                                                                       |
-| ----------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `naizo="key"`                       | `data-naizo="key"`                       | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf element, or `[naizo-item]` | Binds the element to `db.fields["key"]` when standalone, or to `item["key"]` when inside (or on) a `[naizo-item]`.                                                                                                                                                                                             |
-| `naizo-list="name"`                 | `data-naizo-list="name"`                 | List container (`<div>`, `<ul>`, `<ol>`, `<tbody>`, `<table>`)                                         | Binds direct `[naizo-item]` children to `db.lists["name"]` and appends a `+ Add Item` footer unless `naizo-no-controls` is set.                                                                                                                                                                                |
-| `naizo-item`                        | `data-naizo-item`                        | Direct child of `[naizo-list]` (`<div>`, `<li>`, `<tr>`, etc.)                                         | Marks a repeating row or card. Receives hover `↑`, `↓`, and `×` controls unless `naizo-no-controls` is set on the parent list.                                                                                                                                                                                 |
-| `naizo-template`                    | `data-naizo-template`                    | Direct child `<template>` inside `[naizo-list]`                                                        | Explicit HTML blueprint cloned when creating new items in `[naizo-list]`. If omitted, `naizo.js` auto-infers one from the first `[naizo-item]`.                                                                                                                                                                |
-| `naizo-add="name"`                  | `data-naizo-add="name"`                  | `<button>` (anywhere in document)                                                                      | Appends a blank `{}` item to `[naizo-list="name"]` and focuses the first text input in the newly created row (`EC31`).                                                                                                                                                                                         |
-| `naizo-remove`                      | `data-naizo-remove`                      | `<button>` inside `[naizo-item]`                                                                       | Removes the enclosing `[naizo-item]` row and its backing object from `db.lists`.                                                                                                                                                                                                                               |
-| `naizo-move="up"` / `"down"`        | `data-naizo-move="up"` / `"down"`        | `<button>` inside `[naizo-item]`                                                                       | Moves the enclosing `[naizo-item]` row up (`index - 1`) or down (`index + 1`) in both the DOM and `db.lists`.                                                                                                                                                                                                  |
-| `naizo-no-controls`                 | `data-naizo-no-controls`                 | On a `[naizo-list]` container                                                                          | Suppresses auto-injected `.naizo-item-tools` (`↑ ↓ ×`) and `.naizo-list-footer` (`+ Add Item`) so you can render custom controls or read-only lists.                                                                                                                                                           |
-| `naizo-ignore`                      | `data-naizo-ignore`                      | Any element                                                                                            | Excludes the element and its entire subtree from state binding and seeding while keeping it intact in templates and exported HTML (`D12`, `EC07`).                                                                                                                                                             |
-| `naizo-strip`                       | `data-naizo-strip`                       | Any element                                                                                            | Excludes the element and its subtree from state binding and strips it from auto-inferred list templates and `Naizo.exportHTML()` / `Naizo.downloadHTML()` (`D12`, `D47`, `EC03`, `EC07`).                                                                                                                      |
-| `naizo-id="scope"`                  | `data-naizo-id="scope"`                  | `<html>` or `<body>`                                                                                   | Scopes `localStorage` keys (`naizodb_state_<path>::<scope>`) and IndexedDB file handles so multiple documents on `localhost` never collide (`EC11`).                                                                                                                                                           |
-| `naizo-mode="online\|local\|auto"`  | `data-naizo-mode="online\|local\|auto"`  | `<html>` or `<body>`                                                                                   | Overrides automatic Local Mode vs. Online Mode detection (`D41`, `EC48`).                                                                                                                                                                                                                                      |
-| `naizo-no-pill`                     | `data-naizo-no-pill`                     | `<html>` or `<body>`                                                                                   | Skips mounting `#__naizodb_host__` (`<body>` overrides `<html>`, and `="false"` opts out) while retaining `#__naizodb_styles__`, `localStorage`, IndexedDB `fileHandle` auto-resume + ~2 s watch, and `⌘S` / `Ctrl+S` disk linking/saving; preserved across `exportHTML()` / `downloadHTML()` (`D56`, `EC53`). |
-| `naizo-manual`                      | `data-naizo-manual`                      | `<html>`, `<body>`, or `<script>`                                                                      | Disables automatic `initNaizo()` boot in the browser IIFE bundle (`EC37`).                                                                                                                                                                                                                                     |
-| `naizo-get="url"`                   | `data-naizo-get="url"`                   | `<button>`, `<a>`, or any non-ignored element                                                          | Sends an HTTP `GET` request and routes the response via `naizo-into` (or hydrates full `#naizodb` when `naizo-into` is omitted, `D43`, `D51`).                                                                                                                                                                 |
-| `naizo-post="url"`                  | `data-naizo-post="url"`                  | `<button>` or any non-ignored element                                                                  | Flushes pending edits and sends an HTTP `POST` with CORS-safelisted `Content-Type: text/plain;charset=UTF-8` (`D43`, `D51`, `EC50`).                                                                                                                                                                           |
-| `naizo-into="target"`               | `data-naizo-into="target"`               | Element with `naizo-get` / `naizo-post`                                                                | Routes response into `field:<key>`, `list:<name>` (`Naizo.setList`), `custom:<key>`, `db`, or a DOM-only CSS `#selector` (`textContent` only, `D22`, `D51`).                                                                                                                                                   |
-| `naizo-path="a.b.0"`                | `data-naizo-path="a.b.0"`                | Element with `naizo-get` / `naizo-post`                                                                | Extracts a nested property or integer array index from parsed JSON using `Object.hasOwn()` at each step (`EC24`, `EC38`, `EC50`).                                                                                                                                                                              |
-| `naizo-body="source"`               | `data-naizo-body="source"`               | Element with `naizo-post`                                                                              | Selects outgoing JSON payload: `db` (default), `fields`, `custom`, `list:<name>`, or `field:<key>` (`D43`, `D51`).                                                                                                                                                                                             |
-| `naizo-trigger="click\|init\|load"` | `data-naizo-trigger="click\|init\|load"` | Element with `naizo-get` / `naizo-post`                                                                | Fires on `click` (default, setting `data-naizo-loading`), `init` (on boot only when the target is empty), or `load` (every boot) (`D43`, `EC50`).                                                                                                                                                              |
-| `naizo-cors="no-cors"`              | `data-naizo-cors="no-cors"`              | Element with `naizo-post` (without `naizo-into`)                                                       | Sends an opaque `mode: 'no-cors'` fire-and-forget webhook request when `Access-Control-Allow-Origin` is absent (`D43`, `EC50`).                                                                                                                                                                                |
+| Short Attribute                     | HTML5 `data-*` Alias                     | Placement                                                                                              | Behavior                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `naizo="key"`                       | `data-naizo="key"`                       | `<input>`, `<textarea>`, `<select>`, `<details>`, `[contenteditable]`, leaf element, or `[naizo-item]` | Binds the element to `db.fields["key"]` when standalone, or to `item["key"]` when inside (or on) a `[naizo-item]`. Interactive controls take seeding/reset precedence over passive plain-text leaves (`<span>`, `<h3>`) regardless of DOM order (`EC19`, `EC56`).                                                                                 |
+| `naizo-list="name"`                 | `data-naizo-list="name"`                 | List container (`<div>`, `<ul>`, `<ol>`, `<tbody>`, `<table>`)                                         | Binds direct `[naizo-item]` children to `db.lists["name"]` and appends a `+ Add Item` footer unless `naizo-no-controls` is set.                                                                                                                                                                                                                   |
+| `naizo-item`                        | `data-naizo-item`                        | Direct child of `[naizo-list]` (`<div>`, `<li>`, `<tr>`, etc.)                                         | Marks a repeating row or card. Receives hover `↑`, `↓`, and `×` controls unless `naizo-no-controls` is set on the parent list.                                                                                                                                                                                                                    |
+| `naizo-template`                    | `data-naizo-template`                    | Direct child `<template>` inside `[naizo-list]`                                                        | Explicit HTML blueprint cloned when creating or hydrating items in `[naizo-list]` (recommended with `0` duplicated `[naizo-item]` shells in `<body>`, `D58`). If omitted, `naizo.js` auto-infers one from the first `[naizo-item]`.                                                                                                               |
+| `naizo-add="name"`                  | `data-naizo-add="name"`                  | `<button>` (anywhere in document)                                                                      | Appends a blank `{}` item to `[naizo-list="name"]` and focuses the first text input in the newly created row (`EC31`).                                                                                                                                                                                                                            |
+| `naizo-remove`                      | `data-naizo-remove`                      | `<button>` inside `[naizo-item]`                                                                       | Removes the enclosing `[naizo-item]` row and its backing object from `db.lists`.                                                                                                                                                                                                                                                                  |
+| `naizo-move="up"` / `"down"`        | `data-naizo-move="up"` / `"down"`        | `<button>` inside `[naizo-item]`                                                                       | Moves the enclosing `[naizo-item]` row up (`index - 1`) or down (`index + 1`) in both the DOM and `db.lists`.                                                                                                                                                                                                                                     |
+| `naizo-no-controls`                 | `data-naizo-no-controls`                 | On a `[naizo-list]` container                                                                          | Suppresses auto-injected `.naizo-item-tools` (`↑ ↓ ×`) and `.naizo-list-footer` (`+ Add Item`) so you can render custom controls or read-only lists.                                                                                                                                                                                              |
+| `naizo-ignore`                      | `data-naizo-ignore`                      | Any element                                                                                            | Excludes the element and its entire subtree from state binding and seeding while keeping it intact in templates and exported HTML (`D12`, `EC07`).                                                                                                                                                                                                |
+| `naizo-strip`                       | `data-naizo-strip`                       | Any element                                                                                            | Excludes the element and its subtree from state binding and strips it from auto-inferred list templates and `Naizo.exportHTML()` / `Naizo.downloadHTML()` (`D12`, `D47`, `EC03`, `EC07`).                                                                                                                                                         |
+| `naizo-id="scope"`                  | `data-naizo-id="scope"`                  | `<html>` or `<body>`                                                                                   | Scopes `localStorage` keys (`naizodb_state_<path>::<scope>`) and IndexedDB file handles so multiple documents on `localhost` never collide (`EC11`).                                                                                                                                                                                              |
+| `naizo-mode="online\|local\|auto"`  | `data-naizo-mode="online\|local\|auto"`  | `<html>` or `<body>`                                                                                   | Overrides automatic Local Mode vs. Online Mode detection (`D41`, `EC48`).                                                                                                                                                                                                                                                                         |
+| `naizo-pill-corner="corner"`        | `data-naizo-pill-corner="corner"`        | `<html>` or `<body>`                                                                                   | Sets the initial Status Pill corner (`bottom-right` [default], `bottom-left`, `top-right`, or `top-left`; `<body>` overrides `<html>`, and invalid values fall back to `bottom-right`) when `localStorage` `naizodb_ui_<key>` has no saved user-dragged preference yet; preserved across `exportHTML()` / `downloadHTML()` (`D08`, `D50`, `D57`). |
+| `naizo-no-pill`                     | `data-naizo-no-pill`                     | `<html>` or `<body>`                                                                                   | Skips mounting `#__naizodb_host__` (`<body>` overrides `<html>`, and `="false"` opts out) while retaining `#__naizodb_styles__`, `localStorage`, IndexedDB `fileHandle` auto-resume + ~2 s watch, and `⌘S` / `Ctrl+S` disk linking/saving; preserved across `exportHTML()` / `downloadHTML()` (`D56`, `EC53`).                                    |
+| `naizo-manual`                      | `data-naizo-manual`                      | `<html>`, `<body>`, or `<script>`                                                                      | Disables automatic `initNaizo()` boot in the browser IIFE bundle (`EC37`).                                                                                                                                                                                                                                                                        |
+| `naizo-get="url"`                   | `data-naizo-get="url"`                   | `<button>`, `<a>`, or any non-ignored element                                                          | Sends an HTTP `GET` request and routes the response via `naizo-into` (or hydrates full `#naizodb` when `naizo-into` is omitted, `D43`, `D51`).                                                                                                                                                                                                    |
+| `naizo-post="url"`                  | `data-naizo-post="url"`                  | `<button>` or any non-ignored element                                                                  | Flushes pending edits and sends an HTTP `POST` with CORS-safelisted `Content-Type: text/plain;charset=UTF-8` (`D43`, `D51`, `EC50`).                                                                                                                                                                                                              |
+| `naizo-into="target"`               | `data-naizo-into="target"`               | Element with `naizo-get` / `naizo-post`                                                                | Routes response into `field:<key>`, `list:<name>` (`Naizo.setList`), `custom:<key>`, `db`, or a DOM-only CSS `#selector` (`textContent` only, `D22`, `D51`).                                                                                                                                                                                      |
+| `naizo-path="a.b.0"`                | `data-naizo-path="a.b.0"`                | Element with `naizo-get` / `naizo-post`                                                                | Extracts a nested property or integer array index from parsed JSON using `Object.hasOwn()` at each step (`EC24`, `EC38`, `EC50`).                                                                                                                                                                                                                 |
+| `naizo-body="source"`               | `data-naizo-body="source"`               | Element with `naizo-post`                                                                              | Selects outgoing JSON payload: `db` (default), `fields`, `custom`, `list:<name>`, or `field:<key>` (`D43`, `D51`).                                                                                                                                                                                                                                |
+| `naizo-trigger="click\|init\|load"` | `data-naizo-trigger="click\|init\|load"` | Element with `naizo-get` / `naizo-post`                                                                | Fires on `click` (default, setting `data-naizo-loading`), `init` (on boot only when the target is empty), or `load` (every boot) (`D43`, `EC50`).                                                                                                                                                                                                 |
+| `naizo-cors="no-cors"`              | `data-naizo-cors="no-cors"`              | Element with `naizo-post` (without `naizo-into`)                                                       | Sends an opaque `mode: 'no-cors'` fire-and-forget webhook request when `Access-Control-Allow-Origin` is absent (`D43`, `EC50`).                                                                                                                                                                                                                   |
 
 ---
 
@@ -212,26 +235,33 @@ Standalone elements with `naizo="key"` (or `data-naizo="key"`) outside `[naizo-i
 
 `naizo.js` **never** captures unannotated inputs or falls back to `id` or `name` attributes. Only elements with `naizo="key"` or `data-naizo="key"` are bound. If an element exists in the DOM with a default value (e.g., `<input type="text" naizo="owner" value="Alex">`) and `"owner"` is not yet present in `db.fields`, `naizo.js` seeds `db.fields.owner = "Alex"` on boot.
 
-### Supported Elements & Value Coercion (`D14`, `D22`, `EC12`, `EC15`, `EC18`, `EC21`, `EC25`)
+### Supported Elements & Value Coercion (`D14`, `D22`, `D57`, `EC12`, `EC15`, `EC18`, `EC21`, `EC25`, `EC55`, `EC56`)
 
-| Element                                                           | Stored JSON Type             | Details & Edge-Case Protections                                                                                                                                                                   |
-| ----------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<input type="text\|search\|email\|url\|tel\|date\|time\|color">` | `string` (or preserved type) | Reads/writes `.value`. If `#naizodb` stored a `number` or `boolean` (e.g., `3`) and the DOM string matches `String(prevVal)`, the original JSON type is preserved (`EC25`).                       |
-| `<input type="number">` / `<input type="range">`                  | `number \| null`             | Coerces finite numeric input to `number`; stores `null` when the input is cleared (`""`) (`EC12`).                                                                                                |
-| `<input type="checkbox">`                                         | `boolean`                    | Reads/writes `.checked`. Hydrating strings `"false"`, `"0"`, `""`, `"no"`, or `"off"` coerces to `false` rather than truthy `true` (`EC25`).                                                      |
-| `<input type="radio" name="grp" value="a" naizo="choice">`        | `string`                     | All radios in the group carry `naizo="choice"`; the checked radio's `.value` is stored.                                                                                                           |
-| `<textarea naizo="notes">`                                        | `string`                     | Reads/writes `.value` on live DOM; bakes `.textContent` only on the export clone so the cursor never jumps to the end while typing (`D23`, `EC12`, `EC16`).                                       |
-| `<select naizo="status">`                                         | `string`                     | Reads/writes `.value`. If `#naizodb` contains a value with no matching `<option>`, `naizo.js` logs a warning and keeps the stored value in memory instead of clobbering it with `""` (`EC15`).    |
-| `<select multiple naizo="tags">`                                  | `string[]`                   | Reads/writes an array of selected `<option>` values (`EC12`).                                                                                                                                     |
-| `<details naizo="panel_open">`                                    | `boolean`                    | Binds `HTMLDetailsElement.open` via a capture-phase `toggle` listener without touching child elements (`EC12`).                                                                                   |
-| `[contenteditable]` (`""`, `"true"`, `"plaintext-only"`)          | `string`                     | Reads and writes plain text (`textContent`) by default so untrusted strings in `#naizodb` never execute as `innerHTML` XSS (`D22`, `EC18`). `contenteditable="false"` is not treated as editable. |
-| Leaf element (`<span naizo="version">1.0</span>`)                 | `string`                     | Reads/writes `textContent` only if the element has **no** non-ignored child elements. Non-leaf elements with child markup are skipped with a console warning (`EC12`).                            |
-| `<input type="password\|file\|button\|submit\|reset\|image">`     | _Skipped_ (`EC21`)           | Always ignored with a console warning so passwords never leak into `#naizodb` and `type="file"` never throws `InvalidStateError`.                                                                 |
+| Element                                                           | Stored JSON Type             | Details & Edge-Case Protections                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<input type="text\|search\|email\|url\|tel\|date\|time\|color">` | `string` (or preserved type) | Reads/writes `.value`. If `#naizodb` stored a `number` or `boolean` (e.g., `3`) and the DOM string matches `String(prevVal)`, the original JSON type is preserved (`EC25`).                                                                                                                                                                                                                    |
+| `<input type="number">` / `<input type="range">`                  | `number \| null`             | Coerces finite numeric input to `number`; stores `null` when the input is cleared (`""`) (`EC12`).                                                                                                                                                                                                                                                                                             |
+| `<input type="checkbox">`                                         | `boolean`                    | Reads/writes `.checked`. Hydrating strings `"false"`, `"0"`, `""`, `"no"`, or `"off"` coerces to `false` rather than truthy `true` (`EC25`).                                                                                                                                                                                                                                                   |
+| `<input type="radio" name="grp" value="a" naizo="choice">`        | `string`                     | All radios in the group carry `naizo="choice"`; the checked radio's `.value` is stored.                                                                                                                                                                                                                                                                                                        |
+| `<textarea naizo="notes">`                                        | `string`                     | Reads/writes `.value` on live DOM; bakes `.textContent` only on the export clone so the cursor never jumps to the end while typing (`D23`, `EC12`, `EC16`).                                                                                                                                                                                                                                    |
+| `<select naizo="status">`                                         | `string`                     | Always stores `string` values (use `<input type="checkbox">` for booleans). When `#naizodb` holds `""` or `null` and no `<option value="">` exists, sets `selectedIndex = -1` without warning (`EC55`, keeping `""`/`null` in `store`, Option #0 selectable, and export clean); for unknown non-empty values (e.g., `"Shipped"`), logs `console.warn` and preserves the stored value (`EC15`). |
+| `<select multiple naizo="tags">`                                  | `string[]`                   | Reads/writes an array of selected `<option>` values (`EC12`).                                                                                                                                                                                                                                                                                                                                  |
+| `<details naizo="panel_open">`                                    | `boolean`                    | Binds `HTMLDetailsElement.open` via a capture-phase `toggle` listener without touching child elements (`EC12`).                                                                                                                                                                                                                                                                                |
+| `[contenteditable]` (`""`, `"true"`, `"plaintext-only"`)          | `string`                     | Reads and writes plain text (`textContent`) by default so untrusted strings in `#naizodb` never execute as `innerHTML` XSS (`D22`, `EC18`). `contenteditable="false"` is not treated as editable.                                                                                                                                                                                              |
+| Leaf element (`<span naizo="version">1.0</span>`)                 | `string`                     | Reads/writes `textContent` only if the element has **no** non-ignored child elements (`EC12`). Passive display leaves yield seeding/reset precedence to interactive controls (`EC56`) and live-mirror sibling `naizo="key"` updates via `textContent` (`EC19`; never mutate `innerHTML`).                                                                                                      |
+| `<input type="password\|file\|button\|submit\|reset\|image">`     | _Skipped_ (`EC21`)           | Always ignored with a console warning so passwords never leak into `#naizodb` and `type="file"` never throws `InvalidStateError`.                                                                                                                                                                                                                                                              |
 
-### Duplicate Scalar Bindings & Native `<form>` Reset (`EC12`, `EC19`)
+### Safe `<select>` Rules: Blank `selectedIndex = -1` vs. Unknown Values (`EC15`, `EC55`)
 
-- **Duplicate key synchronization (`EC19`):** You can bind multiple standalone elements to the same key (for example, `<h1 contenteditable="true" naizo="doc_title">` in the header and `<input type="text" naizo="doc_title">` in a settings drawer). Editing either element updates `db.fields.doc_title` in `O(1)` and immediately propagates the new value to all other standalone elements bound to `"doc_title"`.
-- **Native `form.reset()` support (`EC12`):** Because `naizo.js` does not mutate `defaultValue` / `defaultChecked` attributes on the live DOM during typing (`D23`), calling `form.reset()` or clicking `<button type="reset">` restores the original HTML defaults and automatically re-captures those reset values into `#naizodb`.
+- **Blank / nullable single `<select>` (`""` or `null`, `EC55`):** When `writeElementValue()` hydrates `""` or `null` onto a single `<select naizo="key">` that lacks `<option value="">`, `naizo.js` sets `el.selectedIndex = -1` and returns **without** emitting a false-positive `console.warn`. This preserves `""` / `null` in `store`, renders the `<select>` visibly blank instead of falsely showing Option #0, keeps Option #0 user-selectable (so selecting Option #0 fires `'change'`), and prevents `Naizo.exportHTML()` from baking `selected` onto Option #0. **Recommended authoring rule (`D58`):** Still include an explicit `<option value="">— Select… —</option>` placeholder on nullable `<select>` fields so users can also clear a previously chosen option back to `""`.
+- **Unknown non-empty values (`EC15`):** When `#naizodb` holds a non-empty string (such as `"Shipped"` written on disk by an AI agent before the matching `<option>` exists), `naizo.js` logs a `console.warn`, leaves DOM selection untouched, and preserves `"Shipped"` in memory rather than clobbering it with `""`.
+- **String-only values (`D58`):** HTML `<select>` `.value` is always a `string`. Never store raw boolean `false` or `true` for a `<select>` field in `#naizodb`—use `<input type="checkbox" naizo="flag">` for boolean toggles.
+
+### Duplicate Bindings, Plain-Text Mirroring, & Interactive-Over-Passive Precedence (`EC12`, `EC19`, `EC56`)
+
+- **Live plain-text mirroring (`EC19`):** Multiple elements—either standalone (`db.fields[key]`) or inside the same `[naizo-item]` (`item[key]`)—can share `naizo="key"` (for example, `<h3 naizo="name"></h3>` in a card header paired with `<input type="text" naizo="name" value="Untitled">` in an edit body). Editing the interactive control updates `store` in `O(1)` and synchronously mirrors the text to all sibling `naizo="name"` leaves via `textContent` (`D22`). Never mutate `innerHTML` on a `naizo="key"` element; use `[naizo-ignore]` for rich HTML (`<a>`, Markdown, badges).
+- **Interactive-over-passive seeding & `<form>` reset precedence (`EC56`, refining `EC19`):** During blank item creation (`bindItemElementToRecord`), initial baseline capture (`buildInitialBaselineDb`), boot/dynamic subtree hydration (`hydrateSubtreeFromStore` with `seedMissingFromDom === true`), and native `<form>` reset (`handleFormReset`), `naizo.js` partitions **interactive bound elements** (`<input>`, `<select>`, `<textarea>`, `<details>`, `[contenteditable]`) ahead of **passive display leaves** (`<span naizo="name">`, `<h3 naizo="name">`), resolves defaults from interactive controls first, and then mirrors the resolved stored value back onto passive display leaves. Placing `<h3 naizo="name"></h3>` _before_ `<input naizo="name" value="Untitled">` in DOM order never overwrites `"Untitled"` or `form.reset()` defaults with `""` or stale text.
+- **Native `form.reset()` support (`EC12`):** Because `naizo.js` does not mutate `defaultValue` / `defaultChecked` attributes on the live DOM during typing (`D23`), calling `form.reset()` or clicking `<button type="reset">` restores the original HTML defaults, mirrors them onto passive leaves (`EC56`), and emits `naizo:change` (`source: 'dom'`).
 
 ---
 
@@ -334,9 +364,9 @@ If you do **not** author a `<template>` tag inside `[naizo-list]`, `naizo.js` au
 - **On future boots:** Because `data-naizo-auto-template` is marked as auto-generated, `naizo.js` regenerates it from the first `[naizo-item]` whenever the list has items—so if you or an AI agent edit the `[naizo-item]` markup in `<body>`, the template automatically picks up your new markup (`EC09`).
 - **On `Naizo.exportHTML()` / `Naizo.downloadHTML()`:** If the list currently has $\ge 1$ item, `template[data-naizo-auto-template]` is stripped from the exported HTML to keep the markup clean. If the user deleted every item in the list ($0$ items remaining), `template[data-naizo-auto-template]` is **kept** in the exported HTML so the empty list never loses its item blueprint (`EC09`).
 
-### 2. Explicit Authored Template (`<template naizo-template>`)
+### 2. Explicit Authored Template (`<template naizo-template>` — Recommended for Multi-Item Lists, `D16`, `D58`)
 
-When a list may start with $0$ items in `<body>` or requires a specific blank blueprint, include an explicit direct-child `<template naizo-template>` (without `data-naizo-auto-template`):
+For multi-item tables, card boards, and studios—or whenever a list may start with `0` items—prefer authoring a **single explicit `<template naizo-template>`** blueprint inside `[naizo-list]` with **`0` duplicated static `[naizo-item]` shells** in `<body>` while `<script id="naizodb">` holds the canonical initial items (`D16`, `D58`):
 
 ```html
 <div naizo-list="risks">
@@ -345,7 +375,8 @@ When a list may start with $0$ items in `<body>` or requires a specific blank bl
       <label><input type="text" naizo="summary" placeholder="Risk description..." /></label>
       <label>
         <select naizo="impact">
-          <option value="Low" selected>Low</option>
+          <option value="">— Select… —</option>
+          <option value="Low">Low</option>
           <option value="High">High</option>
         </select>
       </label>
@@ -354,7 +385,7 @@ When a list may start with $0$ items in `<body>` or requires a specific blank bl
 </div>
 ```
 
-Explicitly authored `<template naizo-template>` elements are never overwritten on boot and are always preserved on `Naizo.exportHTML()`.
+Authoring one `<template naizo-template>` with `0` static `[naizo-item]` shells in `<body>` eliminates duplicated HTML markup, prevents pre-hydration flashes of placeholder cards before `<script defer>` runs, works seamlessly when `db.lists.risks` starts empty (`[]`), and is always preserved untouched across boot and `Naizo.exportHTML()`.
 
 ---
 
@@ -375,62 +406,102 @@ Decisions `D12` and `D47` (`EC03`, `EC07`, `EC23`, `EC29`) separate **excluding 
 
 ## 9. Programmatic JavaScript API (`window.Naizo`) & Events
 
-`window.Naizo` (aliased as `window.NaizoDB`) exposes the full store, Mini-API Client, and persistence lifecycle (`D14`, `D15`, `D21`, `D40`, `D41`, `D43`, `D51`):
+`window.Naizo` (aliased as `window.NaizoDB`) exposes the full store, batching/readiness helpers, Mini-API Client, and persistence lifecycle (`D14`, `D15`, `D21`, `D40`, `D41`, `D43`, `D51`, `D56`, `D57`):
 
 ### Method Reference (`NaizoAPI`)
 
-| Method                                           | Return Type                      | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Naizo.init()`                                   | `Promise<void>`                  | Initializes (or re-initializes) `naizo.js`: mounts Shadow DOM pill (unless `naizo-no-pill` / `data-naizo-no-pill` is active), infers templates, attaches listeners with `AbortController` cleanup, resolves `#naizodb` vs. `localStorage`, hydrates DOM, checks IndexedDB `fileHandle`, and fires `naizo-trigger="init\|load"` requests.                                                                                                                                                                                                                                                                                           |
-| `Naizo.get(key?)`                                | `unknown`                        | Returns `db.custom[key]` when `key` is provided, or the live `NaizoDatabase` (`{ _meta, fields, lists, custom }`) when `key` is omitted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `Naizo.set(key, value)`                          | `void`                           | Validates JSON value (`EC35`), deep-clones and stores `db.custom[key]`, dispatches `naizo:change` (`{ scope: 'custom', key, value }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `Naizo.delete(key)`                              | `void`                           | Removes `db.custom[key]` if present, dispatches `naizo:change` (`{ scope: 'custom', action: 'delete', key }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `Naizo.getField(key)`                            | `unknown`                        | Returns `db.fields[key]`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `Naizo.setField(key, value)`                     | `void`                           | Validates JSON value (`EC35`), sets `db.fields[key]`, updates all bound standalone `[naizo="key"]` elements in the DOM, dispatches `naizo:change` (`{ scope: 'fields', key, value }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `Naizo.deleteField(key)`                         | `void`                           | Deletes `db.fields[key]`, clears bound standalone `[naizo="key"]` DOM elements (`clearElementValue`), dispatches `naizo:change` (`{ scope: 'fields', action: 'delete', key }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `Naizo.getList(listName)`                        | `Array<Record<string, unknown>>` | Returns `db.lists[listName]` (or `[]` if not found).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `Naizo.setList(listName, items)`                 | `void`                           | Validates that `items` is an array of plain JSON-serializable objects, deep-clones into `db.lists[listName]`, re-renders `[naizo-list="listName"]` (preserving pass-through keys and auto-inferred `<template>` blueprints), dispatches `naizo:change` (`{ scope: 'lists', action: 'set', list, value }`), and flushes persistence (`D43`).                                                                                                                                                                                                                                                                                        |
-| `Naizo.addItem(listName, itemData?)`             | `void`                           | Validates `itemData` (defaults to `{}`), appends a new `[naizo-item]` DOM node if `[naizo-list]` is present (without stealing focus, `EC31`), pushes to `db.lists[listName]`, and dispatches `naizo:item` and `naizo:change`.                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `Naizo.updateItem(listName, index, partialData)` | `void`                           | Validates `partialData`, shallow-merges its keys into `db.lists[listName][index]` (preserving untouched keys), updates matching bound fields in that row's DOM, dispatches `naizo:change`, and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `Naizo.moveItem(listName, fromIndex, toIndex)`   | `void`                           | Moves the item in `db.lists[listName]` and reorders the corresponding `[naizo-item]` DOM node in place (preserving its `WeakMap` reference), dispatches `naizo:change`, and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `Naizo.removeItem(listName, index)`              | `void`                           | Removes `db.lists[listName][index]` and its `[naizo-item]` DOM element, dispatches `naizo:change`, and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `Naizo.fetch(url, options?)`                     | `Promise<NaizoFetchResult>`      | Reveals `#net`, runs an HTTP request (`options: { method?, into?, path?, body?, headers?, mode?, signal? }`), routes valid `2xx` responses via `options.into` when provided (keeping omitted `options.into` non-mutating across all HTTP methods so callers can inspect/transform parsed `data` without mutating `#naizodb`, whereas declarative `naizo-get` without `naizo-into` hydrates full `#naizodb` when the payload matches `{ _meta, fields, lists, custom }`, `D51`, `D52`), updates `#net`, dispatches `naizo:fetch`, and resolves `{ url, method, ok, status, target, data, error }` without throwing (`D43`, `EC50`). |
-| `Naizo.bind(root?)`                              | `void`                           | Hydrates bound elements inside a dynamically inserted DOM subtree (`root` defaults to `document`) from the store without overwriting existing stored values with DOM defaults, reveals `#net` if API attributes exist, and runs `naizo-trigger="init\|load"` inside `root` (`D21`, `D43`, `EC20`).                                                                                                                                                                                                                                                                                                                                 |
-| `Naizo.save()`                                   | `Promise<boolean>`               | Immediately flushes pending capture to `localStorage` and `#naizodb`, and if a `fileHandle` is linked, awaits the single-flight surgical disk write (`EC36`). Returns `true` when the disk write (or unlinked cache flush) succeeded.                                                                                                                                                                                                                                                                                                                                                                                              |
-| `Naizo.reset()`                                  | `void`                           | If the store differs from the initial boot baseline (`initialDiskDb`), backs up current state to `naizodb_backup_<key>` (**`↺ Restore`**), resets `store` to `initialDiskDb` locally without re-firing HTTP requests (`D51`), clears `naizodb_state_<key>`, re-hydrates DOM, and emits `naizo:hydrate` + `naizo:change` (`{ scope: 'reset' }`) (`D41`, `EC48`).                                                                                                                                                                                                                                                                    |
-| `Naizo.link()`                                   | `Promise<boolean>`               | Prompts or resumes `FileSystemFileHandle` `readwrite` access from a user gesture (`connectOrResumeDisk()`) and writes `#naizodb` to disk, symmetric with `Naizo.unlink()` (`D56`, `EC53`). Resolves `true` only when a `'granted'` `fileHandle` completes `writeToDisk()`; resolves `false` when `startupInvalidDb` is active, permission remains `'prompt'`/`'denied'` or throws, the user cancels `showSaveFilePicker()`, `writeToDisk()` fails, or non-FSAA browsers fall back to `Naizo.downloadHTML()` (`EC02`).                                                                                                              |
-| `Naizo.unlink()`                                 | `Promise<void>`                  | Stops the ~2 s disk watcher, clears the active `fileHandle`, deletes the stored handle from IndexedDB `NaizoDB_Handles`, and returns the status pill to `Browser Cache · Click to Link Disk` (or `Saved in Browser` in Online Mode).                                                                                                                                                                                                                                                                                                                                                                                               |
-| `Naizo.copyJSON()`                               | `Promise<string>`                | Flushes pending state, writes the 2-space formatted `#naizodb` JSON string to `navigator.clipboard.writeText()` when available, and returns the JSON string (`D27`).                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `Naizo.exportHTML()`                             | `string`                         | Clones the document, bakes form attributes (`value`, `checked`, `selected`, `open`, `textContent`), restores radio `name` attributes, strips `[naizo-strip]` / `[data-naizo-strip]`, in-flight `data-naizo-loading` attributes, and non-empty `data-naizo-auto-template`, and returns `<!DOCTYPE html>\n...`. In Online Mode, also rewrites relative `naizo(.min).js` script tags to `dist/naizo.min.js` on the npm CDN and strips `naizo-mode="online"`.                                                                                                                                                                          |
-| `Naizo.downloadHTML(filename?)`                  | `string`                         | Generates a portable standalone HTML snapshot (always rewriting relative `naizo(.min).js` script tags to `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js` and stripping `naizo-mode="online"`), triggers a browser `.html` file download (`URL.revokeObjectURL` cleanup), and returns the HTML string (`D41`, `EC48`).                                                                                                                                                                                                                                                                                              |
+| Method                                           | Return Type                      | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Naizo.init()`                                   | `Promise<void>`                  | Initializes (or re-initializes) `naizo.js`: resets `bootHydrated` and event/batch queues, mounts Shadow DOM pill (unless `naizo-no-pill` / `data-naizo-no-pill` is active), infers templates, attaches listeners with `AbortController` cleanup, resolves `#naizodb` vs. `localStorage`, hydrates DOM, sets `bootHydrated = true` and emits `naizo:hydrate`, checks IndexedDB `fileHandle`, and fires `naizo-trigger="init\|load"` requests.                                                                                                                                                                                                                                          |
+| `Naizo.ready(callback)`                          | `void`                           | Invokes `callback(db)` synchronously with the live `NaizoDatabase` when initial boot hydration (`bootHydrated`) has already completed (including the `startupInvalidDb` boot path), or attaches a `{ once: true }` `'naizo:hydrate'` listener on `window` when called before `initNaizo()` finishes (`D57`, `EC57`).                                                                                                                                                                                                                                                                                                                                                                  |
+| `Naizo.batch(fn, options?)`                      | `T`                              | Executes `fn()` synchronously (`options?: NaizoBatchOptions` `{ silent?: boolean; deferPersist?: boolean }`, nestable via `batchDepth`, and `try/finally`-safe if `fn()` throws), updating `store` and bound DOM elements synchronously on each inner call while suppressing intermediate `flushPersistence()` and `naizo:change` dispatches (`D57`, `EC54`). On outermost exit when dirty, persists once (`schedulePersist()` if `deferPersist: true`, or `flushPersistence(true)` by default) and—unless `silent: true` (or all dirty writes occurred inside `silent: true` inner batches)—emits one `{ scope: 'batch', action: 'batch', source: 'api', db }` `naizo:change` event. |
+| `Naizo.get(key?)`                                | `unknown`                        | Returns `db.custom[key]` when `key` is provided, or the live `NaizoDatabase` (`{ _meta, fields, lists, custom }`) when `key` is omitted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `Naizo.set(key, value)`                          | `void`                           | Validates JSON value (`EC35`), deep-clones and stores `db.custom[key]`, dispatches `naizo:change` (`{ scope: 'custom', key, value, source: 'api', db }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `Naizo.delete(key)`                              | `void`                           | Removes `db.custom[key]` if present, dispatches `naizo:change` (`{ scope: 'custom', action: 'delete', key, source: 'api', db }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `Naizo.getField(key)`                            | `unknown`                        | Returns `db.fields[key]`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `Naizo.setField(key, value)`                     | `void`                           | Validates JSON value (`EC35`), sets `db.fields[key]`, updates all bound standalone `[naizo="key"]` elements in the DOM, dispatches `naizo:change` (`{ scope: 'fields', key, value, source: 'api', db }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `Naizo.deleteField(key)`                         | `void`                           | Deletes `db.fields[key]`, clears bound standalone `[naizo="key"]` DOM elements (`clearElementValue`), dispatches `naizo:change` (`{ scope: 'fields', action: 'delete', key, source: 'api', db }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `Naizo.getList(listName)`                        | `Array<Record<string, unknown>>` | Returns `db.lists[listName]` (or `[]` if not found).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `Naizo.setList(listName, items)`                 | `void`                           | Validates that `items` is an array of plain JSON-serializable objects, deep-clones into `db.lists[listName]`, re-renders `[naizo-list="listName"]` (preserving pass-through keys and auto-inferred `<template>` blueprints), dispatches `naizo:change` (`{ scope: 'lists', action: 'set', list, value, source: 'api', db }`), and flushes persistence (`D43`).                                                                                                                                                                                                                                                                                                                        |
+| `Naizo.addItem(listName, itemData?)`             | `void`                           | Validates `itemData` (defaults to `{}`), appends a new `[naizo-item]` DOM node if `[naizo-list]` is present (without stealing focus, `EC31`), pushes to `db.lists[listName]`, and dispatches `naizo:item` and `naizo:change` (`{ scope: 'lists', action: 'add', list, index, value, source: 'api', db }`).                                                                                                                                                                                                                                                                                                                                                                            |
+| `Naizo.updateItem(listName, index, partialData)` | `void`                           | Validates `partialData`, shallow-merges its keys into `db.lists[listName][index]` (preserving untouched keys), updates matching bound fields in that row's DOM, dispatches `naizo:change` (`{ scope: 'lists', action: 'update', list, index, value, source: 'api', db }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                   |
+| `Naizo.moveItem(listName, fromIndex, toIndex)`   | `void`                           | Moves the item in `db.lists[listName]` and reorders the corresponding `[naizo-item]` DOM node in place (preserving its `WeakMap` reference), dispatches `naizo:change` (`{ scope: 'lists', action: 'move', list, index: toIndex, source: 'api', db }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `Naizo.removeItem(listName, index)`              | `void`                           | Removes `db.lists[listName][index]` and its `[naizo-item]` DOM element, dispatches `naizo:change` (`{ scope: 'lists', action: 'remove', list, index, source: 'api', db }`), and flushes persistence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `Naizo.fetch(url, options?)`                     | `Promise<NaizoFetchResult>`      | Reveals `#net`, runs an HTTP request (`options: { method?, into?, path?, body?, headers?, mode?, signal? }`), routes valid `2xx` responses via `options.into` when provided (keeping omitted `options.into` non-mutating across all HTTP methods so callers can inspect/transform parsed `data` without mutating `#naizodb`, whereas declarative `naizo-get` without `naizo-into` hydrates full `#naizodb` when the payload matches `{ _meta, fields, lists, custom }`, `D51`, `D52`), updates `#net`, dispatches `naizo:fetch`, and resolves `{ url, method, ok, status, target, data, error }` without throwing (`D43`, `EC50`).                                                    |
+| `Naizo.bind(root?)`                              | `void`                           | Hydrates bound elements inside a dynamically inserted DOM subtree (`root` defaults to `document`) from the store without overwriting existing stored values with DOM defaults, reveals `#net` if API attributes exist, and runs `naizo-trigger="init\|load"` inside `root` (`D21`, `D43`, `EC20`).                                                                                                                                                                                                                                                                                                                                                                                    |
+| `Naizo.save()`                                   | `Promise<boolean>`               | Immediately flushes pending capture (including deferred `Naizo.batch(fn, { deferPersist: true })` edits) to `localStorage` and `#naizodb`, and if a `fileHandle` is linked, awaits the single-flight surgical disk write (`EC36`). Returns `true` when the disk write (or unlinked cache flush) succeeded.                                                                                                                                                                                                                                                                                                                                                                            |
+| `Naizo.reset()`                                  | `void`                           | If the store differs from the initial boot baseline (`initialDiskDb`), backs up current state to `naizodb_backup_<key>` (**`↺ Restore`**), resets `store` to `initialDiskDb` locally without re-firing HTTP requests (`D51`), clears `naizodb_state_<key>`, re-hydrates DOM, and emits `naizo:hydrate` + `naizo:change` (`{ scope: 'reset', source: 'api', db }`) (`D41`, `EC48`).                                                                                                                                                                                                                                                                                                    |
+| `Naizo.link()`                                   | `Promise<boolean>`               | Prompts or resumes `FileSystemFileHandle` `readwrite` access from a user gesture (`connectOrResumeDisk()`) and writes `#naizodb` to disk, symmetric with `Naizo.unlink()` (`D56`, `EC53`). Resolves `true` only when a `'granted'` `fileHandle` completes `writeToDisk()`; resolves `false` when `startupInvalidDb` is active, permission remains `'prompt'`/`'denied'` or throws, the user cancels `showSaveFilePicker()`, `writeToDisk()` fails, or non-FSAA browsers fall back to `Naizo.downloadHTML()` (`EC02`).                                                                                                                                                                 |
+| `Naizo.unlink()`                                 | `Promise<void>`                  | Stops the ~2 s disk watcher, clears the active `fileHandle`, deletes the stored handle from IndexedDB `NaizoDB_Handles`, and returns the status pill to `Browser Cache · Click to Link Disk` (or `Saved in Browser` in Online Mode).                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `Naizo.copyJSON()`                               | `Promise<string>`                | Flushes pending state, writes the 2-space formatted `#naizodb` JSON string to `navigator.clipboard.writeText()` when available, and returns the JSON string (`D27`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `Naizo.exportHTML()`                             | `string`                         | Flushes pending state, clones the document, bakes form attributes (`value`, `checked`, `selected`, `open`, `textContent`), restores radio `name` attributes, preserves `naizo-no-pill` and `naizo-pill-corner` attributes, strips `[naizo-strip]` / `[data-naizo-strip]`, in-flight `data-naizo-loading` attributes, and non-empty `data-naizo-auto-template`, and returns `<!DOCTYPE html>\n...`. In Online Mode, also rewrites relative `naizo(.min).js` script tags to `dist/naizo.min.js` on the npm CDN and strips `naizo-mode="online"`.                                                                                                                                        |
+| `Naizo.downloadHTML(filename?)`                  | `string`                         | Flushes pending state, generates a portable standalone HTML snapshot (always rewriting relative `naizo(.min).js` script tags to `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`, preserving `naizo-no-pill` and `naizo-pill-corner`, and stripping `naizo-mode="online"`), triggers a browser `.html` file download (`URL.revokeObjectURL` cleanup), and returns the HTML string (`D41`, `EC48`).                                                                                                                                                                                                                                                                     |
 
-### Custom Window Events (`EC40`)
+### Custom Window Events (`EC40`, `EC54`, `EC57`)
 
-Listen on `window` to synchronize custom visualizations, charts, counters, or sidebars:
+Listen on `window` (at top level, or pair with `Naizo.ready(fn)` per `EC57`) to synchronize custom visualizations, charts, counters, or sidebars:
 
 ```javascript
-// 1. Fired on initial boot, external disk merge, cross-tab storage sync, full-DB fetch, ↺ Restore, and ↺ Reset
+// 1. Safe boot readiness (runs synchronously if already hydrated, or once on boot naizo:hydrate)
+Naizo.ready((db) => {
+  renderCustomDashboard(db);
+});
+
+// 2. Fired on initial boot, external disk merge, cross-tab storage sync, full-DB fetch, ↺ Restore, and ↺ Reset
 window.addEventListener('naizo:hydrate', (e) => {
   const db = e.detail; // Full NaizoDatabase: { _meta, fields, lists, custom }
   renderCustomDashboard(db);
 });
 
-// 2. Fired whenever a bound input changes or Naizo.set / setField / setList / addItem / updateItem / moveItem / removeItem / reset is called
+// 3. Fired whenever a bound input changes or Naizo.set / setField / setList / addItem / updateItem / moveItem / removeItem / batch / reset is called
 window.addEventListener('naizo:change', (e) => {
-  // e.detail: { scope: 'fields' | 'lists' | 'custom' | 'db' | 'reset' | 'restore', action?, list?, key?, index?, value?, db }
+  // e.detail: {
+  //   scope: 'fields' | 'lists' | 'custom' | 'db' | 'batch' | 'reset' | 'restore',
+  //   action?: 'update' | 'add' | 'remove' | 'move' | 'set' | 'delete' | 'batch',
+  //   list?: string,
+  //   key?: string,
+  //   index?: number,
+  //   value?: unknown,
+  //   source: 'dom' | 'api',
+  //   db: NaizoDatabase
+  // }
   renderCustomDashboard(e.detail.db);
 });
 
-// 3. Fired when a new [naizo-item] DOM element is appended to a list
+// 4. Fired when a new [naizo-item] DOM element is appended to a list
 window.addEventListener('naizo:item', (e) => {
   const { list, item, data, index } = e.detail;
   console.log(`Added row #${index} to ${list}:`, item, data);
 });
 
-// 4. Fired after every declarative naizo-get / naizo-post or Naizo.fetch() call completes
+// 5. Fired after every declarative naizo-get / naizo-post or Naizo.fetch() call completes
 window.addEventListener('naizo:fetch', (e) => {
   const { url, method, ok, status, target, data, error } = e.detail;
   if (!ok) console.warn(`Request failed (${status}):`, error);
+});
+```
+
+### `naizo:change` Payload Symmetry, Non-Reentrant FIFO Queue, & `Naizo.batch()` (`D57`, `EC54`)
+
+1. **DOM vs. API `e.detail` symmetry (`index`, `action`, `source`, `EC54`):**
+   - **`source: 'dom' | 'api'`:** Every `naizo:change` event sets `source: 'dom'` for user-initiated DOM edits (`input`, `change`, `<details>` `toggle`, and `<form>` `reset`) and `source: 'api'` for programmatic `Naizo.*` calls, `Naizo.batch()`, `Restore Backup`, and store-mutating `naizo-get` / `Naizo.fetch()`.
+   - **List-edit `index` & `action: 'update'` symmetry:** Editing a bound input inside `[naizo-item]` resolves `index = db.lists[listName].indexOf(rowObj)` and emits `{ scope: 'lists', action: 'update', list: listName, index, key, value, source: 'dom', db }` (matching `Naizo.updateItem()`'s `index` and `action: 'update'`), so incremental row renderers can update just `rows[e.detail.index]` for both user typing and programmatic updates.
+2. **Non-reentrant FIFO `dispatchChangeEvent()` queue (`EC54`):**
+   - If a `naizo:change` listener invokes `Naizo.set()`, `Naizo.setField()`, `Naizo.updateItem()`, or another mutator while an active `naizo:change` dispatch is still on the call stack, `naizo.js` **enqueues** `{ ...detail, db: store }` in FIFO order instead of recursing mid-listener, and drains queued events sequentially in a `try/finally` loop right after the current `window.dispatchEvent` returns.
+   - Re-entrant draining is capped at **`10` passes** (`MAX_REENTRANT_CHANGE_PASSES = 10`); exceeding the cap logs a `console.warn` cycle warning and clears any remaining queued events (also reset cleanly on `Naizo.init()` and teardown). Because nested mutations never re-enter an active render pass, custom listeners do not need fragile `if (syncing) return;` guards that could silently drop follow-up updates.
+3. **Nestable synchronous batching (`Naizo.batch<T>(fn: () => T, options?: NaizoBatchOptions): T`):**
+   - Inside `fn()`, all `store` mutations and bound DOM updates (`propagateStandaloneKey`, `propagateItemKey`, `addItem` row creation, `setList`) run **synchronously** so DOM measurements and read-after-write queries remain immediate, while intermediate `flushPersistence()` and `naizo:change` calls are suppressed until the outermost `Naizo.batch()` exits (`batchDepth === 0`, decremented safely in `finally` if `fn()` throws):
+     - **Default (`Naizo.batch(fn)`):** Flushes `#naizodb` + `localStorage` synchronously once (`flushPersistence(true)`) and emits one `{ scope: 'batch', action: 'batch', source: 'api', db }` event if any mutation dirtied the store.
+     - **Silent derived writes (`{ silent: true }`):** Persists dirty mutations on exit while suppressing `naizo:change` (when nested inside an outer batch, `naizo:change` is also suppressed if _every_ dirty write occurred inside `silent: true` inner batches).
+     - **60fps sliders & canvas drags (`{ deferPersist: true }`):** Updates `store` and bound DOM synchronously on every frame, emits `{ scope: 'batch', action: 'batch', source: 'api', db }`, and defers `JSON.stringify` + `localStorage.setItem` via `schedulePersist()` (`150 ms` debounce—still flushed synchronously by `Naizo.save()`, `Naizo.exportHTML()`, `Naizo.downloadHTML()`, `Naizo.copyJSON()`, `⌘S` / `Ctrl+S`, and `pagehide` / `visibilitychange: hidden`).
+
+```javascript
+// Atomic multi-scope mutation: 1 JSON serialize + 1 naizo:change ({ scope: 'batch', action: 'batch', source: 'api' })
+const newId = Naizo.batch(() => {
+  const id = 'note-' + Date.now();
+  Naizo.addItem('notes', { id, title: 'Untitled', body: '' });
+  Naizo.set('activeNoteId', id);
+  return id;
 });
 ```
 
@@ -521,15 +592,15 @@ A single `naizo.js` `.html` file adapts automatically depending on whether it is
 
 ### Local Mode vs. Online Mode Behavior Matrix
 
-| Capability / UI Element                    | Local Mode (`file://`, `localhost`, or linked file)                                                                                                                                                                                                                                                                                                                                                                                  | Online Mode (Remote `https://` static host, unlinked)                                                                                                                                                                                                               |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Default `#dot` (`丸に三つ石`) & Status** | Amber `#dot` (**`Browser Cache · Click to Link Disk`**) until linked; Green `#dot` (**`Saving...`** `1.55s` Heartbeat → **`Synced to Disk`**) after `writable.close()` completes (`EC36`).                                                                                                                                                                                                                                           | Green `#dot` (**`Saved in Browser`**) when `localStorage` is active (or Amber **`In-Memory Only`** if storage is blocked).                                                                                                                                          |
-| **Slot 1 / 2 Primary Action (`#action`)**  | **`1. Link Disk`** (Chain Link icon, `⌘S` badge) before linking, or **`Resume Disk Sync`** if handle permission needs re-granting; swaps in place in Slot 1 to **`1. Unlink Disk`** (`#unlink`, Slashed Chain Link `× Unlink`) once linked.                                                                                                                                                                                          | **`2. Save to PC`** (Download Tray icon, `⬇ Save to PC` / `Naizo.downloadHTML()`).                                                                                                                                                                                  |
-| **Slot 3–6 Action Buttons (`#copy`..)**    | **`3. Copy JSON`** (`#copy`, Copy Squares → `1.5s` `✓ Copied`) always visible; **`4. Repair JSON`** (`#restore`, Wrench `↺ Repair`) on malformed startup JSON (`EC02`); **`5. Restore Backup`** (`#restore`, History `↺ Restore`) when conflict/reset backup exists; **`6. Reset to Initial State`** (`#reset`, Red Eraser `↺ Reset`) when unlinked (`!fileHandle`) and dirty from `initialDiskDb`, auto-hiding once linked (`D56`). | **`3. Copy JSON`** (`#copy`) always visible; **`4. Repair JSON`** / **`5. Restore Backup`** (`#restore`) when applicable; **`6. Reset to Initial State`** (`#reset`, Red Eraser `↺ Reset` — always last) when dirty from `initialDiskDb`.                           |
-| **`⌘S` / `Ctrl+S` Shortcut**               | Suppresses native browser _"Save Webpage, Complete"_ dialog; invokes `Naizo.save()` if granted, or opens `showSaveFilePicker()` / permission prompt directly from the keyboard gesture (`EC47`).                                                                                                                                                                                                                                     | Suppresses native browser save dialog; flushes `localStorage` immediately and flashes **`✓ Saved in Browser`** on the status pill.                                                                                                                                  |
-| **Tab Hide / Switch (`Cmd+Tab`)**          | Synchronously flushes `localStorage` AND immediately starts `writeToDisk()` if a debounced edit was pending (`M4.5b`, `EC47`).                                                                                                                                                                                                                                                                                                       | Synchronously flushes `localStorage`.                                                                                                                                                                                                                               |
-| **`⬇ Save to PC` / Fallback Handoff**      | Writes directly in place to the linked `.html` file on disk in Chromium, or falls back to `.html` download (`Naizo.downloadHTML()`) when clicking `1. Link Disk` in Safari/Firefox where `showSaveFilePicker` is unavailable.                                                                                                                                                                                                        | Downloads a single `.html` file with baked state, relative `naizo(.min).js` `<script src>` rewritten to `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`, and `naizo-mode="online"` stripped so it opens in **Local Mode** on the user's PC (`D41`). |
-| **4-Corner Snap Drag (`naizodb_ui_`)**     | Drag `#dot` to snap the frosted-glass pill into `bottom-right`, `bottom-left`, `top-right`, or `top-left` with translucent drop-zone guides, persisted in `localStorage` (`naizodb_ui_<suffix>`) without touching `<script id="naizodb">` (`EC48`).                                                                                                                                                                                  | Same 4-corner snap drag and `naizodb_ui_<suffix>` persistence without dirtying `initialDiskDb` or prematurely revealing `6. Reset`.                                                                                                                                 |
+| Capability / UI Element                      | Local Mode (`file://`, `localhost`, or linked file)                                                                                                                                                                                                                                                                                                                                                                                  | Online Mode (Remote `https://` static host, unlinked)                                                                                                                                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Default `#dot` (`丸に三つ石`) & Status**   | Amber `#dot` (**`Browser Cache · Click to Link Disk`**) until linked; Green `#dot` (**`Saving...`** `1.55s` Heartbeat → **`Synced to Disk`**) after `writable.close()` completes (`EC36`).                                                                                                                                                                                                                                           | Green `#dot` (**`Saved in Browser`**) when `localStorage` is active (or Amber **`In-Memory Only`** if storage is blocked).                                                                                                                                          |
+| **Slot 1 / 2 Primary Action (`#action`)**    | **`1. Link Disk`** (Chain Link icon, `⌘S` badge) before linking, or **`Resume Disk Sync`** if handle permission needs re-granting; swaps in place in Slot 1 to **`1. Unlink Disk`** (`#unlink`, Slashed Chain Link `× Unlink`) once linked.                                                                                                                                                                                          | **`2. Save to PC`** (Download Tray icon, `⬇ Save to PC` / `Naizo.downloadHTML()`).                                                                                                                                                                                  |
+| **Slot 3–6 Action Buttons (`#copy`..)**      | **`3. Copy JSON`** (`#copy`, Copy Squares → `1.5s` `✓ Copied`) always visible; **`4. Repair JSON`** (`#restore`, Wrench `↺ Repair`) on malformed startup JSON (`EC02`); **`5. Restore Backup`** (`#restore`, History `↺ Restore`) when conflict/reset backup exists; **`6. Reset to Initial State`** (`#reset`, Red Eraser `↺ Reset`) when unlinked (`!fileHandle`) and dirty from `initialDiskDb`, auto-hiding once linked (`D56`). | **`3. Copy JSON`** (`#copy`) always visible; **`4. Repair JSON`** / **`5. Restore Backup`** (`#restore`) when applicable; **`6. Reset to Initial State`** (`#reset`, Red Eraser `↺ Reset` — always last) when dirty from `initialDiskDb`.                           |
+| **`⌘S` / `Ctrl+S` Shortcut**                 | Suppresses native browser _"Save Webpage, Complete"_ dialog; invokes `Naizo.save()` if granted, or opens `showSaveFilePicker()` / permission prompt directly from the keyboard gesture (`EC47`).                                                                                                                                                                                                                                     | Suppresses native browser save dialog; flushes `localStorage` immediately and flashes **`✓ Saved in Browser`** on the status pill.                                                                                                                                  |
+| **Tab Hide / Switch (`Cmd+Tab`)**            | Synchronously flushes `localStorage` AND immediately starts `writeToDisk()` if a debounced edit was pending (`M4.5b`, `EC47`).                                                                                                                                                                                                                                                                                                       | Synchronously flushes `localStorage`.                                                                                                                                                                                                                               |
+| **`⬇ Save to PC` / Fallback Handoff**        | Writes directly in place to the linked `.html` file on disk in Chromium, or falls back to `.html` download (`Naizo.downloadHTML()`) when clicking `1. Link Disk` in Safari/Firefox where `showSaveFilePicker` is unavailable.                                                                                                                                                                                                        | Downloads a single `.html` file with baked state, relative `naizo(.min).js` `<script src>` rewritten to `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`, and `naizo-mode="online"` stripped so it opens in **Local Mode** on the user's PC (`D41`). |
+| **4-Corner Snap Drag & `naizo-pill-corner`** | Starts in `bottom-right` by default (or `naizo-pill-corner` / `data-naizo-pill-corner` on `<body>` or `<html>` before first drag); drag `#dot` to snap into `bottom-right`, `bottom-left`, `top-right`, or `top-left`, persisted in `localStorage` (`naizodb_ui_<suffix>`) without touching `<script id="naizodb">` (`D50`, `D57`, `EC48`).                                                                                          | Same `naizo-pill-corner` initial hint, 4-corner snap drag, and `naizodb_ui_<suffix>` persistence without dirtying `initialDiskDb` or prematurely revealing `6. Reset`.                                                                                              |
 
 ### Status Pill, Action Buttons (`1..6`), `#dot` Logo States, & `#net` Indicator Reference (`#__naizodb_host__`, `D50`)
 
@@ -565,8 +636,14 @@ The floating translucent frosted-glass Status Pill is isolated inside an open Sh
    - **6th (Always Last) — `Reset to Initial State` (`#reset`, Red Eraser icon, `<span class="sr-only">↺ Reset</span>`):** Appears at the far right of the action buttons whenever edits live only in `localStorage` (`(online || !fileHandle) && isDirtyFromInitial()` — both Online Mode and unlinked Local Mode, including Safari & Firefox), automatically hiding (and closing `#reset-confirm`) once a `fileHandle` is linked to disk (`D56`). Advances `initialDiskDb` whenever `#naizodb` on disk is saved or externally merged so clicking `× Unlink` keeps `#reset` hidden until new unlinked `localStorage` edits diverge from disk. Opens the frosted `#reset-confirm` popover (`Reset app to initial state?` with **`Reset`** and **`Cancel`**, dismissible via `Escape`).
 3. **Rightmost `#net` Wired-Globe Network Indicator (`18×18px`, `D43`, `D50`, `EC36`):**
    - Automatically appears at the rightmost end of the pill (after `#net-sep`) when `naizo-get`, `naizo-post`, or `Naizo.fetch()` is used, showing `API Idle` (Shared Light Green), `API Active` (Bright Emerald `L→R` wave sweep held `>= 600 ms`), or `API Request Failed · Click to Clear` (Danger Red pulse that persists across subsequent successful requests until the user clicks `#net` to clear it or reloads the page; inspect HTTP status codes and CORS headers in browser **DevTools → `Network`**) without altering `#dot` or `#status`.
-4. **4-Corner Snap Drag & `naizodb_ui_<key>` Persistence (`EC48`):**
-   - Dragging `#dot` (or the pill background) past `5px` reveals 4 translucent white capsule drop-zone placeholders (`.pill-drop-zone`) at all 4 viewport corners (`bottom-right`, `bottom-left`, `top-right`, `top-left`), highlights the nearest corner (`.active-target`), snaps into place on release, flips `#pill-tooltip` and `#reset-confirm` downward in `top-*` corners, and persists `{ corner }` in `localStorage` under `naizodb_ui_<suffix>` without mutating `<script id="naizodb">` or dirtying `initialDiskDb`.
+4. **4-Corner Snap Drag, Initial Corner Hint (`naizo-pill-corner`), & `naizodb_ui_<key>` Persistence (`D08`, `D50`, `D57`, `EC48`):**
+   - **Initial corner precedence (`readSavedUiCorner()`):**
+     1. Saved user-dragged preference in `localStorage` under `naizodb_ui_<suffix>` (`{ corner }`) — **highest priority** so manual user drag choices always win across reloads.
+     2. `naizo-pill-corner` / `data-naizo-pill-corner` on `document.body` (trimmed and lowercased against `'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'`).
+     3. `naizo-pill-corner` / `data-naizo-pill-corner` on `document.documentElement` (`<html>`, `<body>`-over-`<html>` precedence).
+     4. Global fallback: `'bottom-right'` (also used whenever an unrecognized corner value is provided).
+   - **Toast & fixed-chrome clearance (`D57`, `D58`):** Place transient app toasts at `top-right` or `bottom-center`, or declare `<body naizo-pill-corner="bottom-left">` when `bottom-right` hosts fixed action buttons, chat triggers, or map attribution. `naizo-pill-corner` / `data-naizo-pill-corner` is preserved across `Naizo.exportHTML()` and `Naizo.downloadHTML()`. (`naizo.js` intentionally supports the 4 symmetric viewport corners rather than custom `--naizo-bar-*` CSS offset variables or a 5th `bottom-center` slot, which would break FLIP `translate3d` snap geometry, overlap `146px` drop zones on `375px` mobile viewports, and collide with centered prose and bottom-center toasts, `D57`.)
+   - **Interactive FLIP snap drag:** Dragging `#dot` (or the pill background) past `5px` reveals 4 translucent white capsule drop-zone placeholders (`.pill-drop-zone`) at all 4 viewport corners (`bottom-right`, `bottom-left`, `top-right`, `top-left`), highlights the nearest corner (`.active-target`), animates smoothly into place via FLIP `translate3d` on release, flips `#pill-tooltip` and `#reset-confirm` downward in `top-*` corners, and persists `{ corner }` in `localStorage` under `naizodb_ui_<suffix>` without mutating `<script id="naizodb">` or dirtying `initialDiskDb`.
 5. **Opt-In Headless / Pill-Less Mode (`naizo-no-pill` / `data-naizo-no-pill` & `Naizo.link()`, `D56`, `EC53`):**
    - Adding `naizo-no-pill` or `data-naizo-no-pill` on `<html>` or `<body>` (`<body>` overrides `<html>` when both are present, and explicit `="false"` values such as `naizo-no-pill="false"` opt out and mount the pill) removes any pre-existing `#__naizodb_host__` and leaves Shadow DOM refs `null` for clean kiosk displays, printable reports, embedded iframes, and custom-chrome apps, while **still injecting `#__naizodb_styles__`** so `[naizo-list]` controls (`+ Add Item`, `↑ ↓ ×`) remain styled unless `naizo-no-controls` is set.
    - `localStorage` caching, `#naizodb` hydration, IndexedDB `NaizoDB_Handles` auto-resume, ~2 s external disk watch + 3-way shallow merge, `pagehide` / `visibilitychange` immediate disk flush, and **`⌘S` / `Ctrl+S`** (`connectOrResumeDisk()` when unlinked/prompt, `Naizo.save()` when granted, `localStorage` flush in Online Mode) remain 100% active, and `naizo-no-pill` / `data-naizo-no-pill` is preserved as an intentional author attribute across `Naizo.exportHTML()` and `Naizo.downloadHTML()`.
@@ -616,6 +693,8 @@ When an external disk edit is detected (and the browser also has uncommitted or 
 | Both changed the **same** key (`lists.tasks`)  | **Disk wins** by default, while the pre-merge browser state is saved to `naizodb_backup_<key>` and the status pill shows amber **`External Disk Edit · Conflict Backed Up`** with a 1-click **`↺ Restore`** button (`EC17`). |
 
 **Active-element mid-keystroke guard (`EC10`):** When a live external update hydrates the DOM while you are actively typing inside a bound input (`document.activeElement`), `hydrateSubtreeFromStore()` skips overwriting `document.activeElement` so your cursor position and in-progress keystrokes are never clobbered.
+
+**Testing & resetting unlinked `localStorage` pages (`D56`, `D58`):** Because `naizodb_disk_hash_<key>` tracks per-key FNV-1a hashes, editing key `A` in `<script id="naizodb">` on disk while `localStorage` (`naizodb_state_<key>`) holds unlinked browser edits on key `B` merges disk's updated `A` with cached `B` on reload instead of wiping `B`. When verifying fresh `#naizodb` defaults in an unlinked browser tab (or automated browser test), click **`↺ Reset`** in the Status Pill or call `Naizo.reset()` (or `localStorage.clear()`).
 
 ### 4. Multi-Tab Browser Synchronization (`EC27`, `EC47`)
 
@@ -677,23 +756,37 @@ The [`examples/`](../examples/) directory provides five complete, self-contained
 
 ---
 
-## 14. Lightweight Vanilla UI Patterns (Search/Filter & Tabs)
+## 14. Vanilla HTML5 UI Patterns & Why Widget Directives Are Omitted
 
-By design (`D43`), `naizo.js` is a data persistence and synchronization engine (**内蔵** + **内臓**), not a general UI widget framework—it intentionally omits `naizo-filter` and `naizo-tab` directives so you have full control over multi-criteria filtering and layout in a few lines of vanilla HTML/JS.
+By design (`D26`, `D43`, `D57`, `D58`), `naizo.js` is a data persistence and synchronization engine (**内蔵** _built-in data_ + **内臓** _internal organs_), not a frontend template engine or UI widget framework. Rather than shipping fragile custom expression or widget directives (`naizo-tab`, `naizo-panel`, nested `naizo-list`, `naizo-text`, `naizo-href`, `naizo-index`, `naizo-options`, `naizo-autocreate-option`, `naizo-lazy`, `naizo-filter`), `naizo.js` pairs directly with native HTML5 controls, CSS selectors (`:has(:checked)`), and concise `Naizo.ready()` / `Naizo.batch()` patterns:
 
-### Pattern A: Non-Destructive List Search & Filtering (~8 Lines)
+| Omitted Directive / API                                               | Why `naizo.js` Omits It (`D43`, `D57`, `D58`)                                                                                                                        | Recommended Vanilla HTML5 + `naizo.js` Pattern                                                                                                                             |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `naizo-filter`                                                        | Multi-field search, fuzzy matching, and CSS Grid rank sorting vary per app; removing DOM rows would delete data from `db.lists`.                                     | Toggle `row.hidden = !matches` on `[naizo-item]` rows (~8 lines of JS).                                                                                                    |
+| `naizo-tab` / `naizo-panel`                                           | Tab bars, ARIA roles, and panel layouts are view concerns rather than data-store primitives.                                                                         | `<label>` + `.sr-only` `<input type="radio" naizo="active_tab">` styled with CSS `:has(:checked)` + `[data-tab-panel]` `hidden` sync (**Pattern a**).                      |
+| Nested `naizo-list` inside `[naizo-item]`                             | Breaks `[naizo-add="name"]` targeting, `auto-template` value clearing, and flat `db.lists[name]` indexing while adding ~300+ lines of recursive virtual-DOM diffing. | Store sub-arrays on item objects (`D15` pass-through), render into `[naizo-ignore]` memoized with `dataset.slotSignature`, and mutate via `Naizo.batch()` (**Pattern b**). |
+| `async` setters / auto-deferred single calls                          | `Promise`-based setters force `async`/`await` onto `< 0.5 ms` synchronous updates; auto-deferring single calls breaks immediate `#naizodb` reads.                    | Keep single calls synchronous; wrap 60fps range/canvas scrubs in `Naizo.batch(fn, { deferPersist: true })` (**Pattern c**).                                                |
+| `naizo-text` / `naizo-href` / `naizo-index`                           | Template-expression creep and `javascript:` URL sanitization hazards (`D22`).                                                                                        | Use standard `naizo="key"` on `<span>`/`<h3>` for live text mirroring (`EC19`, `EC56`), shared `<datalist>`, and `[naizo-ignore]` for links/badges (**Pattern d**).        |
+| `naizo-options` / `naizo-autocreate-option`                           | Pulls schema templating into core and risks baking typo/stale `<option>` tags into `exportHTML()`.                                                                   | Sync dynamic `<option>` lists into `<template naizo-template>.content` (and live `[naizo-item]` rows) on boot/schema change (**Pattern e**).                               |
+| `naizo-lazy`                                                          | Delaying `store` capture until `blur` loses mid-keystroke `pagehide` durability (`EC47`); `naizo:change` fires on `input`, so `store` already matches DOM on `blur`. | Attach a delegated native `'change'` listener (`listEl.addEventListener('change', ...)`) for commit-time `name → slug` derivations (**Pattern f**).                        |
+| `Naizo.clearList()` / `Naizo.updateWhere()` / `{ silent }` per setter | Redundant API surface across 9 setters (`D26`).                                                                                                                      | Use `Naizo.setList(name, [])` to clear and `Naizo.batch(fn, { silent: true })` for silent/multi-item updates (**Pattern g**).                                              |
+| `--naizo-bar-*` CSS offsets / `[naizo-cloak]`                         | Arbitrary CSS offsets break 4-corner FLIP snap math; `<script defer>` cannot inject cloak CSS before HTML renders.                                                   | Use `naizo-pill-corner` or `naizo-no-pill`, author `<template naizo-template>` with `0` static `[naizo-item]` shells, and match static `hidden` attributes.                |
 
-> **Critical Rule:** Never remove `[naizo-item]` elements from the DOM to filter a list—removing a `[naizo-item]` deletes its data from `db.lists`. Instead, toggle `row.hidden = !matches` (or a CSS class).
+### Non-Destructive List Search, Collapsible `<details>`, & Bulk `Naizo.setList()` (`D43`)
+
+> **Critical Rule:** Never remove `[naizo-item]` elements from the DOM to filter a list—removing a `[naizo-item]` deletes its data from `db.lists`. Instead, toggle `row.hidden = !matches` (and use `Naizo.setList(name, [])` when intentionally clearing or replacing a list in one pass). For persisted collapsible sections, bind `<details naizo="architecture_open" open>` directly with zero JavaScript (`EC12`).
 
 ```html
 <!-- Use naizo-ignore for ephemeral search, or naizo="search_query" to persist the filter in #naizodb -->
 <input id="task-search" type="search" naizo-ignore placeholder="Filter tasks..." />
 
 <div id="task-list" naizo-list="tasks">
-  <div class="task-row" naizo-item>
-    <label><input type="checkbox" naizo="done" /></label>
-    <label><input type="text" naizo="title" /></label>
-  </div>
+  <template naizo-template>
+    <div class="task-row" naizo-item>
+      <label><input type="checkbox" naizo="done" /></label>
+      <label><input type="text" naizo="title" /></label>
+    </div>
+  </template>
 </div>
 
 <script>
@@ -707,34 +800,49 @@ By design (`D43`), `naizo.js` is a data persistence and synchronization engine (
     });
   }
   searchEl.addEventListener('input', applyFilter);
-  window.addEventListener('naizo:hydrate', applyFilter);
+  Naizo.ready(applyFilter);
   window.addEventListener('naizo:change', applyFilter);
 </script>
 ```
 
-### Pattern B: Persisted Tabs & Collapsible Sections
+### Pattern (a): Persisted Tabs via `<label>` + `.sr-only` `<input type="radio" naizo="active_tab">` + CSS `:has(:checked)`
 
-**1. Native Collapsible Sections (Zero JS):** Bind `<details>` directly with `naizo="section_key"` (`EC12`):
-
-```html
-<details naizo="architecture_open" open>
-  <summary>Architecture &amp; Data Flow</summary>
-  <p>
-    The open/closed state of this section persists automatically in db.fields.architecture_open.
-  </p>
-</details>
-```
-
-**2. Persisted View Tabs (~8 Lines of JS):** Bind radio inputs (or `<select naizo="active_tab">`) to `db.fields.active_tab` and toggle `[data-tab-panel]` visibility on `naizo:hydrate` and `naizo:change`:
+> **Why `naizo.js` omits `naizo-tab` and `naizo-panel` (and why no `.sr-only` `<select>` proxy is needed):** Native `<input type="radio" name="view_tab" naizo="active_tab">` groups already provide keyboard arrow-key navigation, mutual exclusion, and `#naizodb` persistence out of the box, while modern CSS `.tab-btn:has(input:checked)` styles the active tab button purely in CSS without custom tab directives or hidden `<select>` sync shims (`D43`, `D57`).
 
 ```html
-<nav class="tabs">
-  <label
-    ><input type="radio" name="view_tab" value="board" naizo="active_tab" checked /> Board</label
-  >
-  <label><input type="radio" name="view_tab" value="metrics" naizo="active_tab" /> Metrics</label>
+<style>
+  .tabs {
+    display: inline-flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid #e5e0d8;
+  }
+  .tab-btn {
+    padding: 0.5rem 0.85rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .tab-btn:has(input:checked) {
+    border-bottom-color: currentColor;
+    font-weight: 600;
+  }
+  .tab-btn:has(input:focus-visible) {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+</style>
+
+<nav class="tabs" aria-label="Workspace views">
+  <label class="tab-btn">
+    <input type="radio" class="sr-only" name="view_tab" value="board" naizo="active_tab" checked />
+    Board
+  </label>
+  <label class="tab-btn">
+    <input type="radio" class="sr-only" name="view_tab" value="metrics" naizo="active_tab" />
+    Metrics
+  </label>
 </nav>
 
+<!-- Match static hidden attributes to initial #naizodb defaults so zero FOUC occurs on load -->
 <section data-tab-panel="board">...</section>
 <section data-tab-panel="metrics" hidden>...</section>
 
@@ -745,9 +853,313 @@ By design (`D43`), `naizo.js` is a data persistence and synchronization engine (
       panel.hidden = panel.getAttribute('data-tab-panel') !== active;
     });
   }
-  window.addEventListener('naizo:hydrate', syncTabs);
+  Naizo.ready(syncTabs);
   window.addEventListener('naizo:change', syncTabs);
 </script>
+```
+
+### Pattern (b): Sub-Arrays Inside `[naizo-item]` via `D15` Pass-Through + `dataset.slotSignature` Memoization + `Naizo.batch()`
+
+> **Why `naizo.js` omits nested `naizo-list` inside `[naizo-item]`:** Nesting `[naizo-list]` inside repeating rows makes `[naizo-add="subtasks"]` ambiguous across rows, complicates `auto-template` clearing, and requires recursive virtual-DOM diffing (`PRODUCT.md`, `D57`). Instead, keep sub-arrays (`checklists`, `keyResults`, `tags`) directly on each item object in `db.lists` (`D15` pass-through keys), render them into a `[naizo-ignore]` container memoized via `dataset.slotSignature` (so typing in card 1's title never rebuilds card 2's sub-items), and persist mutations with `Naizo.updateItem()` or `Naizo.batch()`.
+
+```html
+<div id="objectives-list" naizo-list="objectives" naizo-no-controls>
+  <template naizo-template>
+    <article class="okr-card" naizo-item>
+      <label>
+        Objective
+        <input type="text" naizo="title" placeholder="Objective title..." />
+      </label>
+      <div class="kr-slot" naizo-ignore></div>
+    </article>
+  </template>
+</div>
+
+<script>
+  const listEl = document.getElementById('objectives-list');
+
+  function syncKeyResultSlots() {
+    const objectives = Naizo.getList('objectives');
+    listEl.querySelectorAll(':scope > [naizo-item]').forEach((cardEl, cardIdx) => {
+      const slot = cardEl.querySelector('.kr-slot');
+      const krs = Array.isArray(objectives[cardIdx]?.keyResults)
+        ? objectives[cardIdx].keyResults
+        : [];
+      const sig = JSON.stringify(krs);
+      if (slot.dataset.slotSignature === sig) return; // Skip untouched subtrees!
+      slot.dataset.slotSignature = sig;
+
+      slot.replaceChildren();
+      krs.forEach((kr, krIdx) => {
+        const row = document.createElement('label');
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = Boolean(kr.done);
+        box.dataset.cardIdx = String(cardIdx);
+        box.dataset.krIdx = String(krIdx);
+        const text = document.createElement('span');
+        text.textContent = String(kr.label ?? '');
+        row.append(box, text);
+        slot.append(row);
+      });
+    });
+  }
+
+  // Toggle or move sub-items atomically via Naizo.batch()
+  listEl.addEventListener('change', (e) => {
+    const box = e.target.closest('.kr-slot input[type="checkbox"]');
+    if (!box) return;
+    const cardIdx = Number(box.dataset.cardIdx);
+    const krIdx = Number(box.dataset.krIdx);
+    Naizo.batch(() => {
+      const nextKrs = structuredClone(Naizo.getList('objectives')[cardIdx]?.keyResults ?? []);
+      if (nextKrs[krIdx]) nextKrs[krIdx].done = box.checked;
+      Naizo.updateItem('objectives', cardIdx, { keyResults: nextKrs });
+    });
+  });
+
+  Naizo.ready(syncKeyResultSlots);
+  window.addEventListener('naizo:change', syncKeyResultSlots);
+</script>
+```
+
+### Pattern (c): 60fps Coupled `<input type="range">` `100%`-Ceiling Sliders with 3-Zone CSS Gradient Tracks
+
+> **Why `naizo.js` keeps setters synchronous and provides `{ deferPersist: true }` on `Naizo.batch()`:** Budget and capacity planners often couple multiple `<input type="range">` sliders so total allocation never exceeds `100%`. Wrapping coupled updates in `Naizo.batch(fn, { deferPersist: true })` updates `store` and bound DOM inputs synchronously in `< 0.5 ms` on every pointer frame (driving a 3-zone CSS `linear-gradient` track for allocated %, remaining headroom, and sibling-locked ceiling) while coalescing `JSON.stringify` + `localStorage` writes into `schedulePersist()` (`150 ms` debounce, still flushed synchronously on `save()`, `exportHTML()`, `⌘S`, and `pagehide`; `D57`, `EC54`).
+
+```html
+<style>
+  .alloc-slider {
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    /* Zone 1: active value | Zone 2: available up to cap | Zone 3: locked by other projects */
+    background: linear-gradient(
+      to right,
+      #a8432b 0% var(--val, 0%),
+      #e5e0d8 var(--val, 0%) var(--cap, 100%),
+      repeating-linear-gradient(45deg, #d6d0c4 0 4px, #c7bfb2 4px 8px) var(--cap, 100%) 100%
+    );
+  }
+</style>
+
+<div id="alloc-list" naizo-list="projects" naizo-no-controls>
+  <template naizo-template>
+    <div class="alloc-row" naizo-item>
+      <span naizo="name"></span>
+      <label>
+        <input class="alloc-slider" type="range" min="0" max="100" step="1" naizo="pct" />
+      </label>
+      <span class="pct-readout" naizo-ignore>0%</span>
+    </div>
+  </template>
+</div>
+
+<script>
+  const allocListEl = document.getElementById('alloc-list');
+
+  function paintAllocationTracks() {
+    const items = Naizo.getList('projects');
+    const total = items.reduce((sum, it) => sum + (Number(it.pct) || 0), 0);
+    allocListEl.querySelectorAll(':scope > [naizo-item]').forEach((row, idx) => {
+      const pct = Number(items[idx]?.pct) || 0;
+      const others = total - pct;
+      const cap = Math.max(0, 100 - others);
+      const slider = row.querySelector('.alloc-slider');
+      slider.style.setProperty('--val', `${pct}%`);
+      slider.style.setProperty('--cap', `${cap}%`);
+      row.querySelector('.pct-readout').textContent = `${pct}% (max ${cap}%)`;
+    });
+  }
+
+  allocListEl.addEventListener('input', (e) => {
+    const slider = e.target.closest('.alloc-slider');
+    if (!slider) return;
+    const rows = Array.from(allocListEl.querySelectorAll(':scope > [naizo-item]'));
+    const idx = rows.indexOf(slider.closest('[naizo-item]'));
+    if (idx === -1) return;
+
+    const items = Naizo.getList('projects');
+    const others = items.reduce((s, it, i) => (i === idx ? s : s + (Number(it.pct) || 0)), 0);
+    const clamped = Math.min(Number(slider.value) || 0, Math.max(0, 100 - others));
+    if (clamped !== Number(slider.value)) {
+      Naizo.batch(
+        () => {
+          Naizo.updateItem('projects', idx, { pct: clamped });
+        },
+        { deferPersist: true },
+      );
+    }
+    paintAllocationTracks();
+  });
+
+  Naizo.ready(paintAllocationTracks);
+  window.addEventListener('naizo:change', paintAllocationTracks);
+</script>
+```
+
+### Pattern (d): `naizo="key"` Plain-Text Mirroring, Shared `<datalist>` Autocomplete, & `[naizo-ignore]` Conditional Links/Badges
+
+> **Why `naizo.js` omits `naizo-text`, `naizo-href`, and `naizo-index`:** Standard `naizo="key"` on passive leaf elements (`<span>`, `<h3>`) already mirrors sibling inputs via `textContent`—and `EC56` guarantees interactive controls win during seeding and `form.reset()` even when `<h3 naizo="title"></h3>` appears before `<input naizo="title">` (`D57`). Free-text autocomplete uses one native HTML5 `<datalist id="...">` outside `[naizo-list]`, while conditional `<a>` links (with explicit `http:`/`https:` scheme validation) and formatted `CARD-01` row badges stay safe and explicit inside `[naizo-ignore]` elements (`D22`).
+
+```html
+<!-- Shared <datalist> placed ONCE outside [naizo-list] (no duplicate IDs across rows) -->
+<datalist id="team-owners">
+  <option value="Kenji"></option>
+  <option value="Mina"></option>
+  <option value="Sora"></option>
+</datalist>
+
+<div id="cards-list" naizo-list="cards">
+  <template naizo-template>
+    <article class="card" naizo-item>
+      <header>
+        <span class="card-index" naizo-ignore></span>
+        <!-- Safe before <input naizo="title">: EC56 seeds from the input and mirrors text here -->
+        <h3 naizo="title"></h3>
+        <a class="doc-link" naizo-ignore target="_blank" rel="noopener noreferrer" hidden
+          >Open Spec ↗</a
+        >
+      </header>
+      <label>Title <input type="text" naizo="title" value="Untitled Card" /></label>
+      <label
+        >Owner <input type="text" list="team-owners" naizo="owner" placeholder="Owner..."
+      /></label>
+      <label>Spec URL <input type="url" naizo="specUrl" placeholder="https://..." /></label>
+    </article>
+  </template>
+</div>
+
+<script>
+  function syncCardDecorations() {
+    const cards = Naizo.getList('cards');
+    document.querySelectorAll('#cards-list > [naizo-item]').forEach((cardEl, idx) => {
+      cardEl.querySelector('.card-index').textContent = `CARD-${String(idx + 1).padStart(2, '0')}`;
+      const linkEl = cardEl.querySelector('.doc-link');
+      const rawUrl = String(cards[idx]?.specUrl ?? '').trim();
+      const safeHttp = /^https?:\/\//i.test(rawUrl);
+      linkEl.hidden = !safeHttp;
+      if (safeHttp) linkEl.href = rawUrl;
+    });
+  }
+  Naizo.ready(syncCardDecorations);
+  window.addEventListener('naizo:change', syncCardDecorations);
+</script>
+```
+
+### Pattern (e): Syncing Dynamic `<option>` Lists into `<template naizo-template>.content`
+
+> **Why `naizo.js` omits `naizo-options` and `naizo-autocreate-option`:** Dynamic dropdown sources vary across apps (`string[]` vs. `{ value, label }` records), and auto-creating `<option>` elements from arbitrary strings risks baking stale or misspelled options permanently into `Naizo.exportHTML()` (`D57`). Populating options inside `<template naizo-template>.content` (plus any rendered `[naizo-item]` rows) ensures every newly cloned row already has valid `<option>` elements before `naizo.js` hydrates it, while `<option value="">` + `EC55` (`selectedIndex = -1`) handles blank values cleanly.
+
+```html
+<div id="assignments-list" naizo-list="assignments">
+  <template naizo-template>
+    <div class="assign-row" naizo-item>
+      <label><input type="text" naizo="task" placeholder="Deliverable..." /></label>
+      <label>
+        <select naizo="squad">
+          <option value="">— Select squad… —</option>
+        </select>
+      </label>
+    </div>
+  </template>
+</div>
+
+<script>
+  function fillSquadSelect(selectEl, squads, currentValue) {
+    selectEl.replaceChildren();
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '— Select squad… —';
+    selectEl.append(blank);
+    squads.forEach((name) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      selectEl.append(opt);
+    });
+    if (currentValue !== undefined) {
+      selectEl.value = currentValue;
+      if (selectEl.value !== currentValue && currentValue === '') selectEl.selectedIndex = -1;
+    }
+  }
+
+  function syncSquadOptions() {
+    const squads = Naizo.get('squads') || ['Core Runtime', 'Design Systems', 'Docs'];
+    const listEl = document.getElementById('assignments-list');
+    const tpl = listEl.querySelector('template[naizo-template]');
+    if (tpl) {
+      const tplSelect = tpl.content.querySelector('select[naizo="squad"]');
+      if (tplSelect) fillSquadSelect(tplSelect, squads);
+    }
+    const items = Naizo.getList('assignments');
+    listEl.querySelectorAll(':scope > [naizo-item] select[naizo="squad"]').forEach((sel, idx) => {
+      fillSquadSelect(sel, squads, String(items[idx]?.squad ?? ''));
+    });
+  }
+
+  Naizo.ready(syncSquadOptions);
+  window.addEventListener('naizo:change', (e) => {
+    if (e.detail.scope === 'custom' && e.detail.key === 'squads') syncSquadOptions();
+  });
+</script>
+```
+
+### Pattern (f): Delegated Native `'change'` for Commit-Time Cross-Field Derivation (`name → slug`)
+
+> **Why `naizo.js` omits `naizo-lazy` (and why `naizo:change` fires on `input`, not `blur`):** Bound text inputs update `store` on every `input` keystroke so edits survive sudden tab closes (`EC47`). When the input later loses focus and fires native `'change'`, its DOM `.value` already equals `store`, so `shouldUpdateStoredValue()` returns `false` and `naizo.js` intentionally avoids emitting a duplicate `naizo:change` event (`D57`). For commit-time derivations (like generating `slug` once after the user finishes typing `name`), listen to the browser's native `'change'` event via delegation.
+
+```javascript
+const featuresListEl = document.getElementById('features-list');
+
+featuresListEl.addEventListener('change', (e) => {
+  const nameInput = e.target.closest('input[naizo="name"]');
+  if (!nameInput) return;
+  const rows = Array.from(featuresListEl.querySelectorAll(':scope > [naizo-item]'));
+  const idx = rows.indexOf(nameInput.closest('[naizo-item]'));
+  if (idx === -1) return;
+
+  const item = Naizo.getList('features')[idx];
+  if (!item || String(item.slug ?? '').trim() !== '') return; // Keep user-edited slugs intact
+
+  const derivedSlug = nameInput.value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  if (derivedSlug) {
+    Naizo.updateItem('features', idx, { slug: derivedSlug });
+  }
+});
+```
+
+### Pattern (g): Immutable Raw-Record Pools with Derived Merge / Clarification State
+
+> **Why keeping raw records immutable beats destructive in-place merging (`D15`, `D57`, `D58`):** In triage, deduplication, and multi-source synthesis tools (such as merging imported CSV/OKR rows), mutating or deleting source items directly destroys provenance and prevents 1-click un-merging. Store imported source items untouched in `db.lists.raw_records` (using `Naizo.setList('raw_records', imported)` on import), record human merge/clarification choices separately in `db.custom.decisions` inside `Naizo.batch()`, and derive the consolidated view non-destructively.
+
+```javascript
+// Record a merge or clarification decision without mutating db.lists.raw_records
+function mergeRecords(primaryId, duplicateId, clarifiedOwner) {
+  Naizo.batch(() => {
+    const decisions = structuredClone(Naizo.get('decisions') || {});
+    decisions[duplicateId] = { mergedInto: primaryId };
+    decisions[primaryId] = { ...decisions[primaryId], clarifiedOwner };
+    Naizo.set('decisions', decisions);
+  });
+}
+
+// Compute active consolidated records on Naizo.ready() and naizo:change
+function getConsolidatedRecords() {
+  const raw = Naizo.getList('raw_records');
+  const decisions = Naizo.get('decisions') || {};
+  return raw
+    .filter((rec) => !decisions[rec.id]?.mergedInto)
+    .map((rec) => ({
+      ...rec,
+      owner: decisions[rec.id]?.clarifiedOwner || rec.owner || '',
+    }));
+}
 ```
 
 ---
@@ -866,10 +1278,12 @@ cat << 'EOF' > plan.html
       <textarea naizo="notes" rows="3"></textarea>
     </label>
     <div naizo-list="tasks">
-      <div class="row" naizo-item>
-        <label><input type="checkbox" naizo="done" /></label>
-        <label><input type="text" naizo="task" placeholder="New task..." /></label>
-      </div>
+      <template naizo-template>
+        <div class="row" naizo-item>
+          <label><input type="checkbox" naizo="done" /></label>
+          <label><input type="text" naizo="task" placeholder="New task..." /></label>
+        </div>
+      </template>
     </div>
   </body>
 </html>

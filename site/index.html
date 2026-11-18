@@ -1360,7 +1360,7 @@
       <header class="doc-header">
         <div class="doc-topbar">
           <span class="doc-kicker">
-            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~22.4 KB
+            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~23.0 KB
             min+gzip · MIT
           </span>
           <button
@@ -2156,7 +2156,7 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>3. jsDelivr CDN (minified ~22.4 KB gzip)</span>
+          <span>3. jsDelivr CDN (minified ~23.0 KB gzip)</span>
           <button
             type="button"
             class="quiet-btn copy-snippet-btn"
@@ -2328,7 +2328,9 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
                 </td>
                 <td>
                   Binds element state to <code>fields["key"]</code> (or item property inside
-                  <code>[naizo-item]</code>).
+                  <code>[naizo-item]</code>); plain-text leaf elements (<code>&lt;span&gt;</code>,
+                  <code>&lt;h3&gt;</code>) mirror sibling controls live, and blank single
+                  <code>&lt;select&gt;</code> values stay unselected.
                 </td>
               </tr>
               <tr>
@@ -2417,6 +2419,15 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
                 </td>
               </tr>
               <tr>
+                <td><code>naizo-pill-corner="corner"</code></td>
+                <td><code>&lt;html&gt;</code> or <code>&lt;body&gt;</code></td>
+                <td>
+                  Sets the Status Pill's initial corner (<code>bottom-right</code> default,
+                  <code>bottom-left</code>, <code>top-right</code>, or <code>top-left</code>) before
+                  user drag.
+                </td>
+              </tr>
+              <tr>
                 <td><code>naizo-manual</code></td>
                 <td>
                   <code>&lt;html&gt;</code>, <code>&lt;body&gt;</code>, or
@@ -2490,6 +2501,8 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
         </div>
 
         <pre><code>// Programmatic JavaScript API (window.Naizo / window.NaizoDB)
+Naizo.ready((db) =&gt; { /* runs immediately if hydrated, or once when hydration finishes */ });
+
 Naizo.get('rateLimitRps');              Naizo.set('rateLimitRps', 250);        Naizo.delete('oldKey');
 Naizo.getField('owner');                Naizo.setField('owner', 'Kenji');      Naizo.deleteField('flag');
 
@@ -2497,12 +2510,91 @@ Naizo.getList('tasks');                 Naizo.setList('tasks', [{ done: false, t
 Naizo.addItem('tasks', { done: false, title: 'Ship', priority: 'High' });
 Naizo.updateItem('tasks', 0, { done: true });  Naizo.moveItem('tasks', 1, 0);  Naizo.removeItem('tasks', 2);
 
+Naizo.batch(() =&gt; {
+  Naizo.updateItem('tasks', 0, { done: true });
+  Naizo.set('rateLimitRps', 300);
+}); // Optional: { silent?: boolean, deferPersist?: boolean }
+
 await Naizo.fetch('https://api.example.com/tasks', { into: 'list:tasks' });
 Naizo.bind(rootEl);                     await Naizo.save();                    Naizo.reset();
 await Naizo.link();                     await Naizo.unlink();                  await Naizo.copyJSON();
 const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app.html');
 
 // Events: 'naizo:hydrate', 'naizo:change', 'naizo:item', 'naizo:fetch'</code></pre>
+
+        <details class="inspector-panel" naizo-ignore>
+          <summary class="inspector-summary">
+            <span>For Developers — Boot Timing, Batching, Events, &amp; Form Binding</span>
+            <span style="color: var(--faint)"
+              >Deferred script readiness, coalesced updates &amp; event payloads</span
+            >
+          </summary>
+          <div class="inspector-body">
+            <ul class="flow-list" style="margin: 0.25rem 0 0; border-top: none">
+              <li>
+                <span class="flow-actor">Boot Timing (Naizo.ready)</span>
+                <p class="flow-detail">
+                  Because <code>&lt;script src="...naizo.js" defer&gt;</code> hydrates the page
+                  before <code>DOMContentLoaded</code> callbacks fire, attach
+                  <code>window.addEventListener('naizo:hydrate', ...)</code> at top level or call
+                  <code>Naizo.ready((db) =&gt; { ... })</code> – which runs immediately if initial
+                  hydration has already completed or once when hydration finishes.
+                </p>
+              </li>
+              <li>
+                <span class="flow-actor">Batching (Naizo.batch)</span>
+                <p class="flow-detail">
+                  <code>Naizo.batch(fn, options?)</code> (nestable) updates the in-memory store and
+                  bound DOM elements synchronously inside <code>fn()</code> while coalescing
+                  persistence and change notifications into one exit pass (<code
+                    >{ scope: 'batch', action: 'batch', source: 'api', db }</code
+                  >). Pass <code>{ silent: true }</code> to suppress the outgoing
+                  <code>naizo:change</code> event for derived writes, or
+                  <code>{ deferPersist: true }</code> during 60fps range/canvas scrubs to debounce
+                  <code>#naizodb</code> serialization (<code>150 ms</code>, still flushed
+                  immediately on <code>Naizo.save()</code>, <code>Naizo.exportHTML()</code>,
+                  <code>Naizo.downloadHTML()</code>, <code>Naizo.copyJSON()</code>,
+                  <code>⌘S</code> / <code>Ctrl+S</code>, and tab hide).
+                </p>
+              </li>
+              <li>
+                <span class="flow-actor">naizo:change &amp; FIFO Queue</span>
+                <p class="flow-detail">
+                  Both user DOM edits and programmatic <code>Naizo.*</code> mutations include
+                  <code>source: 'dom' | 'api'</code> on <code>e.detail</code>, and user edits inside
+                  <code>[naizo-item]</code> emit
+                  <code
+                    >{ scope: 'lists', action: 'update', list, index, key, value, source: 'dom', db
+                    }</code
+                  >
+                  matching <code>Naizo.updateItem()</code>. Calling <code>Naizo.*</code> setters
+                  inside a <code>naizo:change</code> listener enqueues follow-up
+                  <code>naizo:change</code> events in FIFO order and drains them sequentially after
+                  the active listener returns (capped at 10 passes with a console warning on runaway
+                  cycles) instead of recursing mid-render.
+                </p>
+              </li>
+              <li>
+                <span class="flow-actor">Text Mirroring &amp; &lt;select&gt;</span>
+                <p class="flow-detail">
+                  Passive plain-text leaves (<code>&lt;span naizo="name"&gt;</code>,
+                  <code>&lt;h3 naizo="name"&gt;</code>) mirror sibling interactive controls via
+                  <code>textContent</code> and never overwrite an
+                  <code>&lt;input&gt;</code>/<code>&lt;select&gt;</code>/<code
+                    >&lt;textarea&gt;</code
+                  >
+                  default or <code>&lt;form&gt;</code> reset value regardless of DOM order. Single
+                  <code>&lt;select naizo="key"&gt;</code> controls hydrated with <code>""</code> or
+                  <code>null</code> when no <code>&lt;option value=""&gt;</code> exists render
+                  visibly unselected (<code>selectedIndex = -1</code>) without a false warning while
+                  preserving <code>""</code> in <code>#naizodb</code> (add
+                  <code>&lt;option value=""&gt;</code> for explicit nullable choices;
+                  <code>&lt;select&gt;</code> always stores strings).
+                </p>
+              </li>
+            </ul>
+          </div>
+        </details>
       </section>
 
       <!-- 07. BROWSER & MODE CAPABILITY MATRIX & STATUS PILL GUIDE -->
@@ -3615,10 +3707,20 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               </table>
             </div>
             <p style="margin: 0.5rem 0 0; font-size: 0.9em; color: var(--muted)">
-              <strong>Corner storage &amp; inspecting network errors (<code>#net</code>):</strong>
-              The pill's snapped 4-corner position is stored per app in
-              <code>localStorage</code> under <code>naizodb_ui_&lt;key&gt;</code> without mutating
-              <code>#naizodb</code>. When <code>#net</code> pulses red (<code
+              <strong
+                >Initial corner, 4-corner storage (<code>naizo-pill-corner</code> /
+                <code>data-naizo-pill-corner</code> &amp; <code>naizodb_ui_&lt;key&gt;</code>),
+                &amp; inspecting network errors (<code>#net</code>):</strong
+              >
+              Set <code>naizo-pill-corner="bottom-left"</code> (or
+              <code>data-naizo-pill-corner</code>; accepts <code>bottom-right</code>,
+              <code>bottom-left</code>, <code>top-right</code>, <code>top-left</code>, with
+              <code>&lt;body&gt;</code> overriding <code>&lt;html&gt;</code> and preserved on HTML
+              export/download) to choose the initial corner before user drag – for example, when
+              your layout docks fixed controls in <code>bottom-right</code>. Once dragged, the
+              user's snapped 4-corner position in
+              <code>localStorage</code> (<code>naizodb_ui_&lt;key&gt;</code>) takes priority without
+              mutating <code>#naizodb</code>. When <code>#net</code> pulses red (<code
                 >API request failed</code
               >), open your browser's <strong>DevTools &rarr; Network</strong> tab to inspect HTTP
               status codes, CORS headers, and request/response payloads directly.

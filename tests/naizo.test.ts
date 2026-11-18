@@ -3543,7 +3543,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     }
   });
 
-  it('keeps all three documentation tiers synchronized for Mini-API Client, Naizo.setList, Status Pill 1-6 buttons (including Repair JSON), #dot Logo States, #net rules, and M12.2 naizo-no-pill & Naizo.link() (M8.2, M9.3, M11.2, M12.2, D46, D50, D53, D56, EC53)', () => {
+  it('keeps all three documentation tiers synchronized for Mini-API Client, Naizo.setList, Status Pill 1-6 buttons (including Repair JSON), #dot Logo States, #net rules, M12.2 naizo-no-pill & Naizo.link(), and M13.2 Naizo.batch, Naizo.ready, naizo-pill-corner, 9 Golden Rules, & omitted directives (M8.2, M9.3, M11.2, M12.2, M13.2, D46, D50, D53, D56, D57, D58, EC53, EC54, EC55, EC56, EC57)', () => {
     const readmeMd = readFileSync(resolve(process.cwd(), 'README.md'), 'utf-8');
     const usageMd = readFileSync(resolve(process.cwd(), 'docs/USAGE.md'), 'utf-8');
     const productMd = readFileSync(resolve(process.cwd(), 'docs/PRODUCT.md'), 'utf-8');
@@ -3582,24 +3582,69 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(docSurface).toContain('naizo-no-pill');
       expect(docSurface).toContain('data-naizo-no-pill');
       expect(docSurface).toContain('Naizo.link');
+      expect(docSurface).toContain('Naizo.batch');
+      expect(docSurface).toContain('Naizo.ready');
+      expect(docSurface).toContain('naizo-pill-corner');
+      expect(docSurface).toContain('data-naizo-pill-corner');
     }
 
-    // M12.2 / D53: Tier-1 public entry surfaces stay free of internal runtime identifiers
+    // M12.2 & M13.2 / D53: Tier-1 public entry surfaces stay free of internal runtime identifiers
     for (const tier1Surface of [readmeMd, currentSiteHtml]) {
       expect(tier1Surface).not.toContain('isNoPillMode');
       expect(tier1Surface).not.toContain('startupInvalidDb');
       expect(tier1Surface).not.toContain('connectOrResumeDisk');
+      expect(tier1Surface).not.toContain('dispatchChangeEvent');
+      expect(tier1Surface).not.toContain('pendingChangeQueue');
+      expect(tier1Surface).not.toContain('isInteractiveBoundElement');
+      expect(tier1Surface).not.toContain('orderInteractiveFirst');
+      expect(tier1Surface).not.toContain('bootHydrated');
+      expect(tier1Surface).not.toContain('batchDepth');
+      expect(tier1Surface).not.toContain('readSavedUiCorner');
+      expect(tier1Surface).not.toContain('writeElementValue');
       expect(tier1Surface).toContain('onclick="Naizo.link()"');
+      expect(tier1Surface).toContain('deferPersist');
+      expect(tier1Surface).toContain('selectedIndex = -1');
+      expect(tier1Surface.replace(/\s+/g, ' ')).toContain(
+        "{ scope: 'lists', action: 'update', list, index, key, value, source: 'dom', db }",
+      );
     }
 
-    // M12.2: Tier-2 & Tier-3 contracts cover ="false" opt-out, #__naizodb_styles__, console.warn, and AI authoring rule
+    // M12.2 & M13.2: Tier-2 & Tier-3 contracts cover ="false" opt-out, #__naizodb_styles__, console.warn,
+    // AI authoring rules, 9 modernized framework-free Golden Rules, and omitted-directive HTML5 patterns (a)-(g)
     expect(usageMd).toContain('`Naizo.link()`');
     expect(usageMd).toContain('`Promise<boolean>`');
     expect(usageMd).toContain('#__naizodb_styles__');
     expect(usageMd).toContain('console.warn');
+    expect(usageMd).toContain('NaizoBatchOptions');
     for (const aiSurface of [agentsMd, skillMd, llmsTxt, llmsFullTxt]) {
       expect(aiSurface).toContain('when the user asks to hide the Status Pill');
       expect(aiSurface).toContain('await Naizo.link()');
+      expect(aiSurface).toContain('<template naizo-template>');
+      expect(aiSurface).toContain('slotSignature');
+      expect(aiSurface).toContain('selectedIndex = -1');
+      expect(aiSurface).toContain('DOMContentLoaded');
+      expect(aiSurface).toContain('"theme": "system"');
+    }
+    for (const patternSurface of [usageMd, skillMd, llmsFullTxt]) {
+      expect(patternSurface).toContain('naizo-tab');
+      expect(patternSurface).toContain('naizo-panel');
+      expect(patternSurface).toContain('naizo-text');
+      expect(patternSurface).toContain('naizo-href');
+      expect(patternSurface).toContain('naizo-index');
+      expect(patternSurface).toContain('naizo-options');
+      expect(patternSurface).toContain('naizo-autocreate-option');
+      expect(patternSurface).toContain('naizo-lazy');
+      expect(patternSurface).toContain('naizo-cloak');
+      expect(patternSurface).toContain(':has(');
+      expect(patternSurface).toContain('<datalist');
+      expect(patternSurface).toContain('deferPersist: true');
+      expect(patternSurface).toContain('template[naizo-template]');
+    }
+    for (const summarySurface of [productMd, llmsTxt]) {
+      expect(summarySurface).toContain('naizo-tab');
+      expect(summarySurface).toContain('naizo-text');
+      expect(summarySurface).toContain('naizo-options');
+      expect(summarySurface).toContain('naizo-lazy');
     }
 
     expect(currentSiteHtml).not.toContain('class="status-dot');
@@ -3675,7 +3720,11 @@ describe('naizo.js v0.1.0 core runtime', () => {
       llmsFullTxt,
     ]) {
       expect(kbSurface).not.toContain('15.7 KB');
+      expect(kbSurface).not.toContain('22.2 KB');
+      expect(kbSurface).not.toContain('22.4 KB');
       expect(kbSurface).not.toContain('23.2 KB');
+      expect(kbSurface).not.toContain('31.5 KB');
+      expect(kbSurface).not.toContain('31.9 KB');
       const minKbMatch = kbSurface.match(
         /(?:min(?:ified)?[^\n~]{0,25}~(\d+\.\d+)\s*KB|~(\d+\.\d+)\s*KB\s*min)/i,
       );
