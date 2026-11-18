@@ -4,6 +4,7 @@ import {
   existsSync,
   lstatSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   rmSync,
@@ -5955,5 +5956,166 @@ describe('naizo.js v0.1.0 core runtime', () => {
       window.NaizoDB = NaizoDB;
       vi.useRealTimers();
     }
+  });
+
+  it('validates M14.1 progressive-disclosure cookbook guides (skills/naizo/references/cookbook/*.md), SKILL.md router links, symlink-free skills/naizo/, and site/references staging (M14.1, D46, D58)', () => {
+    const cookbookFiles = [
+      'basecoat-ui-and-dense-forms.md',
+      'third-party-dom-and-export.md',
+      'maps-and-live-apis.md',
+      'audio-motion-and-svg-avatars.md',
+      'data-ingestion-export-and-testing.md',
+    ] as const;
+
+    const skillRoot = resolve(process.cwd(), 'skills/naizo');
+    const cookbookDir = join(skillRoot, 'references/cookbook');
+
+    // 1. skills/naizo/ tree must contain zero symlinks so gh skill / npx skills packaging validates cleanly
+    const assertNoSymlinks = (dirPath: string): void => {
+      for (const entry of readdirSync(dirPath)) {
+        const full = join(dirPath, entry);
+        const st = lstatSync(full);
+        expect(st.isSymbolicLink()).toBe(false);
+        if (st.isDirectory()) {
+          assertNoSymlinks(full);
+        }
+      }
+    };
+    assertNoSymlinks(skillRoot);
+
+    // 2. All 5 positive-first cookbook guides exist and include working patterns + Pitfalls to Avoid & Why
+    const actualCookbookFiles = readdirSync(cookbookDir)
+      .filter((f) => f.endsWith('.md'))
+      .sort();
+    expect(actualCookbookFiles).toEqual([...cookbookFiles].sort());
+
+    const guideContents: Record<(typeof cookbookFiles)[number], string> = {
+      'basecoat-ui-and-dense-forms.md': readFileSync(
+        join(cookbookDir, 'basecoat-ui-and-dense-forms.md'),
+        'utf-8',
+      ),
+      'third-party-dom-and-export.md': readFileSync(
+        join(cookbookDir, 'third-party-dom-and-export.md'),
+        'utf-8',
+      ),
+      'maps-and-live-apis.md': readFileSync(join(cookbookDir, 'maps-and-live-apis.md'), 'utf-8'),
+      'audio-motion-and-svg-avatars.md': readFileSync(
+        join(cookbookDir, 'audio-motion-and-svg-avatars.md'),
+        'utf-8',
+      ),
+      'data-ingestion-export-and-testing.md': readFileSync(
+        join(cookbookDir, 'data-ingestion-export-and-testing.md'),
+        'utf-8',
+      ),
+    };
+
+    for (const file of cookbookFiles) {
+      const text = guideContents[file];
+      expect(text.startsWith('# ')).toBe(true);
+      expect(text).toContain('Pitfalls to Avoid & Why');
+    }
+
+    expect(guideContents['basecoat-ui-and-dense-forms.md']).toContain('basecoat-css');
+    expect(guideContents['basecoat-ui-and-dense-forms.md']).toContain('"theme": "system"');
+    expect(guideContents['basecoat-ui-and-dense-forms.md']).toContain('min-width: 0;');
+    expect(guideContents['basecoat-ui-and-dense-forms.md']).toContain('field-sizing: fixed;');
+    expect(guideContents['basecoat-ui-and-dense-forms.md']).toContain('resize: vertical;');
+    expect(guideContents['basecoat-ui-and-dense-forms.md']).toContain('data-filled');
+    expect(guideContents['basecoat-ui-and-dense-forms.md']).toContain('<dialog');
+    expect(guideContents['basecoat-ui-and-dense-forms.md']).toContain('naizo-ignore');
+
+    expect(guideContents['third-party-dom-and-export.md']).toContain('data-naizo-strip');
+    expect(guideContents['third-party-dom-and-export.md']).toContain('tailwindcss');
+    expect(guideContents['third-party-dom-and-export.md']).toContain('lucide');
+    expect(guideContents['third-party-dom-and-export.md']).toContain('mermaid');
+    expect(guideContents['third-party-dom-and-export.md']).toContain('confetti.create');
+    expect(guideContents['third-party-dom-and-export.md']).toContain("update('none')");
+
+    expect(guideContents['maps-and-live-apis.md']).toContain('ol@v10.8.0');
+    expect(guideContents['maps-and-live-apis.md']).toContain('data-naizo-strip');
+    expect(guideContents['maps-and-live-apis.md']).toContain('Naizo.fetch(');
+    expect(guideContents['maps-and-live-apis.md']).toContain("Naizo.setList('route', [])");
+
+    expect(guideContents['audio-motion-and-svg-avatars.md']).toContain('transform-box: fill-box');
+    expect(guideContents['audio-motion-and-svg-avatars.md']).toContain('transform-origin: center');
+    expect(guideContents['audio-motion-and-svg-avatars.md']).toContain('<symbol');
+    expect(guideContents['audio-motion-and-svg-avatars.md']).toContain('clipPath');
+    expect(guideContents['audio-motion-and-svg-avatars.md']).toContain('translate3d');
+    expect(guideContents['audio-motion-and-svg-avatars.md']).toContain('AudioContext');
+    expect(guideContents['audio-motion-and-svg-avatars.md']).toContain('drop-shadow');
+
+    expect(guideContents['data-ingestion-export-and-testing.md']).toContain('papaparse');
+    expect(guideContents['data-ingestion-export-and-testing.md']).toContain('rowHash');
+    expect(guideContents['data-ingestion-export-and-testing.md']).toContain('Naizo.setList(');
+    expect(guideContents['data-ingestion-export-and-testing.md']).toContain('gws sheets');
+    expect(guideContents['data-ingestion-export-and-testing.md']).toContain('\\u003c');
+    expect(guideContents['data-ingestion-export-and-testing.md']).toContain('@playwright/test');
+    expect(guideContents['data-ingestion-export-and-testing.md']).toContain('Naizo.reset()');
+
+    // 3. Verify progressive-disclosure router links in SKILL.md, USAGE.md, README.md, llms.txt, and llms-full.txt,
+    // and confirm core docs trimmed OpenLayers specifics in favor of maps-and-live-apis.md
+    const skillMd = readFileSync(join(skillRoot, 'SKILL.md'), 'utf-8');
+    const usageMd = readFileSync(resolve(process.cwd(), 'docs/USAGE.md'), 'utf-8');
+    const readmeMd = readFileSync(resolve(process.cwd(), 'README.md'), 'utf-8');
+    const llmsTxt = readFileSync(resolve(process.cwd(), 'site/llms.txt'), 'utf-8');
+    const llmsFullTxt = readFileSync(resolve(process.cwd(), 'site/llms-full.txt'), 'utf-8');
+
+    expect(readmeMd).toContain('(skills/naizo/references/cookbook/)');
+    expect(existsSync(resolve(process.cwd(), 'skills/naizo/references/cookbook'))).toBe(true);
+
+    for (const file of cookbookFiles) {
+      const relSkillLink = `references/cookbook/${file}`;
+      const relUsageLink = `../skills/naizo/references/cookbook/${file}`;
+      const webUrl = `https://naizo.js.org/references/cookbook/${file}`;
+
+      expect(skillMd).toContain(`(${relSkillLink})`);
+      expect(existsSync(resolve(skillRoot, relSkillLink))).toBe(true);
+      expect(skillMd).toContain(webUrl);
+
+      expect(usageMd).toContain(`(${relUsageLink})`);
+      expect(existsSync(resolve(process.cwd(), 'docs', relUsageLink))).toBe(true);
+
+      expect(llmsTxt).toContain(webUrl);
+      expect(llmsFullTxt).toContain(webUrl);
+    }
+
+    // Core Recipe 4 in USAGE.md & Template 4 in llms-full.txt delegate provider/OpenLayers details to cookbook
+    expect(usageMd).not.toContain('api.open-meteo.com');
+    expect(llmsFullTxt).not.toContain('combining an OpenLayers map');
+
+    // 4. Verify site/references symlink & real cp -RL site/. _site/ staging dereference
+    const siteRefsPath = resolve(process.cwd(), 'site/references');
+    expect(lstatSync(siteRefsPath).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(siteRefsPath)).toBe('../skills/naizo/references');
+
+    const stagedDir = mkdtempSync(join(tmpdir(), 'naizo-cookbook-stage-'));
+    try {
+      const siteSrcDir = resolve(process.cwd(), 'site');
+      if (process.platform === 'win32') {
+        cpSync(siteSrcDir, stagedDir, { recursive: true, dereference: true });
+      } else {
+        execFileSync('cp', ['-RL', `${siteSrcDir}/.`, `${stagedDir}/`]);
+      }
+      expect(lstatSync(join(stagedDir, 'references')).isSymbolicLink()).toBe(false);
+      for (const file of cookbookFiles) {
+        const stagedFile = join(stagedDir, 'references/cookbook', file);
+        expect(existsSync(stagedFile)).toBe(true);
+        expect(lstatSync(stagedFile).isFile()).toBe(true);
+        expect(lstatSync(stagedFile).isSymbolicLink()).toBe(false);
+        expect(readFileSync(stagedFile, 'utf-8')).toBe(guideContents[file]);
+      }
+    } finally {
+      rmSync(stagedDir, { recursive: true, force: true });
+    }
+
+    // 8-file npm tarball manifest stays unchanged
+    expect(pkgJson.files).toEqual([
+      'dist/naizo.js',
+      'dist/naizo.min.js',
+      'dist/index.mjs',
+      'dist/index.d.mts',
+      'README.md',
+      'CHANGELOG.md',
+    ]);
   });
 });

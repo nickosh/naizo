@@ -744,15 +744,26 @@ The [`examples/`](../examples/) directory provides five complete, self-contained
      ```
   3. **Sidebar index is a `[naizo-ignore]` view over `Naizo.getList('notes')`:** The category filter dropdown (`<select id="category-filter" naizo="category_filter">`) is bound in `db.fields.category_filter`, while the ephemeral search input (`#note-search`) and rendered sidebar list (`<ul id="note-index-list">`) are marked `naizo-ignore` (`EC23`). Clicking a note in the sidebar calls `Naizo.set('activeNoteId', note.id)`, immediately revealing that note's live `[naizo-item]` editor pane with zero DOM destruction.
 
-### Recipe 4: Interactive Map, Live API Forecast Studio, & Persisted Route Builder ([`examples/weather.html`](../examples/weather.html))
+### Recipe 4: Live API Forecast Studio & Persisted Route Builder ([`examples/weather.html`](../examples/weather.html))
 
-**Use when:** Combining third-party interactive canvases or maps (such as OpenLayers), live external HTTP JSON feeds (`Naizo.fetch()`), and declarative `naizo-get` / `naizo-post` webhooks with a durable `#naizodb` itinerary or workspace.
+**Use when:** Combining interactive map/canvas viewports, live external HTTP JSON feeds (`Naizo.fetch()`), and declarative `naizo-get` / `naizo-post` webhooks with a durable `#naizodb` itinerary or workspace.
 
 - **Structure:** Persisted outing header and active scouting fields (`trip_title`, `location_name`, `latitude`, `longitude`, `elevation_m`, `map_layer`, `target_hour`, `temp_unit`, `trip_notes`, `share_open`, `webhook_url`) paired with a repeating `[naizo-list="route"]` itinerary (`done`, `place`, `note`, plus pass-through `id`, `lat`, `lon`, `elevation_m`, `date`, `time`, and snapshot forecast keys).
-- **Key patterns:**
-  1. **Transient live feeds vs. canonical `#naizodb` state (`D52`, `EC23`, `D47`):** Clicking or dragging on the OpenLayers map updates the active scouting coordinates and calls `await Naizo.fetch(url)` (without `options.into`) across a multi-provider fallback chain (`api.open-meteo.com` → `api.met.no` → `wttr.in`) to render live multi-day forecast cards and a day-to-night hourly sky slider inside `[naizo-ignore]` containers without polluting `#naizodb` with transient weather cache arrays. Runtime map containers, skeletons, and loading pills carry `data-naizo-strip="true"` so exported HTML stays clean.
-  2. **Selective promotion into `[naizo-list]` + 1-click clear/undo:** Clicking **`+ Add Active Pin to Outing`** promotes the scouted coordinates, `⛰️` elevation, and selected forecast slot into `Naizo.addItem('route', ...)`, while **`Clear Saved Pins`** calls `Naizo.setList('route', [])` and keeps an in-memory snapshot for 1-click `↺ Undo`.
-  3. **Declarative webhook sync + `'naizo:fetch'` receipts (`D43`, `D51`):** `naizo-get` (`naizo-path="results.day_length"`, `naizo-into="#api-receipt"`) and `naizo-post` (`naizo-body="db"`, `naizo-path="data"`, `naizo-into="#api-receipt"`) drive `#net` declaratively, while a tiny `'naizo:fetch'` listener formats human-readable confirmation summaries after each request completes.
+- **Key `naizo.js` patterns:**
+  1. **Transient live feeds vs. canonical `#naizodb` state (`D52`, `EC23`, `D47`):** Scouting new coordinates calls `await Naizo.fetch(url)` **without `options.into`** (`D52`) to drive `#net` and render live forecast previews inside `[naizo-ignore]` containers without polluting `#naizodb` with transient API arrays, while runtime map mounts and loading skeletons carry `data-naizo-strip="true"` so exported HTML stays compact.
+  2. **Selective promotion into `[naizo-list]` + 1-click clear/undo:** Clicking **`+ Add Active Pin to Outing`** promotes scouted coordinates, `⛰️` elevation, and the chosen forecast slot into `Naizo.addItem('route', ...)`, while **`Clear Saved Pins`** calls `Naizo.setList('route', [])` and keeps an in-memory snapshot for 1-click `↺ Undo`.
+  3. **Declarative webhook sync + `'naizo:fetch'` receipts (`D43`, `D51`):** `naizo-get` (`naizo-path="results.day_length"`, `naizo-into="#api-receipt"`) and `naizo-post` (`naizo-body="db"`, `naizo-path="data"`, `naizo-into="#api-receipt"`) drive `#net` declaratively, while a `'naizo:fetch'` listener formats human-readable confirmation summaries.
+  - _External map & multi-provider specifics:_ See [`skills/naizo/references/cookbook/maps-and-live-apis.md`](../skills/naizo/references/cookbook/maps-and-live-apis.md) for `file://`-portable (`Origin: null`) OpenLayers setup and multi-provider CORS fallback chains.
+
+### Progressive-Disclosure Cookbook Guides ([`skills/naizo/references/cookbook/`](../skills/naizo/references/cookbook/))
+
+To keep core `naizo.js` documentation universal and framework-free (`D45`, `D58`), external library integrations, animated SVG & procedural Web Audio craft, and CLI/testing pipelines live in dedicated Cookbook guides:
+
+- **[`basecoat-ui-and-dense-forms.md`](../skills/naizo/references/cookbook/basecoat-ui-and-dense-forms.md)** – `basecoat-css` + `"theme": "system"` sync, CSS Grid `min-width: 0` `.select` containment, `field-sizing: fixed; resize: vertical` `.textarea` alignment, `data-filled` triage styling, and drag-safe `<dialog naizo-ignore>` modals.
+- **[`third-party-dom-and-export.md`](../skills/naizo/references/cookbook/third-party-dom-and-export.md)** – `naizo-strip` vs. `naizo-ignore` export hygiene for Tailwind Play CDN, Lucide icons, Mermaid diagrams, `canvas-confetti`, and Chart.js `<canvas>` mounts.
+- **[`maps-and-live-apis.md`](../skills/naizo/references/cookbook/maps-and-live-apis.md)** – `file://`-portable OpenLayers maps, `data-naizo-strip` viewports, multi-provider CORS `Naizo.fetch()` chains (`D52`), pin promotion, and `Naizo.setList([])` + 1-click `↺ Undo`.
+- **[`audio-motion-and-svg-avatars.md`](../skills/naizo/references/cookbook/audio-motion-and-svg-avatars.md)** – Animated SVG architecture (`<g transform>` + `fill-box` vs. nested `<svg>`, outer placement vs. inner animated `<g>`, static `<symbol>` vs. inlined animated shapes, unique `<defs>`, FLIP, beat completion, dual light/dark SVG favicons), procedural Web Audio API (`AudioContext`) synthesis, re-render-safe stage choreography, and modular SVG avatars.
+- **[`data-ingestion-export-and-testing.md`](../skills/naizo/references/cookbook/data-ingestion-export-and-testing.md)** – `FileReader` + PapaParse CSV import with `rowHash` deduplication & `Naizo.setList()`, Slack & Google Sheets TSV clipboard exporters, Node/Python/`gws` CLI surgical `#naizodb` writers, and Playwright Shadow DOM & `Naizo.reset()` testing.
 
 ---
 

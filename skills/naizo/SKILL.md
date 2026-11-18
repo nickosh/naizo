@@ -785,18 +785,32 @@ fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n$
 
 ---
 
-## 8. Installing This Skill in Your Workspace
+## 8. Cookbook & External Integrations (`references/cookbook/` — Load on Demand)
 
-To equip Claude Code, Antigravity, Cursor, GitHub Copilot, Gemini CLI, or Codex with this skill in any repository, install it via the GitHub CLI (`gh skill`), the npm Skills CLI (`npx skills`), or `curl`:
+Keep simple `naizo.js` apps dependency-free using Sections 1–7 above. Read a progressive-disclosure Cookbook guide below **only** when the user's task involves that specific external library, media craft, or CLI/testing workflow (`D58`):
+
+| Cookbook Guide & Web Fallback                                                                                                                                                                                 | When to Read (Trigger)                                                                                                      | Key Patterns Covered                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **[`references/cookbook/basecoat-ui-and-dense-forms.md`](references/cookbook/basecoat-ui-and-dense-forms.md)**<br>`https://naizo.js.org/references/cookbook/basecoat-ui-and-dense-forms.md`                   | Building with **Basecoat UI** (`basecoat-css`), dense multi-column `<select>`/`<textarea>` card grids, or `<dialog>` UIs    | `"theme": "system"` `.dark` sync, CSS Grid `min-width: 0` `.select` reset, `field-sizing: fixed; resize: vertical` `.textarea` alignment, `data-filled` triage UX, `<dialog naizo-ignore>` |
+| **[`references/cookbook/third-party-dom-and-export.md`](references/cookbook/third-party-dom-and-export.md)**<br>`https://naizo.js.org/references/cookbook/third-party-dom-and-export.md`                      | Pairing `naizo.js` with **Tailwind Play CDN**, **Lucide** icons, **Mermaid**, **`canvas-confetti`**, or **Chart.js**        | Surgical `#naizodb` sync vs. `⬇ Save to PC` export, `data-naizo-strip` on runtime `<style>`/`<canvas>`, non-destructive icon/diagram source wrappers, in-place `chart.update('none')`      |
+| **[`references/cookbook/maps-and-live-apis.md`](references/cookbook/maps-and-live-apis.md)**<br>`https://naizo.js.org/references/cookbook/maps-and-live-apis.md`                                              | Building **`file://`-portable interactive maps** (**OpenLayers**), live weather/geo feeds, or route/waypoint studios        | `Origin: null` OpenLayers mount inside `data-naizo-strip`, multi-provider CORS `Naizo.fetch()` chains (`D52`), pin promotion to `[naizo-list]`, `Naizo.setList([])` + 1-click `↺ Undo`     |
+| **[`references/cookbook/audio-motion-and-svg-avatars.md`](references/cookbook/audio-motion-and-svg-avatars.md)**<br>`https://naizo.js.org/references/cookbook/audio-motion-and-svg-avatars.md`                | Adding **animated SVGs**, **UI motion**, **procedural Web Audio FX** (`AudioContext`), or **modular SVG avatars**           | `<g transform>` + `fill-box` vs. nested `<svg>`, outer placement vs. inner animated `<g>`, static `<symbol>` vs. inlined animated shapes, FLIP, beat completion, Web Audio, SVG DNA merge  |
+| **[`references/cookbook/data-ingestion-export-and-testing.md`](references/cookbook/data-ingestion-export-and-testing.md)**<br>`https://naizo.js.org/references/cookbook/data-ingestion-export-and-testing.md` | Importing **CSV / spreadsheets** (**PapaParse**), exporting **Slack / Sheets TSV**, **CLI seeding** (`gws`), **Playwright** | `FileReader` + `rowHash` idempotent CSV import via `Naizo.setList()`, TSV/Slack clipboard helpers, Node/Python/`gws` surgical `#naizodb` writers, Playwright Shadow DOM & `Naizo.reset()`  |
+
+---
+
+## 9. Installing This Skill in Your Workspace
+
+To equip Claude Code, Antigravity, Cursor, GitHub Copilot, Gemini CLI, or Codex with this skill (including `references/cookbook/*.md`) in any repository, install it via the GitHub CLI (`gh skill`), the npm Skills CLI (`npx skills`), or `curl`:
 
 ```bash
-# 1. GitHub CLI (gh v2.90+ — installs from the latest published release)
+# 1. GitHub CLI (gh v2.90+ — installs SKILL.md + references/cookbook/*.md from the latest release)
 gh skill install nickosh/naizo naizo
 
-# 2. npm Skills CLI (npx skills)
+# 2. npm Skills CLI (npx skills — installs SKILL.md + references/cookbook/*.md)
 npx skills add nickosh/naizo --skill naizo
 
-# 3. Direct curl / file copy (no CLI required)
+# 3. Direct curl / file copy (no CLI required; cookbook guides remain readable via https://naizo.js.org/references/cookbook/*.md)
 mkdir -p .agents/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .agents/skills/naizo/SKILL.md
 mkdir -p .claude/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```

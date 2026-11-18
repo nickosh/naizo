@@ -172,6 +172,8 @@ mkdir -p .agents/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .ag
 mkdir -p .claude/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```
 
+Installing via `gh skill` or `npx skills` also bundles five on-demand **Cookbook guides** ([`skills/naizo/references/cookbook/`](skills/naizo/references/cookbook/)) — covering Basecoat UI & dense forms, third-party DOM libraries & clean HTML export, `file://`-portable maps & live APIs, animated SVG & Web Audio craft, and CSV/CLI/Playwright workflows — loaded by your agent only when needed.
+
 ### Experimental / In-Development (`main` Branch)
 
 To preview unreleased features on `main` before the next tagged release is published, pair the in-development `dist/naizo.js` bundle with the `@main` skill (note: `main` is under active development and may contain experimental or not-yet-released changes):

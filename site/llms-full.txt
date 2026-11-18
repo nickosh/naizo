@@ -795,7 +795,7 @@ When helping a user compare design directions, layout options, architecture trad
 
 ### Template 4: Declarative Mini-API Client, Live Forecast Studio, & Webhook Sync (`examples/weather.html`, `naizo-get` / `naizo-post`, `D43`, `D50`, `D51`, `D52`)
 
-See `https://naizo.js.org/examples/weather.html` (`examples/weather.html`) for a complete single-file app combining an OpenLayers map, non-mutating `await Naizo.fetch(url)` live weather feeds (`D52`), a persisted `[naizo-list="route"]` itinerary, and declarative `naizo-get` / `naizo-post` webhook sync:
+See `https://naizo.js.org/examples/weather.html` (`examples/weather.html`) for a complete single-file app combining non-mutating `await Naizo.fetch(url)` live JSON feeds (`D52`), `data-naizo-strip` runtime containers (`D47`), `Naizo.setList('route', [])` clear/undo, a persisted `[naizo-list="route"]` itinerary, and declarative `naizo-get` / `naizo-post` webhook sync (for `file://`-portable map viewports and multi-provider API fallback specifics, load `https://naizo.js.org/references/cookbook/maps-and-live-apis.md` on demand):
 
 ```html
 <!-- Seed a list once on first boot only when empty (never overwrites user edits on F5 reload) -->
@@ -865,6 +865,14 @@ npx skills add nickosh/naizo --skill naizo
 mkdir -p .agents/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .agents/skills/naizo/SKILL.md
 mkdir -p .claude/skills/naizo && curl -fsSL https://naizo.js.org/SKILL.md -o .claude/skills/naizo/SKILL.md
 ```
+
+Installing via `gh skill` or `npx skills` also bundles five progressive-disclosure **Cookbook guides** (`skills/naizo/references/cookbook/*.md`, load on demand only when relevant):
+
+- `https://naizo.js.org/references/cookbook/basecoat-ui-and-dense-forms.md` – Basecoat UI (`basecoat-css`), `"theme": "system"` `.dark` sync, CSS Grid `min-width: 0` `.select` reset, `field-sizing: fixed; resize: vertical` `.textarea` alignment, `data-filled` triage UX, and `<dialog naizo-ignore>` modals.
+- `https://naizo.js.org/references/cookbook/third-party-dom-and-export.md` – `naizo-strip` vs. `naizo-ignore` export hygiene for Tailwind Play CDN, Lucide icons, Mermaid diagrams, `canvas-confetti`, and Chart.js `<canvas>` widgets.
+- `https://naizo.js.org/references/cookbook/maps-and-live-apis.md` – `file://`-portable OpenLayers maps, `data-naizo-strip` viewports, multi-provider CORS `Naizo.fetch()` chains (`D52`), pin promotion, and `Naizo.setList([])` + 1-click `↺ Undo`.
+- `https://naizo.js.org/references/cookbook/audio-motion-and-svg-avatars.md` – Animated SVG craft (`<g transform>` + `fill-box` vs. nested `<svg>`, outer placement vs. inner animated `<g>`, static `<symbol>` vs. inlined animated shapes, unique `<defs>`, FLIP, beat completion, dual light/dark SVG favicons), procedural Web Audio API (`AudioContext`) FX, stage choreography, and modular SVG avatars.
+- `https://naizo.js.org/references/cookbook/data-ingestion-export-and-testing.md` – `FileReader` + PapaParse CSV import with `rowHash` deduplication & `Naizo.setList()`, Slack & Google Sheets TSV clipboard exporters, Node/Python/`gws` CLI surgical `#naizodb` writers, and Playwright testing (`Naizo.reset()`, Shadow DOM).
 
 ### Experimental / In-Development (`main` Branch)
 

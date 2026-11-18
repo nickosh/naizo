@@ -58,7 +58,13 @@ In Japanese, **naizō (ないぞう)** means both **内蔵 (built-in / housed wi
 ## AI Agent & LLM Documentation Endpoints
 
 - [Complete Single-File Documentation & Templates (`/llms-full.txt`)](https://naizo.js.org/llms-full.txt): Full authoring guide, 9 Golden Rules, HTML5 UI patterns `(a)`–`(g)`, API reference, surgical disk-edit script, and starter HTML templates in one file.
-- [Installable AI Agent Skill (`/SKILL.md`)](https://naizo.js.org/SKILL.md): Distributable skill for Claude Code, Antigravity, Cursor, Copilot, Codex, and Gemini CLI (`gh skill install nickosh/naizo naizo` or `npx skills add nickosh/naizo --skill naizo`; for experimental in-development `main`, pair `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` with `gh skill install nickosh/naizo naizo@main` or `npx skills add nickosh/naizo@main --skill naizo`).
+- [Installable AI Agent Skill (`/SKILL.md`)](https://naizo.js.org/SKILL.md): Distributable skill for Claude Code, Antigravity, Cursor, Copilot, Codex, and Gemini CLI (`gh skill install nickosh/naizo naizo` or `npx skills add nickosh/naizo --skill naizo`, bundling `references/cookbook/*.md`; for experimental in-development `main`, pair `https://cdn.jsdelivr.net/gh/nickosh/naizo@main/dist/naizo.js` with `gh skill install nickosh/naizo naizo@main` or `npx skills add nickosh/naizo@main --skill naizo`).
+- Progressive-Disclosure Cookbook Guides (`/references/cookbook/`, load on demand only when relevant):
+  - [Basecoat UI, Dense Multi-Column Forms, & `<dialog>` Modals](https://naizo.js.org/references/cookbook/basecoat-ui-and-dense-forms.md)
+  - [Third-Party Runtime DOM Libraries & Clean HTML Export (`naizo-strip` vs. `naizo-ignore`)](https://naizo.js.org/references/cookbook/third-party-dom-and-export.md)
+  - [`file://`-Portable Interactive Maps & Multi-Provider Live APIs](https://naizo.js.org/references/cookbook/maps-and-live-apis.md)
+  - [Animated SVG Craft, UI Motion, Procedural Web Audio, & Modular Avatars](https://naizo.js.org/references/cookbook/audio-motion-and-svg-avatars.md)
+  - [CSV Ingestion, Slack/Sheets Exporters, CLI Pipelines, & Playwright Testing](https://naizo.js.org/references/cookbook/data-ingestion-export-and-testing.md)
 - [Interactive Documentation & Live Playground (`/`)](https://naizo.js.org/): Self-persisting `naizo.js` documentation site and live `#naizodb` inspector.
 
 ## Starter App Blueprints
