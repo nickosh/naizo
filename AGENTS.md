@@ -41,7 +41,7 @@ Whenever you generate or update an interactive HTML application (dashboards, stu
 Read [docs/PLAN.md](docs/PLAN.md) and the latest entry in [docs/JOURNAL.md](docs/JOURNAL.md) before substantial work. Read relevant decisions in [docs/DECISIONS.md](docs/DECISIONS.md), known boundary cases in [docs/EDGE_CASES.md](docs/EDGE_CASES.md), and any affected specifications under `docs/`.
 
 - [docs/PRODUCT.md](docs/PRODUCT.md) — **Global picture & lifecycles**: product vision, target users, connected Local Mode / Online Mode lifecycles, core promises (invariants), and scope boundaries.
-- [docs/PLAN.md](docs/PLAN.md) — **What & when**: authoritative task, implementation specification, milestone/slice sequencing, and acceptance ledger.
+- [docs/PLAN.md](docs/PLAN.md) — **What & when**: authoritative task, implementation specification, rolling priority queue (`Current state and next action`), explicit `Prerequisites:` dependencies, and acceptance ledger (`D55`).
 - [docs/DECISIONS.md](docs/DECISIONS.md) — **Why**: ADR-style log of durable architectural and owner decisions (`D01`, `D02`, ...), capturing context/problem, rationale & invariant safety, and rejected alternatives.
 - [docs/EDGE_CASES.md](docs/EDGE_CASES.md) — **Boundary failure modes**: edge-case resolution ledger (`EC01`, `EC02`, ...; statuses: `ADR`, `fix`, `doc`, `PARTIAL`, `OPEN`).
 - [docs/JOURNAL.md](docs/JOURNAL.md) — **Session delta**: newest-first cross-session progress log.
@@ -100,7 +100,8 @@ Use proportional verification:
 ## Git workflow
 
 - After completing and verifying each coherent change, including documentation changes, reconcile project memory and create a local commit without asking again unless the user explicitly requests otherwise.
-- When a planned milestone or task in `docs/PLAN.md` has substeps (e.g., `M5.1` and `M5.2`, or `M4.5a`–`M4.5e`), complete, verify, reconcile project memory, and create a separate local commit for **each substep in sequence** before starting the next substep — never batch multiple planned substeps into a single commit (`D02`, `D44`).
+- Milestones in `docs/PLAN.md` (`M10`, `M11`, `M12`, ...) are numbered for stable reference rather than strict sequential order (`D55`): follow the active priority queue in `Current state and next action`, respect owner-deferred milestones, check each milestone's **`Prerequisites:`** note before starting, and keep `main` green and releasable after every completed substep (`D44`, `D46`, `D55`).
+- When an active milestone or task in `docs/PLAN.md` has substeps (e.g., `M5.1` and `M5.2`, or `M4.5a`–`M4.5e`), complete, verify, reconcile project memory, and create a separate local commit for **each substep in sequence** before starting the next substep — never batch multiple planned substeps into a single commit (`D02`, `D44`).
 - Use Conventional Commits for commit messages (`type(scope): subject`); include a scope only when it adds clarity. Common types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `ci`, and `build`.
 - Every commit must include a factual body after the subject and a blank line explaining what changed, why, and any relevant limitations. Do not create subject-only commits. Scale the detail to the change. Validation results and checks not run belong in closeout documentation and chat; they are not required in commit bodies.
 - Do not add a `Co-authored-by: Copilot` trailer (or any other AI co-author trailer) to commit messages.
