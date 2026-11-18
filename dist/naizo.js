@@ -137,7 +137,7 @@
 	}
 	function getDocumentScopeId() {
 		if (typeof document === "undefined") return "";
-		const attrId = document.documentElement?.getAttribute("naizo-id") ?? document.documentElement?.getAttribute("data-naizo-id") ?? document.body?.getAttribute("naizo-id") ?? document.body?.getAttribute("data-naizo-id");
+		const attrId = (document.documentElement ? getAttr(document.documentElement, "naizo-id") : null) ?? (document.body ? getAttr(document.body, "naizo-id") : null);
 		if (attrId && attrId.trim()) return attrId.trim();
 		if (storeInitialized && typeof store._meta.id === "string" && store._meta.id.trim()) return store._meta.id.trim();
 		const raw = document.getElementById(DB_ID)?.textContent ?? "";
@@ -170,13 +170,21 @@
 	function getUiKey() {
 		return "naizodb_ui_" + getStorageSuffix();
 	}
+	function toValidCorner(val) {
+		if (typeof val !== "string") return null;
+		const norm = val.trim().toLowerCase();
+		return VALID_PILL_CORNERS.has(norm) ? norm : null;
+	}
 	function readSavedUiCorner() {
 		const raw = safeGetStorage(getUiKey());
-		if (!raw) return "bottom-right";
-		try {
-			const parsed = JSON.parse(raw);
-			if (typeof parsed?.corner === "string" && VALID_PILL_CORNERS.has(parsed.corner)) return parsed.corner;
+		if (raw) try {
+			const saved = toValidCorner(JSON.parse(raw)?.corner);
+			if (saved) return saved;
 		} catch {}
+		if (typeof document !== "undefined") {
+			const hinted = toValidCorner((document.body ? getAttr(document.body, "naizo-pill-corner") : null) ?? (document.documentElement ? getAttr(document.documentElement, "naizo-pill-corner") : null));
+			if (hinted) return hinted;
+		}
 		return "bottom-right";
 	}
 	function saveUiCorner(corner) {
@@ -247,9 +255,19 @@
 		}
 		return Boolean(val);
 	}
+	const MAX_REENTRANT_CHANGE_PASSES = 10;
 	let store = createEmptyDb();
 	let storeInitialized = false;
+	let bootHydrated = false;
 	let startupInvalidDb = false;
+	let isDispatchingChange = false;
+	let pendingChangeQueue = [];
+	let batchDepth = 0;
+	let batchSilentDepth = 0;
+	let batchDeferDepth = 0;
+	let batchDirty = false;
+	let batchAllSilent = true;
+	let batchDeferPersist = true;
 	let trackedDbScriptEl = null;
 	let lastSerializedContent = "";
 	let lastKnownDiskRaw = null;
@@ -304,10 +322,8 @@
 	let listenerController = null;
 	function getExplicitNaizoMode() {
 		if (typeof document === "undefined") return "auto";
-		const raw = (document.documentElement?.getAttribute("naizo-mode") ?? document.documentElement?.getAttribute("data-naizo-mode") ?? document.body?.getAttribute("naizo-mode") ?? document.body?.getAttribute("data-naizo-mode") ?? "auto").trim().toLowerCase();
-		if (raw === "online") return "online";
-		if (raw === "local") return "local";
-		return "auto";
+		const raw = ((document.documentElement ? getAttr(document.documentElement, "naizo-mode") : null) ?? (document.body ? getAttr(document.body, "naizo-mode") : null) ?? "auto").trim().toLowerCase();
+		return raw === "online" || raw === "local" ? raw : "auto";
 	}
 	function isLocalHostname(hostname) {
 		const h = hostname.trim().toLowerCase();
@@ -331,61 +347,45 @@
 		if (htmlAttr !== null) return htmlAttr.trim().toLowerCase() !== "false";
 		return false;
 	}
-	function idbStore(mode, callback) {
+	function idbStore(mode, callback, onFail) {
 		try {
-			if (typeof indexedDB === "undefined") return;
+			if (typeof indexedDB === "undefined") {
+				onFail?.();
+				return;
+			}
 			const req = indexedDB.open(IDB_NAME, 1);
 			req.onupgradeneeded = () => req.result.createObjectStore("handles");
 			req.onsuccess = () => {
-				callback(req.result.transaction("handles", mode).objectStore("handles"));
+				try {
+					callback(req.result.transaction("handles", mode).objectStore("handles"));
+				} catch {
+					onFail?.();
+				}
 			};
-		} catch {}
+			req.onerror = () => onFail?.();
+		} catch {
+			onFail?.();
+		}
 	}
 	function saveHandleToIDB(handle) {
 		idbStore("readwrite", (idb) => idb.put(handle, getPageKey()));
 	}
 	function deleteHandleFromIDB() {
 		return new Promise((resolve) => {
-			try {
-				if (typeof indexedDB === "undefined") {
-					resolve();
-					return;
-				}
-				const req = indexedDB.open(IDB_NAME, 1);
-				req.onupgradeneeded = () => req.result.createObjectStore("handles");
-				req.onsuccess = () => {
-					try {
-						const delReq = req.result.transaction("handles", "readwrite").objectStore("handles").delete(getPageKey());
-						delReq.onsuccess = () => resolve();
-						delReq.onerror = () => resolve();
-					} catch {
-						resolve();
-					}
-				};
-				req.onerror = () => resolve();
-			} catch {
-				resolve();
-			}
+			idbStore("readwrite", (idb) => {
+				const delReq = idb.delete(getPageKey());
+				delReq.onsuccess = () => resolve();
+				delReq.onerror = () => resolve();
+			}, resolve);
 		});
 	}
 	function loadHandleFromIDB() {
 		return new Promise((resolve) => {
-			try {
-				if (typeof indexedDB === "undefined") {
-					resolve(null);
-					return;
-				}
-				const req = indexedDB.open(IDB_NAME, 1);
-				req.onupgradeneeded = () => req.result.createObjectStore("handles");
-				req.onsuccess = () => {
-					const getReq = req.result.transaction("handles", "readonly").objectStore("handles").get(getPageKey());
-					getReq.onsuccess = () => resolve(getReq.result ?? null);
-					getReq.onerror = () => resolve(null);
-				};
-				req.onerror = () => resolve(null);
-			} catch {
-				resolve(null);
-			}
+			idbStore("readonly", (idb) => {
+				const getReq = idb.get(getPageKey());
+				getReq.onsuccess = () => resolve(getReq.result ?? null);
+				getReq.onerror = () => resolve(null);
+			}, () => resolve(null));
 		});
 	}
 	function getDbScript() {
@@ -479,18 +479,18 @@
 		}
 		return out;
 	}
+	function buildDbKeyHashMap(db) {
+		return {
+			fields: buildKeyHashesForBucket(db.fields),
+			lists: buildKeyHashesForBucket(db.lists),
+			custom: buildKeyHashesForBucket(db.custom)
+		};
+	}
 	function hashCanonicalDb(raw) {
 		const rootHash = fnv1aStringHash(normalizeJsonComparison(raw));
 		try {
 			const validated = validateAndNormalizeDb(JSON.parse(raw.trim()));
-			if (validated) {
-				const keyMap = {
-					fields: buildKeyHashesForBucket(validated.fields),
-					lists: buildKeyHashesForBucket(validated.lists),
-					custom: buildKeyHashesForBucket(validated.custom)
-				};
-				return `${rootHash}|${JSON.stringify(keyMap)}`;
-			}
+			if (validated) return `${rootHash}|${JSON.stringify(buildDbKeyHashMap(validated))}`;
 		} catch {}
 		return rootHash;
 	}
@@ -540,8 +540,17 @@
 	function isDetailsElement(el) {
 		return typeof HTMLDetailsElement !== "undefined" && el instanceof HTMLDetailsElement || el.tagName.toLowerCase() === "details";
 	}
+	function isInteractiveBoundElement(el) {
+		return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement || isDetailsElement(el) || isContentEditableElement(el);
+	}
+	function orderInteractiveFirst(elements) {
+		const interactive = [];
+		const passive = [];
+		for (const el of elements) (isInteractiveBoundElement(el) ? interactive : passive).push(el);
+		return interactive.length && passive.length ? interactive.concat(passive) : elements;
+	}
 	function isNonLeafElement(el) {
-		if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement || isDetailsElement(el) || isContentEditableElement(el)) return false;
+		if (isInteractiveBoundElement(el)) return false;
 		return Array.from(el.children).some((child) => !child.matches(IGNORE_SELECTOR));
 	}
 	function readCleanTextContent(el) {
@@ -632,6 +641,10 @@
 				return;
 			}
 			if (!Array.from(el.options).some((opt) => opt.value === textVal)) {
+				if (textVal === "") {
+					el.selectedIndex = -1;
+					return;
+				}
 				console.warn(`[naizo.js] Stored value "${textVal}" has no matching <option> in <select>; preserving stored value.`);
 				return;
 			}
@@ -766,13 +779,16 @@
 			radio.name = `__naizo_${listName}_${scopeId}_${baseName}`;
 		});
 	}
-	function ensureListBlueprints(root = document, forceRegenerateAuto = false) {
+	function queryListElements(root = document) {
 		const lists = [];
 		if (root instanceof HTMLElement && root.matches(LIST_SELECTOR) && !isIgnoredElement(root)) lists.push(root);
 		root.querySelectorAll(LIST_SELECTOR).forEach((el) => {
 			if (!isIgnoredElement(el)) lists.push(el);
 		});
-		lists.forEach((listEl) => {
+		return lists;
+	}
+	function ensureListBlueprints(root = document, forceRegenerateAuto = false) {
+		queryListElements(root).forEach((listEl) => {
 			const authoredTpl = listEl.querySelector(AUTHORED_TEMPLATE_SELECTOR);
 			if (authoredTpl) {
 				if (!hasAttr(authoredTpl, "naizo-template")) authoredTpl.setAttribute("naizo-template", "");
@@ -840,7 +856,7 @@
 	function bindItemElementToRecord(itemEl, rowObj, listName) {
 		if (listName) scopeRowRadioInputs(itemEl, listName);
 		itemDataMap.set(itemEl, rowObj);
-		queryItemBoundElements(itemEl).forEach((el) => {
+		orderInteractiveFirst(queryItemBoundElements(itemEl)).forEach((el) => {
 			const key = getElementKey(el);
 			if (!key) return;
 			if (hasOwn(rowObj, key)) writeElementValue(el, getOwn(rowObj, key));
@@ -917,16 +933,18 @@
 		}
 		return formatted;
 	}
+	function seedMissingIntoRecord(elements, targetRec) {
+		orderInteractiveFirst(elements).forEach((el) => {
+			const key = getElementKey(el);
+			if (!key || hasOwn(targetRec, key)) return;
+			const val = readElementValue(el);
+			if (val !== void 0) setOwn(targetRec, key, val);
+		});
+	}
 	function buildInitialBaselineDb(diskDb) {
 		const baseline = cloneDb(diskDb);
-		queryStandaloneBoundElements(document).forEach((el) => {
-			const key = getElementKey(el);
-			if (!key || hasOwn(baseline.fields, key)) return;
-			const val = readElementValue(el);
-			if (val !== void 0) setOwn(baseline.fields, key, val);
-		});
-		document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
-			if (isIgnoredElement(listEl)) return;
+		seedMissingIntoRecord(queryStandaloneBoundElements(document), baseline.fields);
+		queryListElements(document).forEach((listEl) => {
 			const listName = getAttr(listEl, "naizo-list");
 			if (!listName) return;
 			if (hasOwn(baseline.lists, listName) && Array.isArray(getOwn(baseline.lists, listName))) {
@@ -936,12 +954,7 @@
 				if (tplItem) {
 					const tplBound = queryItemBoundElements(tplItem);
 					items.forEach((rowObj) => {
-						tplBound.forEach((el) => {
-							const key = getElementKey(el);
-							if (!key || hasOwn(rowObj, key)) return;
-							const val = readElementValue(el);
-							if (val !== void 0) setOwn(rowObj, key, val);
-						});
+						seedMissingIntoRecord(tplBound, rowObj);
 					});
 				}
 				return;
@@ -949,12 +962,7 @@
 			const seededItems = [];
 			listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
 				const rowObj = {};
-				queryItemBoundElements(itemEl).forEach((el) => {
-					const key = getElementKey(el);
-					if (!key) return;
-					const val = readElementValue(el);
-					if (val !== void 0) setOwn(rowObj, key, val);
-				});
+				seedMissingIntoRecord(queryItemBoundElements(itemEl), rowObj);
 				seededItems.push(rowObj);
 			});
 			setOwn(baseline.lists, listName, seededItems);
@@ -964,7 +972,7 @@
 	function hydrateSubtreeFromStore(root = document, preserveActive = false, seedMissingFromDom = true) {
 		const db = ensureStore();
 		ensureListBlueprints(root);
-		queryStandaloneBoundElements(root).forEach((el) => {
+		orderInteractiveFirst(queryStandaloneBoundElements(root)).forEach((el) => {
 			const key = getElementKey(el);
 			if (!key) return;
 			if (hasOwn(db.fields, key)) {
@@ -972,15 +980,13 @@
 				writeElementValue(el, getOwn(db.fields, key));
 			} else if (seedMissingFromDom) {
 				const val = readElementValue(el);
-				if (val !== void 0) setOwn(db.fields, key, val);
+				if (val !== void 0) {
+					setOwn(db.fields, key, val);
+					propagateStandaloneKey(key, val, el);
+				}
 			} else if (!preserveActive || !isElementActive(el)) clearElementValue(el);
 		});
-		const lists = [];
-		if (root instanceof HTMLElement && root.matches(LIST_SELECTOR) && !isIgnoredElement(root)) lists.push(root);
-		root.querySelectorAll(LIST_SELECTOR).forEach((el) => {
-			if (!isIgnoredElement(el)) lists.push(el);
-		});
-		lists.forEach((listEl) => {
+		queryListElements(root).forEach((listEl) => {
 			const listName = getAttr(listEl, "naizo-list");
 			if (!listName) return;
 			if (hasOwn(db.lists, listName) && Array.isArray(getOwn(db.lists, listName))) {
@@ -1150,11 +1156,7 @@
 	}
 	function applyExternalDiskUpdate(diskDb, diskRaw, preserveActive) {
 		const currentBrowserDb = cloneDb(ensureStore());
-		const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(lastDiskDb ? {
-			fields: buildKeyHashesForBucket(lastDiskDb.fields),
-			lists: buildKeyHashesForBucket(lastDiskDb.lists),
-			custom: buildKeyHashesForBucket(lastDiskDb.custom)
-		} : null, currentBrowserDb, diskDb);
+		const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(lastDiskDb ? buildDbKeyHashMap(lastDiskDb) : null, currentBrowserDb, diskDb);
 		if (hasCollision) safeSetStorage(getBackupKey(), JSON.stringify(currentBrowserDb));
 		store = merged;
 		storeInitialized = true;
@@ -1325,6 +1327,10 @@
 			writeToDisk();
 		}, DISK_DEBOUNCE_MS);
 	}
+	function updateUnlinkedStatusUi(storedOk = true) {
+		if (isOnlineMode()) updateUi(storedOk ? "saved" : "cached", storedOk ? "Saved in Browser" : "In-Memory Only");
+		else updateUi("cached", storedOk ? "Browser Cache · Click to Link Disk" : "In-Memory Only · Link Disk");
+	}
 	function flushPersistence(scheduleDisk = true) {
 		if (persistTimeout !== null) {
 			clearTimeout(persistTimeout);
@@ -1338,18 +1344,26 @@
 		writeStoreToDomScript(db, true);
 		const storedOk = safeSetStorage(getPageKey(), JSON.stringify(db));
 		if (!fileHandle) {
-			if (isOnlineMode()) {
-				if (storedOk) updateUi("saved", "Saved in Browser");
-				else updateUi("cached", "In-Memory Only");
-			} else if (storedOk) updateUi("cached", "Browser Cache · Click to Link Disk");
-			else updateUi("cached", "In-Memory Only · Link Disk");
+			updateUnlinkedStatusUi(storedOk);
 			return storedOk;
 		}
 		if (scheduleDisk) scheduleDiskWrite();
 		return storedOk;
 	}
+	function persistStoreMutation() {
+		if (batchDepth > 0) {
+			batchDirty = true;
+			if (batchDeferDepth === 0) batchDeferPersist = false;
+			return;
+		}
+		flushPersistence(true);
+	}
 	function schedulePersist() {
 		if (startupInvalidDb) return;
+		if (batchDepth > 0) {
+			batchDirty = true;
+			return;
+		}
 		if (persistTimeout !== null) clearTimeout(persistTimeout);
 		persistTimeout = setTimeout(() => {
 			persistTimeout = null;
@@ -1395,12 +1409,50 @@
 		Naizo.downloadHTML();
 		return false;
 	}
+	function resetChangeDispatchState() {
+		isDispatchingChange = false;
+		pendingChangeQueue = [];
+	}
 	function dispatchChangeEvent(detail) {
 		if (typeof window === "undefined") return;
-		window.dispatchEvent(new CustomEvent("naizo:change", { detail: {
+		if (batchDepth > 0) {
+			batchDirty = true;
+			if (batchSilentDepth === 0) batchAllSilent = false;
+			return;
+		}
+		const payload = {
 			...detail,
 			db: store
-		} }));
+		};
+		if (isDispatchingChange) {
+			pendingChangeQueue.push(payload);
+			return;
+		}
+		isDispatchingChange = true;
+		try {
+			window.dispatchEvent(new CustomEvent("naizo:change", { detail: payload }));
+			let passes = 0;
+			while (isDispatchingChange && pendingChangeQueue.length > 0) {
+				if (passes >= MAX_REENTRANT_CHANGE_PASSES) {
+					console.warn(`[naizo.js] Exceeded ${MAX_REENTRANT_CHANGE_PASSES} re-entrant naizo:change passes; dropping queued events.`);
+					pendingChangeQueue = [];
+					break;
+				}
+				passes += 1;
+				const currentWave = pendingChangeQueue;
+				pendingChangeQueue = [];
+				for (let i = 0; i < currentWave.length; i += 1) {
+					if (!isDispatchingChange) break;
+					const nextPayload = currentWave[i];
+					if (nextPayload) {
+						nextPayload.db = store;
+						window.dispatchEvent(new CustomEvent("naizo:change", { detail: nextPayload }));
+					}
+				}
+			}
+		} finally {
+			resetChangeDispatchState();
+		}
 	}
 	function dispatchItemEvent(listName, itemEl, rowObj, index) {
 		if (typeof window === "undefined") return;
@@ -1533,49 +1585,48 @@
 		}
 		return null;
 	}
-	function isSystemDarkTheme() {
+	function matchesMediaQuery(query) {
 		try {
-			return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+			return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches;
 		} catch {
 			return false;
 		}
 	}
 	function syncHostTheme(host) {
 		if (!host) return;
-		const effective = resolveExplicitPageTheme() ?? (isSystemDarkTheme() ? "dark" : null);
+		const effective = resolveExplicitPageTheme() ?? (matchesMediaQuery("(prefers-color-scheme: dark)") ? "dark" : null);
 		const current = host.getAttribute("data-naizo-theme");
 		if (effective === null) {
 			if (current !== null) host.removeAttribute("data-naizo-theme");
 		} else if (current !== effective) host.setAttribute("data-naizo-theme", effective);
 	}
+	function clearSavingHold() {
+		if (savingHoldTimeout !== null) {
+			clearTimeout(savingHoldTimeout);
+			savingHoldTimeout = null;
+		}
+	}
 	function syncSavingBeat(state) {
 		if (!dotBtnEl) {
-			if (savingHoldTimeout !== null) {
-				clearTimeout(savingHoldTimeout);
-				savingHoldTimeout = null;
-			}
+			clearSavingHold();
 			savingCycleStart = 0;
 			savingMinCycles = 1;
 			return;
 		}
 		if (state === "saving") {
-			if (savingHoldTimeout !== null) {
-				clearTimeout(savingHoldTimeout);
-				savingHoldTimeout = null;
-			}
+			clearSavingHold();
 			if (savingCycleStart === 0) {
 				savingCycleStart = nowHighResMs();
 				savingMinCycles = 1;
-				if (dotBtnEl) dotBtnEl.dataset.naizoSaving = "1";
 			} else {
 				const elapsed = Math.max(0, nowHighResMs() - savingCycleStart);
 				savingMinCycles = Math.max(1, Math.ceil((elapsed + 450) / SAVING_CYCLE_MS));
-				if (dotBtnEl) dotBtnEl.dataset.naizoSaving = "1";
 			}
+			dotBtnEl.dataset.naizoSaving = "1";
 			return;
 		}
 		if ((state === "saved" || state === "") && savingCycleStart > 0) {
-			if (savingHoldTimeout !== null) clearTimeout(savingHoldTimeout);
+			clearSavingHold();
 			const elapsed = Math.max(0, nowHighResMs() - savingCycleStart);
 			const targetCycles = Math.max(savingMinCycles, Math.floor(elapsed / SAVING_CYCLE_MS) + 1);
 			const remainingMs = Math.max(16, Math.round(targetCycles * SAVING_CYCLE_MS - elapsed));
@@ -1587,13 +1638,10 @@
 			}, remainingMs);
 			return;
 		}
-		if (savingHoldTimeout !== null) {
-			clearTimeout(savingHoldTimeout);
-			savingHoldTimeout = null;
-		}
+		clearSavingHold();
 		savingCycleStart = 0;
 		savingMinCycles = 1;
-		if (dotBtnEl) delete dotBtnEl.dataset.naizoSaving;
+		delete dotBtnEl.dataset.naizoSaving;
 	}
 	function stashElementTitle(el) {
 		if (el.dataset.savedTitle === void 0 && el.hasAttribute("title")) {
@@ -1673,6 +1721,29 @@
 			else hidePillTooltip();
 		}, durationMs);
 	}
+	function teardownUiTimersAndObservers() {
+		if (themeObserver !== null) {
+			themeObserver.disconnect();
+			themeObserver = null;
+		}
+		if (themeMediaCleanup !== null) {
+			themeMediaCleanup();
+			themeMediaCleanup = null;
+		}
+		clearPillTooltipTimersAndTitles();
+		if (bootClearTimeout !== null) {
+			clearTimeout(bootClearTimeout);
+			bootClearTimeout = null;
+		}
+		if (copyResetTimeout !== null) {
+			clearTimeout(copyResetTimeout);
+			copyResetTimeout = null;
+		}
+		if (savingHoldTimeout !== null) {
+			clearTimeout(savingHoldTimeout);
+			savingHoldTimeout = null;
+		}
+	}
 	function resetUiRefs() {
 		uiHost = null;
 		statusEl = null;
@@ -1730,29 +1801,7 @@
     `;
 			document.head.appendChild(style);
 		}
-		if (themeObserver !== null) {
-			themeObserver.disconnect();
-			themeObserver = null;
-		}
-		if (themeMediaCleanup !== null) {
-			themeMediaCleanup();
-			themeMediaCleanup = null;
-		}
-		clearPillTooltipTimersAndTitles();
-		if (bootClearTimeout !== null) {
-			clearTimeout(bootClearTimeout);
-			bootClearTimeout = null;
-		}
-		if (copyResetTimeout !== null) {
-			clearTimeout(copyResetTimeout);
-			copyResetTimeout = null;
-		}
-		if (savingHoldTimeout !== null) {
-			clearTimeout(savingHoldTimeout);
-			savingHoldTimeout = null;
-		}
-		savingCycleStart = 0;
-		savingMinCycles = 1;
+		teardownUiTimersAndObservers();
 		document.querySelectorAll(`#${UI_ID}`).forEach((el) => el.remove());
 		resetUiRefs();
 		if (isNoPillMode()) return;
@@ -2219,30 +2268,31 @@
       </div>
     </div>
   `;
-		statusEl = shadow.getElementById("status");
-		dotBtnEl = shadow.getElementById("dot");
-		actionBtn = shadow.getElementById("action");
-		actionSrEl = shadow.getElementById("action-sr");
-		actionSvgEl = shadow.getElementById("action-svg");
-		restoreBtn = shadow.getElementById("restore");
-		restoreSrEl = shadow.getElementById("restore-sr");
-		restoreSvgEl = shadow.getElementById("restore-svg");
-		copySrEl = shadow.getElementById("copy-sr");
-		copySvgEl = shadow.getElementById("copy-svg");
-		resetBtn = shadow.getElementById("reset");
-		resetConfirmEl = shadow.getElementById("reset-confirm");
-		unlinkBtn = shadow.getElementById("unlink");
-		netSepEl = shadow.getElementById("net-sep");
-		netBtn = shadow.getElementById("net");
-		tooltipEl = shadow.getElementById("pill-tooltip");
-		tooltipTextEl = shadow.getElementById("tooltip-text");
-		tooltipKbdEl = shadow.getElementById("tooltip-kbd");
-		const anchorEl = shadow.getElementById("pill-anchor");
-		const pillEl = shadow.getElementById("pill");
+		const byId = (id) => shadow.getElementById(id);
+		statusEl = byId("status");
+		dotBtnEl = byId("dot");
+		actionBtn = byId("action");
+		actionSrEl = byId("action-sr");
+		actionSvgEl = byId("action-svg");
+		restoreBtn = byId("restore");
+		restoreSrEl = byId("restore-sr");
+		restoreSvgEl = byId("restore-svg");
+		copySrEl = byId("copy-sr");
+		copySvgEl = byId("copy-svg");
+		resetBtn = byId("reset");
+		resetConfirmEl = byId("reset-confirm");
+		unlinkBtn = byId("unlink");
+		netSepEl = byId("net-sep");
+		netBtn = byId("net");
+		tooltipEl = byId("pill-tooltip");
+		tooltipTextEl = byId("tooltip-text");
+		tooltipKbdEl = byId("tooltip-kbd");
+		const anchorEl = byId("pill-anchor");
+		const pillEl = byId("pill");
 		const dropZones = Array.from(shadow.querySelectorAll(".pill-drop-zone"));
-		const copyBtn = shadow.getElementById("copy");
-		const resetYesBtn = shadow.getElementById("reset-yes");
-		const resetCancelBtn = shadow.getElementById("reset-cancel");
+		const copyBtn = byId("copy");
+		const resetYesBtn = byId("reset-yes");
+		const resetCancelBtn = byId("reset-cancel");
 		bootClearTimeout = setTimeout(() => {
 			bootClearTimeout = null;
 			if (dotBtnEl) delete dotBtnEl.dataset.naizoBoot;
@@ -2251,11 +2301,7 @@
 			themeObserver = new MutationObserver(() => {
 				syncHostTheme(host);
 			});
-			if (document.documentElement) themeObserver.observe(document.documentElement, {
-				attributes: true,
-				attributeFilter: ["data-theme", "class"]
-			});
-			if (document.body) themeObserver.observe(document.body, {
+			for (const themeEl of [document.documentElement, document.body]) if (themeEl) themeObserver.observe(themeEl, {
 				attributes: true,
 				attributeFilter: ["data-theme", "class"]
 			});
@@ -2357,6 +2403,15 @@
 			netBtn
 		].filter((btn) => btn !== null);
 		pillTipTargets.forEach((btn) => {
+			const activateTip = (stash) => {
+				if (stash) stashElementTitle(btn);
+				activeTipBtn = btn;
+				if (transientTipTimeout !== null) {
+					clearTimeout(transientTipTimeout);
+					transientTipTimeout = null;
+				}
+				refreshActivePillTooltip();
+			};
 			btn.addEventListener("pointerdown", (e) => {
 				if (e.pointerType === "touch") {
 					lastPointerWasTouch = true;
@@ -2371,32 +2426,13 @@
 					return;
 				}
 				lastPointerWasTouch = false;
-				stashElementTitle(btn);
-				activeTipBtn = btn;
-				if (transientTipTimeout !== null) {
-					clearTimeout(transientTipTimeout);
-					transientTipTimeout = null;
-				}
-				refreshActivePillTooltip();
+				activateTip(true);
 			});
 			btn.addEventListener("mouseenter", () => {
-				if (lastPointerWasTouch) return;
-				stashElementTitle(btn);
-				activeTipBtn = btn;
-				if (transientTipTimeout !== null) {
-					clearTimeout(transientTipTimeout);
-					transientTipTimeout = null;
-				}
-				refreshActivePillTooltip();
+				if (!lastPointerWasTouch) activateTip(true);
 			});
 			btn.addEventListener("focus", () => {
-				if (lastPointerWasTouch) return;
-				activeTipBtn = btn;
-				if (transientTipTimeout !== null) {
-					clearTimeout(transientTipTimeout);
-					transientTipTimeout = null;
-				}
-				refreshActivePillTooltip();
+				if (!lastPointerWasTouch) activateTip(false);
 			});
 			const onLeave = () => {
 				restoreElementTitle(btn);
@@ -2502,8 +2538,7 @@
 			}
 			anchorEl.style.transform = "";
 			const toRect = anchorEl.getBoundingClientRect();
-			const prefersReducedMotion = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-			if (toRect.width > 0 && !prefersReducedMotion) {
+			if (toRect.width > 0 && !matchesMediaQuery("(prefers-reduced-motion: reduce)")) {
 				const flipDx = fromRect.left - toRect.left;
 				const flipDy = fromRect.top - toRect.top;
 				if (Math.abs(flipDx) > .5 || Math.abs(flipDy) > .5) {
@@ -2517,11 +2552,15 @@
 		pillEl?.addEventListener("pointerup", finishDrag);
 		pillEl?.addEventListener("pointercancel", finishDrag);
 		applyNetUiState();
+		const dotClasses = /* @__PURE__ */ new Set([
+			"saved",
+			"saving",
+			"conflict",
+			"needs-permission",
+			"error"
+		]);
 		host._setDot = (state) => {
-			if (dotBtnEl) {
-				const cls = state === "saved" ? "saved" : state === "saving" ? "saving" : state === "conflict" ? "conflict" : state === "needs-permission" ? "needs-permission" : state === "error" ? "error" : "";
-				dotBtnEl.className = cls ? `dot ${cls}` : "dot";
-			}
+			if (dotBtnEl) dotBtnEl.className = dotClasses.has(state) ? `dot ${state}` : "dot";
 			syncSavingBeat(state);
 		};
 		document.body.appendChild(host);
@@ -2624,25 +2663,32 @@
 			setOwn(rowObj, key, nextVal);
 			propagateItemKey(itemEl, key, nextVal, boundEl);
 			const listEl = itemEl.closest(LIST_SELECTOR);
+			const listName = listEl ? getAttr(listEl, "naizo-list") : null;
+			const listArr = listName ? getOwn(db.lists, listName) : void 0;
+			const index = Array.isArray(listArr) ? listArr.indexOf(rowObj) : -1;
+			schedulePersist();
 			dispatchChangeEvent({
 				scope: "lists",
-				list: listEl ? getAttr(listEl, "naizo-list") : null,
+				action: "update",
+				list: listName,
+				...index !== -1 ? { index } : {},
 				key,
-				value: nextVal
+				value: nextVal,
+				source: "dom"
 			});
-			schedulePersist();
 			return;
 		}
 		const exists = hasOwn(db.fields, key);
 		if (!shouldUpdateStoredValue(getOwn(db.fields, key), nextVal, exists)) return;
 		setOwn(db.fields, key, nextVal);
 		propagateStandaloneKey(key, nextVal, boundEl);
+		schedulePersist();
 		dispatchChangeEvent({
 			scope: "fields",
 			key,
-			value: nextVal
+			value: nextVal,
+			source: "dom"
 		});
-		schedulePersist();
 	}
 	function handleFormReset(e) {
 		const form = e.target;
@@ -2650,36 +2696,41 @@
 		setTimeout(() => {
 			const db = ensureStore();
 			let changed = false;
-			queryStandaloneBoundElements(form).forEach((el) => {
-				const key = getElementKey(el);
-				if (!key) return;
-				const nextVal = readElementValue(el);
-				if (nextVal === void 0) return;
-				if (shouldUpdateStoredValue(getOwn(db.fields, key), nextVal, hasOwn(db.fields, key))) {
-					setOwn(db.fields, key, nextVal);
-					propagateStandaloneKey(key, nextVal, el);
-					changed = true;
-				}
-			});
+			const applyResetElements = (elements, targetRec, propagate) => {
+				const interactiveKeys = /* @__PURE__ */ new Set();
+				orderInteractiveFirst(elements).forEach((el) => {
+					const key = getElementKey(el);
+					if (!key) return;
+					const interactive = isInteractiveBoundElement(el);
+					if (interactive) interactiveKeys.add(key);
+					else if (interactiveKeys.has(key)) {
+						if (hasOwn(targetRec, key)) writeElementValue(el, getOwn(targetRec, key));
+						return;
+					}
+					const nextVal = readElementValue(el);
+					if (nextVal === void 0) return;
+					if (shouldUpdateStoredValue(getOwn(targetRec, key), nextVal, hasOwn(targetRec, key))) {
+						setOwn(targetRec, key, nextVal);
+						propagate(key, nextVal, el);
+						changed = true;
+					} else if (interactive && hasOwn(targetRec, key)) propagate(key, getOwn(targetRec, key), el);
+				});
+			};
+			applyResetElements(queryStandaloneBoundElements(form), db.fields, propagateStandaloneKey);
 			form.querySelectorAll(ITEM_SELECTOR).forEach((itemEl) => {
 				if (isIgnoredElement(itemEl)) return;
 				const rowObj = getOrBindItemRecord(itemEl);
 				if (!rowObj) return;
-				queryItemBoundElements(itemEl).forEach((el) => {
-					const key = getElementKey(el);
-					if (!key) return;
-					const nextVal = readElementValue(el);
-					if (nextVal === void 0) return;
-					if (shouldUpdateStoredValue(getOwn(rowObj, key), nextVal, hasOwn(rowObj, key))) {
-						setOwn(rowObj, key, nextVal);
-						propagateItemKey(itemEl, key, nextVal, el);
-						changed = true;
-					}
+				applyResetElements(queryItemBoundElements(itemEl), rowObj, (key, val, srcEl) => {
+					propagateItemKey(itemEl, key, val, srcEl);
 				});
 			});
 			if (changed) {
-				dispatchChangeEvent({ scope: "reset" });
-				flushPersistence(true);
+				persistStoreMutation();
+				dispatchChangeEvent({
+					scope: "reset",
+					source: "dom"
+				});
 			}
 		}, 0);
 	}
@@ -2698,14 +2749,15 @@
 		const listEl = findListElement(listName);
 		if (!listEl) {
 			listArr.push(rowObj);
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "lists",
 				action: "add",
 				list: listName,
 				index: listArr.length - 1,
-				value: rowObj
+				value: rowObj,
+				source: "api"
 			});
-			flushPersistence(true);
 			return;
 		}
 		ensureListBlueprints(listEl, false);
@@ -2717,15 +2769,16 @@
 			decorateListControls(listEl);
 			Naizo.bind(node);
 			dispatchItemEvent(listName, node, rowObj, index);
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "lists",
 				action: "add",
 				list: listName,
 				index,
-				value: rowObj
+				value: rowObj,
+				source: "api"
 			});
 			if (focusFirstInput) node.querySelector("input[type=\"text\"], [contenteditable=\"true\"], [contenteditable=\"\"], [contenteditable=\"plaintext-only\"], textarea")?.focus();
-			flushPersistence(true);
 		}
 	}
 	function isRemoteNaizoDbCandidate(val) {
@@ -2869,13 +2922,14 @@
 			store = normalized;
 			storeInitialized = true;
 			hydrateSubtreeFromStore(document, true, false);
+			persistStoreMutation();
 			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 			dispatchChangeEvent({
 				scope: "db",
 				action: "set",
-				value: store
+				value: store,
+				source: "api"
 			});
-			flushPersistence(true);
 			return;
 		}
 		if (target.startsWith("field:")) {
@@ -2905,20 +2959,21 @@
 		const target = rawInto.length > 0 ? rawInto : null;
 		const rawPath = options?.path !== void 0 ? options.path.trim() : "";
 		beginNetRequest();
-		if (!trimmedUrl) {
-			endNetRequest(false);
-			const failResult = {
+		const finishFetch = (ok, finalStatus, data, error) => {
+			endNetRequest(ok);
+			const result = {
 				url: trimmedUrl,
 				method,
-				ok: false,
-				status: 0,
+				ok,
+				status: finalStatus,
 				target,
-				data: null,
-				error: "Missing request URL"
+				data,
+				error
 			};
-			dispatchFetchEvent(failResult);
-			return failResult;
-		}
+			dispatchFetchEvent(result);
+			return result;
+		};
+		if (!trimmedUrl) return finishFetch(false, 0, null, "Missing request URL");
 		let status = 0;
 		try {
 			if (typeof fetch !== "function") throw new Error("Global fetch() is unavailable in this environment");
@@ -2940,20 +2995,7 @@
 			if (options?.signal) fetchInit.signal = options.signal;
 			const res = await fetch(trimmedUrl, fetchInit);
 			status = res.status;
-			if (options?.mode === "no-cors" && target === null && res.type === "opaque") {
-				endNetRequest(true);
-				const opaqueResult = {
-					url: trimmedUrl,
-					method,
-					ok: true,
-					status: 0,
-					target: null,
-					data: null,
-					error: null
-				};
-				dispatchFetchEvent(opaqueResult);
-				return opaqueResult;
-			}
+			if (options?.mode === "no-cors" && target === null && res.type === "opaque") return finishFetch(true, 0, null, null);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const rawText = await res.text();
 			const contentType = (res.headers?.get?.("content-type") ?? "").toLowerCase();
@@ -2973,32 +3015,9 @@
 				extracted = pathRes.value;
 			}
 			routeFetchPayload(target, extracted);
-			endNetRequest(true);
-			const okResult = {
-				url: trimmedUrl,
-				method,
-				ok: true,
-				status,
-				target,
-				data: extracted,
-				error: null
-			};
-			dispatchFetchEvent(okResult);
-			return okResult;
+			return finishFetch(true, status, extracted, null);
 		} catch (err) {
-			endNetRequest(false);
-			const message = err instanceof Error ? err.message : String(err);
-			const failResult = {
-				url: trimmedUrl,
-				method,
-				ok: false,
-				status,
-				target,
-				data: null,
-				error: message
-			};
-			dispatchFetchEvent(failResult);
-			return failResult;
+			return finishFetch(false, status, null, err instanceof Error ? err.message : String(err));
 		}
 	}
 	function getDeclarativeRequestConfig(el) {
@@ -3091,7 +3110,7 @@
 				if (listName && idx !== -1) Naizo.removeItem(listName, idx);
 				else {
 					itemEl.remove();
-					flushPersistence(true);
+					persistStoreMutation();
 				}
 			}
 			return;
@@ -3185,15 +3204,7 @@
 			const currentBrowserDb = cloneDb(ensureStore());
 			const oldDb = e.oldValue ? parseCachedState(e.oldValue) : null;
 			const storedSnap = safeGetStorage(getSnapshotKey());
-			const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(oldDb ? {
-				fields: buildKeyHashesForBucket(oldDb.fields),
-				lists: buildKeyHashesForBucket(oldDb.lists),
-				custom: buildKeyHashesForBucket(oldDb.custom)
-			} : (storedSnap ? extractKeyHashManifest(storedSnap) : null) ?? (lastDiskDb ? {
-				fields: buildKeyHashesForBucket(lastDiskDb.fields),
-				lists: buildKeyHashesForBucket(lastDiskDb.lists),
-				custom: buildKeyHashesForBucket(lastDiskDb.custom)
-			} : null), currentBrowserDb, incomingDb);
+			const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(oldDb ? buildDbKeyHashMap(oldDb) : (storedSnap ? extractKeyHashManifest(storedSnap) : null) ?? (lastDiskDb ? buildDbKeyHashMap(lastDiskDb) : null), currentBrowserDb, incomingDb);
 			mergedCollision = hasCollision;
 			if (hasCollision) safeSetStorage(getBackupKey(), JSON.stringify(currentBrowserDb));
 			store = merged;
@@ -3226,29 +3237,9 @@
 			clearTimeout(netHoldTimeout);
 			netHoldTimeout = null;
 		}
-		if (savingHoldTimeout !== null) {
-			clearTimeout(savingHoldTimeout);
-			savingHoldTimeout = null;
-		}
-		if (copyResetTimeout !== null) {
-			clearTimeout(copyResetTimeout);
-			copyResetTimeout = null;
-		}
-		if (bootClearTimeout !== null) {
-			clearTimeout(bootClearTimeout);
-			bootClearTimeout = null;
-		}
-		if (themeObserver !== null) {
-			themeObserver.disconnect();
-			themeObserver = null;
-		}
-		if (themeMediaCleanup !== null) {
-			themeMediaCleanup();
-			themeMediaCleanup = null;
-		}
-		clearPillTooltipTimersAndTitles();
-		savingCycleStart = 0;
-		savingMinCycles = 1;
+		teardownUiTimersAndObservers();
+		resetChangeDispatchState();
+		bootHydrated = false;
 		if (listenerController !== null) {
 			listenerController.abort();
 			listenerController = null;
@@ -3285,6 +3276,51 @@
 	}
 	const Naizo = {
 		init: initNaizo,
+		ready(callback) {
+			if (typeof callback !== "function") return;
+			if (bootHydrated) {
+				callback(ensureStore());
+				return;
+			}
+			if (typeof window === "undefined") return;
+			window.addEventListener("naizo:hydrate", () => {
+				callback(ensureStore());
+			}, { once: true });
+		},
+		batch(fn, options) {
+			if (batchDepth === 0) {
+				batchDirty = false;
+				batchAllSilent = true;
+				batchDeferPersist = true;
+			}
+			batchDepth += 1;
+			if (options?.silent) batchSilentDepth += 1;
+			if (options?.deferPersist) batchDeferDepth += 1;
+			try {
+				return fn();
+			} finally {
+				if (options?.silent) batchSilentDepth = Math.max(0, batchSilentDepth - 1);
+				if (options?.deferPersist) batchDeferDepth = Math.max(0, batchDeferDepth - 1);
+				batchDepth = Math.max(0, batchDepth - 1);
+				if (batchDepth === 0) {
+					const wasDirty = batchDirty;
+					const shouldSilence = Boolean(options?.silent) || batchAllSilent;
+					const shouldDefer = Boolean(options?.deferPersist) || batchDeferPersist;
+					batchDirty = false;
+					batchAllSilent = true;
+					batchDeferPersist = true;
+					if (wasDirty) {
+						if (shouldDefer) schedulePersist();
+						else flushPersistence(true);
+						if (!shouldSilence) dispatchChangeEvent({
+							scope: "batch",
+							action: "batch",
+							source: "api"
+						});
+					}
+				}
+			}
+		},
 		get(key) {
 			const db = ensureStore();
 			if (key === void 0) return db;
@@ -3298,24 +3334,26 @@
 			const db = ensureStore();
 			const cloned = cloneJsonValue(value);
 			setOwn(db.custom, key, cloned);
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "custom",
 				key,
-				value: cloned
+				value: cloned,
+				source: "api"
 			});
-			flushPersistence(true);
 		},
 		delete(key) {
 			if (!key) return;
 			const db = ensureStore();
 			if (!hasOwn(db.custom, key)) return;
 			deleteOwn(db.custom, key);
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "custom",
 				action: "delete",
-				key
+				key,
+				source: "api"
 			});
-			flushPersistence(true);
 		},
 		getField(key) {
 			return getOwn(ensureStore().fields, key);
@@ -3329,12 +3367,13 @@
 			const cloned = cloneJsonValue(value);
 			setOwn(db.fields, key, cloned);
 			propagateStandaloneKey(key, cloned);
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "fields",
 				key,
-				value: cloned
+				value: cloned,
+				source: "api"
 			});
-			flushPersistence(true);
 		},
 		deleteField(key) {
 			if (!key) return;
@@ -3345,12 +3384,13 @@
 				if (isIgnoredElement(el) || el.closest(ITEM_SELECTOR) || isSkippedElement(el, true)) return;
 				clearElementValue(el);
 			});
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "fields",
 				action: "delete",
-				key
+				key,
+				source: "api"
 			});
-			flushPersistence(true);
 		},
 		getList(listName) {
 			const arr = getOwn(ensureStore().lists, listName);
@@ -3365,13 +3405,14 @@
 			const clonedItems = items.map((item) => cloneRecord(item));
 			setOwn(db.lists, listName, clonedItems);
 			renderListFromStore(listName);
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "lists",
 				action: "set",
 				list: listName,
-				value: clonedItems
+				value: clonedItems,
+				source: "api"
 			});
-			flushPersistence(true);
 		},
 		addItem(listName, itemData = {}) {
 			addItemInternal(listName, itemData, false);
@@ -3392,14 +3433,15 @@
 				setOwn(rowObj, key, val);
 				if (itemEl) propagateItemKey(itemEl, key, val);
 			}
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "lists",
 				action: "update",
 				list: listName,
 				index,
-				value: rowObj
+				value: rowObj,
+				source: "api"
 			});
-			flushPersistence(true);
 		},
 		removeItem(listName, index) {
 			const listArr = getOwn(ensureStore().lists, listName);
@@ -3409,13 +3451,14 @@
 				const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
 				if (items[index]) items[index].remove();
 			}
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "lists",
 				action: "remove",
 				list: listName,
-				index
+				index,
+				source: "api"
 			});
-			flushPersistence(true);
 		},
 		moveItem(listName, fromIndex, toIndex) {
 			if (fromIndex === toIndex) return;
@@ -3431,14 +3474,15 @@
 				const targetEl = items[toIndex];
 				if (fromEl && targetEl) listEl.insertBefore(fromEl, fromIndex < toIndex ? targetEl.nextSibling : targetEl);
 			}
+			persistStoreMutation();
 			dispatchChangeEvent({
 				scope: "lists",
 				action: "move",
 				list: listName,
 				fromIndex,
-				toIndex
+				toIndex,
+				source: "api"
 			});
-			flushPersistence(true);
 		},
 		bind(root = document) {
 			ensureStore();
@@ -3479,10 +3523,12 @@
 			if (fileHandle) {
 				if (fileHandlePermission === "granted") scheduleDiskWrite();
 				else updateUi("needs-permission", "Resume Disk Sync");
-			} else if (isOnlineMode()) updateUi("saved", "Saved in Browser");
-			else updateUi("cached", "Browser Cache · Click to Link Disk");
+			} else updateUnlinkedStatusUi(true);
 			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
-			dispatchChangeEvent({ scope: "reset" });
+			dispatchChangeEvent({
+				scope: "reset",
+				source: "api"
+			});
 		},
 		link() {
 			return connectOrResumeDisk();
@@ -3498,8 +3544,7 @@
 			lastObservedModified = null;
 			await deleteHandleFromIDB();
 			if (startupInvalidDb) return;
-			if (isOnlineMode()) updateUi("saved", "Saved in Browser");
-			else updateUi("cached", "Browser Cache · Click to Link Disk");
+			updateUnlinkedStatusUi(true);
 		},
 		async copyJSON() {
 			flushPersistence(false);
@@ -3533,19 +3578,14 @@
 	};
 	const NaizoDB = Naizo;
 	async function initNaizo() {
-		stopDiskWatch();
-		if (persistTimeout !== null) {
-			clearTimeout(persistTimeout);
-			persistTimeout = null;
-		}
-		if (saveTimeout !== null) {
-			clearTimeout(saveTimeout);
-			saveTimeout = null;
-		}
-		if (netHoldTimeout !== null) {
-			clearTimeout(netHoldTimeout);
-			netHoldTimeout = null;
-		}
+		bootHydrated = false;
+		resetChangeDispatchState();
+		batchDepth = 0;
+		batchSilentDepth = 0;
+		batchDeferDepth = 0;
+		batchDirty = false;
+		batchAllSilent = true;
+		batchDeferPersist = true;
 		fileHandle = null;
 		fileHandlePermission = "prompt";
 		lastObservedModified = null;
@@ -3574,11 +3614,10 @@
 			storeInitialized = true;
 			lastSerializedContent = serializeContentBuckets(store);
 			if (cachedState) hydrateSubtreeFromStore(document, false);
-			else document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
-				if (!isIgnoredElement(listEl)) decorateListControls(listEl);
-			});
+			else queryListElements(document).forEach((listEl) => decorateListControls(listEl));
 			if (isNoPillMode()) console.warn("[naizo.js] <script id=\"naizodb\"> contains invalid JSON; automatic writes are paused to prevent data loss. Remove naizo-no-pill / data-naizo-no-pill to expose the Repair JSON control.");
 			updateUi("error", "Invalid #naizodb JSON");
+			bootHydrated = true;
 			window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 			return;
 		}
@@ -3605,11 +3644,8 @@
 		const storedOk = safeSetStorage(pageKey, JSON.stringify(store));
 		if (diskModifiedExternally || !cachedState || storedDiskSnapshot === null) safeSetStorage(snapshotKey, currentDiskHashManifest);
 		if (hasBootConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
-		else if (isOnlineMode()) {
-			if (storedOk) updateUi("saved", "Saved in Browser");
-			else updateUi("cached", "In-Memory Only");
-		} else if (!storedOk) updateUi("cached", "In-Memory Only · Link Disk");
-		else updateUi("cached", "Browser Cache · Click to Link Disk");
+		else updateUnlinkedStatusUi(storedOk);
+		bootHydrated = true;
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 		fileHandle = await loadHandleFromIDB();
 		if (fileHandle) try {

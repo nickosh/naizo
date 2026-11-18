@@ -22,7 +22,13 @@ import weatherHtml from '../examples/weather.html?raw';
 import pkgJson from '../package.json';
 import siteHtml from '../site/index.html?raw';
 import * as NaizoModule from '../src/index';
-import { initNaizo, Naizo, NaizoDB, type NaizoDatabase } from '../src/index';
+import {
+  initNaizo,
+  Naizo,
+  NaizoDB,
+  type NaizoBatchOptions,
+  type NaizoDatabase,
+} from '../src/index';
 
 function readScriptDb(): NaizoDatabase {
   const raw = document.getElementById('naizodb')?.textContent?.trim() ?? '';
@@ -39,10 +45,14 @@ describe('naizo.js v0.1.0 core runtime', () => {
     document.documentElement.removeAttribute('data-naizo-mode');
     document.documentElement.removeAttribute('naizo-no-pill');
     document.documentElement.removeAttribute('data-naizo-no-pill');
+    document.documentElement.removeAttribute('naizo-pill-corner');
+    document.documentElement.removeAttribute('data-naizo-pill-corner');
     document.body.removeAttribute('naizo-mode');
     document.body.removeAttribute('data-naizo-mode');
     document.body.removeAttribute('naizo-no-pill');
     document.body.removeAttribute('data-naizo-no-pill');
+    document.body.removeAttribute('naizo-pill-corner');
+    document.body.removeAttribute('data-naizo-pill-corner');
     document.head.innerHTML = '';
     document.body.innerHTML = '';
   });
@@ -5104,6 +5114,797 @@ describe('naizo.js v0.1.0 core runtime', () => {
       window.NaizoDB = NaizoDB;
       vi.useRealTimers();
       vi.unstubAllGlobals();
+    }
+  });
+
+  it('implements M13.1 naizo:change list index/action/source symmetry, FIFO non-reentrant queue + 10-pass cycle cap, and nestable Naizo.batch() (M13.1, D57, EC49, EC54)', async () => {
+    vi.useFakeTimers();
+    const recordedDetails: Array<Record<string, unknown>> = [];
+    const onChange = (e: Event) => {
+      recordedDetails.push({ ...(e as CustomEvent<Record<string, unknown>>).detail });
+    };
+    window.addEventListener('naizo:change', onChange);
+
+    try {
+      // TypeScript declaration & runtime ESM export surface (EC49)
+      const dtsText = readFileSync(resolve(process.cwd(), 'dist/index.d.mts'), 'utf-8');
+      expect(dtsText).toContain('interface NaizoBatchOptions');
+      expect(dtsText).toContain('silent?: boolean;');
+      expect(dtsText).toContain('deferPersist?: boolean;');
+      expect(dtsText).toContain('batch<T>(fn: () => T, options?: NaizoBatchOptions): T;');
+      expect(dtsText).toContain('ready(callback: (db: NaizoDatabase) => void): void;');
+      expect(Object.keys(NaizoModule).sort()).toEqual(['Naizo', 'NaizoDB', 'initNaizo']);
+      expect(typeof Naizo.batch).toBe('function');
+      expect(typeof NaizoDB.batch).toBe('function');
+
+      document.documentElement.setAttribute('naizo-id', 'm13-1-events-batch');
+      document.head.innerHTML = `<script id="naizodb" type="application/json">
+{
+  "_meta": {},
+  "fields": { "headline": "Initial", "scrub": 10 },
+  "lists": {
+    "tasks": [
+      { "id": "t0", "title": "First", "done": false },
+      { "id": "t1", "title": "Second", "done": false }
+    ],
+    "unbound": [{ "id": "u0" }]
+  },
+  "custom": { "count": 0 }
+}
+</script>`;
+      document.body.innerHTML = `
+        <form id="m13-form">
+          <input id="headline-in" type="text" naizo="headline" value="Reset Headline" />
+          <span id="headline-mirror" naizo="headline"></span>
+          <input id="scrub-in" type="range" min="0" max="100" naizo="scrub" value="10" />
+          <div naizo-list="tasks">
+            <template naizo-template>
+              <div naizo-item>
+                <label><input type="checkbox" naizo="done" /></label>
+                <label><input type="text" naizo="title" value="New Task" /></label>
+                <span class="row-title-mirror" naizo="title"></span>
+              </div>
+            </template>
+          </div>
+        </form>
+      `;
+
+      await initNaizo();
+      recordedDetails.length = 0;
+
+      // 1. DOM list edit includes action: 'update', exact current index (even after moveItem), key, value, & source: 'dom'
+      Naizo.moveItem('tasks', 0, 1);
+      expect(recordedDetails).toHaveLength(1);
+      expect(recordedDetails[0]).toMatchObject({
+        scope: 'lists',
+        action: 'move',
+        list: 'tasks',
+        fromIndex: 0,
+        toIndex: 1,
+        source: 'api',
+      });
+      recordedDetails.length = 0;
+
+      const rowInputs = document.querySelectorAll<HTMLInputElement>(
+        '[naizo-list="tasks"] [naizo-item] input[naizo="title"]',
+      );
+      expect(rowInputs).toHaveLength(2);
+      rowInputs[1]!.value = 'First Edited In DOM';
+      rowInputs[1]!.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(recordedDetails).toHaveLength(1);
+      expect(recordedDetails[0]).toMatchObject({
+        scope: 'lists',
+        action: 'update',
+        list: 'tasks',
+        index: 1,
+        key: 'title',
+        value: 'First Edited In DOM',
+        source: 'dom',
+      });
+
+      // Standalone DOM field edit & <form>.reset() emit source: 'dom'
+      recordedDetails.length = 0;
+      const headlineIn = document.getElementById('headline-in') as HTMLInputElement;
+      headlineIn.value = 'Edited Headline';
+      headlineIn.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(recordedDetails).toHaveLength(1);
+      expect(recordedDetails[0]).toMatchObject({
+        scope: 'fields',
+        key: 'headline',
+        value: 'Edited Headline',
+        source: 'dom',
+      });
+
+      recordedDetails.length = 0;
+      (document.getElementById('m13-form') as HTMLFormElement).reset();
+      vi.advanceTimersByTime(5);
+      expect(recordedDetails).toHaveLength(1);
+      expect(recordedDetails[0]).toMatchObject({
+        scope: 'reset',
+        source: 'dom',
+      });
+
+      // Programmatic Naizo.* & fetch({ into: 'db' }) mutations emit source: 'api' across every call site
+      recordedDetails.length = 0;
+      Naizo.set('count', 1);
+      Naizo.delete('count');
+      Naizo.setField('temp', 'v');
+      Naizo.deleteField('temp');
+      Naizo.addItem('unbound', { id: 'u1' });
+      Naizo.addItem('tasks', { id: 't2', title: 'Third', done: true });
+      Naizo.updateItem('tasks', 2, { title: 'Third API' });
+      Naizo.removeItem('tasks', 2);
+      Naizo.setList('tasks', [
+        { id: 't0', title: 'First', done: false },
+        { id: 't1', title: 'Second', done: false },
+      ]);
+      Naizo.reset();
+
+      const fetchDbMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            _meta: {},
+            fields: { headline: 'From Fetch DB', scrub: 20 },
+            lists: {
+              tasks: [
+                { id: 't0', title: 'First', done: false },
+                { id: 't1', title: 'Second', done: false },
+              ],
+            },
+            custom: { count: 5 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+      vi.stubGlobal('fetch', fetchDbMock);
+      await Naizo.fetch('https://api.example.com/db', { into: 'db' });
+      vi.advanceTimersByTime(700);
+      vi.unstubAllGlobals();
+
+      expect(recordedDetails.length).toBe(11);
+      for (const detail of recordedDetails) {
+        expect(detail.source).toBe('api');
+      }
+      expect(recordedDetails.at(-1)).toMatchObject({
+        scope: 'db',
+        action: 'set',
+        source: 'api',
+      });
+
+      // 2. Non-reentrant FIFO dispatchChangeEvent() queue: outer listener finishes before queued follow-ups run
+      recordedDetails.length = 0;
+      const executionOrder: string[] = [];
+      const reentrantListener = (e: Event) => {
+        const d = (
+          e as CustomEvent<{ scope?: string; key?: string; action?: string; value?: unknown }>
+        ).detail;
+        const step = `${d.scope ?? ''}:${d.key ?? d.action ?? ''}`;
+        executionOrder.push(`enter:${step}`);
+        if (d.scope === 'fields' && d.key === 'headline' && d.value === 'Trigger Chain') {
+          Naizo.set('derivedA', 'A1');
+          Naizo.set('derivedB', 'B1');
+          executionOrder.push('after-enqueue:fields:headline');
+        } else if (d.scope === 'custom' && d.key === 'derivedA') {
+          Naizo.set('derivedC', 'C1');
+        }
+        executionOrder.push(`exit:${step}`);
+      };
+      window.addEventListener('naizo:change', reentrantListener);
+      try {
+        Naizo.setField('headline', 'Trigger Chain');
+        expect(executionOrder).toEqual([
+          'enter:fields:headline',
+          'after-enqueue:fields:headline',
+          'exit:fields:headline',
+          'enter:custom:derivedA',
+          'exit:custom:derivedA',
+          'enter:custom:derivedB',
+          'exit:custom:derivedB',
+          'enter:custom:derivedC',
+          'exit:custom:derivedC',
+        ]);
+      } finally {
+        window.removeEventListener('naizo:change', reentrantListener);
+      }
+
+      // 1-pass fan-out of > 10 updates drains all 12 items without false-positive cycle warning
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const twelveItems = Array.from({ length: 12 }, (_, idx) => ({
+        id: `item-${idx}`,
+        title: `Task ${idx}`,
+        done: false,
+      }));
+      Naizo.setList('tasks', twelveItems);
+      recordedDetails.length = 0;
+
+      const fanOutListener = (e: Event) => {
+        const d = (e as CustomEvent<Record<string, unknown>>).detail;
+        if (d.scope === 'fields' && d.key === 'headline' && d.value === 'Mark All Done') {
+          for (let i = 0; i < 12; i += 1) {
+            Naizo.updateItem('tasks', i, { done: true });
+          }
+        }
+      };
+      window.addEventListener('naizo:change', fanOutListener);
+      try {
+        Naizo.setField('headline', 'Mark All Done');
+        expect(recordedDetails).toHaveLength(13);
+        expect(warnSpy).not.toHaveBeenCalled();
+        expect(Naizo.getList('tasks').every((t) => t.done === true)).toBe(true);
+      } finally {
+        window.removeEventListener('naizo:change', fanOutListener);
+      }
+
+      // Infinite cycle stops at MAX_REENTRANT_CHANGE_PASSES = 10 with console.warn & clean recovery
+      recordedDetails.length = 0;
+      let cycleCounter = 0;
+      const infiniteListener = () => {
+        cycleCounter += 1;
+        Naizo.set('loopCounter', cycleCounter);
+      };
+      window.addEventListener('naizo:change', infiniteListener);
+      try {
+        Naizo.set('loopCounter', 0);
+        // 1 initial dispatch + 10 re-entrant passes = 11 total listener invocations
+        expect(cycleCounter).toBe(11);
+        expect(recordedDetails).toHaveLength(11);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(String(warnSpy.mock.calls[0]?.[0] ?? '')).toContain(
+          '10 re-entrant naizo:change passes',
+        );
+      } finally {
+        window.removeEventListener('naizo:change', infiniteListener);
+        warnSpy.mockRestore();
+      }
+
+      // Subsequent normal dispatch after cycle cap still works cleanly
+      recordedDetails.length = 0;
+      Naizo.set('healthyAgain', true);
+      expect(recordedDetails).toHaveLength(1);
+      expect(recordedDetails[0]).toMatchObject({
+        scope: 'custom',
+        key: 'healthyAgain',
+        value: true,
+        source: 'api',
+      });
+
+      // 3. Synchronous nestable Naizo.batch<T>(fn, options?)
+      recordedDetails.length = 0;
+      const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+      try {
+        // No-op batch: 0 persistence writes & 0 events
+        const noopReturn = Naizo.batch(() => 'unchanged');
+        expect(noopReturn).toBe('unchanged');
+        expect(setItemSpy).not.toHaveBeenCalled();
+        expect(recordedDetails).toHaveLength(0);
+
+        // Nested multi-scope batch: synchronous store + DOM inside fn(), 1 flush + 1 batch event on outermost exit
+        const batchReturn = Naizo.batch(() => {
+          Naizo.setField('headline', 'Batched Headline');
+          expect(Naizo.getField('headline')).toBe('Batched Headline');
+          expect(document.getElementById('headline-mirror')?.textContent).toBe('Batched Headline');
+          expect(setItemSpy).not.toHaveBeenCalled();
+          expect(recordedDetails).toHaveLength(0);
+
+          Naizo.batch(() => {
+            Naizo.updateItem('tasks', 0, { title: 'Batched Row 0' });
+            Naizo.addItem('tasks', { id: 'item-12', title: 'Batched Row 12', done: true });
+            expect(
+              document.querySelectorAll('[naizo-list="tasks"] [naizo-item] .row-title-mirror')[0]
+                ?.textContent,
+            ).toBe('Batched Row 0');
+            expect(document.querySelectorAll('[naizo-list="tasks"] > [naizo-item]').length).toBe(
+              13,
+            );
+            expect(setItemSpy).not.toHaveBeenCalled();
+            expect(recordedDetails).toHaveLength(0);
+          });
+
+          // Still inside outer batch: nothing flushed or emitted yet
+          expect(setItemSpy).not.toHaveBeenCalled();
+          expect(recordedDetails).toHaveLength(0);
+          return Naizo.getList('tasks').length;
+        });
+
+        expect(batchReturn).toBe(13);
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+        expect(readScriptDb().fields.headline).toBe('Batched Headline');
+        expect(recordedDetails).toHaveLength(1);
+        expect(recordedDetails[0]).toMatchObject({
+          scope: 'batch',
+          action: 'batch',
+          source: 'api',
+        });
+
+        // silent: true batch & outer batch wrapping only silent inner mutations suppress naizo:change while persisting
+        setItemSpy.mockClear();
+        recordedDetails.length = 0;
+        const silentOpts: NaizoBatchOptions = { silent: true };
+        Naizo.batch(() => {
+          Naizo.set('silentKey', 's1');
+        }, silentOpts);
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+        expect(Naizo.get('silentKey')).toBe('s1');
+        expect(recordedDetails).toHaveLength(0);
+
+        setItemSpy.mockClear();
+        Naizo.batch(() => {
+          Naizo.batch(
+            () => {
+              Naizo.set('silentNestedOnly', 's2');
+            },
+            { silent: true },
+          );
+        });
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+        expect(Naizo.get('silentNestedOnly')).toBe('s2');
+        expect(recordedDetails).toHaveLength(0);
+
+        // Mixed outer audible + inner silent batch emits 1 batch event
+        setItemSpy.mockClear();
+        Naizo.batch(() => {
+          Naizo.setField('headline', 'Audible Outer');
+          Naizo.batch(
+            () => {
+              Naizo.set('silentCompanion', 's3');
+            },
+            { silent: true },
+          );
+        });
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+        expect(recordedDetails).toHaveLength(1);
+        expect(recordedDetails[0]).toMatchObject({
+          scope: 'batch',
+          action: 'batch',
+          source: 'api',
+        });
+
+        // deferPersist: true coalesces 60fps scrubs onto schedulePersist() and still flushes synchronously on exportHTML / pagehide
+        setItemSpy.mockClear();
+        recordedDetails.length = 0;
+        for (const v of [25, 50, 75]) {
+          Naizo.batch(
+            () => {
+              Naizo.setField('scrub', v);
+            },
+            { deferPersist: true },
+          );
+        }
+        expect((document.getElementById('scrub-in') as HTMLInputElement).value).toBe('75');
+        expect(setItemSpy).not.toHaveBeenCalled();
+        expect(recordedDetails).toHaveLength(3);
+
+        // Synchronous flush on exportHTML() before 150ms timer expires
+        const exportedMidScrub = Naizo.exportHTML();
+        expect(exportedMidScrub).toContain('"scrub": 75');
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+
+        // Synchronous flush on pagehide for another deferred scrub
+        setItemSpy.mockClear();
+        Naizo.batch(
+          () => {
+            Naizo.setField('scrub', 90);
+          },
+          { deferPersist: true },
+        );
+        expect(setItemSpy).not.toHaveBeenCalled();
+        window.dispatchEvent(new Event('pagehide'));
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+        expect(readScriptDb().fields.scrub).toBe(90);
+
+        // Synchronous flush on Naizo.copyJSON(), Naizo.save(), Naizo.downloadHTML(), Cmd+S, and 150ms debounce
+        setItemSpy.mockClear();
+        Naizo.batch(() => Naizo.setField('scrub', 91), { deferPersist: true });
+        expect(setItemSpy).not.toHaveBeenCalled();
+        expect(await Naizo.copyJSON()).toContain('"scrub": 91');
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+
+        setItemSpy.mockClear();
+        Naizo.batch(() => Naizo.setField('scrub', 92), { deferPersist: true });
+        expect(setItemSpy).not.toHaveBeenCalled();
+        expect(await Naizo.save()).toBe(true);
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+
+        const dlCreate = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:scrub');
+        const dlRevoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+        const dlClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+        setItemSpy.mockClear();
+        Naizo.batch(() => Naizo.setField('scrub', 93), { deferPersist: true });
+        expect(setItemSpy).not.toHaveBeenCalled();
+        expect(Naizo.downloadHTML('scrub.html')).toContain('"scrub": 93');
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+
+        document.documentElement.setAttribute('naizo-mode', 'online');
+        setItemSpy.mockClear();
+        Naizo.batch(() => Naizo.setField('scrub', 94), { deferPersist: true });
+        expect(setItemSpy).not.toHaveBeenCalled();
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 's',
+            metaKey: true,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+        document.documentElement.removeAttribute('naizo-mode');
+        dlCreate.mockRestore();
+        dlRevoke.mockRestore();
+        dlClick.mockRestore();
+
+        setItemSpy.mockClear();
+        Naizo.batch(() => Naizo.setField('scrub', 95), { deferPersist: true });
+        expect(setItemSpy).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(160);
+        expect(setItemSpy).toHaveBeenCalledTimes(1);
+        expect(readScriptDb().fields.scrub).toBe(95);
+
+        // Exception safety: thrown error inside batch unwinds batchDepth cleanly
+        recordedDetails.length = 0;
+        expect(() =>
+          Naizo.batch(() => {
+            Naizo.set('beforeThrow', true);
+            throw new Error('batch-abort');
+          }),
+        ).toThrow('batch-abort');
+
+        recordedDetails.length = 0;
+        Naizo.setField('headline', 'Recovered After Throw');
+        expect(recordedDetails).toHaveLength(1);
+        expect(recordedDetails[0]).toMatchObject({
+          scope: 'fields',
+          key: 'headline',
+          value: 'Recovered After Throw',
+          source: 'api',
+        });
+      } finally {
+        setItemSpy.mockRestore();
+      }
+    } finally {
+      window.removeEventListener('naizo:change', onChange);
+      document.documentElement.removeAttribute('naizo-id');
+      vi.useRealTimers();
+    }
+  });
+
+  it('supports blank single <select> selectedIndex = -1 without false warn, interactive-over-passive naizo="key" precedence, Naizo.ready(), naizo-pill-corner, and shipped dist/naizo.js parity (M13.1, D08, D50, D57, EC15, EC19, EC55, EC56, EC57)', async () => {
+    vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      // 1. Naizo.ready() BEFORE initNaizo() (pre-boot) vs AFTER initNaizo() (post-boot) + startupInvalidDb path (EC57)
+      window.__naizoCleanup?.();
+      document.documentElement.setAttribute('naizo-id', 'm13-1-select-ready-corner');
+      document.documentElement.setAttribute('naizo-pill-corner', 'top-right');
+      document.body.setAttribute('data-naizo-pill-corner', ' BOTTOM-LEFT ');
+
+      document.head.innerHTML = `<script id="naizodb" type="application/json">
+{
+  "_meta": {},
+  "fields": {
+    "blank_sel": "",
+    "null_sel": null,
+    "unknown_sel": "Shipped"
+  },
+  "lists": {
+    "cards": [
+      { "id": "c-boot" }
+    ]
+  },
+  "custom": {}
+}
+</script>`;
+      document.body.innerHTML = `
+        <form id="precedence-form">
+          <h3 id="standalone-h3" naizo="doc_name">Stale Heading</h3>
+          <label><input id="standalone-in" type="text" naizo="doc_name" value="Untitled" /></label>
+          <select id="blank-sel" naizo="blank_sel">
+            <option value="P0">P0</option>
+            <option value="P1">P1</option>
+          </select>
+          <select id="null-sel" naizo="null_sel">
+            <option value="Alpha">Alpha</option>
+            <option value="Beta">Beta</option>
+          </select>
+          <select id="unknown-sel" naizo="unknown_sel">
+            <option value="Draft">Draft</option>
+            <option value="Review">Review</option>
+          </select>
+          <div naizo-list="cards">
+            <template naizo-template>
+              <div naizo-item>
+                <h3 class="card-h3" naizo="name"></h3>
+                <label><input class="card-in" type="text" naizo="name" value="Untitled" /></label>
+              </div>
+            </template>
+          </div>
+          <div id="dynamic-bind-slot"></div>
+        </form>
+      `;
+
+      const readyCalls: string[] = [];
+      Naizo.ready((db) => {
+        readyCalls.push(`pre:${String(db.fields.doc_name)}`);
+      });
+      // Pre-boot: callback has NOT fired yet
+      expect(readyCalls).toEqual([]);
+
+      await initNaizo();
+
+      // Pre-boot callback fired once on boot hydration with seeded doc_name = "Untitled"
+      expect(readyCalls).toEqual(['pre:Untitled']);
+
+      // Post-boot (<script defer> -> DOMContentLoaded order): Naizo.ready() fires synchronously!
+      let ranSynchronously = false;
+      Naizo.ready((db) => {
+        ranSynchronously = true;
+        readyCalls.push(`post:${String(db.fields.doc_name)}`);
+      });
+      expect(ranSynchronously).toBe(true);
+      expect(readyCalls).toEqual(['pre:Untitled', 'post:Untitled']);
+
+      // Subsequent Naizo.reset() dispatches naizo:hydrate, which must NOT re-fire { once: true } ready callbacks
+      Naizo.setField('doc_name', 'Temp');
+      Naizo.reset();
+      expect(readyCalls).toEqual(['pre:Untitled', 'post:Untitled']);
+
+      // 2. Blank single <select> unselect (EC55) vs unknown non-empty value warning (EC15)
+      const blankSel = document.getElementById('blank-sel') as HTMLSelectElement;
+      const nullSel = document.getElementById('null-sel') as HTMLSelectElement;
+      const unknownSel = document.getElementById('unknown-sel') as HTMLSelectElement;
+
+      expect(blankSel.selectedIndex).toBe(-1);
+      expect(blankSel.value).toBe('');
+      expect(Naizo.getField('blank_sel')).toBe('');
+
+      expect(nullSel.selectedIndex).toBe(-1);
+      expect(nullSel.value).toBe('');
+      expect(Naizo.getField('null_sel')).toBeNull();
+
+      // Only "Shipped" triggered EC15 console.warn (once on initNaizo and once on Naizo.reset) — neither "" nor null logged false warnings
+      const selectWarnings = warnSpy.mock.calls.filter((args) =>
+        String(args[0] ?? '').includes('no matching <option>'),
+      );
+      expect(selectWarnings).toHaveLength(2);
+      for (const warnArgs of selectWarnings) {
+        expect(String(warnArgs[0])).toContain('"Shipped"');
+      }
+      expect(Naizo.getField('unknown_sel')).toBe('Shipped');
+      expect(unknownSel.value).toBe('Draft');
+
+      // Exported HTML does NOT bake selected="selected" onto Option #0 of unselected blank/null selects
+      const exportedDoc = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
+      expect(exportedDoc.querySelectorAll('#blank-sel option[selected]').length).toBe(0);
+      expect(exportedDoc.querySelectorAll('#null-sel option[selected]').length).toBe(0);
+
+      // User can now select Option #0 ("P0") and fire change cleanly!
+      blankSel.selectedIndex = 0;
+      blankSel.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(Naizo.getField('blank_sel')).toBe('P0');
+
+      // Programmatic reset back to "" unselects again without warning
+      warnSpy.mockClear();
+      Naizo.setField('blank_sel', '');
+      expect(blankSel.selectedIndex).toBe(-1);
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      // 3. Interactive-over-passive naizo="key" precedence across boot, addItem({}), Naizo.bind(), & form.reset() (EC56)
+      const standaloneH3 = document.getElementById('standalone-h3') as HTMLElement;
+      const standaloneIn = document.getElementById('standalone-in') as HTMLInputElement;
+      expect(Naizo.getField('doc_name')).toBe('Untitled');
+      expect(standaloneIn.value).toBe('Untitled');
+      expect(standaloneH3.textContent).toBe('Untitled');
+
+      // Booted card from lists.cards = [{ id: 'c-boot' }] seeded "Untitled" from <input>, NOT "" from preceding <h3>
+      expect(Naizo.getList('cards')).toEqual([{ id: 'c-boot', name: 'Untitled' }]);
+      expect(document.querySelector('.card-h3')?.textContent).toBe('Untitled');
+      expect((document.querySelector('.card-in') as HTMLInputElement | null)?.value).toBe(
+        'Untitled',
+      );
+
+      // Adding a blank item via Naizo.addItem('cards', {}) also seeds "Untitled" and mirrors onto <h3>
+      Naizo.addItem('cards', {});
+      const cardRows = document.querySelectorAll<HTMLElement>(
+        '[naizo-list="cards"] > [naizo-item]',
+      );
+      expect(cardRows).toHaveLength(2);
+      expect(Naizo.getList('cards')[1]).toEqual({ name: 'Untitled' });
+      expect(cardRows[1]?.querySelector('.card-h3')?.textContent).toBe('Untitled');
+      expect((cardRows[1]?.querySelector('.card-in') as HTMLInputElement | null)?.value).toBe(
+        'Untitled',
+      );
+
+      // Typing into <input> live-mirrors onto preceding <h3>; form.reset() restores "Untitled" onto both store and <h3>
+      standaloneIn.value = 'Edited Doc';
+      standaloneIn.dispatchEvent(new Event('input', { bubbles: true }));
+      const secondCardIn = cardRows[1]?.querySelector('.card-in') as HTMLInputElement;
+      secondCardIn.value = 'Edited Card';
+      secondCardIn.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(standaloneH3.textContent).toBe('Edited Doc');
+      expect(cardRows[1]?.querySelector('.card-h3')?.textContent).toBe('Edited Card');
+
+      (document.getElementById('precedence-form') as HTMLFormElement).reset();
+      vi.advanceTimersByTime(5);
+      expect(Naizo.getField('doc_name')).toBe('Untitled');
+      expect(standaloneIn.value).toBe('Untitled');
+      expect(standaloneH3.textContent).toBe('Untitled');
+      expect(Naizo.getList('cards')[1]?.name).toBe('Untitled');
+      expect(secondCardIn.value).toBe('Untitled');
+      expect(cardRows[1]?.querySelector('.card-h3')?.textContent).toBe('Untitled');
+
+      // Naizo.bind() on dynamically inserted passive-before-interactive subtree
+      const dynSlot = document.getElementById('dynamic-bind-slot')!;
+      dynSlot.innerHTML = `<span id="dyn-span" naizo="dyn_title"></span><input id="dyn-in" type="text" naizo="dyn_title" value="Dynamic Default" />`;
+      Naizo.bind(dynSlot);
+      expect(Naizo.getField('dyn_title')).toBe('Dynamic Default');
+      expect(document.getElementById('dyn-span')?.textContent).toBe('Dynamic Default');
+
+      // 4. naizo-pill-corner / data-naizo-pill-corner precedence, user drag override in naizodb_ui_<key>, & export preservation (D08, D50, D57)
+      const getAnchorCorner = () =>
+        document.getElementById('__naizodb_host__')?.shadowRoot?.getElementById('pill-anchor')
+          ?.dataset.corner;
+      // body data-naizo-pill-corner=" BOTTOM-LEFT " beat html naizo-pill-corner="top-right"
+      expect(getAnchorCorner()).toBe('bottom-left');
+
+      // Export & downloadHTML preserve naizo-pill-corner and data-naizo-pill-corner
+      const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:corner');
+      const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      const dlHtml = Naizo.downloadHTML('corner.html');
+      createUrlSpy.mockRestore();
+      revokeUrlSpy.mockRestore();
+      clickSpy.mockRestore();
+      for (const htmlOut of [Naizo.exportHTML(), dlHtml]) {
+        const docOut = new DOMParser().parseFromString(htmlOut, 'text/html');
+        expect(docOut.documentElement.getAttribute('naizo-pill-corner')).toBe('top-right');
+        expect(docOut.body.getAttribute('data-naizo-pill-corner')).toBe(' BOTTOM-LEFT ');
+      }
+
+      // Removing body attribute falls back to html naizo-pill-corner="top-right"
+      document.body.removeAttribute('data-naizo-pill-corner');
+      await initNaizo();
+      expect(getAnchorCorner()).toBe('top-right');
+
+      // Invalid value ("bottom-center") falls back to 'bottom-right'
+      document.body.setAttribute('naizo-pill-corner', 'bottom-center');
+      await initNaizo();
+      expect(getAnchorCorner()).toBe('bottom-right');
+
+      // User drag persisted in naizodb_ui_<key> overrides valid naizo-pill-corner="bottom-left"
+      document.body.setAttribute('naizo-pill-corner', 'bottom-left');
+      localStorage.setItem(
+        'naizodb_ui_/::m13-1-select-ready-corner',
+        JSON.stringify({ corner: 'top-left' }),
+      );
+      await initNaizo();
+      expect(getAnchorCorner()).toBe('top-left');
+
+      // Corrupted or invalid naizodb_ui_<key> falls back to naizo-pill-corner="bottom-left"
+      localStorage.setItem('naizodb_ui_/::m13-1-select-ready-corner', '{broken');
+      await initNaizo();
+      expect(getAnchorCorner()).toBe('bottom-left');
+      localStorage.removeItem('naizodb_ui_/::m13-1-select-ready-corner');
+
+      // startupInvalidDb boot path still sets bootHydrated = true and fires Naizo.ready()
+      window.__naizoCleanup?.();
+      const invalidScript = document.getElementById('naizodb');
+      if (invalidScript) invalidScript.textContent = '{ malformed';
+      const invalidReady: boolean[] = [];
+      Naizo.ready(() => {
+        invalidReady.push(true);
+      });
+      expect(invalidReady).toEqual([]);
+      await initNaizo();
+      expect(invalidReady).toEqual([true]);
+      Naizo.ready(() => {
+        invalidReady.push(false);
+      });
+      expect(invalidReady).toEqual([true, false]);
+
+      // 5. Shipped dist/naizo.js IIFE bundle parity across all 7 M13.1 features
+      window.__naizoCleanup?.();
+      localStorage.clear();
+      document.documentElement.setAttribute('data-naizo-manual', 'true');
+      document.documentElement.setAttribute('naizo-id', 'm13-1-bundle-parity');
+      document.documentElement.setAttribute('naizo-pill-corner', 'top-left');
+      document.body.setAttribute('naizo-pill-corner', 'bottom-left');
+      document.head.innerHTML = `<script id="naizodb" type="application/json">{"_meta":{},"fields":{"sel":""},"lists":{"rows":[]},"custom":{}}</script>`;
+      document.body.innerHTML = `
+        <h3 id="b-h3" naizo="b_title"></h3>
+        <input id="b-in" type="text" naizo="b_title" value="Bundle Untitled" />
+        <select id="b-sel" naizo="sel"><option value="One">One</option></select>
+        <div naizo-list="rows">
+          <template naizo-template>
+            <div naizo-item>
+              <span class="b-row-span" naizo="label"></span>
+              <label><input class="b-row-in" type="text" naizo="label" value="Row Default" /></label>
+            </div>
+          </template>
+        </div>
+      `;
+
+      runInThisContext(iifeBundleCode);
+      const bundleNaizo = window.Naizo;
+      expect(typeof bundleNaizo.batch).toBe('function');
+      expect(typeof bundleNaizo.ready).toBe('function');
+      expect(window.NaizoDB).toBe(bundleNaizo);
+
+      const bundleReadyLog: string[] = [];
+      bundleNaizo.ready((db) => {
+        bundleReadyLog.push(`pre:${String(db.fields.b_title)}`);
+      });
+      expect(bundleReadyLog).toEqual([]);
+
+      await bundleNaizo.init();
+      expect(bundleReadyLog).toEqual(['pre:Bundle Untitled']);
+      bundleNaizo.ready((db) => {
+        bundleReadyLog.push(`post:${String(db.fields.b_title)}`);
+      });
+      expect(bundleReadyLog).toEqual(['pre:Bundle Untitled', 'post:Bundle Untitled']);
+
+      expect(getAnchorCorner()).toBe('bottom-left');
+      expect((document.getElementById('b-sel') as HTMLSelectElement).selectedIndex).toBe(-1);
+      expect(document.getElementById('b-h3')?.textContent).toBe('Bundle Untitled');
+
+      const bundleEvents: Array<Record<string, unknown>> = [];
+      const onBundleChange = (e: Event) => {
+        const d = (e as CustomEvent<Record<string, unknown>>).detail;
+        bundleEvents.push(d);
+        if (d.scope === 'batch') {
+          bundleNaizo.set('afterBatch', 'queued-fifo');
+        }
+      };
+      window.addEventListener('naizo:change', onBundleChange);
+      try {
+        const batchOut = bundleNaizo.batch(() => {
+          bundleNaizo.addItem('rows', {});
+          bundleNaizo.setField('b_title', 'Bundle Batched');
+          return bundleNaizo.getList('rows')[0]?.label;
+        });
+        expect(batchOut).toBe('Row Default');
+        expect(document.querySelector('.b-row-span')?.textContent).toBe('Row Default');
+        expect(bundleEvents).toHaveLength(2);
+        expect(bundleEvents[0]).toMatchObject({
+          scope: 'batch',
+          action: 'batch',
+          source: 'api',
+        });
+        expect(bundleEvents[1]).toMatchObject({
+          scope: 'custom',
+          key: 'afterBatch',
+          value: 'queued-fifo',
+          source: 'api',
+        });
+
+        bundleEvents.length = 0;
+        const bRowIn = document.querySelector('.b-row-in') as HTMLInputElement;
+        bRowIn.value = 'Bundle Row Edited';
+        bRowIn.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(bundleEvents).toHaveLength(1);
+        expect(bundleEvents[0]).toMatchObject({
+          scope: 'lists',
+          action: 'update',
+          list: 'rows',
+          index: 0,
+          key: 'label',
+          value: 'Bundle Row Edited',
+          source: 'dom',
+        });
+      } finally {
+        window.removeEventListener('naizo:change', onBundleChange);
+      }
+    } finally {
+      warnSpy.mockRestore();
+      window.__naizoCleanup?.();
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('naizo-pill-corner');
+      document.documentElement.removeAttribute('data-naizo-pill-corner');
+      document.documentElement.removeAttribute('data-naizo-manual');
+      document.body.removeAttribute('naizo-pill-corner');
+      document.body.removeAttribute('data-naizo-pill-corner');
+      window.Naizo = Naizo;
+      window.NaizoDB = NaizoDB;
+      vi.useRealTimers();
     }
   });
 });
