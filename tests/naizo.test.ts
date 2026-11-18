@@ -37,8 +37,12 @@ describe('naizo.js v0.1.0 core runtime', () => {
     document.documentElement.removeAttribute('naizo-manual');
     document.documentElement.removeAttribute('naizo-mode');
     document.documentElement.removeAttribute('data-naizo-mode');
+    document.documentElement.removeAttribute('naizo-no-pill');
+    document.documentElement.removeAttribute('data-naizo-no-pill');
     document.body.removeAttribute('naizo-mode');
     document.body.removeAttribute('data-naizo-mode');
+    document.body.removeAttribute('naizo-no-pill');
+    document.body.removeAttribute('data-naizo-no-pill');
     document.head.innerHTML = '';
     document.body.innerHTML = '';
   });
@@ -4607,6 +4611,474 @@ describe('naizo.js v0.1.0 core runtime', () => {
       window.Naizo = Naizo;
       window.NaizoDB = NaizoDB;
       vi.useRealTimers();
+    }
+  });
+
+  it('supports naizo-no-pill / data-naizo-no-pill headless mode, Naizo.link(): Promise<boolean>, startupInvalidDb headless console.warn, and shipped dist/naizo.js parity (M12.1, D08, D56, EC02, EC04, EC33, EC47, EC53)', async () => {
+    vi.useFakeTimers();
+    const origIndexedDB = globalThis.indexedDB;
+    const idbHandles = new Map<string, unknown>();
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: {
+        open: () => {
+          const req: {
+            result: unknown;
+            onsuccess: null | (() => void);
+            onerror: null | (() => void);
+            onupgradeneeded: null | (() => void);
+          } = {
+            result: {
+              createObjectStore: () => ({}),
+              transaction: () => ({
+                objectStore: () => ({
+                  get: (key: string) => {
+                    const getReq: { result: unknown; onsuccess: null | (() => void) } = {
+                      result: idbHandles.get(key),
+                      onsuccess: null,
+                    };
+                    queueMicrotask(() => getReq.onsuccess?.());
+                    return getReq;
+                  },
+                  put: (val: unknown, key: string) => {
+                    idbHandles.set(key, val);
+                    return {};
+                  },
+                  delete: (key: string) => {
+                    idbHandles.delete(key);
+                    const delReq: { onsuccess: null | (() => void) } = { onsuccess: null };
+                    queueMicrotask(() => delReq.onsuccess?.());
+                    return delReq;
+                  },
+                }),
+              }),
+            },
+            onsuccess: null,
+            onerror: null,
+            onupgradeneeded: null,
+          };
+          queueMicrotask(() => req.onsuccess?.());
+          return req;
+        },
+      },
+    });
+
+    const flushMicrotasks = async (ticks = 12): Promise<void> => {
+      for (let i = 0; i < ticks; i += 1) {
+        await Promise.resolve();
+      }
+    };
+
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url === 'https://api.example.com/kiosk-status') {
+        return new Response(JSON.stringify({ headline: 'Live Kiosk Feed' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ error: 'Offline' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      // Verify TypeScript declaration surface includes link(): Promise<boolean>
+      const dtsText = readFileSync(resolve(process.cwd(), 'dist/index.d.mts'), 'utf-8');
+      expect(dtsText).toContain('link(): Promise<boolean>;');
+      expect(typeof Naizo.link).toBe('function');
+      expect(typeof NaizoDB.link).toBe('function');
+      expect(NaizoDB).toBe(Naizo);
+
+      // 1. Dual-attribute precedence (body over html) & explicit "false" opt-out
+      document.documentElement.setAttribute('naizo-id', 'm12-1-headless-suite');
+      document.documentElement.setAttribute('naizo-mode', 'local');
+      document.head.innerHTML = `<script id="naizodb" type="application/json">
+{
+  "_meta": {},
+  "fields": { "headline": "Initial Kiosk" },
+  "lists": { "items": [{ "label": "Row A" }] },
+  "custom": {}
+}
+</script>`;
+      document.body.innerHTML = `
+        <div id="__naizodb_host__" data-stale="1">Stale host</div>
+        <input id="headline-in" type="text" naizo="headline" value="Initial Kiosk" />
+        <ul naizo-list="items">
+          <li naizo-item><label><input type="text" naizo="label" /></label></li>
+        </ul>
+        <button id="btn-kiosk-fetch" type="button" naizo-get="https://api.example.com/kiosk-status" naizo-path="headline" naizo-into="field:headline">Refresh</button>
+      `;
+
+      // Bare <html naizo-no-pill> removes pre-existing #__naizodb_host__ while injecting #__naizodb_styles__
+      document.documentElement.setAttribute('naizo-no-pill', '');
+      await initNaizo();
+      expect(document.getElementById('__naizodb_host__')).toBeNull();
+      expect(document.getElementById('__naizodb_styles__')).not.toBeNull();
+
+      // Explicit "false" on <body> overrides <html naizo-no-pill> and mounts the pill
+      document.body.setAttribute('data-naizo-no-pill', 'false');
+      await initNaizo();
+      expect(document.getElementById('__naizodb_host__')).not.toBeNull();
+
+      // Explicit "false" on <html> with no <body> attr also opts out and mounts the pill
+      document.body.removeAttribute('data-naizo-no-pill');
+      document.documentElement.setAttribute('naizo-no-pill', 'FALSE');
+      await initNaizo();
+      expect(document.getElementById('__naizodb_host__')).not.toBeNull();
+
+      // <body data-naizo-no-pill> overrides <html naizo-no-pill="false">, tearing down the mounted pill & resetting refs
+      document.body.setAttribute('data-naizo-no-pill', '');
+      await initNaizo();
+      expect(document.getElementById('__naizodb_host__')).toBeNull();
+      expect(document.getElementById('__naizodb_styles__')).not.toBeNull();
+
+      // <html naizo-no-pill="true"> also hides the pill
+      document.body.removeAttribute('data-naizo-no-pill');
+      document.documentElement.setAttribute('naizo-no-pill', 'true');
+      await initNaizo();
+      expect(document.getElementById('__naizodb_host__')).toBeNull();
+
+      // 2. List CRUD, Escape keydown, declarative naizo-get + Naizo.fetch() without #net crash, and Online Mode Cmd+S without tooltip crash
+      const addBtn = document.querySelector<HTMLButtonElement>('[naizo-add="items"]');
+      expect(addBtn).not.toBeNull();
+      addBtn?.click();
+      expect(Naizo.getList('items')).toHaveLength(2);
+      Naizo.updateItem('items', 1, { label: 'Row B' });
+      Naizo.moveItem('items', 1, 0);
+      expect(Naizo.getList('items')[0]?.label).toBe('Row B');
+      Naizo.removeItem('items', 1);
+      expect(Naizo.getList('items')).toEqual([{ label: 'Row B' }]);
+
+      const escEvt = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      });
+      document.dispatchEvent(escEvt);
+      expect(escEvt.defaultPrevented).toBe(false);
+
+      document.getElementById('btn-kiosk-fetch')?.click();
+      await flushMicrotasks();
+      vi.advanceTimersByTime(650);
+      expect(Naizo.getField('headline')).toBe('Live Kiosk Feed');
+
+      const failFetchRes = await Naizo.fetch('https://api.example.com/down', {
+        into: 'field:headline',
+      });
+      expect(failFetchRes.ok).toBe(false);
+      expect(Naizo.getField('headline')).toBe('Live Kiosk Feed');
+
+      // Online Mode Cmd+S flushes localStorage cleanly with no pill or tooltip timer crash
+      document.documentElement.setAttribute('naizo-mode', 'online');
+      await initNaizo();
+      expect(document.getElementById('__naizodb_host__')).toBeNull();
+      const headlineIn = document.getElementById('headline-in') as HTMLInputElement;
+      headlineIn.value = 'Online Headless CmdS';
+      headlineIn.dispatchEvent(new Event('input', { bubbles: true }));
+
+      const onlineCmdS = new KeyboardEvent('keydown', {
+        key: 's',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      document.dispatchEvent(onlineCmdS);
+      expect(onlineCmdS.defaultPrevented).toBe(true);
+      vi.advanceTimersByTime(1500);
+      expect(localStorage.getItem('naizodb_state_/::m12-1-headless-suite')).toContain(
+        'Online Headless CmdS',
+      );
+
+      // 3. Local Mode headless persistence: Naizo.link(), Cmd+S / Ctrl+S, ~2s watch + 3-way merge, and tab-hide flush
+      document.documentElement.setAttribute('naizo-mode', 'local');
+      await initNaizo();
+      expect(document.getElementById('__naizodb_host__')).toBeNull();
+
+      let diskHtml = `<!doctype html><html naizo-no-pill="true"><head><script id="naizodb" type="application/json">\n${JSON.stringify(
+        {
+          _meta: {},
+          fields: { headline: 'Online Headless CmdS' },
+          lists: { items: [{ label: 'Row B' }] },
+          custom: {},
+        },
+        null,
+        2,
+      )}\n</script></head><body></body></html>`;
+      let diskMtime = 4000;
+      let handlePerm: PermissionState = 'granted';
+      let failWrite = false;
+
+      const requestPermSpy = vi.fn().mockImplementation(async () => handlePerm);
+      const pickerSpy = vi.fn().mockResolvedValue({
+        queryPermission: vi.fn().mockImplementation(async () => handlePerm),
+        requestPermission: requestPermSpy,
+        getFile: vi.fn().mockImplementation(async () => ({
+          lastModified: diskMtime,
+          arrayBuffer: async () => new TextEncoder().encode(diskHtml).buffer,
+          text: async () => diskHtml,
+        })),
+        createWritable: vi.fn().mockImplementation(async () => {
+          if (failWrite) {
+            throw new Error('Disk write failed');
+          }
+          return {
+            write: async (data: string) => {
+              diskHtml = data;
+              diskMtime += 100;
+            },
+            close: async () => {},
+          };
+        }),
+      });
+
+      // Non-FSAA fallback (EC02): Naizo.link() triggers downloadHTML() and returns false
+      Reflect.deleteProperty(window, 'showSaveFilePicker');
+      const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:headless-snap');
+      const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+      const anchorClickSpy = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => {});
+      expect(await Naizo.link()).toBe(false);
+      expect(anchorClickSpy).toHaveBeenCalledTimes(1);
+      createUrlSpy.mockRestore();
+      revokeUrlSpy.mockRestore();
+      anchorClickSpy.mockRestore();
+
+      // Cancelled showSaveFilePicker: Naizo.link() returns false
+      window.showSaveFilePicker = vi
+        .fn()
+        .mockRejectedValueOnce(new DOMException('User cancelled', 'AbortError'));
+      expect(await Naizo.link()).toBe(false);
+
+      // Granted showSaveFilePicker + completed writeToDisk: Naizo.link() returns true & persists handle in NaizoDB_Handles
+      window.showSaveFilePicker = pickerSpy;
+      Naizo.setField('headline', 'Linked Headless V1');
+      expect(await Naizo.link()).toBe(true);
+      expect(pickerSpy).toHaveBeenCalledTimes(1);
+      expect(diskHtml).toContain('"Linked Headless V1"');
+      expect(idbHandles.has('naizodb_state_/::m12-1-headless-suite')).toBe(true);
+
+      // Booting again with naizo-no-pill auto-resumes persisted IndexedDB handle without re-prompting showSaveFilePicker
+      await initNaizo();
+      await flushMicrotasks(14);
+      expect(document.getElementById('__naizodb_host__')).toBeNull();
+      Naizo.setField('headline', 'Auto Resumed Headless Save');
+      expect(await Naizo.save()).toBe(true);
+      expect(pickerSpy).toHaveBeenCalledTimes(1);
+      expect(diskHtml).toContain('"Auto Resumed Headless Save"');
+
+      // Failed writeToDisk: Naizo.link() returns false
+      const warnWriteSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      failWrite = true;
+      expect(await Naizo.link()).toBe(false);
+      failWrite = false;
+      warnWriteSpy.mockRestore();
+
+      // Permission 'denied' / 'prompt' / thrown SecurityError on existing fileHandle: returns false without re-opening showSaveFilePicker
+      handlePerm = 'denied';
+      expect(await Naizo.link()).toBe(false);
+      expect(pickerSpy).toHaveBeenCalledTimes(1);
+
+      requestPermSpy.mockRejectedValueOnce(new DOMException('No user gesture', 'SecurityError'));
+      expect(await Naizo.link()).toBe(false);
+      expect(pickerSpy).toHaveBeenCalledTimes(1);
+
+      // Resuming permission via Cmd+S in headless mode invokes requestPermission and writes to disk
+      handlePerm = 'granted';
+      headlineIn.value = 'Resumed By Headless CmdS';
+      headlineIn.dispatchEvent(new Event('input', { bubbles: true }));
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }),
+      );
+      await flushMicrotasks(14);
+      expect(requestPermSpy).toHaveBeenCalled();
+      expect(diskHtml).toContain('"Resumed By Headless CmdS"');
+
+      // Ctrl+S when already granted flushes immediately via Naizo.save()
+      headlineIn.value = 'Saved By Headless CtrlS';
+      headlineIn.dispatchEvent(new Event('input', { bubbles: true }));
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }),
+      );
+      await flushMicrotasks(14);
+      expect(diskHtml).toContain('"Saved By Headless CtrlS"');
+
+      // ~2s external disk watch + 3-way shallow merge works with no pill mounted
+      const agentEditJson = JSON.stringify(
+        {
+          _meta: {},
+          fields: { headline: 'Saved By Headless CtrlS', agent_note: 'Added on disk' },
+          lists: { items: [{ label: 'Row B' }] },
+          custom: { fromAgent: 7 },
+        },
+        null,
+        2,
+      );
+      diskHtml = `<!doctype html><html naizo-no-pill="true"><head><script id="naizodb" type="application/json">\n${agentEditJson}\n</script></head><body></body></html>`;
+      diskMtime += 500;
+      vi.advanceTimersByTime(2100);
+      await flushMicrotasks(14);
+      expect(Naizo.getField('agent_note')).toBe('Added on disk');
+      expect(Naizo.get('fromAgent')).toBe(7);
+
+      // visibilitychange: hidden flushes pending debounced edit to disk immediately
+      headlineIn.value = 'Flushed On Headless Hide';
+      headlineIn.dispatchEvent(new Event('input', { bubbles: true }));
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushMicrotasks(14);
+      expect(diskHtml).toContain('"Flushed On Headless Hide"');
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+      // Unlink and verify Local Mode Cmd+S from unlinked state invokes showSaveFilePicker with no pill
+      await Naizo.unlink();
+      pickerSpy.mockClear();
+      headlineIn.value = 'Relinked Via Unlinked CmdS';
+      headlineIn.dispatchEvent(new Event('input', { bubbles: true }));
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }),
+      );
+      await flushMicrotasks(14);
+      expect(pickerSpy).toHaveBeenCalledTimes(1);
+      expect(diskHtml).toContain('"Relinked Via Unlinked CmdS"');
+
+      // 4. Export preservation in Naizo.exportHTML() and Naizo.downloadHTML()
+      document.body.setAttribute('data-naizo-no-pill', '');
+      const exportedLocal = Naizo.exportHTML();
+      const exportedLocalDoc = new DOMParser().parseFromString(exportedLocal, 'text/html');
+      expect(exportedLocalDoc.documentElement.getAttribute('naizo-no-pill')).toBe('true');
+      expect(exportedLocalDoc.body.hasAttribute('data-naizo-no-pill')).toBe(true);
+      expect(exportedLocalDoc.getElementById('__naizodb_host__')).toBeNull();
+      expect(exportedLocalDoc.getElementById('__naizodb_styles__')).toBeNull();
+
+      const dlCreateSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:dl-preserve');
+      const dlRevokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+      const dlClickSpy = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => {});
+      const downloadedHtml = Naizo.downloadHTML('kiosk.html');
+      dlCreateSpy.mockRestore();
+      dlRevokeSpy.mockRestore();
+      dlClickSpy.mockRestore();
+      const downloadedDoc = new DOMParser().parseFromString(downloadedHtml, 'text/html');
+      expect(downloadedDoc.documentElement.getAttribute('naizo-no-pill')).toBe('true');
+      expect(downloadedDoc.body.hasAttribute('data-naizo-no-pill')).toBe(true);
+
+      // 5. startupInvalidDb (EC04 / EC33) under naizo-no-pill emits console.warn once per boot & Naizo.link() returns false
+      await Naizo.unlink();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const dbEl = document.getElementById('naizodb');
+        if (dbEl) dbEl.textContent = '{ malformed headless json';
+        await initNaizo();
+
+        const headlessRepairWarnings = warnSpy.mock.calls.filter((args) =>
+          String(args[0] ?? '').includes('Repair JSON'),
+        );
+        expect(headlessRepairWarnings).toHaveLength(1);
+        expect(String(headlessRepairWarnings[0]?.[0])).toContain('<script id="naizodb">');
+        expect(String(headlessRepairWarnings[0]?.[0])).toContain('automatic writes are paused');
+        expect(String(headlessRepairWarnings[0]?.[0])).toContain('naizo-no-pill');
+        expect(String(headlessRepairWarnings[0]?.[0])).toContain('data-naizo-no-pill');
+
+        // Subsequent save / link attempts return false and do NOT re-emit the boot warning
+        expect(await Naizo.save()).toBe(false);
+        expect(await Naizo.link()).toBe(false);
+        expect(
+          warnSpy.mock.calls.filter((args) => String(args[0] ?? '').includes('Repair JSON')),
+        ).toHaveLength(1);
+
+        // Removing naizo-no-pill / data-naizo-no-pill exposes the Repair JSON button without emitting the headless warning
+        warnSpy.mockClear();
+        document.documentElement.removeAttribute('naizo-no-pill');
+        document.body.removeAttribute('data-naizo-no-pill');
+        await initNaizo();
+        expect(
+          warnSpy.mock.calls.filter((args) => String(args[0] ?? '').includes('Repair JSON')),
+        ).toHaveLength(0);
+        const restoredShadow = document.getElementById('__naizodb_host__')?.shadowRoot;
+        expect(restoredShadow?.getElementById('restore')?.dataset.tip).toBe('Repair JSON');
+      } finally {
+        warnSpy.mockRestore();
+      }
+
+      // 6. Shipped dist/naizo.js IIFE bundle parity for data-naizo-no-pill & window.Naizo.link / window.NaizoDB.link
+      window.__naizoCleanup?.();
+      document.documentElement.setAttribute('data-naizo-manual', 'true');
+      document.documentElement.removeAttribute('naizo-no-pill');
+      document.body.setAttribute('data-naizo-no-pill', '');
+      document.head.innerHTML = `<script id="naizodb" type="application/json">{"_meta":{},"fields":{"k":"bundle-v0"},"lists":{},"custom":{}}</script>`;
+      document.body.innerHTML = `<input id="bundle-k" type="text" naizo="k" value="bundle-v0" />`;
+
+      runInThisContext(iifeBundleCode);
+      const bundleNaizo = window.Naizo;
+      expect(typeof bundleNaizo.link).toBe('function');
+      expect(typeof window.NaizoDB.link).toBe('function');
+      expect(window.NaizoDB).toBe(bundleNaizo);
+
+      await bundleNaizo.init();
+      expect(document.getElementById('__naizodb_host__')).toBeNull();
+      expect(document.getElementById('__naizodb_styles__')).not.toBeNull();
+
+      let bundleDiskHtml = `<!doctype html><html><head><script id="naizodb" type="application/json">{"_meta":{},"fields":{"k":"bundle-v0"},"lists":{},"custom":{}}</script></head><body data-naizo-no-pill></body></html>`;
+      window.showSaveFilePicker = vi
+        .fn()
+        .mockRejectedValueOnce(new DOMException('Cancel', 'AbortError'))
+        .mockResolvedValue({
+          queryPermission: vi.fn().mockResolvedValue('granted'),
+          requestPermission: vi.fn().mockResolvedValue('granted'),
+          getFile: vi.fn().mockImplementation(async () => ({
+            lastModified: 9000,
+            text: async () => bundleDiskHtml,
+          })),
+          createWritable: vi.fn().mockImplementation(async () => ({
+            write: async (data: string) => {
+              bundleDiskHtml = data;
+            },
+            close: async () => {},
+          })),
+        });
+
+      expect(await bundleNaizo.link()).toBe(false);
+      bundleNaizo.setField('k', 'bundle-linked-ok');
+      expect(await bundleNaizo.link()).toBe(true);
+      expect(bundleDiskHtml).toContain('"bundle-linked-ok"');
+      expect(bundleNaizo.exportHTML()).toContain('data-naizo-no-pill');
+
+      await bundleNaizo.unlink();
+      const bundleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const bundleDbEl = document.getElementById('naizodb');
+        if (bundleDbEl) bundleDbEl.textContent = '[]';
+        await bundleNaizo.init();
+        expect(await bundleNaizo.link()).toBe(false);
+        expect(
+          bundleWarnSpy.mock.calls.some((args) => String(args[0] ?? '').includes('Repair JSON')),
+        ).toBe(true);
+      } finally {
+        bundleWarnSpy.mockRestore();
+      }
+    } finally {
+      Object.defineProperty(globalThis, 'indexedDB', {
+        configurable: true,
+        value: origIndexedDB,
+      });
+      window.__naizoCleanup?.();
+      Reflect.deleteProperty(window, 'showSaveFilePicker');
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('naizo-mode');
+      document.documentElement.removeAttribute('naizo-no-pill');
+      document.documentElement.removeAttribute('data-naizo-no-pill');
+      document.documentElement.removeAttribute('data-naizo-manual');
+      document.body.removeAttribute('naizo-no-pill');
+      document.body.removeAttribute('data-naizo-no-pill');
+      window.Naizo = Naizo;
+      window.NaizoDB = NaizoDB;
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
     }
   });
 });

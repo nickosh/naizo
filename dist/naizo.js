@@ -264,6 +264,7 @@
 	let watchInterval = null;
 	let writeInFlightPromise = null;
 	let writeQueued = false;
+	let uiHost = null;
 	let statusEl = null;
 	let dotBtnEl = null;
 	let actionBtn = null;
@@ -321,6 +322,14 @@
 		const proto = (location.protocol ?? "").toLowerCase();
 		if (proto !== "http:" && proto !== "https:") return false;
 		return !isLocalHostname(location.hostname ?? "");
+	}
+	function isNoPillMode() {
+		if (typeof document === "undefined") return false;
+		const bodyAttr = document.body ? getAttr(document.body, "naizo-no-pill") : null;
+		if (bodyAttr !== null) return bodyAttr.trim().toLowerCase() !== "false";
+		const htmlAttr = document.documentElement ? getAttr(document.documentElement, "naizo-no-pill") : null;
+		if (htmlAttr !== null) return htmlAttr.trim().toLowerCase() !== "false";
+		return false;
 	}
 	function idbStore(mode, callback) {
 		try {
@@ -1348,20 +1357,25 @@
 		}, PERSIST_DEBOUNCE_MS);
 	}
 	async function connectOrResumeDisk() {
-		if (startupInvalidDb) return;
+		if (startupInvalidDb) return false;
+		if (persistTimeout !== null) flushPersistence(false);
+		if (saveTimeout !== null) {
+			clearTimeout(saveTimeout);
+			saveTimeout = null;
+		}
 		if (fileHandle) try {
 			const perm = await fileHandle.requestPermission({ mode: "readwrite" });
 			fileHandlePermission = perm;
 			if (perm === "granted") {
 				startDiskWatch();
-				await writeToDisk();
-				return;
+				return await writeToDisk();
 			}
 			updateUi("needs-permission", "Resume Disk Sync");
-			return;
+			return false;
 		} catch {
-			fileHandle = null;
 			fileHandlePermission = "prompt";
+			updateUi("needs-permission", "Resume Disk Sync");
+			return false;
 		}
 		if (typeof window.showSaveFilePicker === "function") try {
 			fileHandle = await window.showSaveFilePicker({
@@ -1374,9 +1388,12 @@
 			fileHandlePermission = "granted";
 			saveHandleToIDB(fileHandle);
 			startDiskWatch();
-			await writeToDisk();
-		} catch {}
-		else Naizo.downloadHTML();
+			return await writeToDisk();
+		} catch {
+			return false;
+		}
+		Naizo.downloadHTML();
+		return false;
 	}
 	function dispatchChangeEvent(detail) {
 		if (typeof window === "undefined") return;
@@ -1524,6 +1541,7 @@
 		}
 	}
 	function syncHostTheme(host) {
+		if (!host) return;
 		const effective = resolveExplicitPageTheme() ?? (isSystemDarkTheme() ? "dark" : null);
 		const current = host.getAttribute("data-naizo-theme");
 		if (effective === null) {
@@ -1531,6 +1549,15 @@
 		} else if (current !== effective) host.setAttribute("data-naizo-theme", effective);
 	}
 	function syncSavingBeat(state) {
+		if (!dotBtnEl) {
+			if (savingHoldTimeout !== null) {
+				clearTimeout(savingHoldTimeout);
+				savingHoldTimeout = null;
+			}
+			savingCycleStart = 0;
+			savingMinCycles = 1;
+			return;
+		}
 		if (state === "saving") {
 			if (savingHoldTimeout !== null) {
 				clearTimeout(savingHoldTimeout);
@@ -1638,13 +1665,36 @@
 			clearTimeout(transientTipTimeout);
 			transientTipTimeout = null;
 		}
-		if (resetConfirmEl && resetConfirmEl.style.display !== "none") return;
+		if (!tooltipEl || resetConfirmEl && resetConfirmEl.style.display !== "none") return;
 		showPillTooltip(text, "");
 		transientTipTimeout = setTimeout(() => {
 			transientTipTimeout = null;
 			if (activeTipBtn) refreshActivePillTooltip();
 			else hidePillTooltip();
 		}, durationMs);
+	}
+	function resetUiRefs() {
+		uiHost = null;
+		statusEl = null;
+		dotBtnEl = null;
+		actionBtn = null;
+		actionSrEl = null;
+		actionSvgEl = null;
+		restoreBtn = null;
+		restoreSrEl = null;
+		restoreSvgEl = null;
+		copySrEl = null;
+		copySvgEl = null;
+		resetBtn = null;
+		resetConfirmEl = null;
+		unlinkBtn = null;
+		netSepEl = null;
+		netBtn = null;
+		tooltipEl = null;
+		tooltipTextEl = null;
+		tooltipKbdEl = null;
+		activeTipBtn = null;
+		pillTipTargets = [];
 	}
 	function mountUi() {
 		if (!document.getElementById(STYLE_ID)) {
@@ -1703,9 +1753,11 @@
 		}
 		savingCycleStart = 0;
 		savingMinCycles = 1;
-		const existingHost = document.getElementById(UI_ID);
-		if (existingHost) existingHost.remove();
+		document.querySelectorAll(`#${UI_ID}`).forEach((el) => el.remove());
+		resetUiRefs();
+		if (isNoPillMode()) return;
 		const host = document.createElement("div");
+		uiHost = host;
 		host.id = UI_ID;
 		host.setAttribute("data-naizo-strip", "true");
 		syncHostTheme(host);
@@ -2494,7 +2546,7 @@
 			dotBtnEl.dataset.tip = message;
 			setPillElementTitle(dotBtnEl, message);
 		}
-		document.getElementById(UI_ID)?._setDot?.(state);
+		(uiHost ?? document.getElementById(UI_ID))?._setDot?.(state);
 		if (online) {
 			if (state === "error") actionBtn.style.display = "none";
 			else {
@@ -3432,6 +3484,9 @@
 			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 			dispatchChangeEvent({ scope: "reset" });
 		},
+		link() {
+			return connectOrResumeDisk();
+		},
 		async unlink() {
 			stopDiskWatch();
 			if (saveTimeout !== null) {
@@ -3522,6 +3577,7 @@
 			else document.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
 				if (!isIgnoredElement(listEl)) decorateListControls(listEl);
 			});
+			if (isNoPillMode()) console.warn("[naizo.js] <script id=\"naizodb\"> contains invalid JSON; automatic writes are paused to prevent data loss. Remove naizo-no-pill / data-naizo-no-pill to expose the Repair JSON control.");
 			updateUi("error", "Invalid #naizodb JSON");
 			window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 			return;

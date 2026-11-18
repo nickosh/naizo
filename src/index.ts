@@ -55,6 +55,7 @@ export interface NaizoAPI {
   fetch(url: string, options?: NaizoFetchOptions): Promise<NaizoFetchResult>;
   save(): Promise<boolean>;
   reset(): void;
+  link(): Promise<boolean>;
   unlink(): Promise<void>;
   copyJSON(): Promise<string>;
   exportHTML(): string;
@@ -454,6 +455,7 @@ let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let watchInterval: ReturnType<typeof setInterval> | null = null;
 let writeInFlightPromise: Promise<boolean> | null = null;
 let writeQueued = false;
+let uiHost: NaizoHostElement | null = null;
 let statusEl: HTMLElement | null = null;
 let dotBtnEl: HTMLButtonElement | null = null;
 let actionBtn: HTMLButtonElement | null = null;
@@ -531,6 +533,21 @@ function isOnlineMode(): boolean {
   const proto = (location.protocol ?? '').toLowerCase();
   if (proto !== 'http:' && proto !== 'https:') return false;
   return !isLocalHostname(location.hostname ?? '');
+}
+
+function isNoPillMode(): boolean {
+  if (typeof document === 'undefined') return false;
+  const bodyAttr = document.body ? getAttr(document.body, 'naizo-no-pill') : null;
+  if (bodyAttr !== null) {
+    return bodyAttr.trim().toLowerCase() !== 'false';
+  }
+  const htmlAttr = document.documentElement
+    ? getAttr(document.documentElement, 'naizo-no-pill')
+    : null;
+  if (htmlAttr !== null) {
+    return htmlAttr.trim().toLowerCase() !== 'false';
+  }
+  return false;
 }
 
 // --- 1. IndexedDB Helper for Persisting FileSystemFileHandle ---
@@ -1987,22 +2004,29 @@ function schedulePersist(): void {
   }, PERSIST_DEBOUNCE_MS);
 }
 
-async function connectOrResumeDisk(): Promise<void> {
-  if (startupInvalidDb) return;
+async function connectOrResumeDisk(): Promise<boolean> {
+  if (startupInvalidDb) return false;
+  if (persistTimeout !== null) {
+    flushPersistence(false);
+  }
+  if (saveTimeout !== null) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
   if (fileHandle) {
     try {
       const perm = await fileHandle.requestPermission({ mode: 'readwrite' });
       fileHandlePermission = perm;
       if (perm === 'granted') {
         startDiskWatch();
-        await writeToDisk();
-        return;
+        return await writeToDisk();
       }
       updateUi('needs-permission', 'Resume Disk Sync');
-      return;
+      return false;
     } catch {
-      fileHandle = null;
       fileHandlePermission = 'prompt';
+      updateUi('needs-permission', 'Resume Disk Sync');
+      return false;
     }
   }
 
@@ -2015,13 +2039,15 @@ async function connectOrResumeDisk(): Promise<void> {
       fileHandlePermission = 'granted';
       saveHandleToIDB(fileHandle);
       startDiskWatch();
-      await writeToDisk();
+      return await writeToDisk();
     } catch {
       // User cancelled file picker
+      return false;
     }
-  } else {
-    Naizo.downloadHTML();
   }
+
+  Naizo.downloadHTML();
+  return false;
 }
 
 function dispatchChangeEvent(detail: Record<string, unknown>): void {
@@ -2215,7 +2241,8 @@ function isSystemDarkTheme(): boolean {
   }
 }
 
-function syncHostTheme(host: HTMLElement): void {
+function syncHostTheme(host: HTMLElement | null): void {
+  if (!host) return;
   const explicit = resolveExplicitPageTheme();
   const effective = explicit ?? (isSystemDarkTheme() ? 'dark' : null);
   const current = host.getAttribute('data-naizo-theme');
@@ -2227,6 +2254,15 @@ function syncHostTheme(host: HTMLElement): void {
 }
 
 function syncSavingBeat(state: string): void {
+  if (!dotBtnEl) {
+    if (savingHoldTimeout !== null) {
+      clearTimeout(savingHoldTimeout);
+      savingHoldTimeout = null;
+    }
+    savingCycleStart = 0;
+    savingMinCycles = 1;
+    return;
+  }
   if (state === 'saving') {
     if (savingHoldTimeout !== null) {
       clearTimeout(savingHoldTimeout);
@@ -2355,7 +2391,7 @@ function flashPillTooltip(text: string, durationMs = 1200): void {
     clearTimeout(transientTipTimeout);
     transientTipTimeout = null;
   }
-  if (resetConfirmEl && resetConfirmEl.style.display !== 'none') return;
+  if (!tooltipEl || (resetConfirmEl && resetConfirmEl.style.display !== 'none')) return;
   showPillTooltip(text, '');
   transientTipTimeout = setTimeout(() => {
     transientTipTimeout = null;
@@ -2365,6 +2401,30 @@ function flashPillTooltip(text: string, durationMs = 1200): void {
       hidePillTooltip();
     }
   }, durationMs);
+}
+
+function resetUiRefs(): void {
+  uiHost = null;
+  statusEl = null;
+  dotBtnEl = null;
+  actionBtn = null;
+  actionSrEl = null;
+  actionSvgEl = null;
+  restoreBtn = null;
+  restoreSrEl = null;
+  restoreSvgEl = null;
+  copySrEl = null;
+  copySvgEl = null;
+  resetBtn = null;
+  resetConfirmEl = null;
+  unlinkBtn = null;
+  netSepEl = null;
+  netBtn = null;
+  tooltipEl = null;
+  tooltipTextEl = null;
+  tooltipKbdEl = null;
+  activeTipBtn = null;
+  pillTipTargets = [];
 }
 
 function mountUi(): void {
@@ -2426,10 +2486,12 @@ function mountUi(): void {
   savingCycleStart = 0;
   savingMinCycles = 1;
 
-  const existingHost = document.getElementById(UI_ID);
-  if (existingHost) existingHost.remove();
+  document.querySelectorAll(`#${UI_ID}`).forEach((el) => el.remove());
+  resetUiRefs();
+  if (isNoPillMode()) return;
 
   const host = document.createElement('div') as NaizoHostElement;
+  uiHost = host;
   host.id = UI_ID;
   host.setAttribute('data-naizo-strip', 'true');
   syncHostTheme(host);
@@ -3310,7 +3372,7 @@ function updateUi(state: string, message: string): void {
     dotBtnEl.dataset.tip = message;
     setPillElementTitle(dotBtnEl, message);
   }
-  (document.getElementById(UI_ID) as NaizoHostElement | null)?._setDot?.(state);
+  (uiHost ?? (document.getElementById(UI_ID) as NaizoHostElement | null))?._setDot?.(state);
 
   if (online) {
     if (state === 'error') {
@@ -4547,6 +4609,9 @@ export const Naizo: NaizoAPI = {
     }
     dispatchChangeEvent({ scope: 'reset' });
   },
+  link(): Promise<boolean> {
+    return connectOrResumeDisk();
+  },
   async unlink(): Promise<void> {
     stopDiskWatch();
     if (saveTimeout !== null) {
@@ -4661,6 +4726,11 @@ export async function initNaizo(): Promise<void> {
       document.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
         if (!isIgnoredElement(listEl)) decorateListControls(listEl);
       });
+    }
+    if (isNoPillMode()) {
+      console.warn(
+        '[naizo.js] <script id="naizodb"> contains invalid JSON; automatic writes are paused to prevent data loss. Remove naizo-no-pill / data-naizo-no-pill to expose the Repair JSON control.',
+      );
     }
     updateUi('error', 'Invalid #naizodb JSON');
     window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
