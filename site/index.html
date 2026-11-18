@@ -1296,6 +1296,10 @@
         .status-crest-lg .c-top,
         .status-crest-lg .c-bl,
         .status-crest-lg .c-br,
+        .anim-saving .ring,
+        .anim-saving .c-top,
+        .anim-saving .c-bl,
+        .anim-saving .c-br,
         .doc-wave-band-rect,
         .anim-net-error {
           animation: none !important;
@@ -1644,27 +1648,45 @@
                   fill="var(--bg)"
                   stroke="var(--rule)"
                 />
-                <g class="anim-saving" transform="translate(6, 4) scale(0.18)">
-                  <circle
-                    class="ring"
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    fill="none"
-                    stroke="#10b981"
-                    stroke-width="8"
-                  />
-                  <rect
-                    class="c-top"
-                    x="39"
-                    y="26"
-                    width="22"
-                    height="22"
-                    rx="4.5"
-                    fill="#10b981"
-                  />
-                  <rect class="c-bl" x="26" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
-                  <rect class="c-br" x="52" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+                <g transform="translate(6, 4) scale(0.18)">
+                  <g class="anim-saving">
+                    <circle
+                      class="ring"
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="#10b981"
+                      stroke-width="8"
+                    />
+                    <rect
+                      class="c-top"
+                      x="39"
+                      y="26"
+                      width="22"
+                      height="22"
+                      rx="4.5"
+                      fill="#10b981"
+                    />
+                    <rect
+                      class="c-bl"
+                      x="26"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
+                      fill="#10b981"
+                    />
+                    <rect
+                      class="c-br"
+                      x="52"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
+                      fill="#10b981"
+                    />
+                  </g>
                 </g>
                 <text
                   x="28"
@@ -1700,11 +1722,8 @@
                 stroke="#10b981"
                 stroke-width="1.5"
               />
-              <g transform="translate(14, 9) scale(0.2)">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
-                <rect x="39" y="26" width="22" height="22" rx="4.5" fill="#10b981" />
-                <rect x="26" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
-                <rect x="52" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+              <g transform="translate(14, 9) scale(0.2)" style="color: #10b981">
+                <use href="#naizo-crest-icon" width="100" height="100" />
               </g>
               <text x="40" y="24" font-size="12" font-weight="700" fill="var(--text)">
                 2. Single .html File
@@ -2005,24 +2024,27 @@
             <span>Hover row for ↑ ↓ ×</span>
           </div>
           <div naizo-list="tasks">
-            <div class="task-row" naizo-item>
-              <label class="task-check-label">
-                <input type="checkbox" naizo="done" />
-                <span class="sr-only">Completed</span>
-              </label>
-              <label class="task-title-label">
-                <span class="sr-only">Task Title</span>
-                <input type="text" naizo="title" placeholder="New task..." />
-              </label>
-              <label class="task-priority-label">
-                <span class="sr-only">Priority</span>
-                <select naizo="priority">
-                  <option value="High">High</option>
-                  <option value="Med">Med</option>
-                  <option value="Low">Low</option>
-                </select>
-              </label>
-            </div>
+            <template naizo-template>
+              <div class="task-row" naizo-item>
+                <label class="task-check-label">
+                  <input type="checkbox" naizo="done" />
+                  <span class="sr-only">Completed</span>
+                </label>
+                <label class="task-title-label">
+                  <span class="sr-only">Task Title</span>
+                  <input type="text" naizo="title" placeholder="New task..." />
+                </label>
+                <label class="task-priority-label">
+                  <span class="sr-only">Priority</span>
+                  <select naizo="priority">
+                    <option value="">— Priority —</option>
+                    <option value="High">High</option>
+                    <option value="Med" selected>Med</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </label>
+              </div>
+            </template>
           </div>
 
           <div class="spec-subhead">
@@ -2123,7 +2145,7 @@ Loading #naizodb...</pre>
           </button>
         </div>
         <pre><code id="snippet-starter">&lt;!doctype html&gt;
-&lt;html lang="en"&gt;
+&lt;html lang="en" naizo-id="launch-plan"&gt;
   &lt;head&gt;
     &lt;meta charset="UTF-8" /&gt;
     &lt;script id="naizodb" type="application/json"&gt;
@@ -2139,10 +2161,12 @@ Loading #naizodb...</pre>
   &lt;body&gt;
     &lt;h1 contenteditable="true" naizo="title"&gt;Launch Plan&lt;/h1&gt;
     &lt;div naizo-list="tasks"&gt;
-      &lt;div naizo-item&gt;
-        &lt;label&gt;&lt;input type="checkbox" naizo="done" /&gt;&lt;/label&gt;
-        &lt;label&gt;&lt;input type="text" naizo="task" /&gt;&lt;/label&gt;
-      &lt;/div&gt;
+      &lt;template naizo-template&gt;
+        &lt;div naizo-item&gt;
+          &lt;label&gt;&lt;input type="checkbox" naizo="done" /&gt;&lt;/label&gt;
+          &lt;label&gt;&lt;input type="text" naizo="task" /&gt;&lt;/label&gt;
+        &lt;/div&gt;
+      &lt;/template&gt;
     &lt;/div&gt;
   &lt;/body&gt;
 &lt;/html&gt;</code></pre>
@@ -3860,12 +3884,16 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
         window.addEventListener('naizo:hydrate', syncPlaygroundUi);
         window.addEventListener('naizo:change', syncPlaygroundUi);
         window.addEventListener('naizo:item', syncPlaygroundUi);
-        window.addEventListener('DOMContentLoaded', syncPlaygroundUi);
+        window.Naizo?.ready(syncPlaygroundUi);
 
         if (typeof window.matchMedia === 'function') {
           const mq = window.matchMedia('(prefers-color-scheme: dark)');
           if (typeof mq.addEventListener === 'function') {
-            mq.addEventListener('change', applyThemeFromStore);
+            mq.addEventListener('change', () => {
+              if (inspector && document.body.contains(inspector)) {
+                applyThemeFromStore();
+              }
+            });
           }
         }
 
@@ -3873,7 +3901,12 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
           slider.addEventListener('input', () => {
             const val = Number(slider.value);
             if (rpsVal) rpsVal.textContent = String(val);
-            window.Naizo?.set('rateLimitRps', val);
+            window.Naizo?.batch(
+              () => {
+                window.Naizo.set('rateLimitRps', val);
+              },
+              { deferPersist: true },
+            );
           });
         }
 
@@ -3908,21 +3941,23 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
         if (simulateAgentBtn) {
           simulateAgentBtn.addEventListener('click', () => {
             if (!window.Naizo) return;
-            const tasks = window.Naizo.getList('tasks');
-            const firstUnfinishedIdx = tasks.findIndex((t) => !t.done);
-            if (firstUnfinishedIdx !== -1) {
-              window.Naizo.updateItem('tasks', firstUnfinishedIdx, { done: true });
-            } else {
-              window.Naizo.addItem('tasks', {
-                id: 'task-' + (tasks.length + 1),
-                done: false,
-                title: 'Verify shallow 3-way merge with CLI agent',
-                priority: 'High',
-              });
-            }
-            const currentRps = Number(window.Naizo.get('rateLimitRps') ?? 120);
-            const nextRps = currentRps >= 400 ? 150 : currentRps + 50;
-            window.Naizo.set('rateLimitRps', nextRps);
+            window.Naizo.batch(() => {
+              const tasks = window.Naizo.getList('tasks');
+              const firstUnfinishedIdx = tasks.findIndex((t) => !t.done);
+              if (firstUnfinishedIdx !== -1) {
+                window.Naizo.updateItem('tasks', firstUnfinishedIdx, { done: true });
+              } else {
+                window.Naizo.addItem('tasks', {
+                  id: 'task-' + (tasks.length + 1),
+                  done: false,
+                  title: 'Verify shallow 3-way merge with CLI agent',
+                  priority: 'High',
+                });
+              }
+              const currentRps = Number(window.Naizo.get('rateLimitRps') ?? 120);
+              const nextRps = currentRps >= 400 ? 150 : currentRps + 50;
+              window.Naizo.set('rateLimitRps', nextRps);
+            });
           });
         }
 
@@ -3963,8 +3998,6 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
             }, 1200);
           });
         });
-
-        syncPlaygroundUi();
       })();
     </script>
   </body>

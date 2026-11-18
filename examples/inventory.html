@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" naizo-id="naizo-inventory-studio">
+<html lang="en" data-theme="system" naizo-id="naizo-inventory-studio">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -123,7 +123,7 @@
           ]
         },
         "custom": {
-          "theme": "light"
+          "theme": "system"
         }
       }
     </script>
@@ -140,7 +140,16 @@
 
     <style>
       :root {
+        color-scheme: light dark;
         --page-max-width: 1240px;
+      }
+
+      html.dark {
+        color-scheme: dark;
+      }
+
+      html[data-theme='light'] {
+        color-scheme: light;
       }
 
       body {
@@ -347,6 +356,7 @@
       .filter-label .select {
         width: auto;
         min-width: 145px;
+        max-width: 100%;
       }
 
       .category-pills {
@@ -368,6 +378,10 @@
         grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
         gap: 1.125rem;
         align-items: stretch;
+      }
+
+      .inventory-grid > * {
+        min-width: 0;
       }
 
       .inventory-card {
@@ -421,9 +435,15 @@
         gap: 0.65rem;
       }
 
+      .card-fields-grid > * {
+        min-width: 0;
+      }
+
       .card-field-label {
         display: flex;
         flex-direction: column;
+        justify-content: flex-start;
+        min-width: 0;
         gap: 0.25rem;
         font-size: 0.75rem;
         font-weight: 500;
@@ -438,13 +458,29 @@
       .card-field-label .select,
       .card-field-label .textarea {
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
         font-size: 0.8125rem;
         color: var(--foreground);
       }
 
       .card-field-label .textarea {
         min-height: 3.25rem;
+        field-sizing: fixed;
         resize: vertical;
+      }
+
+      .input::placeholder,
+      .textarea::placeholder {
+        color: var(--muted-foreground);
+        opacity: 0.72;
+        font-style: italic;
+      }
+
+      .card-field-label .input:placeholder-shown,
+      .card-field-label .textarea:placeholder-shown {
+        border-style: dashed;
       }
 
       /* Extra JSON dictionary fields display */
@@ -562,6 +598,10 @@
         gap: 0.85rem;
       }
 
+      .modal-grid > * {
+        min-width: 0;
+      }
+
       .modal-grid .full-span {
         grid-column: 1 / -1;
       }
@@ -578,6 +618,10 @@
         grid-template-columns: 1fr 1fr auto;
         gap: 0.45rem;
         align-items: center;
+      }
+
+      .custom-kv-row > * {
+        min-width: 0;
       }
 
       .json-viewer {
@@ -610,6 +654,14 @@
       .modal-grid .input,
       .modal-grid .textarea {
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+
+      .modal-grid .textarea {
+        field-sizing: fixed;
+        resize: vertical;
       }
 
       .modal-reset-btn {
@@ -1012,7 +1064,8 @@
                   <label class="card-field-label">
                     <span>Status</span>
                     <select class="select" data-size="sm" naizo="status">
-                      <option value="In Stock">In Stock</option>
+                      <option value="">— Select status… —</option>
+                      <option value="In Stock" selected>In Stock</option>
                       <option value="Assigned">Assigned</option>
                       <option value="Low Stock">Low Stock</option>
                       <option value="Maintenance">Maintenance</option>
@@ -1021,18 +1074,29 @@
 
                   <label class="card-field-label">
                     <span>Location</span>
-                    <input class="input" type="text" naizo="location" placeholder="Location..." />
+                    <input
+                      class="input"
+                      type="text"
+                      naizo="location"
+                      placeholder="— Unassigned location —"
+                    />
                   </label>
 
                   <label class="card-field-label">
                     <span>Owner / Team</span>
-                    <input class="input" type="text" naizo="owner" placeholder="Owner..." />
+                    <input
+                      class="input"
+                      type="text"
+                      naizo="owner"
+                      placeholder="— Unassigned owner —"
+                    />
                   </label>
 
                   <label class="card-field-label">
                     <span>Category</span>
                     <select class="select" data-size="sm" naizo="type">
-                      <option value="Hardware">Hardware</option>
+                      <option value="">— Select category… —</option>
+                      <option value="Hardware" selected>Hardware</option>
                       <option value="License">License</option>
                       <option value="Infrastructure">Infrastructure</option>
                       <option value="Peripheral">Peripheral</option>
@@ -1042,12 +1106,26 @@
 
                   <label class="card-field-label">
                     <span>Quantity</span>
-                    <input class="input" type="number" min="0" step="1" naizo="qty" />
+                    <input
+                      class="input"
+                      type="number"
+                      min="0"
+                      step="1"
+                      naizo="qty"
+                      placeholder="0"
+                    />
                   </label>
 
                   <label class="card-field-label">
                     <span>Unit Cost ($ USD)</span>
-                    <input class="input" type="number" min="0" step="1" naizo="unitCost" />
+                    <input
+                      class="input"
+                      type="number"
+                      min="0"
+                      step="1"
+                      naizo="unitCost"
+                      placeholder="0"
+                    />
                   </label>
 
                   <label class="card-field-label full-span">
@@ -1056,7 +1134,7 @@
                       class="textarea"
                       rows="2"
                       naizo="notes"
-                      placeholder="Add card notes..."
+                      placeholder="— No notes set —"
                     ></textarea>
                   </label>
                 </div>
@@ -1135,6 +1213,7 @@
     <dialog
       id="create-card-dialog"
       class="dialog"
+      naizo-ignore
       aria-labelledby="create-dialog-title"
       aria-describedby="create-dialog-desc"
     >
@@ -1316,7 +1395,7 @@
     </dialog>
 
     <!-- Pop-Up Modal: Add Custom Key-Value to Existing Card -->
-    <dialog id="add-prop-dialog" class="dialog" aria-labelledby="add-prop-title">
+    <dialog id="add-prop-dialog" class="dialog" naizo-ignore aria-labelledby="add-prop-title">
       <div>
         <header>
           <h2 id="add-prop-title">Add Custom JSON Field</h2>
@@ -1389,7 +1468,12 @@
     </dialog>
 
     <!-- Pop-Up Modal: Inspect Live #naizodb JSON -->
-    <dialog id="inspect-json-dialog" class="dialog" aria-labelledby="inspect-json-title">
+    <dialog
+      id="inspect-json-dialog"
+      class="dialog"
+      naizo-ignore
+      aria-labelledby="inspect-json-title"
+    >
       <div class="dialog-box-lg">
         <header>
           <h2 id="inspect-json-title">Live #naizodb Canonical State</h2>
@@ -1434,7 +1518,7 @@
     </dialog>
 
     <script>
-      window.addEventListener('DOMContentLoaded', () => {
+      (function () {
         const STANDARD_CARD_KEYS = new Set([
           'id',
           'sku',
@@ -1550,13 +1634,36 @@
           jsonPreviewBox.textContent = JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
         }
 
+        function getSystemPrefersDark() {
+          return (
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches
+          );
+        }
+
         function syncThemeFromStore() {
-          const theme = Naizo.get('theme') === 'dark' ? 'dark' : 'light';
-          document.documentElement.classList.toggle('dark', theme === 'dark');
+          const rawTheme = window.Naizo?.get('theme');
+          const mode =
+            rawTheme === 'dark' || rawTheme === 'light' || rawTheme === 'system'
+              ? rawTheme
+              : 'system';
+          const isDark = mode === 'dark' || (mode === 'system' && getSystemPrefersDark());
+          document.documentElement.setAttribute('data-theme', mode);
+          document.documentElement.classList.toggle('dark', isDark);
           const labelEl = document.getElementById('theme-toggle-label');
           if (labelEl) {
-            labelEl.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+            labelEl.textContent = isDark ? 'Light Mode' : 'Dark Mode';
           }
+        }
+
+        function cloneCardItem(source, omitKey) {
+          const out = {};
+          Object.keys(source || {}).forEach((k) => {
+            if (k !== omitKey) {
+              setOwnProperty(out, k, source[k]);
+            }
+          });
+          return out;
         }
 
         function renderCardEnhancements(cardEl, itemData, index) {
@@ -1604,17 +1711,16 @@
                 delBtn.addEventListener('click', () => {
                   const currentCards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
                   const currentIdx = currentCards.indexOf(cardEl);
-                  const fullDb = Naizo.get();
-                  const list = fullDb?.lists?.inventory;
+                  const currentItems = Naizo.getList('inventory');
                   if (
                     currentIdx !== -1 &&
-                    Array.isArray(list) &&
-                    list[currentIdx] &&
-                    Object.hasOwn(list[currentIdx], key)
+                    currentItems[currentIdx] &&
+                    Object.hasOwn(currentItems[currentIdx], key)
                   ) {
-                    Reflect.deleteProperty(list[currentIdx], key);
-                    void Naizo.save();
-                    refreshInventoryView();
+                    const nextItems = currentItems.map((it, idx) =>
+                      idx === currentIdx ? cloneCardItem(it, key) : cloneCardItem(it, null),
+                    );
+                    Naizo.setList('inventory', nextItems);
                   }
                 });
 
@@ -1656,125 +1762,147 @@
           }
         }
 
+        let isRefreshingView = false;
+        let pendingRefreshView = false;
+
         function refreshInventoryView() {
-          syncThemeFromStore();
-
-          const items = Naizo.getList('inventory');
-          syncLocationFilterOptions(items);
-
-          const cards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
-          const query = String(searchInput.value || '')
-            .trim()
-            .toLowerCase();
-          const typeFilter = filterTypeSelect.value || 'all';
-          const statusFilter = filterStatusSelect.value || 'all';
-          const locationFilter = filterLocationSelect.value || 'all';
-          const sortBy = sortBySelect.value || 'default';
-
-          clearSearchBtn.hidden = query.length === 0;
-
-          // Sync quick type pills with active type filter
-          typePillBar.querySelectorAll('[data-type-pill]').forEach((btn) => {
-            const isMatch = btn.getAttribute('data-type-pill') === typeFilter;
-            if (isMatch) {
-              btn.removeAttribute('data-variant');
-            } else {
-              btn.setAttribute('data-variant', 'outline');
-            }
-          });
-
-          // Visually sort cards via CSS Grid order without altering DOM/#naizodb array indices
-          const orderIndices = items.map((_, i) => i);
-          if (sortBy === 'name') {
-            orderIndices.sort((a, b) =>
-              String(items[a]?.name || '').localeCompare(String(items[b]?.name || '')),
-            );
-          } else if (sortBy === 'value-desc') {
-            orderIndices.sort((a, b) => {
-              const valA = (Number(items[a]?.qty) || 0) * (Number(items[a]?.unitCost) || 0);
-              const valB = (Number(items[b]?.qty) || 0) * (Number(items[b]?.unitCost) || 0);
-              return valB - valA;
-            });
-          } else if (sortBy === 'qty-asc') {
-            orderIndices.sort(
-              (a, b) => (Number(items[a]?.qty) || 0) - (Number(items[b]?.qty) || 0),
-            );
+          if (!gridEl || !document.body.contains(gridEl) || !window.Naizo) return;
+          if (isRefreshingView) {
+            pendingRefreshView = true;
+            return;
           }
-          orderIndices.forEach((cardIdx, visualRank) => {
-            if (cards[cardIdx]) {
-              cards[cardIdx].style.order = String(visualRank);
-            }
-          });
+          isRefreshingView = true;
+          try {
+            do {
+              pendingRefreshView = false;
+              syncThemeFromStore();
 
-          let visibleCount = 0;
-          let totalUnits = 0;
-          let totalValue = 0;
-          let alertCount = 0;
+              const items = Naizo.getList('inventory');
+              syncLocationFilterOptions(items);
 
-          cards.forEach((cardEl, idx) => {
-            const data = items[idx] || {};
-            renderCardEnhancements(cardEl, data, idx);
+              const cards = Array.from(gridEl.querySelectorAll(':scope > [naizo-item]'));
+              const query = String(searchInput.value || '')
+                .trim()
+                .toLowerCase();
+              const typeFilter = filterTypeSelect.value || 'all';
+              const statusFilter = filterStatusSelect.value || 'all';
+              const locationFilter = filterLocationSelect.value || 'all';
+              const sortBy = sortBySelect.value || 'default';
 
-            const qty = Number(data.qty) || 0;
-            const unitCost = Number(data.unitCost) || 0;
-            totalUnits += qty;
-            totalValue += qty * unitCost;
-            if (data.status === 'Low Stock' || data.status === 'Maintenance') {
-              alertCount += 1;
-            }
+              clearSearchBtn.hidden = query.length === 0;
 
-            const matchesType = typeFilter === 'all' || String(data.type) === typeFilter;
-            const matchesStatus = statusFilter === 'all' || String(data.status) === statusFilter;
-            const matchesLocation =
-              locationFilter === 'all' || String(data.location ?? '').trim() === locationFilter;
-            const matchesQuery =
-              !query ||
-              Object.entries(data).some(
-                ([k, v]) =>
-                  k.toLowerCase().includes(query) ||
-                  String(v ?? '')
-                    .toLowerCase()
-                    .includes(query),
-              );
+              // Sync quick type pills with active type filter
+              typePillBar.querySelectorAll('[data-type-pill]').forEach((btn) => {
+                const isMatch = btn.getAttribute('data-type-pill') === typeFilter;
+                if (isMatch) {
+                  btn.removeAttribute('data-variant');
+                } else {
+                  btn.setAttribute('data-variant', 'outline');
+                }
+              });
 
-            const isVisible = matchesType && matchesStatus && matchesLocation && matchesQuery;
-            cardEl.hidden = !isVisible;
-            if (isVisible) visibleCount += 1;
-          });
+              // Visually sort cards via CSS Grid order without altering DOM/#naizodb array indices
+              const orderIndices = items.map((_, i) => i);
+              if (sortBy === 'name') {
+                orderIndices.sort((a, b) =>
+                  String(items[a]?.name || '').localeCompare(String(items[b]?.name || '')),
+                );
+              } else if (sortBy === 'value-desc') {
+                orderIndices.sort((a, b) => {
+                  const valA = (Number(items[a]?.qty) || 0) * (Number(items[a]?.unitCost) || 0);
+                  const valB = (Number(items[b]?.qty) || 0) * (Number(items[b]?.unitCost) || 0);
+                  return valB - valA;
+                });
+              } else if (sortBy === 'qty-asc') {
+                orderIndices.sort(
+                  (a, b) => (Number(items[a]?.qty) || 0) - (Number(items[b]?.qty) || 0),
+                );
+              }
+              orderIndices.forEach((cardIdx, visualRank) => {
+                if (cards[cardIdx]) {
+                  cards[cardIdx].style.order = String(visualRank);
+                }
+              });
 
-          // Update KPI cards
-          document.getElementById('kpi-total-cards').textContent = String(items.length);
-          document.getElementById('kpi-visible-badge').textContent = `${visibleCount} shown`;
-          document.getElementById('kpi-total-units').textContent = totalUnits.toLocaleString();
-          document.getElementById('kpi-total-value').textContent = currencyFmt.format(totalValue);
-          document.getElementById('kpi-alerts-count').textContent = String(alertCount);
+              let visibleCount = 0;
+              let totalUnits = 0;
+              let totalValue = 0;
+              let alertCount = 0;
 
-          const alertsBadge = document.getElementById('kpi-alerts-badge');
-          if (alertsBadge) {
-            alertsBadge.setAttribute('data-variant', alertCount > 0 ? 'destructive' : 'secondary');
-            alertsBadge.textContent = alertCount > 0 ? `${alertCount} attention` : 'Healthy';
-          }
+              cards.forEach((cardEl, idx) => {
+                const data = items[idx] || {};
+                renderCardEnhancements(cardEl, data, idx);
 
-          resultsCounter.textContent = `Showing ${visibleCount} of ${items.length} cards`;
-          emptyStateEl.hidden = visibleCount > 0;
+                const qty = Number(data.qty) || 0;
+                const unitCost = Number(data.unitCost) || 0;
+                totalUnits += qty;
+                totalValue += qty * unitCost;
+                if (data.status === 'Low Stock' || data.status === 'Maintenance') {
+                  alertCount += 1;
+                }
 
-          if (isDialogOpen(addPropDialog) && resolveActiveCardIndex(items) === -1) {
-            activeCardIdForProp = null;
-            activeCardRefForProp = null;
-            closeModalDialog(addPropDialog);
-          }
-          if (isDialogOpen(inspectDialog)) {
-            syncJsonInspector();
+                const matchesType = typeFilter === 'all' || String(data.type) === typeFilter;
+                const matchesStatus =
+                  statusFilter === 'all' || String(data.status) === statusFilter;
+                const matchesLocation =
+                  locationFilter === 'all' || String(data.location ?? '').trim() === locationFilter;
+                const matchesQuery =
+                  !query ||
+                  Object.entries(data).some(
+                    ([k, v]) =>
+                      k.toLowerCase().includes(query) ||
+                      String(v ?? '')
+                        .toLowerCase()
+                        .includes(query),
+                  );
+
+                const isVisible = matchesType && matchesStatus && matchesLocation && matchesQuery;
+                cardEl.hidden = !isVisible;
+                if (isVisible) visibleCount += 1;
+              });
+
+              // Update KPI cards
+              document.getElementById('kpi-total-cards').textContent = String(items.length);
+              document.getElementById('kpi-visible-badge').textContent = `${visibleCount} shown`;
+              document.getElementById('kpi-total-units').textContent = totalUnits.toLocaleString();
+              document.getElementById('kpi-total-value').textContent =
+                currencyFmt.format(totalValue);
+              document.getElementById('kpi-alerts-count').textContent = String(alertCount);
+
+              const alertsBadge = document.getElementById('kpi-alerts-badge');
+              if (alertsBadge) {
+                alertsBadge.setAttribute(
+                  'data-variant',
+                  alertCount > 0 ? 'destructive' : 'secondary',
+                );
+                alertsBadge.textContent = alertCount > 0 ? `${alertCount} attention` : 'Healthy';
+              }
+
+              resultsCounter.textContent = `Showing ${visibleCount} of ${items.length} cards`;
+              emptyStateEl.hidden = visibleCount > 0;
+
+              if (isDialogOpen(addPropDialog) && resolveActiveCardIndex(items) === -1) {
+                activeCardIdForProp = null;
+                activeCardRefForProp = null;
+                closeModalDialog(addPropDialog);
+              }
+              if (isDialogOpen(inspectDialog)) {
+                syncJsonInspector();
+              }
+            } while (pendingRefreshView);
+          } finally {
+            isRefreshingView = false;
           }
         }
 
         function resetAllFilters() {
-          Naizo.setField('search_query', '');
-          Naizo.setField('filter_type', 'all');
-          Naizo.setField('filter_status', 'all');
-          Naizo.setField('filter_location', 'all');
-          Naizo.setField('sort_by', 'default');
-          refreshInventoryView();
+          Naizo.batch(() => {
+            Naizo.setField('search_query', '');
+            Naizo.setField('filter_type', 'all');
+            Naizo.setField('filter_status', 'all');
+            Naizo.setField('filter_location', 'all');
+            Naizo.setField('sort_by', 'default');
+          });
         }
 
         function appendModalKvRow(key = '', val = '') {
@@ -1806,10 +1934,24 @@
 
         // Event bindings: Theme Toggle
         document.getElementById('theme-toggle-btn').addEventListener('click', () => {
-          const nextTheme = Naizo.get('theme') === 'dark' ? 'light' : 'dark';
+          const rawTheme = window.Naizo?.get('theme');
+          const currentIsDark =
+            rawTheme === 'dark' || ((rawTheme === 'system' || !rawTheme) && getSystemPrefersDark());
+          const nextTheme = currentIsDark ? 'light' : 'dark';
           Naizo.set('theme', nextTheme);
           syncThemeFromStore();
         });
+
+        if (typeof window.matchMedia === 'function') {
+          const mq = window.matchMedia('(prefers-color-scheme: dark)');
+          if (typeof mq.addEventListener === 'function') {
+            mq.addEventListener('change', () => {
+              if (gridEl && document.body.contains(gridEl)) {
+                syncThemeFromStore();
+              }
+            });
+          }
+        }
 
         // Event bindings: Search & Filter controls
         searchInput.addEventListener('input', refreshInventoryView);
@@ -1990,11 +2132,11 @@
           });
         });
 
-        // Re-sync whenever naizo.js hydrates or mutates state
+        // Re-sync whenever naizo.js hydrates or mutates state (top-level + Naizo.ready, EC57)
         window.addEventListener('naizo:hydrate', refreshInventoryView);
         window.addEventListener('naizo:change', refreshInventoryView);
-        refreshInventoryView();
-      });
+        window.Naizo?.ready(refreshInventoryView);
+      })();
     </script>
   </body>
 </html>

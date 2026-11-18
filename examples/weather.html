@@ -598,6 +598,12 @@
         display: none;
       }
 
+      /* Keep map attribution anchored bottom-left so it never overlaps the bottom-right Status Pill */
+      .map-stage .ol-attribution {
+        left: 0.5rem;
+        right: auto;
+      }
+
       .map-loading-pill {
         position: absolute;
         top: 0.65rem;
@@ -1457,6 +1463,10 @@
         gap: 0.55rem;
       }
 
+      .route-card-fields > * {
+        min-width: 0;
+      }
+
       .stop-done-label {
         display: inline-flex;
         align-items: center;
@@ -1496,6 +1506,8 @@
 
       .notes-field {
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
         border: 1px solid var(--border);
         border-radius: 8px;
         background: var(--surface-tint);
@@ -1504,6 +1516,7 @@
         font-size: 0.9rem;
         line-height: 1.55;
         padding: 0.65rem 0.8rem;
+        field-sizing: fixed;
         resize: vertical;
       }
 
@@ -1884,60 +1897,66 @@
 
         <!-- Declarative repeating route list persisted in #naizodb lists.route -->
         <div id="route-list" class="route-list" naizo-list="route" naizo-no-controls>
-          <article class="route-card" naizo-item>
-            <div class="route-card-head">
-              <div class="route-card-badges" naizo-ignore>
-                <span class="stop-num-badge" data-stop-num>1</span>
-                <span class="stop-wx-snapshot" data-stop-wx>
-                  Custom stop · click + Add in Weather above to capture forecast
-                </span>
+          <template naizo-template>
+            <article class="route-card" naizo-item>
+              <div class="route-card-head">
+                <div class="route-card-badges" naizo-ignore>
+                  <span class="stop-num-badge" data-stop-num>1</span>
+                  <span class="stop-wx-snapshot" data-stop-wx>
+                    Custom stop · click + Add in Weather above to capture forecast
+                  </span>
+                </div>
+                <div class="route-card-actions">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    data-focus-stop
+                    naizo-ignore
+                    title="Show this stop on the map and load its live forecast"
+                  >
+                    📍 Map
+                  </button>
+                  <button type="button" class="icon-btn" naizo-move="up" title="Move stop earlier">
+                    &uarr;
+                  </button>
+                  <button type="button" class="icon-btn" naizo-move="down" title="Move stop later">
+                    &darr;
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn icon-btn-danger"
+                    naizo-remove
+                    title="Remove stop"
+                  >
+                    &times;
+                  </button>
+                </div>
               </div>
-              <div class="route-card-actions">
-                <button
-                  type="button"
-                  class="icon-btn"
-                  data-focus-stop
-                  naizo-ignore
-                  title="Show this stop on the map and load its live forecast"
-                >
-                  📍 Map
-                </button>
-                <button type="button" class="icon-btn" naizo-move="up" title="Move stop earlier">
-                  &uarr;
-                </button>
-                <button type="button" class="icon-btn" naizo-move="down" title="Move stop later">
-                  &darr;
-                </button>
-                <button
-                  type="button"
-                  class="icon-btn icon-btn-danger"
-                  naizo-remove
-                  title="Remove stop"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
 
-            <div class="route-card-fields">
-              <label class="stop-done-label">
-                <input type="checkbox" naizo="done" />
-                <span>Go</span>
-              </label>
-              <label class="stop-place-label">
-                <span class="sr-only">Stop Location</span>
-                <input type="text" naizo="place" placeholder="Trailhead, park, peak, or town..." />
-              </label>
-              <label class="stop-note-label">
-                <span class="sr-only">Route Activity or Backup Plan</span>
-                <input
-                  type="text"
-                  naizo="note"
-                  placeholder="Trail plan, transport timing, lunch stop, or rainy-day backup..."
-                />
-              </label>
-            </div>
-          </article>
+              <div class="route-card-fields">
+                <label class="stop-done-label">
+                  <input type="checkbox" naizo="done" />
+                  <span>Go</span>
+                </label>
+                <label class="stop-place-label">
+                  <span class="sr-only">Stop Location</span>
+                  <input
+                    type="text"
+                    naizo="place"
+                    placeholder="Trailhead, park, peak, or town..."
+                  />
+                </label>
+                <label class="stop-note-label">
+                  <span class="sr-only">Route Activity or Backup Plan</span>
+                  <input
+                    type="text"
+                    naizo="note"
+                    placeholder="Trail plan, transport timing, lunch stop, or rainy-day backup..."
+                  />
+                </label>
+              </div>
+            </article>
+          </template>
         </div>
 
         <!-- Dedicated Trip Notes & Gear Checklist -->
@@ -2087,6 +2106,8 @@
         let mapPinFetching = false;
         let tileLoadSafetyTimer = null;
         let syncingUi = false;
+        let pendingSyncUi = false;
+        let initialForecastBooted = false;
 
         function wxMeta(code, isNight) {
           const n = Number(code ?? 0);
@@ -2337,6 +2358,10 @@
                 center: ol.proj.fromLonLat([lon, lat]),
                 zoom: 11,
               }),
+            });
+
+            stage.querySelectorAll('.ol-viewport').forEach(function (vp) {
+              vp.setAttribute('data-naizo-strip', 'true');
             });
 
             olMap.on('loadstart', function () {
@@ -2897,9 +2922,11 @@
             qAdd.textContent = '+ Route';
             qAdd.addEventListener('click', function (ev) {
               ev.stopPropagation();
-              Naizo.setField('target_hour', slot.hour);
               const dateToUse = activeDay ? activeDay.date : 'Custom';
-              addWeatherSlotToRoute(dateToUse, slot.hour, qAdd);
+              Naizo.batch(function () {
+                Naizo.setField('target_hour', slot.hour);
+                addWeatherSlotToRoute(dateToUse, slot.hour, qAdd);
+              });
             });
 
             tCard.addEventListener('click', function () {
@@ -3024,118 +3051,130 @@
         // SYNC PERSISTED UI & ROUTE CARDS
         // ======================================================================
         function syncPersistedUi() {
+          const blockWeatherEl = document.getElementById('block-weather');
           if (
-            syncingUi ||
             typeof window.Naizo === 'undefined' ||
-            !document.getElementById('block-weather')
+            !blockWeatherEl ||
+            !document.body.contains(blockWeatherEl)
           ) {
+            return;
+          }
+          if (syncingUi) {
+            pendingSyncUi = true;
             return;
           }
           syncingUi = true;
           try {
-            const theme = String(Naizo.getField('theme') || 'system');
-            document.documentElement.setAttribute('data-theme', theme);
+            do {
+              pendingSyncUi = false;
+              const theme = String(Naizo.getField('theme') || 'system');
+              document.documentElement.setAttribute('data-theme', theme);
 
-            const lat = Number(Naizo.getField('latitude') ?? 36.2478);
-            const lon = Number(Naizo.getField('longitude') ?? 137.6356);
-            const elev = Naizo.getField('elevation_m');
-            const unit = getUnit();
+              const lat = Number(Naizo.getField('latitude') ?? 36.2478);
+              const lon = Number(Naizo.getField('longitude') ?? 137.6356);
+              const elev = Naizo.getField('elevation_m');
+              const unit = getUnit();
 
-            const coordsMeta = document.getElementById('spot-coords-meta');
-            if (coordsMeta && Number.isFinite(lat) && Number.isFinite(lon)) {
-              const ns = lat >= 0 ? lat.toFixed(4) + '°N' : Math.abs(lat).toFixed(4) + '°S';
-              const ew = lon >= 0 ? lon.toFixed(4) + '°E' : Math.abs(lon).toFixed(4) + '°W';
-              const elevTxt =
-                elev !== null && elev !== undefined && elev !== ''
-                  ? ' · ⛰️ ' + Math.round(Number(elev)).toLocaleString('en-US') + ' m elev.'
-                  : '';
-              coordsMeta.textContent = ns + ', ' + ew + elevTxt;
-            }
-
-            const demBtn = document.getElementById('check-dem-btn');
-            if (demBtn && Number.isFinite(lat) && Number.isFinite(lon)) {
-              demBtn.setAttribute(
-                'naizo-get',
-                'https://api.sunrise-sunset.org/json?lat=' +
-                  lat.toFixed(4) +
-                  '&lng=' +
-                  lon.toFixed(4),
-              );
-            }
-
-            const activeLayer = resolveLayerKey(Naizo.getField('map_layer'));
-            document.querySelectorAll('[data-map-layer]').forEach(function (btn) {
-              btn.classList.toggle('is-active', btn.getAttribute('data-map-layer') === activeLayer);
-            });
-
-            // Sync Block 3 Route Stop badges & weather snapshots
-            const stops = Naizo.getList('route');
-            const countBadge = document.getElementById('route-count-badge');
-            if (countBadge) {
-              countBadge.textContent = stops.length + (stops.length === 1 ? ' stop' : ' stops');
-            }
-            const emptyEl = document.getElementById('route-empty-state');
-            if (emptyEl) emptyEl.hidden = stops.length > 0;
-
-            if (stops.length > 0) {
-              lastClearedRoute = null;
-            }
-            const clearMapBtn = document.getElementById('clear-map-pins-btn');
-            if (clearMapBtn) clearMapBtn.disabled = stops.length === 0;
-            const clearRouteBtn = document.getElementById('clear-route-btn');
-            if (clearRouteBtn) clearRouteBtn.disabled = stops.length === 0;
-            const fitBtn = document.getElementById('fit-route-map-btn');
-            if (fitBtn) fitBtn.disabled = stops.length === 0;
-            syncUndoClearButtons();
-
-            const routeCards = document.querySelectorAll('#route-list > [naizo-item]');
-            routeCards.forEach(function (cardEl, idx) {
-              const stop = stops[idx] || {};
-              const numEl = cardEl.querySelector('[data-stop-num]');
-              if (numEl) numEl.textContent = String(idx + 1);
-
-              const wxChip = cardEl.querySelector('[data-stop-wx]');
-              if (wxChip) {
-                if (stop.date || (stop.temp_c !== undefined && stop.temp_c !== null)) {
-                  const sHour =
-                    typeof stop.time === 'string' && stop.time.includes(':')
-                      ? Number(stop.time.split(':')[0])
-                      : 9;
-                  const sNight = getSkyPhase(sHour).night;
-                  const wMeta = wxMeta(stop.code, sNight);
-                  const parts = [];
-                  if (stop.date) parts.push('📅 ' + formatDateReadable(stop.date));
-                  if (stop.time) parts.push(String(stop.time));
-                  if (stop.temp_c !== undefined && stop.temp_c !== null) {
-                    parts.push(
-                      wMeta.icon +
-                        ' ' +
-                        formatTemp(stop.temp_c, unit) +
-                        (stop.condition ? ' (' + stop.condition + ')' : ''),
-                    );
-                  }
-                  if (stop.rain_pct !== undefined && stop.rain_pct !== null) {
-                    parts.push('💧' + Math.round(Number(stop.rain_pct)) + '%');
-                  }
-                  if (stop.wind_kmh !== undefined && stop.wind_kmh !== null) {
-                    parts.push('💨' + formatWind(stop.wind_kmh, unit));
-                  }
-                  if (stop.elevation_m !== undefined && stop.elevation_m !== null) {
-                    parts.push(
-                      '⛰️ ' +
-                        Math.round(Number(stop.elevation_m)).toLocaleString('en-US') +
-                        ' m elev.',
-                    );
-                  }
-                  wxChip.textContent = parts.join(' · ');
-                } else {
-                  wxChip.textContent = 'Custom stop · pick a weather card above to attach forecast';
-                }
+              const coordsMeta = document.getElementById('spot-coords-meta');
+              if (coordsMeta && Number.isFinite(lat) && Number.isFinite(lon)) {
+                const ns = lat >= 0 ? lat.toFixed(4) + '°N' : Math.abs(lat).toFixed(4) + '°S';
+                const ew = lon >= 0 ? lon.toFixed(4) + '°E' : Math.abs(lon).toFixed(4) + '°W';
+                const elevTxt =
+                  elev !== null && elev !== undefined && elev !== ''
+                    ? ' · ⛰️ ' + Math.round(Number(elev)).toLocaleString('en-US') + ' m elev.'
+                    : '';
+                coordsMeta.textContent = ns + ', ' + ew + elevTxt;
               }
-            });
 
-            renderForecastStudio();
-            ensureMapMounted();
+              const demBtn = document.getElementById('check-dem-btn');
+              if (demBtn && Number.isFinite(lat) && Number.isFinite(lon)) {
+                demBtn.setAttribute(
+                  'naizo-get',
+                  'https://api.sunrise-sunset.org/json?lat=' +
+                    lat.toFixed(4) +
+                    '&lng=' +
+                    lon.toFixed(4),
+                );
+              }
+
+              const activeLayer = resolveLayerKey(Naizo.getField('map_layer'));
+              document.querySelectorAll('[data-map-layer]').forEach(function (btn) {
+                btn.classList.toggle(
+                  'is-active',
+                  btn.getAttribute('data-map-layer') === activeLayer,
+                );
+              });
+
+              // Sync Block 3 Route Stop badges & weather snapshots
+              const stops = Naizo.getList('route');
+              const countBadge = document.getElementById('route-count-badge');
+              if (countBadge) {
+                countBadge.textContent = stops.length + (stops.length === 1 ? ' stop' : ' stops');
+              }
+              const emptyEl = document.getElementById('route-empty-state');
+              if (emptyEl) emptyEl.hidden = stops.length > 0;
+
+              if (stops.length > 0) {
+                lastClearedRoute = null;
+              }
+              const clearMapBtn = document.getElementById('clear-map-pins-btn');
+              if (clearMapBtn) clearMapBtn.disabled = stops.length === 0;
+              const clearRouteBtn = document.getElementById('clear-route-btn');
+              if (clearRouteBtn) clearRouteBtn.disabled = stops.length === 0;
+              const fitBtn = document.getElementById('fit-route-map-btn');
+              if (fitBtn) fitBtn.disabled = stops.length === 0;
+              syncUndoClearButtons();
+
+              const routeCards = document.querySelectorAll('#route-list > [naizo-item]');
+              routeCards.forEach(function (cardEl, idx) {
+                const stop = stops[idx] || {};
+                const numEl = cardEl.querySelector('[data-stop-num]');
+                if (numEl) numEl.textContent = String(idx + 1);
+
+                const wxChip = cardEl.querySelector('[data-stop-wx]');
+                if (wxChip) {
+                  if (stop.date || (stop.temp_c !== undefined && stop.temp_c !== null)) {
+                    const sHour =
+                      typeof stop.time === 'string' && stop.time.includes(':')
+                        ? Number(stop.time.split(':')[0])
+                        : 9;
+                    const sNight = getSkyPhase(sHour).night;
+                    const wMeta = wxMeta(stop.code, sNight);
+                    const parts = [];
+                    if (stop.date) parts.push('📅 ' + formatDateReadable(stop.date));
+                    if (stop.time) parts.push(String(stop.time));
+                    if (stop.temp_c !== undefined && stop.temp_c !== null) {
+                      parts.push(
+                        wMeta.icon +
+                          ' ' +
+                          formatTemp(stop.temp_c, unit) +
+                          (stop.condition ? ' (' + stop.condition + ')' : ''),
+                      );
+                    }
+                    if (stop.rain_pct !== undefined && stop.rain_pct !== null) {
+                      parts.push('💧' + Math.round(Number(stop.rain_pct)) + '%');
+                    }
+                    if (stop.wind_kmh !== undefined && stop.wind_kmh !== null) {
+                      parts.push('💨' + formatWind(stop.wind_kmh, unit));
+                    }
+                    if (stop.elevation_m !== undefined && stop.elevation_m !== null) {
+                      parts.push(
+                        '⛰️ ' +
+                          Math.round(Number(stop.elevation_m)).toLocaleString('en-US') +
+                          ' m elev.',
+                      );
+                    }
+                    wxChip.textContent = parts.join(' · ');
+                  } else {
+                    wxChip.textContent =
+                      'Custom stop · pick a weather card above to attach forecast';
+                  }
+                }
+              });
+
+              renderForecastStudio();
+              ensureMapMounted();
+            } while (pendingSyncUi);
           } finally {
             syncingUi = false;
           }
@@ -3674,12 +3713,14 @@
 
             // Only mutate #naizodb spot metadata on user-initiated location changes (never on initial boot, D45)
             if (mutateSpotMeta) {
-              if (liveForecast.elevation !== null) {
-                Naizo.setField('elevation_m', liveForecast.elevation);
-              }
-              if (liveForecast.timezone && parsed.sourceLabel === 'api.open-meteo.com') {
-                Naizo.setField('timezone', liveForecast.timezone);
-              }
+              Naizo.batch(function () {
+                if (liveForecast.elevation !== null) {
+                  Naizo.setField('elevation_m', liveForecast.elevation);
+                }
+                if (liveForecast.timezone && parsed.sourceLabel === 'api.open-meteo.com') {
+                  Naizo.setField('timezone', liveForecast.timezone);
+                }
+              });
             }
 
             const spotSummary = document.getElementById('wx-spot-summary');
@@ -3745,9 +3786,11 @@
           const fallbackLabel =
             explicitLabel || 'Pinned Coordinate (' + cleanLat + ', ' + cleanLon + ')';
 
-          Naizo.setField('latitude', cleanLat);
-          Naizo.setField('longitude', cleanLon);
-          Naizo.setField('location_name', fallbackLabel);
+          Naizo.batch(function () {
+            Naizo.setField('latitude', cleanLat);
+            Naizo.setField('longitude', cleanLon);
+            Naizo.setField('location_name', fallbackLabel);
+          });
 
           if (olMap && typeof window.ol !== 'undefined') {
             const view = olMap.getView();
@@ -4335,22 +4378,21 @@
             }
           });
 
-          window.addEventListener('naizo:hydrate', syncPersistedUi);
+          function onBootHydrate() {
+            syncPersistedUi();
+            if (!initialForecastBooted) {
+              initialForecastBooted = true;
+              // Fetch live weather forecast on boot without mutating #naizodb (D45, D52)
+              void fetchLiveForecast(false, false);
+            }
+          }
+
+          window.addEventListener('naizo:hydrate', onBootHydrate);
           window.addEventListener('naizo:change', syncPersistedUi);
+          window.Naizo?.ready(onBootHydrate);
         }
 
-        function bootApp() {
-          wireEvents();
-          syncPersistedUi();
-          // Fetch live weather forecast on boot without mutating #naizodb (D45, D52)
-          void fetchLiveForecast(false, false);
-        }
-
-        if (document.readyState === 'loading') {
-          window.addEventListener('DOMContentLoaded', bootApp);
-        } else {
-          bootApp();
-        }
+        wireEvents();
       })();
     </script>
   </body>

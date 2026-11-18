@@ -546,6 +546,8 @@ describe('naizo.js v0.1.0 core runtime', () => {
       for (const { type, listener } of registeredWinListeners) {
         window.removeEventListener(type, listener);
       }
+      document.documentElement.classList.remove('dark');
+      document.documentElement.removeAttribute('data-theme');
     }
   });
 
@@ -6117,5 +6119,247 @@ describe('naizo.js v0.1.0 core runtime', () => {
       'README.md',
       'CHANGELOG.md',
     ]);
+  });
+
+  it('dogfoods M14.2 Golden Rules (<template naizo-template>, Naizo.ready, Naizo.batch, system theme) and M14.1 Cookbook rules across all examples/*.html and site/index.html without boot dirtying or console warnings (M14.2, D45, D47, D57, D58, EC48, EC57)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          timezone: 'Asia/Tokyo',
+          elevation: 1505,
+          current: { temperature_2m: 12.4, wind_speed_10m: 7, weather_code: 1 },
+          daily: {
+            time: ['2026-11-18'],
+            weather_code: [1],
+            temperature_2m_max: [14],
+            temperature_2m_min: [3],
+            precipitation_probability_max: [10],
+            wind_speed_10m_max: [11],
+            sunrise: ['2026-11-18T06:28'],
+            sunset: ['2026-11-18T16:42'],
+          },
+          hourly: {
+            time: Array.from(
+              { length: 24 },
+              (_, h) => `2026-11-18T${String(h).padStart(2, '0')}:00`,
+            ),
+            temperature_2m: Array.from({ length: 24 }, () => 11),
+            precipitation_probability: Array.from({ length: 24 }, () => 10),
+            wind_speed_10m: Array.from({ length: 24 }, () => 8),
+            weather_code: Array.from({ length: 24 }, () => 1),
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const createUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:m14-export');
+    const revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const anchorClickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+
+    const blueprints = [
+      {
+        name: 'examples/starter.html',
+        html: starterHtml,
+        listName: 'milestones',
+        expectedCount: 2,
+      },
+      {
+        name: 'examples/checklist.html',
+        html: checklistHtml,
+        listName: 'checks',
+        expectedCount: 3,
+      },
+      { name: 'examples/notes.html', html: notesHtml, listName: 'notes', expectedCount: 4 },
+      {
+        name: 'examples/inventory.html',
+        html: inventoryHtml,
+        listName: 'inventory',
+        expectedCount: 6,
+      },
+      { name: 'examples/weather.html', html: weatherHtml, listName: 'route', expectedCount: 2 },
+      { name: 'site/index.html', html: siteHtml, listName: 'tasks', expectedCount: 3 },
+    ];
+
+    try {
+      // 1. Static unhydrated HTML checks: <template naizo-template> with 0 static [naizo-item] shells,
+      // dark-mode CSS support, no DOMContentLoaded hydration wrappers, and Cookbook CSS/modal/SVG rules
+      expect(inventoryHtml).not.toContain("addEventListener('DOMContentLoaded'");
+      expect(weatherHtml).not.toContain("addEventListener('DOMContentLoaded'");
+      expect(siteHtml).not.toContain("addEventListener('DOMContentLoaded'");
+
+      expect(inventoryHtml).toContain('field-sizing: fixed');
+      expect(inventoryHtml).toContain('min-width: 0');
+      expect(weatherHtml).toContain('.map-stage .ol-attribution');
+      expect(weatherHtml).toContain('field-sizing: fixed');
+
+      const parsedSiteStatic = new DOMParser().parseFromString(siteHtml, 'text/html');
+      expect(parsedSiteStatic.getElementById('snippet-starter')?.textContent).toContain(
+        '<template naizo-template>',
+      );
+      expect(parsedSiteStatic.querySelectorAll('svg svg').length).toBe(0);
+      const svgIds = Array.from(parsedSiteStatic.querySelectorAll('svg [id]')).map((el) => el.id);
+      expect(new Set(svgIds).size).toBe(svgIds.length);
+      const archAnimSaving = parsedSiteStatic.querySelector('#loop svg g.anim-saving');
+      expect(archAnimSaving).not.toBeNull();
+      expect(archAnimSaving?.hasAttribute('transform')).toBe(false);
+      expect(archAnimSaving?.parentElement?.getAttribute('transform')).toContain('translate(6, 4)');
+      expect(siteHtml).toContain('.anim-saving .ring');
+
+      const parsedInvStatic = new DOMParser().parseFromString(inventoryHtml, 'text/html');
+      for (const dialogId of ['create-card-dialog', 'add-prop-dialog', 'inspect-json-dialog']) {
+        expect(parsedInvStatic.getElementById(dialogId)?.hasAttribute('naizo-ignore')).toBe(true);
+      }
+
+      for (const bp of blueprints) {
+        expect(bp.html).toContain('prefers-color-scheme: dark');
+
+        const staticDoc = new DOMParser().parseFromString(bp.html, 'text/html');
+        const listEls = Array.from(
+          staticDoc.querySelectorAll<HTMLElement>('[naizo-list], [data-naizo-list]'),
+        );
+        expect(listEls.length).toBeGreaterThan(0);
+        for (const listEl of listEls) {
+          const tpl = listEl.querySelector(':scope > template[naizo-template]');
+          expect(tpl, `${bp.name} missing <template naizo-template>`).not.toBeNull();
+          const staticItems = listEl.querySelectorAll(
+            ':scope > [naizo-item], :scope > [data-naizo-item]',
+          );
+          expect(staticItems.length, `${bp.name} should have 0 static [naizo-item] shells`).toBe(0);
+        }
+
+        // 2. Clean boot + inline script execution: 0 console warnings, expected hydrated items,
+        // #reset stays hidden (initialDiskDb untouched), and exportHTML / downloadHTML round-trip cleanly
+        localStorage.clear();
+        document.documentElement.classList.remove('dark');
+        document.documentElement.removeAttribute('data-theme');
+        const scopeId = staticDoc.documentElement.getAttribute('naizo-id') ?? '';
+        document.documentElement.setAttribute('naizo-id', scopeId);
+        document.head.innerHTML = staticDoc.head.innerHTML;
+        document.body.innerHTML = staticDoc.body.innerHTML;
+
+        const parsedDb = JSON.parse(
+          staticDoc.getElementById('naizodb')?.textContent ?? '{}',
+        ) as NaizoDatabase;
+        if ('theme' in parsedDb.fields) {
+          expect(parsedDb.fields.theme, `${bp.name} fields.theme`).toBe('system');
+        }
+        if ('theme' in parsedDb.custom) {
+          expect(parsedDb.custom.theme, `${bp.name} custom.theme`).toBe('system');
+        }
+
+        const listenerAbort = new AbortController();
+        const origAdd = window.addEventListener.bind(window);
+        const winAddSpy = vi
+          .spyOn(window, 'addEventListener')
+          .mockImplementation(
+            (
+              type: string,
+              listener: EventListenerOrEventListenerObject,
+              options?: boolean | AddEventListenerOptions,
+            ) => {
+              const merged: AddEventListenerOptions =
+                typeof options === 'boolean'
+                  ? { capture: options, signal: listenerAbort.signal }
+                  : { ...options, signal: listenerAbort.signal };
+              origAdd(type, listener, merged);
+            },
+          );
+
+        try {
+          await initNaizo();
+          const inlineScript = staticDoc.body.querySelector('script')?.textContent ?? '';
+          if (inlineScript.trim()) {
+            runInThisContext(inlineScript);
+          }
+          await Promise.resolve();
+
+          const hydratedItems = document.querySelectorAll(
+            `[naizo-list="${bp.listName}"] > [naizo-item]`,
+          );
+          expect(hydratedItems.length, `${bp.name} hydrated items`).toBe(bp.expectedCount);
+
+          const host = document.getElementById('__naizodb_host__');
+          const resetBtn = host?.shadowRoot?.getElementById('reset') as HTMLButtonElement | null;
+          expect(resetBtn?.style.display, `${bp.name} #reset must stay hidden on clean boot`).toBe(
+            'none',
+          );
+
+          // Verify Naizo.batch() coalescing on interactive actions
+          if (bp.name === 'examples/inventory.html') {
+            Naizo.setField('filter_type', 'Hardware');
+            Naizo.setField('filter_status', 'Assigned');
+            const events: Array<{ scope?: string; action?: string; source?: string }> = [];
+            window.addEventListener('naizo:change', (ev) => {
+              const d = (ev as CustomEvent).detail;
+              events.push({ scope: d.scope, action: d.action, source: d.source });
+            });
+            document.getElementById('reset-filters-btn')?.click();
+            expect(events).toEqual([{ scope: 'batch', action: 'batch', source: 'api' }]);
+
+            // Removing an extra JSON key via × persists through Naizo.setList() even when unlinked
+            const firstRemovePill = document.querySelector<HTMLButtonElement>('.dict-pill-remove');
+            expect(firstRemovePill).not.toBeNull();
+            firstRemovePill?.click();
+            const persistedInv = JSON.parse(
+              localStorage.getItem(`naizodb_state_${window.location.pathname}::${scopeId}`) ?? '{}',
+            ) as NaizoDatabase;
+            expect(persistedInv.lists.inventory?.[0]?.chip).toBeUndefined();
+          } else if (bp.name === 'examples/notes.html') {
+            const events: Array<{ scope?: string; action?: string; source?: string }> = [];
+            window.addEventListener('naizo:change', (ev) => {
+              const d = (ev as CustomEvent).detail;
+              events.push({ scope: d.scope, action: d.action, source: d.source });
+            });
+            document.getElementById('new-note-btn')?.click();
+            expect(events).toEqual([{ scope: 'batch', action: 'batch', source: 'api' }]);
+          } else if (bp.name === 'site/index.html') {
+            const events: Array<{ scope?: string; action?: string; source?: string }> = [];
+            window.addEventListener('naizo:change', (ev) => {
+              const d = (ev as CustomEvent).detail;
+              events.push({ scope: d.scope, action: d.action, source: d.source });
+            });
+            document.getElementById('simulate-agent-btn')?.click();
+            expect(events).toEqual([{ scope: 'batch', action: 'batch', source: 'api' }]);
+          }
+
+          const exportedHtml = Naizo.exportHTML();
+          const exportedDoc = new DOMParser().parseFromString(exportedHtml, 'text/html');
+          expect(exportedDoc.querySelectorAll('[naizo-strip], [data-naizo-strip]').length).toBe(0);
+          expect(exportedDoc.getElementById('__naizodb_host__')).toBeNull();
+          expect(exportedDoc.getElementById('__naizodb_styles__')).toBeNull();
+          expect(() =>
+            JSON.parse(exportedDoc.getElementById('naizodb')?.textContent ?? ''),
+          ).not.toThrow();
+
+          const downloadedHtml = Naizo.downloadHTML(`${scopeId}.html`);
+          const downloadedDoc = new DOMParser().parseFromString(downloadedHtml, 'text/html');
+          expect(downloadedDoc.querySelectorAll('[naizo-strip], [data-naizo-strip]').length).toBe(
+            0,
+          );
+          expect(() =>
+            JSON.parse(downloadedDoc.getElementById('naizodb')?.textContent ?? ''),
+          ).not.toThrow();
+        } finally {
+          listenerAbort.abort();
+          winAddSpy.mockRestore();
+        }
+      }
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+      vi.unstubAllGlobals();
+      createUrlSpy.mockRestore();
+      revokeUrlSpy.mockRestore();
+      anchorClickSpy.mockRestore();
+      document.documentElement.classList.remove('dark');
+      document.documentElement.removeAttribute('data-theme');
+      document.documentElement.removeAttribute('naizo-id');
+    }
   });
 });

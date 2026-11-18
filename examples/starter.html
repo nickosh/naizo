@@ -53,12 +53,25 @@
 
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #f8fafc;
         --card: #ffffff;
         --border: #e2e8f0;
+        --row-border: #f1f5f9;
         --text: #0f172a;
         --muted: #64748b;
         --accent: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f172a;
+          --card: #111827;
+          --border: #334155;
+          --row-border: #1e293b;
+          --text: #f8fafc;
+          --muted: #94a3b8;
+          --accent: #60a5fa;
+        }
       }
       body {
         font-family:
@@ -69,7 +82,7 @@
         color: var(--text);
         max-width: 740px;
         margin: 2.5rem auto;
-        padding: 0 1.25rem 5rem;
+        padding: 0 1.25rem 5.5rem;
         line-height: 1.5;
       }
       h1[contenteditable='true'] {
@@ -99,6 +112,9 @@
         gap: 1rem;
         margin-bottom: 1rem;
       }
+      .grid > * {
+        min-width: 0;
+      }
       label {
         display: block;
         font-size: 0.875rem;
@@ -109,8 +125,11 @@
       select,
       textarea {
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
         margin-top: 0.25rem;
         padding: 0.5rem 0.65rem;
+        background: var(--card);
         border: 1px solid var(--border);
         border-radius: 6px;
         font: inherit;
@@ -119,6 +138,7 @@
       }
       textarea {
         min-height: 84px;
+        field-sizing: fixed;
         resize: vertical;
       }
       .item-row {
@@ -126,7 +146,7 @@
         align-items: center;
         gap: 0.75rem;
         padding: 0.5rem 0.25rem;
-        border-bottom: 1px solid #f1f5f9;
+        border-bottom: 1px solid var(--row-border);
       }
       .item-check {
         display: inline-flex;
@@ -188,20 +208,22 @@ Outline the problem statement, key constraints, and rollout plan.</textarea>
     <section class="card">
       <h2>Milestones</h2>
       <div naizo-list="milestones">
-        <div class="item-row" naizo-item>
-          <label class="item-check">
-            <input type="checkbox" naizo="done" />
-            <span class="sr-only">Completed</span>
-          </label>
-          <label class="item-task">
-            <span class="sr-only">Milestone task</span>
-            <input type="text" naizo="task" placeholder="Describe milestone..." />
-          </label>
-          <label class="item-owner">
-            <span class="sr-only">Assignee</span>
-            <input type="text" naizo="owner" placeholder="Owner" />
-          </label>
-        </div>
+        <template naizo-template>
+          <div class="item-row" naizo-item>
+            <label class="item-check">
+              <input type="checkbox" naizo="done" />
+              <span class="sr-only">Completed</span>
+            </label>
+            <label class="item-task">
+              <span class="sr-only">Milestone task</span>
+              <input type="text" naizo="task" placeholder="Describe milestone..." />
+            </label>
+            <label class="item-owner">
+              <span class="sr-only">Assignee</span>
+              <input type="text" naizo="owner" placeholder="Owner" />
+            </label>
+          </div>
+        </template>
       </div>
     </section>
   </body>

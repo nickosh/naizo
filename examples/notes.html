@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light" naizo-id="naizo-field-notes">
+<html lang="en" data-theme="system" naizo-id="naizo-field-notes">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -26,7 +26,7 @@
         "fields": {
           "notebook_title": "Engineering Field Notes",
           "notebook_subtitle": "Zero-DOM-wipe master–detail notebook powered by declarative [naizo-list] panes and #naizodb.",
-          "theme": "light",
+          "theme": "system",
           "category_filter": "all"
         },
         "lists": {
@@ -77,6 +77,7 @@
 
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #f8fafc;
         --panel: #ffffff;
         --panel-muted: #f1f5f9;
@@ -89,7 +90,23 @@
         --danger: #dc2626;
       }
 
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme='light']) {
+          --bg: #0b1120;
+          --panel: #111827;
+          --panel-muted: #1e293b;
+          --border: #334155;
+          --text: #f8fafc;
+          --muted: #94a3b8;
+          --accent: #3b82f6;
+          --accent-soft: #1e3a8a;
+          --pin: #fbbf24;
+          --danger: #f87171;
+        }
+      }
+
       html[data-theme='dark'] {
+        color-scheme: dark;
         --bg: #0b1120;
         --panel: #111827;
         --panel-muted: #1e293b;
@@ -100,6 +117,10 @@
         --accent-soft: #1e3a8a;
         --pin: #fbbf24;
         --danger: #f87171;
+      }
+
+      html[data-theme='light'] {
+        color-scheme: light;
       }
 
       * {
@@ -115,7 +136,7 @@
         background: var(--bg);
         color: var(--text);
         min-height: 100vh;
-        padding: 1.5rem 1.5rem 5rem;
+        padding: 1.5rem 1.5rem 5.5rem;
         line-height: 1.5;
       }
 
@@ -176,6 +197,8 @@
       input[type='text'],
       input[type='search'],
       textarea {
+        min-width: 0;
+        max-width: 100%;
         font: inherit;
         color: var(--text);
         background: var(--panel);
@@ -213,6 +236,10 @@
         gap: 1.25rem;
         align-items: stretch;
         min-height: 540px;
+      }
+
+      .workspace-grid > * {
+        min-width: 0;
       }
 
       @media (max-width: 840px) {
@@ -392,6 +419,7 @@
         width: 100%;
         flex: 1;
         min-height: 330px;
+        field-sizing: fixed;
         resize: vertical;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-size: 0.9rem;
@@ -458,7 +486,8 @@
           <label class="theme-control">
             <span>Theme</span>
             <select id="theme-select" naizo="theme">
-              <option value="light" selected>Light</option>
+              <option value="system" selected>Auto (System)</option>
+              <option value="light">Light</option>
               <option value="dark">Dark</option>
             </select>
           </label>
@@ -511,50 +540,53 @@
         <!-- Detail Editor Pane Stack (declarative [naizo-list="notes"] where each note is a live [naizo-item]) -->
         <main class="detail-panel">
           <div id="notes-list" class="editor-stack" naizo-list="notes" naizo-no-controls>
-            <article class="note-editor-pane" naizo-item>
-              <div class="pane-toolbar">
-                <label class="pane-title-label">
-                  <span class="sr-only">Note Title</span>
-                  <input
-                    type="text"
-                    class="note-title-input"
-                    naizo="title"
-                    placeholder="Note title..."
-                  />
+            <template naizo-template>
+              <article class="note-editor-pane" naizo-item>
+                <div class="pane-toolbar">
+                  <label class="pane-title-label">
+                    <span class="sr-only">Note Title</span>
+                    <input
+                      type="text"
+                      class="note-title-input"
+                      naizo="title"
+                      placeholder="Note title..."
+                    />
+                  </label>
+                  <label class="pane-category-label">
+                    <span>Category</span>
+                    <select class="note-category-select" naizo="category">
+                      <option value="">— Category —</option>
+                      <option value="Architecture" selected>Architecture</option>
+                      <option value="Runbook">Runbook</option>
+                      <option value="Research">Research</option>
+                      <option value="Meeting">Meeting</option>
+                      <option value="Scratchpad">Scratchpad</option>
+                    </select>
+                  </label>
+                  <label class="pin-toggle">
+                    <input type="checkbox" class="note-pin-checkbox" naizo="pinned" />
+                    <span>Pinned</span>
+                  </label>
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    naizo-ignore
+                    data-delete-note
+                    title="Delete this note"
+                  >
+                    Delete
+                  </button>
+                </div>
+                <label class="note-body-label">
+                  <span class="sr-only">Note Markdown Body</span>
+                  <textarea
+                    class="note-body-textarea"
+                    naizo="body"
+                    placeholder="Write notes or Markdown checklists (- [ ] task)..."
+                  ></textarea>
                 </label>
-                <label class="pane-category-label">
-                  <span>Category</span>
-                  <select class="note-category-select" naizo="category">
-                    <option value="Architecture">Architecture</option>
-                    <option value="Runbook">Runbook</option>
-                    <option value="Research">Research</option>
-                    <option value="Meeting">Meeting</option>
-                    <option value="Scratchpad">Scratchpad</option>
-                  </select>
-                </label>
-                <label class="pin-toggle">
-                  <input type="checkbox" class="note-pin-checkbox" naizo="pinned" />
-                  <span>Pinned</span>
-                </label>
-                <button
-                  type="button"
-                  class="btn btn-danger"
-                  naizo-ignore
-                  data-delete-note
-                  title="Delete this note"
-                >
-                  Delete
-                </button>
-              </div>
-              <label class="note-body-label">
-                <span class="sr-only">Note Markdown Body</span>
-                <textarea
-                  class="note-body-textarea"
-                  naizo="body"
-                  placeholder="Write notes or Markdown checklists (- [ ] task)..."
-                ></textarea>
-              </label>
-            </article>
+              </article>
+            </template>
           </div>
 
           <div id="empty-editor-state" class="empty-state" naizo-ignore>
@@ -593,18 +625,28 @@
         function ensureNoteIds() {
           if (!window.Naizo) return [];
           const notes = window.Naizo.getList('notes');
+          const missingIndices = [];
           for (let i = 0; i < notes.length; i += 1) {
             const item = notes[i];
             if (item && (typeof item.id !== 'string' || !item.id.trim())) {
-              const generatedId = 'note-' + Date.now() + '-' + (i + 1);
-              window.Naizo.updateItem('notes', i, {
-                id: generatedId,
-                updatedAt:
-                  typeof item.updatedAt === 'string' && item.updatedAt
-                    ? item.updatedAt
-                    : new Date().toISOString(),
-              });
+              missingIndices.push(i);
             }
+          }
+          if (missingIndices.length > 0) {
+            window.Naizo.batch(function () {
+              for (let k = 0; k < missingIndices.length; k += 1) {
+                const idx = missingIndices[k];
+                const item = notes[idx];
+                const generatedId = 'note-' + Date.now() + '-' + (idx + 1);
+                window.Naizo.updateItem('notes', idx, {
+                  id: generatedId,
+                  updatedAt:
+                    typeof item.updatedAt === 'string' && item.updatedAt
+                      ? item.updatedAt
+                      : new Date().toISOString(),
+                });
+              }
+            });
           }
           return window.Naizo.getList('notes');
         }
@@ -659,7 +701,11 @@
 
         function applyTheme() {
           if (!window.Naizo) return;
-          const theme = window.Naizo.getField('theme') === 'dark' ? 'dark' : 'light';
+          const rawTheme = window.Naizo.getField('theme');
+          const theme =
+            rawTheme === 'dark' || rawTheme === 'light' || rawTheme === 'system'
+              ? rawTheme
+              : 'system';
           document.documentElement.setAttribute('data-theme', theme);
         }
 
@@ -685,122 +731,131 @@
         }
 
         let isSyncingUi = false;
+        let pendingSyncUi = false;
 
         function syncNotebookUi() {
-          if (!window.Naizo || isSyncingUi) return;
+          if (!window.Naizo || !notesListEl || !document.body.contains(notesListEl)) return;
+          if (isSyncingUi) {
+            pendingSyncUi = true;
+            return;
+          }
           isSyncingUi = true;
           try {
-            applyTheme();
+            do {
+              pendingSyncUi = false;
+              applyTheme();
 
-            const notes = ensureNoteIds();
-            const filtered = getFilteredNoteEntries(notes);
-            let activeId = window.Naizo.get('activeNoteId');
+              const notes = ensureNoteIds();
+              const filtered = getFilteredNoteEntries(notes);
+              let activeId = window.Naizo.get('activeNoteId');
 
-            const activeStillVisible = filtered.some(function (entry) {
-              return entry.note.id === activeId;
-            });
-            if (!activeStillVisible) {
-              if (filtered.length > 0) {
-                activeId = filtered[0].note.id;
-                if (activeId && activeId !== window.Naizo.get('activeNoteId')) {
-                  window.Naizo.set('activeNoteId', activeId);
-                }
-              } else if (notes.length === 0) {
-                activeId = '';
-                if (window.Naizo.get('activeNoteId')) {
-                  window.Naizo.set('activeNoteId', '');
+              const activeStillVisible = filtered.some(function (entry) {
+                return entry.note.id === activeId;
+              });
+              if (!activeStillVisible) {
+                if (filtered.length > 0) {
+                  activeId = filtered[0].note.id;
+                  if (activeId && activeId !== window.Naizo.get('activeNoteId')) {
+                    window.Naizo.set('activeNoteId', activeId);
+                  }
+                } else if (notes.length === 0) {
+                  activeId = '';
+                  if (window.Naizo.get('activeNoteId')) {
+                    window.Naizo.set('activeNoteId', '');
+                  }
                 }
               }
-            }
 
-            const panes = notesListEl
-              ? Array.from(
-                  notesListEl.querySelectorAll(':scope > [naizo-item], :scope > [data-naizo-item]'),
-                )
-              : [];
-            let activeNoteObj = null;
+              const panes = Array.from(
+                notesListEl.querySelectorAll(':scope > [naizo-item], :scope > [data-naizo-item]'),
+              );
+              let activeNoteObj = null;
 
-            for (let i = 0; i < panes.length; i += 1) {
-              const pane = panes[i];
-              const note = notes[i];
-              const isActive = Boolean(note && note.id === activeId && filtered.length > 0);
-              pane.classList.toggle('is-active', isActive);
-              pane.setAttribute('data-note-id', note && typeof note.id === 'string' ? note.id : '');
-              if (isActive && note) {
-                activeNoteObj = note;
+              for (let i = 0; i < panes.length; i += 1) {
+                const pane = panes[i];
+                const note = notes[i];
+                const isActive = Boolean(note && note.id === activeId && filtered.length > 0);
+                pane.classList.toggle('is-active', isActive);
+                pane.setAttribute(
+                  'data-note-id',
+                  note && typeof note.id === 'string' ? note.id : '',
+                );
+                if (isActive && note) {
+                  activeNoteObj = note;
+                }
               }
-            }
 
-            if (emptyStateEl) {
-              emptyStateEl.style.display = activeNoteObj ? 'none' : 'block';
-            }
+              if (emptyStateEl) {
+                emptyStateEl.style.display = activeNoteObj ? 'none' : 'block';
+              }
 
-            if (indexListEl) {
-              indexListEl.textContent = '';
-              for (let i = 0; i < filtered.length; i += 1) {
-                const entry = filtered[i];
-                const note = entry.note;
-                const li = document.createElement('li');
-                li.className = 'note-index-item' + (note.id === activeId ? ' is-active' : '');
-                li.setAttribute('role', 'option');
-                li.setAttribute('aria-selected', note.id === activeId ? 'true' : 'false');
-                li.setAttribute('data-note-id', String(note.id || ''));
-                li.setAttribute('data-naizo-strip', 'true');
+              if (indexListEl) {
+                indexListEl.textContent = '';
+                for (let i = 0; i < filtered.length; i += 1) {
+                  const entry = filtered[i];
+                  const note = entry.note;
+                  const li = document.createElement('li');
+                  li.className = 'note-index-item' + (note.id === activeId ? ' is-active' : '');
+                  li.setAttribute('role', 'option');
+                  li.setAttribute('aria-selected', note.id === activeId ? 'true' : 'false');
+                  li.setAttribute('data-note-id', String(note.id || ''));
+                  li.setAttribute('data-naizo-strip', 'true');
 
-                const topRow = document.createElement('div');
-                topRow.className = 'note-index-top';
+                  const topRow = document.createElement('div');
+                  topRow.className = 'note-index-top';
 
-                const titleSpan = document.createElement('span');
-                titleSpan.className = 'note-index-title';
-                titleSpan.textContent = String(note.title || 'Untitled Note');
+                  const titleSpan = document.createElement('span');
+                  titleSpan.className = 'note-index-title';
+                  titleSpan.textContent = String(note.title || 'Untitled Note');
 
-                const pinBtn = document.createElement('button');
-                pinBtn.type = 'button';
-                pinBtn.className = 'sidebar-pin-btn' + (note.pinned ? ' is-pinned' : '');
-                pinBtn.title = note.pinned ? 'Unpin note' : 'Pin note';
-                pinBtn.setAttribute('aria-label', note.pinned ? 'Unpin note' : 'Pin note');
-                pinBtn.textContent = note.pinned ? '★' : '☆';
-                pinBtn.addEventListener('click', function (ev) {
-                  ev.stopPropagation();
-                  window.Naizo.updateItem('notes', entry.index, {
-                    pinned: !note.pinned,
-                    updatedAt: new Date().toISOString(),
+                  const pinBtn = document.createElement('button');
+                  pinBtn.type = 'button';
+                  pinBtn.className = 'sidebar-pin-btn' + (note.pinned ? ' is-pinned' : '');
+                  pinBtn.title = note.pinned ? 'Unpin note' : 'Pin note';
+                  pinBtn.setAttribute('aria-label', note.pinned ? 'Unpin note' : 'Pin note');
+                  pinBtn.textContent = note.pinned ? '★' : '☆';
+                  pinBtn.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    window.Naizo.updateItem('notes', entry.index, {
+                      pinned: !note.pinned,
+                      updatedAt: new Date().toISOString(),
+                    });
                   });
-                });
 
-                topRow.appendChild(titleSpan);
-                topRow.appendChild(pinBtn);
+                  topRow.appendChild(titleSpan);
+                  topRow.appendChild(pinBtn);
 
-                const metaRow = document.createElement('div');
-                metaRow.className = 'note-index-meta';
+                  const metaRow = document.createElement('div');
+                  metaRow.className = 'note-index-meta';
 
-                const catSpan = document.createElement('span');
-                catSpan.className = 'category-pill';
-                catSpan.textContent = String(note.category || 'Scratchpad');
+                  const catSpan = document.createElement('span');
+                  catSpan.className = 'category-pill';
+                  catSpan.textContent = String(note.category || 'Scratchpad');
 
-                const tasks = countMarkdownTasks(note.body);
-                const taskSpan = document.createElement('span');
-                taskSpan.textContent =
-                  tasks.total > 0
-                    ? tasks.done + '/' + tasks.total + ' tasks'
-                    : countWords(note.body) + ' words';
+                  const tasks = countMarkdownTasks(note.body);
+                  const taskSpan = document.createElement('span');
+                  taskSpan.textContent =
+                    tasks.total > 0
+                      ? tasks.done + '/' + tasks.total + ' tasks'
+                      : countWords(note.body) + ' words';
 
-                metaRow.appendChild(catSpan);
-                metaRow.appendChild(taskSpan);
+                  metaRow.appendChild(catSpan);
+                  metaRow.appendChild(taskSpan);
 
-                li.appendChild(topRow);
-                li.appendChild(metaRow);
+                  li.appendChild(topRow);
+                  li.appendChild(metaRow);
 
-                li.addEventListener('click', function () {
-                  window.Naizo.set('activeNoteId', note.id);
-                  syncNotebookUi();
-                });
+                  li.addEventListener('click', function () {
+                    window.Naizo.set('activeNoteId', note.id);
+                    syncNotebookUi();
+                  });
 
-                indexListEl.appendChild(li);
+                  indexListEl.appendChild(li);
+                }
               }
-            }
 
-            updateActiveMetrics(activeNoteObj);
+              updateActiveMetrics(activeNoteObj);
+            } while (pendingSyncUi);
           } finally {
             isSyncingUi = false;
           }
@@ -814,15 +869,17 @@
               ? categoryFilter.value
               : 'Architecture';
           const newId = 'note-' + Date.now();
-          window.Naizo.addItem('notes', {
-            id: newId,
-            title: 'Untitled Note',
-            category: defaultCategory,
-            pinned: false,
-            updatedAt: new Date().toISOString(),
-            body: '- [ ] Capture key decisions\n',
+          window.Naizo.batch(function () {
+            window.Naizo.addItem('notes', {
+              id: newId,
+              title: 'Untitled Note',
+              category: defaultCategory,
+              pinned: false,
+              updatedAt: new Date().toISOString(),
+              body: '- [ ] Capture key decisions\n',
+            });
+            window.Naizo.set('activeNoteId', newId);
           });
-          window.Naizo.set('activeNoteId', newId);
           syncNotebookUi();
           const activeTitleInput = notesListEl
             ? notesListEl.querySelector('.note-editor-pane.is-active .note-title-input')
@@ -855,10 +912,12 @@
             );
             const idx = panes.indexOf(pane);
             if (idx === -1) return;
-            window.Naizo.removeItem('notes', idx);
-            const remaining = window.Naizo.getList('notes');
-            const nextNote = remaining[Math.min(idx, remaining.length - 1)];
-            window.Naizo.set('activeNoteId', nextNote ? nextNote.id : '');
+            window.Naizo.batch(function () {
+              window.Naizo.removeItem('notes', idx);
+              const remaining = window.Naizo.getList('notes');
+              const nextNote = remaining[Math.min(idx, remaining.length - 1)];
+              window.Naizo.set('activeNoteId', nextNote ? nextNote.id : '');
+            });
             syncNotebookUi();
           });
         }
@@ -892,22 +951,32 @@
         window.addEventListener('naizo:hydrate', syncNotebookUi);
         window.addEventListener('naizo:change', function (e) {
           const detail = e && e.detail ? e.detail : {};
-          if (detail.scope === 'lists' && detail.list === 'notes' && detail.key) {
+          if (
+            detail.scope === 'lists' &&
+            detail.list === 'notes' &&
+            detail.key &&
+            detail.key !== 'updatedAt'
+          ) {
             const notes = window.Naizo.getList('notes');
             const activeId = window.Naizo.get('activeNoteId');
-            const activeNote = notes.find(function (n) {
+            const activeIdx = notes.findIndex(function (n) {
               return n && n.id === activeId;
             });
-            if (activeNote) {
-              activeNote.updatedAt = new Date().toISOString();
+            if (activeIdx !== -1) {
+              window.Naizo.batch(
+                function () {
+                  window.Naizo.updateItem('notes', activeIdx, {
+                    updatedAt: new Date().toISOString(),
+                  });
+                },
+                { silent: true },
+              );
             }
           }
           syncNotebookUi();
         });
 
-        if (window.Naizo) {
-          syncNotebookUi();
-        }
+        window.Naizo?.ready(syncNotebookUi);
       })();
     </script>
   </body>
