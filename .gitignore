@@ -6,3 +6,4 @@ coverage/
 .ori/
 .DS_Store
 *.log
+tmp/
