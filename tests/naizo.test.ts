@@ -1,6 +1,7 @@
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInThisContext } from 'node:vm';
+import { gzipSync } from 'node:zlib';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import iifeBundleCode from '../dist/naizo.js?raw';
 import checklistHtml from '../examples/checklist.html?raw';
@@ -1465,18 +1466,20 @@ describe('naizo.js v0.1.0 core runtime', () => {
       'Browser Cache · Click to Link Disk',
     );
 
-    // Verify M4.5 Online Mode, reset(), and downloadHTML() in shipped dist/naizo.js bundle
+    // Verify M4.5 Online Mode, reset() (against advanced disk baseline per M11.1/D56), and downloadHTML() in shipped dist/naizo.js bundle
     const bundleClickSpy = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => {});
     document.documentElement.setAttribute('naizo-mode', 'online');
+    bundleNaizo.setField('title', 'Temporary Online Draft');
+    expect(bundleNaizo.getField('title')).toBe('Temporary Online Draft');
     bundleNaizo.reset();
-    expect(bundleNaizo.getField('title')).toBe('Bundle Spec');
+    expect(bundleNaizo.getField('title')).toBe('Edited via Bundle');
     expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe('Saved in Browser');
     const bundlePortable = bundleNaizo.downloadHTML('bundle-export');
     expect(bundleClickSpy).toHaveBeenCalledTimes(1);
     expect(bundlePortable).not.toContain('naizo-mode="online"');
-    expect(bundlePortable).toContain('value="Bundle Spec"');
+    expect(bundlePortable).toContain('value="Edited via Bundle"');
     bundleClickSpy.mockRestore();
 
     Reflect.deleteProperty(window, 'showSaveFilePicker');
@@ -3887,12 +3890,19 @@ describe('naizo.js v0.1.0 core runtime', () => {
       const dotSvg = dotEl?.querySelector('svg.naizo-logo-svg');
       expect(dotSvg?.getAttribute('viewBox')).toBe('0 0 100 100');
       expect(dotSvg?.querySelector('circle.ring')?.getAttribute('r')).toBe('42');
-      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('x')).toBe('41');
-      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('y')).toBe('28');
-      expect(dotSvg?.querySelector('rect.c-bl')?.getAttribute('x')).toBe('28');
-      expect(dotSvg?.querySelector('rect.c-bl')?.getAttribute('y')).toBe('54');
-      expect(dotSvg?.querySelector('rect.c-br')?.getAttribute('x')).toBe('54');
-      expect(dotSvg?.querySelector('rect.c-br')?.getAttribute('y')).toBe('54');
+      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('x')).toBe('39');
+      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('y')).toBe('26');
+      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('width')).toBe('22');
+      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('height')).toBe('22');
+      expect(dotSvg?.querySelector('rect.c-top')?.getAttribute('rx')).toBe('4.5');
+      expect(dotSvg?.querySelector('rect.c-bl')?.getAttribute('x')).toBe('26');
+      expect(dotSvg?.querySelector('rect.c-bl')?.getAttribute('y')).toBe('52');
+      expect(dotSvg?.querySelector('rect.c-bl')?.getAttribute('width')).toBe('22');
+      expect(dotSvg?.querySelector('rect.c-bl')?.getAttribute('rx')).toBe('4.5');
+      expect(dotSvg?.querySelector('rect.c-br')?.getAttribute('x')).toBe('52');
+      expect(dotSvg?.querySelector('rect.c-br')?.getAttribute('y')).toBe('52');
+      expect(dotSvg?.querySelector('rect.c-br')?.getAttribute('width')).toBe('22');
+      expect(dotSvg?.querySelector('rect.c-br')?.getAttribute('rx')).toBe('4.5');
 
       // Boot animation attribute clears after 1250ms
       vi.advanceTimersByTime(1250);
@@ -4030,6 +4040,411 @@ describe('naizo.js v0.1.0 core runtime', () => {
       document.documentElement.removeAttribute('data-theme');
       document.documentElement.removeAttribute('data-naizo-manual');
       document.body.classList.remove('dark', 'light');
+      window.Naizo = Naizo;
+      window.NaizoDB = NaizoDB;
+      vi.useRealTimers();
+    }
+  });
+
+  it('hardens Status Pill hit-testing, 22x22 crest geometry, FLIP snap drag, unlinked Local Mode Reset, EC36 cached green-hold fix, live non-duplicated tooltips, Online Cmd+S flash, OS dark sync, and <100 KB dist/naizo.min.js compaction (M11.1, D50, D56, EC36, EC47, EC48, EC52)', async () => {
+    vi.useFakeTimers();
+    let nowMs = 5000;
+    const perfSpy = vi.spyOn(performance, 'now').mockImplementation(() => nowMs);
+    const origMatchMedia = window.matchMedia;
+    let osDarkMatches = false;
+    let reducedMotionMatches = false;
+    const mqDarkListeners = new Set<() => void>();
+
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('prefers-color-scheme: dark')
+        ? osDarkMatches
+        : query.includes('prefers-reduced-motion: reduce')
+          ? reducedMotionMatches
+          : false,
+      media: query,
+      onchange: null,
+      addEventListener: (ev: string, cb: () => void) => {
+        if (ev === 'change' && query.includes('prefers-color-scheme: dark')) {
+          mqDarkListeners.add(cb);
+        }
+      },
+      removeEventListener: (ev: string, cb: () => void) => {
+        if (ev === 'change' && query.includes('prefers-color-scheme: dark')) {
+          mqDarkListeners.delete(cb);
+        }
+      },
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => true,
+    }));
+
+    const flushMicrotasks = async (ticks = 10): Promise<void> => {
+      for (let i = 0; i < ticks; i += 1) {
+        await Promise.resolve();
+      }
+    };
+
+    try {
+      document.documentElement.setAttribute('naizo-id', 'm11-1-hardening');
+      document.documentElement.setAttribute('naizo-mode', 'local');
+      document.head.innerHTML = `<script id="naizodb" type="application/json">
+{
+  "_meta": {},
+  "fields": { "note": "Disk Baseline" },
+  "lists": {},
+  "custom": {}
+}
+</script>`;
+      document.body.innerHTML = `<input id="note-in" type="text" naizo="note" value="Disk Baseline" /><button type="button" naizo-get="https://api.example.com/ping">Ping</button>`;
+
+      await initNaizo();
+
+      const host = document.getElementById('__naizodb_host__') as
+        | (HTMLDivElement & { _setDot?: (s: string) => void })
+        | null;
+      const shadow = host?.shadowRoot;
+      const styleText = shadow?.querySelector('style')?.textContent ?? '';
+      const anchorEl = shadow?.getElementById('pill-anchor') as HTMLElement | null;
+      const pillEl = shadow?.getElementById('pill') as HTMLElement | null;
+      const dotEl = shadow?.getElementById('dot') as HTMLButtonElement | null;
+      const actionBtn = shadow?.getElementById('action') as HTMLButtonElement | null;
+      const unlinkBtn = shadow?.getElementById('unlink') as HTMLButtonElement | null;
+      const copyBtn = shadow?.getElementById('copy') as HTMLButtonElement | null;
+      const restoreBtn = shadow?.getElementById('restore') as HTMLButtonElement | null;
+      const resetBtn = shadow?.getElementById('reset') as HTMLButtonElement | null;
+      const resetConfirmEl = shadow?.getElementById('reset-confirm') as HTMLElement | null;
+      const resetYesBtn = shadow?.getElementById('reset-yes') as HTMLButtonElement | null;
+      const tooltipEl = shadow?.getElementById('pill-tooltip') as HTMLElement | null;
+      const tooltipTextEl = shadow?.getElementById('tooltip-text') as HTMLElement | null;
+
+      // 1. Hit-testing, absolute tooltip flip, spaceless display:none guard, :focus-visible, single dark block, and fill-box center
+      expect(styleText).toContain('.pill-anchor');
+      expect(styleText).toContain('pointer-events: none;');
+      expect(styleText).toContain('gap: 8px;');
+      expect(styleText).toContain('transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);');
+      expect(styleText).toContain('pointer-events: auto; touch-action: none;');
+      expect(styleText).toContain('position: absolute; bottom: calc(100% + 7px); right: 0;');
+      expect(styleText).toContain('.pill-anchor[data-corner$="-left"] .pill-tooltip');
+      expect(styleText).toContain('.pill-anchor[data-corner^="top-"] .pill-tooltip');
+      expect(styleText).toContain(
+        '.icon-btn:not([style*="display: none"]):not([style*="display:none"])',
+      );
+      expect(styleText).toContain(':focus-visible');
+      expect(styleText).toContain('.anim-net-error');
+      expect(styleText).toContain('transform-box: fill-box;');
+      expect(styleText).toContain('transform-origin: center;');
+      expect(styleText).not.toContain(':host(:not([data-naizo-theme="light"]))');
+
+      // 2. OS @media (prefers-color-scheme: dark) dynamic sync via syncHostTheme() + explicit light override
+      expect(host?.getAttribute('data-naizo-theme')).toBeNull();
+      expect(mqDarkListeners.size).toBe(1);
+      osDarkMatches = true;
+      mqDarkListeners.forEach((cb) => cb());
+      expect(host?.getAttribute('data-naizo-theme')).toBe('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+      await Promise.resolve();
+      expect(host?.getAttribute('data-naizo-theme')).toBe('light');
+      document.documentElement.removeAttribute('data-theme');
+      await Promise.resolve();
+      expect(host?.getAttribute('data-naizo-theme')).toBe('dark');
+      osDarkMatches = false;
+      mqDarkListeners.forEach((cb) => cb());
+      expect(host?.getAttribute('data-naizo-theme')).toBeNull();
+
+      // 3. EC36 syncSavingBeat() 'cached' fix: failed write or unlink immediately clears data-naizo-saving instead of holding green
+      nowMs = 6000;
+      host?._setDot?.('saving');
+      expect(dotEl?.dataset.naizoSaving).toBe('1');
+      nowMs = 6010;
+      host?._setDot?.('cached');
+      expect(dotEl?.className).toBe('dot');
+      expect(dotEl?.dataset.naizoSaving).toBeUndefined();
+
+      // 4. Native title stash/restore on hover, live tooltip refresh, touch suppression, and auto-hide when button hides
+      const makeMousePointer = (type: string, pointerType = 'mouse') => {
+        const ev = new MouseEvent(type, { bubbles: true }) as PointerEvent;
+        Object.defineProperty(ev, 'pointerType', { value: pointerType });
+        return ev;
+      };
+
+      expect(copyBtn?.getAttribute('title')).toBe('Copy #naizodb JSON state');
+      copyBtn?.dispatchEvent(makeMousePointer('pointerenter', 'mouse'));
+      expect(copyBtn?.hasAttribute('title')).toBe(false);
+      expect(copyBtn?.dataset.savedTitle).toBe('Copy #naizodb JSON state');
+      expect(tooltipEl?.classList.contains('visible')).toBe(true);
+      expect(tooltipTextEl?.textContent).toBe('Copy JSON');
+
+      // Clicking #copy while hovered updates tooltip live to '✓ Copied', then back to 'Copy JSON' after 1500ms while still hovered
+      copyBtn?.click();
+      await flushMicrotasks(4);
+      expect(tooltipTextEl?.textContent).toBe('✓ Copied');
+      vi.advanceTimersByTime(1500);
+      expect(tooltipEl?.classList.contains('visible')).toBe(true);
+      expect(tooltipTextEl?.textContent).toBe('Copy JSON');
+
+      copyBtn?.dispatchEvent(makeMousePointer('pointerleave', 'mouse'));
+      expect(copyBtn?.getAttribute('title')).toBe('Copy #naizodb JSON state');
+      expect(copyBtn?.dataset.savedTitle).toBeUndefined();
+      expect(tooltipEl?.classList.contains('visible')).toBe(false);
+
+      // Touch tap suppresses sticky hover tooltip
+      actionBtn?.dispatchEvent(makeMousePointer('pointerdown', 'touch'));
+      actionBtn?.dispatchEvent(makeMousePointer('pointerenter', 'touch'));
+      expect(tooltipEl?.classList.contains('visible')).toBe(false);
+
+      // 5. Unlinked Local Mode #reset: appears when dirty, opens #reset-confirm (hiding #pill-tooltip), backs up & restores,
+      // auto-hides (closing #reset-confirm) on disk link, and stays hidden across × Unlink after disk save/merge
+      expect(resetBtn?.style.display).toBe('none');
+      Naizo.setField('note', 'Unlinked Scratch Edit');
+      expect(resetBtn?.style.display).toBe('inline-block');
+
+      resetBtn?.dispatchEvent(makeMousePointer('pointerenter', 'mouse'));
+      expect(tooltipEl?.classList.contains('visible')).toBe(true);
+      resetBtn?.click();
+      expect(resetConfirmEl?.style.display).toBe('inline-flex');
+      expect(tooltipEl?.classList.contains('visible')).toBe(false);
+
+      resetYesBtn?.click();
+      expect(resetConfirmEl?.style.display).toBe('none');
+      expect(Naizo.getField('note')).toBe('Disk Baseline');
+      expect(resetBtn?.style.display).toBe('none');
+      expect(restoreBtn?.style.display).toBe('inline-block');
+
+      // Hovering #restore and clicking it restores 'Unlinked Scratch Edit' and immediately hides orphaned tooltip when #restore hides
+      restoreBtn?.dispatchEvent(makeMousePointer('pointerenter', 'mouse'));
+      expect(tooltipEl?.classList.contains('visible')).toBe(true);
+      expect(tooltipTextEl?.textContent).toBe('Restore Backup');
+      restoreBtn?.click();
+      expect(Naizo.getField('note')).toBe('Unlinked Scratch Edit');
+      expect(restoreBtn?.style.display).toBe('none');
+      expect(tooltipEl?.classList.contains('visible')).toBe(false);
+      expect(restoreBtn?.getAttribute('title')).toBe(
+        'Restore browser state before conflict or reset',
+      );
+      expect(resetBtn?.style.display).toBe('inline-block');
+
+      // Open #reset-confirm, then click #dot (non-drag!) to link disk: connects disk, auto-hides #reset, and auto-closes #reset-confirm
+      resetBtn?.click();
+      expect(resetConfirmEl?.style.display).toBe('inline-flex');
+
+      let diskHtml = `<!doctype html><html><head><script id="naizodb" type="application/json">\n${JSON.stringify(
+        {
+          _meta: {},
+          fields: { note: 'Disk Baseline' },
+          lists: {},
+          custom: {},
+        },
+        null,
+        2,
+      )}\n</script></head><body></body></html>`;
+      let diskMtime = 2000;
+      let handlePerm: PermissionState = 'granted';
+      const pickerSpy = vi.fn().mockResolvedValue({
+        queryPermission: vi.fn().mockImplementation(async () => handlePerm),
+        requestPermission: vi.fn().mockImplementation(async () => handlePerm),
+        getFile: vi.fn().mockImplementation(async () => ({
+          lastModified: diskMtime,
+          arrayBuffer: async () => new TextEncoder().encode(diskHtml).buffer,
+          text: async () => diskHtml,
+        })),
+        createWritable: vi.fn().mockImplementation(async () => ({
+          write: async (data: string) => {
+            diskHtml = data;
+            diskMtime += 100;
+          },
+          close: async () => {},
+        })),
+      });
+      window.showSaveFilePicker = pickerSpy;
+
+      dotEl?.click();
+      await flushMicrotasks(14);
+      expect(pickerSpy).toHaveBeenCalledTimes(1);
+      expect(shadow?.getElementById('status')?.textContent).toBe('Synced to Disk');
+      expect(diskHtml).toContain('"Unlinked Scratch Edit"');
+      expect(resetBtn?.style.display).toBe('none');
+      expect(resetConfirmEl?.style.display).toBe('none');
+      expect(unlinkBtn?.style.display).toBe('inline-block');
+
+      // Programmatic Naizo.reset() when fileHandle permission is 'prompt' keeps 'needs-permission' instead of scheduling 'saving'
+      handlePerm = 'prompt';
+      expect(await Naizo.save()).toBe(false);
+      expect(dotEl?.className).toBe('dot needs-permission');
+      Naizo.setField('note', 'Edited While Prompt');
+      Naizo.reset();
+      expect(dotEl?.className).toBe('dot needs-permission');
+      expect(dotEl?.dataset.naizoSaving).toBeUndefined();
+
+      // Re-grant permission via #dot click and save new disk state ('Saved V2'), then × Unlink: #reset stays hidden because initialDiskDb advanced
+      handlePerm = 'granted';
+      Naizo.setField('note', 'Saved V2');
+      dotEl?.click();
+      await flushMicrotasks(14);
+      expect(diskHtml).toContain('"Saved V2"');
+
+      await Naizo.unlink();
+      expect(unlinkBtn?.style.display).toBe('none');
+      expect(resetBtn?.style.display).toBe('none');
+
+      // Making a new unlinked edit after × Unlink reveals #reset; resetting restores 'Saved V2' (the last saved disk state)
+      Naizo.setField('note', 'Post-Unlink Scratch');
+      expect(resetBtn?.style.display).toBe('inline-block');
+      Naizo.reset();
+      expect(Naizo.getField('note')).toBe('Saved V2');
+      expect(resetBtn?.style.display).toBe('none');
+
+      // 6. FLIP 4-corner snap drag release + multi-pointer, non-primary button, pointercancel, releasePointerCapture, and drag-click suppression
+      pickerSpy.mockClear();
+      const releaseSpy = vi.fn();
+      if (pillEl) {
+        pillEl.setPointerCapture = vi.fn();
+        pillEl.releasePointerCapture = releaseSpy;
+      }
+      const makeRect = (left: number, top: number): DOMRect => ({
+        left,
+        top,
+        right: left + 146,
+        bottom: top + 30,
+        width: 146,
+        height: 30,
+        x: left,
+        y: top,
+        toJSON: () => ({}),
+      });
+      let simulatedCornerRect: DOMRect = makeRect(840, 720);
+      if (anchorEl) {
+        vi.spyOn(anchorEl, 'getBoundingClientRect').mockImplementation(() => simulatedCornerRect);
+      }
+
+      const makeDragEv = (
+        type: string,
+        clientX: number,
+        clientY: number,
+        opts: { pointerId?: number; button?: number; pointerType?: string } = {},
+      ) => {
+        const ev = new MouseEvent(type, {
+          bubbles: true,
+          clientX,
+          clientY,
+          button: opts.button ?? 0,
+        }) as PointerEvent;
+        Object.defineProperty(ev, 'pointerId', { value: opts.pointerId ?? 7 });
+        Object.defineProperty(ev, 'pointerType', { value: opts.pointerType ?? 'mouse' });
+        return ev;
+      };
+
+      // Non-primary mouse button (button: 2) is ignored
+      dotEl?.dispatchEvent(makeDragEv('pointerdown', 900, 730, { button: 2 }));
+      pillEl?.dispatchEvent(makeDragEv('pointermove', 50, 50, { button: 2 }));
+      expect(host?.getAttribute('data-naizo-dragging')).toBeNull();
+
+      // Start primary drag with pointerId: 7; pointermove from pointerId: 99 is ignored
+      dotEl?.dispatchEvent(makeDragEv('pointerdown', 900, 730, { pointerId: 7 }));
+      pillEl?.dispatchEvent(makeDragEv('pointermove', 50, 50, { pointerId: 99 }));
+      expect(host?.getAttribute('data-naizo-dragging')).toBeNull();
+
+      // Move pointerId: 7 to top-left; pointercancel reverts without overwriting saved bottom-right corner
+      pillEl?.dispatchEvent(makeDragEv('pointermove', 50, 50, { pointerId: 7 }));
+      expect(host?.getAttribute('data-naizo-dragging')).toBe('1');
+      pillEl?.dispatchEvent(makeDragEv('pointercancel', 0, 0, { pointerId: 7 }));
+      expect(releaseSpy).toHaveBeenCalledWith(7);
+      expect(anchorEl?.dataset.corner).toBe('bottom-right');
+
+      // Real drag to top-left with FLIP transition + suppressed trailing #dot click
+      const appliedTransforms: string[] = [];
+      if (anchorEl) {
+        const origStyle = anchorEl.style;
+        const setPropSpy = vi.spyOn(origStyle, 'transform', 'set');
+        setPropSpy.mockImplementation((val: string) => {
+          appliedTransforms.push(val);
+        });
+      }
+      dotEl?.dispatchEvent(makeDragEv('pointerdown', 900, 730, { pointerId: 8 }));
+      simulatedCornerRect = makeRect(60, 55);
+      pillEl?.dispatchEvent(makeDragEv('pointermove', 60, 55, { pointerId: 8 }));
+      if (anchorEl) {
+        vi.spyOn(anchorEl, 'getBoundingClientRect')
+          .mockReturnValueOnce(makeRect(60, 55))
+          .mockReturnValueOnce(makeRect(16, 16));
+      }
+      pillEl?.dispatchEvent(makeDragEv('pointerup', 60, 55, { pointerId: 8 }));
+      expect(anchorEl?.dataset.corner).toBe('top-left');
+      expect(appliedTransforms).toContain('translate3d(44px, 39px, 0)');
+      expect(anchorEl?.classList.contains('is-dragging')).toBe(false);
+
+      // Trailing click right after dragging #dot must NOT invoke showSaveFilePicker
+      dotEl?.click();
+      expect(pickerSpy).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(80);
+
+      // 7. Online Mode Cmd+S 1200ms #pill-tooltip flash & platform-aware Ctrl+S / ⌘S kbd badge
+      document.documentElement.setAttribute('naizo-mode', 'online');
+      await initNaizo();
+      const onlineShadow = document.getElementById('__naizodb_host__')?.shadowRoot;
+      const onlineTip = onlineShadow?.getElementById('pill-tooltip');
+      const onlineTipText = onlineShadow?.getElementById('tooltip-text');
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }),
+      );
+      expect(onlineTip?.classList.contains('visible')).toBe(true);
+      expect(onlineTipText?.textContent).toBe('✓ Saved in Browser');
+      vi.advanceTimersByTime(1190);
+      expect(onlineTip?.classList.contains('visible')).toBe(true);
+      vi.advanceTimersByTime(20);
+      expect(onlineTip?.classList.contains('visible')).toBe(false);
+
+      // Platform-aware kbd badge ('Ctrl+S' on Windows/Linux vs '⌘S' on macOS) while keeping '⌘S / Ctrl+S' in .title
+      const origPlatform = navigator.platform;
+      const origUa = navigator.userAgent;
+      Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        configurable: true,
+      });
+      try {
+        document.documentElement.setAttribute('naizo-mode', 'local');
+        await initNaizo();
+        const winAction = document
+          .getElementById('__naizodb_host__')
+          ?.shadowRoot?.getElementById('action') as HTMLButtonElement | null;
+        expect(winAction?.dataset.kbd).toBe('Ctrl+S');
+        expect(winAction?.title).toContain('⌘S / Ctrl+S');
+      } finally {
+        Object.defineProperty(navigator, 'platform', { value: origPlatform, configurable: true });
+        Object.defineProperty(navigator, 'userAgent', { value: origUa, configurable: true });
+      }
+
+      // 8. Shipped dist/naizo.js & dist/naizo.min.js bundle parity + < 100 KB raw dist/naizo.min.js size guardrail
+      const minBundleBytes = readFileSync(resolve(process.cwd(), 'dist/naizo.min.js'));
+      const minGzipBytes = gzipSync(minBundleBytes, { level: 9 });
+      expect(minBundleBytes.byteLength).toBeLessThan(100_000);
+      expect(minGzipBytes.byteLength).toBeLessThan(30_000);
+
+      window.__naizoCleanup?.();
+      expect(mqDarkListeners.size).toBe(0);
+      document.documentElement.setAttribute('data-naizo-manual', 'true');
+      document.documentElement.setAttribute('naizo-mode', 'local');
+      runInThisContext(minBundleBytes.toString('utf-8'));
+      await window.Naizo.init();
+
+      const minShadow = document.getElementById('__naizodb_host__')?.shadowRoot;
+      const minDot = minShadow?.getElementById('dot');
+      const minReset = minShadow?.getElementById('reset') as HTMLButtonElement | null;
+      expect(minDot?.querySelector('rect.c-top')?.getAttribute('width')).toBe('22');
+      expect(minDot?.querySelector('rect.c-top')?.getAttribute('rx')).toBe('4.5');
+      expect(minReset?.style.display).toBe('none');
+      window.Naizo.setField('note', 'Minified Unlinked Edit');
+      expect(minReset?.style.display).toBe('inline-block');
+    } finally {
+      window.matchMedia = origMatchMedia;
+      perfSpy.mockRestore();
+      window.__naizoCleanup?.();
+      Reflect.deleteProperty(window, 'showSaveFilePicker');
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('naizo-mode');
+      document.documentElement.removeAttribute('data-theme');
+      document.documentElement.removeAttribute('data-naizo-manual');
       window.Naizo = Naizo;
       window.NaizoDB = NaizoDB;
       vi.useRealTimers();

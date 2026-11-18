@@ -1,5 +1,42 @@
 import { defineConfig } from 'vite-plus';
 
+function minifyCssBlock(css: string): string {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([{}])\s*/g, '$1')
+    .replace(/;\s+/g, ';')
+    .replace(/;}/g, '}')
+    .trim();
+}
+
+function compactMinifiedUiTemplates(source: string): string {
+  let out = source.replace(
+    /(style\.textContent\s*=\s*`)([\s\S]*?)(`;)/g,
+    (_m, pre: string, css: string, post: string) => `${pre}${minifyCssBlock(css)}${post}`,
+  );
+  out = out.replace(
+    /(shadow\.innerHTML\s*=\s*`)([\s\S]*?)(`;)/g,
+    (_m, pre: string, html: string, post: string) => {
+      const compacted = html
+        .replace(
+          /(<style>)([\s\S]*?)(<\/style>)/g,
+          (_sm, sOpen: string, css: string, sClose: string) =>
+            `${sOpen}${minifyCssBlock(css)}${sClose}`,
+        )
+        .replace(/>\s+</g, '><')
+        .trim();
+      return `${pre}${compacted}${post}`;
+    },
+  );
+  out = out.replace(
+    /(tools\.innerHTML\s*=\s*`)([\s\S]*?)(`;)/g,
+    (_m, pre: string, html: string, post: string) =>
+      `${pre}${html.replace(/>\s+</g, '><').trim()}${post}`,
+  );
+  return out;
+}
+
 export default defineConfig({
   plugins: [
     {
@@ -59,6 +96,15 @@ export default defineConfig({
       dts: false,
       minify: true,
       outDir: 'dist',
+      plugins: [
+        {
+          name: 'naizo-compact-ui-templates',
+          transform(code: string, id: string) {
+            if (!/[\\/]src[\\/]index\.ts$/.test(id)) return null;
+            return compactMinifiedUiTemplates(code);
+          },
+        },
+      ],
       outputOptions: {
         entryFileNames: 'naizo.min.js',
       },

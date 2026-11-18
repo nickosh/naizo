@@ -472,12 +472,17 @@ let netBtn: HTMLButtonElement | null = null;
 let tooltipEl: HTMLElement | null = null;
 let tooltipTextEl: HTMLElement | null = null;
 let tooltipKbdEl: HTMLElement | null = null;
+let activeTipBtn: HTMLButtonElement | null = null;
+let pillTipTargets: HTMLButtonElement[] = [];
+let transientTipTimeout: ReturnType<typeof setTimeout> | null = null;
+let dragClickResetTimeout: ReturnType<typeof setTimeout> | null = null;
 let savingCycleStart = 0;
 let savingMinCycles = 1;
 let savingHoldTimeout: ReturnType<typeof setTimeout> | null = null;
 let copyResetTimeout: ReturnType<typeof setTimeout> | null = null;
 let bootClearTimeout: ReturnType<typeof setTimeout> | null = null;
 let themeObserver: MutationObserver | null = null;
+let themeMediaCleanup: (() => void) | null = null;
 let netRevealed = false;
 let netState: 'idle' | 'active' | 'error' = 'idle';
 let netInFlightCount = 0;
@@ -1699,6 +1704,7 @@ function applyExternalDiskUpdate(
   lastSerializedContent = serializeContentBuckets(store);
   lastKnownDiskRaw = diskRaw.trim();
   lastDiskDb = cloneDb(diskDb);
+  initialDiskDb = cloneDb(lastDiskDb);
 
   hydrateSubtreeFromStore(document, preserveActive, false);
   writeStoreToDomScript(store, false);
@@ -1872,6 +1878,7 @@ async function performSingleDiskWrite(): Promise<boolean> {
     const writtenParsed = parseDbScriptDetailed(exactWrittenTrimmed);
     if (writtenParsed.ok) {
       lastDiskDb = cloneDb(writtenParsed.db);
+      initialDiskDb = cloneDb(lastDiskDb);
     }
     safeSetStorage(getSnapshotKey(), hashCanonicalDb(exactWrittenTrimmed));
 
@@ -2055,17 +2062,18 @@ function applyNetUiState(): void {
   netBtn.style.display = netRevealed ? 'inline-flex' : 'none';
   if (netState === 'active') {
     netBtn.className = 'net-slot active';
-    netBtn.title = 'API active';
+    setPillElementTitle(netBtn, 'API active');
     netBtn.dataset.tip = 'API Active';
   } else if (netState === 'error') {
     netBtn.className = 'net-slot error';
-    netBtn.title = 'API request failed';
+    setPillElementTitle(netBtn, 'API request failed');
     netBtn.dataset.tip = 'API Request Failed · Click to Clear';
   } else {
     netBtn.className = 'net-slot idle';
-    netBtn.title = 'API idle';
+    setPillElementTitle(netBtn, 'API idle');
     netBtn.dataset.tip = 'API Idle';
   }
+  refreshActivePillTooltip();
 }
 
 function revealNetIndicator(): void {
@@ -2166,6 +2174,17 @@ const PILL_ICONS = {
     '<path d="m7 20-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 20"/><path d="M21 20H7"/><path d="m5 11 9 9"/>',
 } as const;
 
+const NET_GLOBE_WIRES =
+  '<path d="M 3.6 8.2 Q 12 9.7 20.4 8.2"/><path d="M 3.6 15.8 Q 12 14.3 20.4 15.8"/><ellipse cx="12" cy="12" rx="4.6" ry="9.5"/><circle cx="12" cy="12" r="9.5"/>';
+
+function getSaveShortcutKbd(): string {
+  if (typeof navigator === 'undefined') return '⌘S';
+  const uaDataPlatform = (navigator as Navigator & { userAgentData?: { platform?: string } })
+    .userAgentData?.platform;
+  const platformStr = `${uaDataPlatform ?? ''} ${navigator.platform ?? ''} ${navigator.userAgent ?? ''}`;
+  return /mac|darwin|iphone|ipad|ipod/i.test(platformStr) ? '⌘S' : 'Ctrl+S';
+}
+
 function nowHighResMs(): number {
   return typeof performance !== 'undefined' && typeof performance.now === 'function'
     ? performance.now()
@@ -2184,13 +2203,26 @@ function resolveExplicitPageTheme(): 'dark' | 'light' | null {
   return null;
 }
 
+function isSystemDarkTheme(): boolean {
+  try {
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    );
+  } catch {
+    return false;
+  }
+}
+
 function syncHostTheme(host: HTMLElement): void {
   const explicit = resolveExplicitPageTheme();
+  const effective = explicit ?? (isSystemDarkTheme() ? 'dark' : null);
   const current = host.getAttribute('data-naizo-theme');
-  if (explicit === null) {
+  if (effective === null) {
     if (current !== null) host.removeAttribute('data-naizo-theme');
-  } else if (current !== explicit) {
-    host.setAttribute('data-naizo-theme', explicit);
+  } else if (current !== effective) {
+    host.setAttribute('data-naizo-theme', effective);
   }
 }
 
@@ -2212,7 +2244,7 @@ function syncSavingBeat(state: string): void {
     return;
   }
 
-  if ((state === 'saved' || state === 'cached' || state === '') && savingCycleStart > 0) {
+  if ((state === 'saved' || state === '') && savingCycleStart > 0) {
     if (savingHoldTimeout !== null) {
       clearTimeout(savingHoldTimeout);
     }
@@ -2237,9 +2269,47 @@ function syncSavingBeat(state: string): void {
   if (dotBtnEl) delete dotBtnEl.dataset.naizoSaving;
 }
 
+function stashElementTitle(el: HTMLElement): void {
+  if (el.dataset.savedTitle === undefined && el.hasAttribute('title')) {
+    el.dataset.savedTitle = el.getAttribute('title') ?? '';
+    el.removeAttribute('title');
+  }
+}
+
+function restoreElementTitle(el: HTMLElement): void {
+  if (el.dataset.savedTitle !== undefined) {
+    el.setAttribute('title', el.dataset.savedTitle);
+    delete el.dataset.savedTitle;
+  }
+}
+
+function setPillElementTitle(el: HTMLElement | null, nextTitle: string): void {
+  if (!el) return;
+  if (el.dataset.savedTitle !== undefined) {
+    el.dataset.savedTitle = nextTitle;
+  } else {
+    el.title = nextTitle;
+  }
+}
+
+function clearPillTooltipTimersAndTitles(): void {
+  if (transientTipTimeout !== null) {
+    clearTimeout(transientTipTimeout);
+    transientTipTimeout = null;
+  }
+  if (dragClickResetTimeout !== null) {
+    clearTimeout(dragClickResetTimeout);
+    dragClickResetTimeout = null;
+  }
+  pillTipTargets.forEach((btn) => {
+    restoreElementTitle(btn);
+  });
+  activeTipBtn = null;
+}
+
 function showPillTooltip(text: string, kbd = ''): void {
   if (!tooltipEl || !tooltipTextEl || !tooltipKbdEl) return;
-  if (!text) {
+  if (!text || (resetConfirmEl && resetConfirmEl.style.display !== 'none')) {
     tooltipEl.classList.remove('visible');
     return;
   }
@@ -2254,8 +2324,47 @@ function showPillTooltip(text: string, kbd = ''): void {
   tooltipEl.classList.add('visible');
 }
 
-function hidePillTooltip(): void {
+function hidePillTooltip(clearTransient = false): void {
+  if (clearTransient && transientTipTimeout !== null) {
+    clearTimeout(transientTipTimeout);
+    transientTipTimeout = null;
+  }
   tooltipEl?.classList.remove('visible');
+}
+
+function refreshActivePillTooltip(): void {
+  if (!activeTipBtn) return;
+  if (
+    !activeTipBtn.isConnected ||
+    activeTipBtn.style.display === 'none' ||
+    (resetConfirmEl && resetConfirmEl.style.display !== 'none')
+  ) {
+    restoreElementTitle(activeTipBtn);
+    activeTipBtn = null;
+    if (transientTipTimeout === null) {
+      hidePillTooltip();
+    }
+    return;
+  }
+  if (transientTipTimeout !== null) return;
+  showPillTooltip(activeTipBtn.dataset.tip ?? '', activeTipBtn.dataset.kbd ?? '');
+}
+
+function flashPillTooltip(text: string, durationMs = 1200): void {
+  if (transientTipTimeout !== null) {
+    clearTimeout(transientTipTimeout);
+    transientTipTimeout = null;
+  }
+  if (resetConfirmEl && resetConfirmEl.style.display !== 'none') return;
+  showPillTooltip(text, '');
+  transientTipTimeout = setTimeout(() => {
+    transientTipTimeout = null;
+    if (activeTipBtn) {
+      refreshActivePillTooltip();
+    } else {
+      hidePillTooltip();
+    }
+  }, durationMs);
 }
 
 function mountUi(): void {
@@ -2297,6 +2406,11 @@ function mountUi(): void {
     themeObserver.disconnect();
     themeObserver = null;
   }
+  if (themeMediaCleanup !== null) {
+    themeMediaCleanup();
+    themeMediaCleanup = null;
+  }
+  clearPillTooltipTimersAndTitles();
   if (bootClearTimeout !== null) {
     clearTimeout(bootClearTimeout);
     bootClearTimeout = null;
@@ -2321,6 +2435,7 @@ function mountUi(): void {
   syncHostTheme(host);
   const shadow = host.attachShadow({ mode: 'open' });
   const initialCorner = readSavedUiCorner();
+  const saveKbd = getSaveShortcutKbd();
 
   shadow.innerHTML = `
     <style>
@@ -2342,27 +2457,6 @@ function mountUi(): void {
         --drop-active-border: rgba(15, 23, 42, 0.38);
         --drop-active-shadow: 0 4px 14px rgba(15, 23, 42, 0.09);
         --restore-color: #d97706;
-      }
-      @media (prefers-color-scheme: dark) {
-        :host(:not([data-naizo-theme="light"])) {
-          --pill-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.13) 0%, rgba(15, 23, 42, 0.44) 100%);
-          --pill-text: #f8fafc;
-          --pill-muted: #94a3b8;
-          --pill-border: transparent;
-          --pill-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 6px 18px rgba(0, 0, 0, 0.42);
-          --btn-bg: rgba(255, 255, 255, 0.08);
-          --btn-bg-hover: rgba(255, 255, 255, 0.18);
-          --btn-border: rgba(255, 255, 255, 0.14);
-          --btn-color: #e2e8f0;
-          --btn-color-hover: #ffffff;
-          --sep-color: rgba(255, 255, 255, 0.15);
-          --drop-bg: rgba(255, 255, 255, 0.07);
-          --drop-border: rgba(255, 255, 255, 0.24);
-          --drop-active-bg: rgba(255, 255, 255, 0.16);
-          --drop-active-border: rgba(255, 255, 255, 0.52);
-          --drop-active-shadow: 0 0 16px rgba(255, 255, 255, 0.1);
-          --restore-color: #fbbf24;
-        }
       }
       :host([data-naizo-theme="dark"]) {
         --pill-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.13) 0%, rgba(15, 23, 42, 0.44) 100%);
@@ -2403,10 +2497,10 @@ function mountUi(): void {
         box-shadow: var(--drop-active-shadow); transform: scale(1.03);
       }
       .pill-anchor {
-        position: fixed; z-index: 2147483647;
-        display: flex; flex-direction: column; align-items: flex-end; gap: 7px;
+        position: fixed; z-index: 2147483647; pointer-events: none;
+        display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
         font: 500 12px/1.2 system-ui, -apple-system, sans-serif;
-        transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+        transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
       }
       .pill-anchor.is-dragging {
         transition: none; cursor: grabbing;
@@ -2419,6 +2513,7 @@ function mountUi(): void {
       .pill-anchor[data-corner="top-right"] { top: 16px; right: 16px; align-items: flex-end; flex-direction: column-reverse; }
       .pill-anchor[data-corner="top-left"] { top: 16px; left: 16px; align-items: flex-start; flex-direction: column-reverse; }
       .pill {
+        pointer-events: auto; touch-action: none;
         display: inline-flex; align-items: center; gap: 5px;
         padding: 4px 6px; border-radius: 999px;
         background: var(--pill-bg); color: var(--pill-text);
@@ -2433,10 +2528,17 @@ function mountUi(): void {
       .dot {
         width: 20px; height: 20px; padding: 0; border: none; background: transparent;
         display: inline-flex; align-items: center; justify-content: center;
-        cursor: grab; color: #f59e0b; border-radius: 50%; flex-shrink: 0;
+        cursor: grab; touch-action: none; color: #f59e0b; border-radius: 50%; flex-shrink: 0;
         transition: color 0.2s ease, transform 0.15s ease;
       }
       .dot:active { cursor: grabbing; }
+      .dot:focus-visible,
+      .icon-btn:focus-visible,
+      button.net-slot:focus-visible,
+      .confirm-pop button:focus-visible {
+        outline: 2px solid #10b981;
+        outline-offset: 2px;
+      }
       .dot.saved,
       .dot.saving,
       .dot[data-naizo-saving="1"] {
@@ -2452,10 +2554,13 @@ function mountUi(): void {
       .naizo-logo-svg {
         width: 21.5px; height: 21.5px; overflow: visible; display: block; flex-shrink: 0;
       }
-      .naizo-logo-svg .ring { transform-origin: 50px 50px; }
-      .naizo-logo-svg .c-top { transform-origin: 50px 37px; }
-      .naizo-logo-svg .c-bl { transform-origin: 37px 63px; }
-      .naizo-logo-svg .c-br { transform-origin: 63px 63px; }
+      .naizo-logo-svg .ring,
+      .naizo-logo-svg .c-top,
+      .naizo-logo-svg .c-bl,
+      .naizo-logo-svg .c-br {
+        transform-box: fill-box;
+        transform-origin: center;
+      }
       @keyframes naizoBootRing {
         0% { stroke-dasharray: 263.89; stroke-dashoffset: 263.89; transform: scale(0.92); opacity: 0.3; }
         65% { stroke-dasharray: 263.89; stroke-dashoffset: 0; transform: scale(1.03); opacity: 1; }
@@ -2606,7 +2711,7 @@ function mountUi(): void {
         cursor: pointer; flex-shrink: 0;
         transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
       }
-      .icon-btn:not([style*="display: none"]) {
+      .icon-btn:not([style*="display: none"]):not([style*="display:none"]) {
         display: inline-flex !important;
       }
       .icon-btn:hover {
@@ -2658,7 +2763,11 @@ function mountUi(): void {
       .net-globe-svg {
         width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.85;
         stroke-linecap: round; stroke-linejoin: round; fill: none;
-        display: block; flex-shrink: 0; overflow: visible; transform-origin: 12px 12px;
+        display: block; flex-shrink: 0; overflow: visible;
+        transform-box: fill-box; transform-origin: center;
+      }
+      .anim-net-error {
+        transform-box: fill-box; transform-origin: center;
       }
       .net-globe-svg .globe-lit {
         opacity: 0; stroke: #10b981;
@@ -2682,6 +2791,7 @@ function mountUi(): void {
         animation: naizoGlobeErrorPulse 1.5s ease-in-out infinite;
       }
       .pill-tooltip {
+        position: absolute; bottom: calc(100% + 7px); right: 0;
         padding: 4px 10px; border-radius: 999px;
         background: var(--pill-bg); color: var(--pill-text);
         border: 1px solid var(--pill-border); box-shadow: var(--pill-shadow);
@@ -2692,7 +2802,15 @@ function mountUi(): void {
         transition: opacity 0.14s ease, transform 0.14s ease;
         display: inline-flex; align-items: center; gap: 6px;
       }
-      .pill-tooltip.visible {
+      .pill-anchor[data-corner$="-left"] .pill-tooltip {
+        right: auto; left: 0;
+      }
+      .pill-anchor[data-corner^="top-"] .pill-tooltip {
+        bottom: auto; top: calc(100% + 7px);
+        transform: translateY(-4px) scale(0.97);
+      }
+      .pill-tooltip.visible,
+      .pill-anchor[data-corner^="top-"] .pill-tooltip.visible {
         opacity: 1; transform: translateY(0) scale(1);
       }
       .pill-tooltip .kbd {
@@ -2701,6 +2819,7 @@ function mountUi(): void {
         border-radius: 4px; border: 1px solid var(--btn-border); background: var(--btn-bg);
       }
       .confirm-pop {
+        pointer-events: auto;
         display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
         padding: 5px 10px; border-radius: 999px;
         background: var(--pill-bg); color: var(--pill-text);
@@ -2747,13 +2866,13 @@ function mountUi(): void {
       </div>
       <div class="pill-tooltip" id="pill-tooltip" role="tooltip" aria-hidden="true">
         <span id="tooltip-text">Browser Cache · Click to Link Disk</span>
-        <span class="kbd" id="tooltip-kbd" style="display: none">⌘S</span>
+        <span class="kbd" id="tooltip-kbd" style="display: none">${saveKbd}</span>
       </div>
       <div class="pill" id="pill" role="region" aria-label="naizo.js sync status">
         <span id="status" class="sr-only" role="status" aria-live="polite">Browser Cache · Click to Link Disk</span>
-        <button type="button" class="dot" id="dot" data-naizo-boot="1" data-tip="Browser Cache · Click to Link Disk" title="Browser Cache · Click to Link Disk" aria-label="Naizo sync status"><svg class="naizo-logo-svg" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="8" /><rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="currentColor" /><rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="currentColor" /><rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="currentColor" /></svg></button>
+        <button type="button" class="dot" id="dot" data-naizo-boot="1" data-tip="Browser Cache · Click to Link Disk" title="Browser Cache · Click to Link Disk" aria-label="Naizo sync status"><svg class="naizo-logo-svg" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="8" /><rect class="c-top" x="39" y="26" width="22" height="22" rx="4.5" fill="currentColor" /><rect class="c-bl" x="26" y="52" width="22" height="22" rx="4.5" fill="currentColor" /><rect class="c-br" x="52" y="52" width="22" height="22" rx="4.5" fill="currentColor" /></svg></button>
         <span class="pill-sep" id="dot-sep" aria-hidden="true"></span>
-        <button id="action" type="button" class="icon-btn" data-tip="Link Disk" data-kbd="⌘S" title="Link local HTML file on disk (⌘S / Ctrl+S)" aria-label="Link disk file"><span class="sr-only" id="action-sr">Link Disk</span><svg id="action-svg" viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.link}</svg></button>
+        <button id="action" type="button" class="icon-btn" data-tip="Link Disk" data-kbd="${saveKbd}" title="Link local HTML file on disk (⌘S / Ctrl+S)" aria-label="Link disk file"><span class="sr-only" id="action-sr">Link Disk</span><svg id="action-svg" viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.link}</svg></button>
         <button id="unlink" type="button" class="icon-btn danger-hover" style="display: none" data-tip="Unlink Disk" title="Forget linked disk file" aria-label="Unlink disk file"><span class="sr-only">× Unlink</span><svg viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.unlink}</svg></button>
         <button id="copy" type="button" class="icon-btn" data-tip="Copy JSON" title="Copy #naizodb JSON state" aria-label="Copy #naizodb JSON"><span class="sr-only" id="copy-sr">📋 Copy</span><svg id="copy-svg" viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.copy}</svg></button>
         <button id="restore" type="button" class="icon-btn restore-btn" style="display: none" data-tip="Restore Backup" title="Restore browser state before conflict or reset" aria-label="Restore conflict backup"><span class="sr-only" id="restore-sr">↺ Restore</span><svg id="restore-svg" viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.restore}</svg></button>
@@ -2766,18 +2885,8 @@ function mountUi(): void {
                 <rect class="wave-band-rect" x="-4" y="0" width="9" height="24" rx="4" />
               </clipPath>
             </defs>
-            <g class="globe-base">
-              <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
-              <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
-              <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
-              <circle cx="12" cy="12" r="9.5" />
-            </g>
-            <g class="globe-lit" clip-path="url(#naizo-net-wave-clip)">
-              <path d="M 3.6 8.2 Q 12 9.7 20.4 8.2" />
-              <path d="M 3.6 15.8 Q 12 14.3 20.4 15.8" />
-              <ellipse cx="12" cy="12" rx="4.6" ry="9.5" />
-              <circle cx="12" cy="12" r="9.5" />
-            </g>
+            <g class="globe-base">${NET_GLOBE_WIRES}</g>
+            <g class="globe-lit" clip-path="url(#naizo-net-wave-clip)">${NET_GLOBE_WIRES}</g>
           </svg>
         </button>
       </div>
@@ -2832,6 +2941,45 @@ function mountUi(): void {
     }
   }
 
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    try {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const onMqChange = () => {
+        syncHostTheme(host);
+      };
+      if (typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', onMqChange);
+        themeMediaCleanup = () => {
+          mq.removeEventListener('change', onMqChange);
+        };
+      } else if (typeof mq.addListener === 'function') {
+        mq.addListener(onMqChange);
+        themeMediaCleanup = () => {
+          mq.removeListener(onMqChange);
+        };
+      }
+    } catch {
+      // Ignore matchMedia errors in restricted environments
+    }
+  }
+
+  let suppressNextDotClick = false;
+  let lastPointerWasTouch = false;
+
+  dotBtnEl?.addEventListener('click', (e) => {
+    if (suppressNextDotClick) {
+      suppressNextDotClick = false;
+      e.preventDefault();
+      return;
+    }
+    if (
+      !startupInvalidDb &&
+      !isOnlineMode() &&
+      (!fileHandle || fileHandlePermission !== 'granted')
+    ) {
+      void connectOrResumeDisk();
+    }
+  });
   actionBtn?.addEventListener('click', () => {
     if (isOnlineMode()) {
       Naizo.downloadHTML();
@@ -2849,19 +2997,34 @@ function mountUi(): void {
       copyBtn.dataset.tip = '✓ Copied';
       if (copySrEl) copySrEl.textContent = '✓ Copied';
       if (copySvgEl) copySvgEl.innerHTML = PILL_ICONS.check;
-      showPillTooltip('✓ Copied', '');
+      if (activeTipBtn === copyBtn) {
+        refreshActivePillTooltip();
+      } else {
+        showPillTooltip('✓ Copied', '');
+      }
       copyResetTimeout = setTimeout(() => {
         copyResetTimeout = null;
         copyBtn.classList.remove('copied');
         copyBtn.dataset.tip = 'Copy JSON';
         if (copySrEl) copySrEl.textContent = '📋 Copy';
         if (copySvgEl) copySvgEl.innerHTML = PILL_ICONS.copy;
+        if (activeTipBtn === copyBtn) {
+          refreshActivePillTooltip();
+        } else if (!activeTipBtn && transientTipTimeout === null) {
+          hidePillTooltip();
+        }
       }, 1500);
     });
   });
   resetBtn?.addEventListener('click', () => {
     if (!resetConfirmEl) return;
-    resetConfirmEl.style.display = resetConfirmEl.style.display === 'none' ? 'inline-flex' : 'none';
+    const opening = resetConfirmEl.style.display === 'none';
+    resetConfirmEl.style.display = opening ? 'inline-flex' : 'none';
+    if (opening) {
+      hidePillTooltip(true);
+    } else {
+      refreshActivePillTooltip();
+    }
   });
   resetYesBtn?.addEventListener('click', () => {
     if (resetConfirmEl) resetConfirmEl.style.display = 'none';
@@ -2869,6 +3032,7 @@ function mountUi(): void {
   });
   resetCancelBtn?.addEventListener('click', () => {
     if (resetConfirmEl) resetConfirmEl.style.display = 'none';
+    refreshActivePillTooltip();
   });
   unlinkBtn?.addEventListener('click', () => {
     void Naizo.unlink();
@@ -2887,19 +3051,71 @@ function mountUi(): void {
         netState = 'idle';
       }
       applyNetUiState();
-      hidePillTooltip();
+      if (activeTipBtn !== netBtn) {
+        hidePillTooltip();
+      }
     }
   });
 
-  [dotBtnEl, actionBtn, unlinkBtn, copyBtn, restoreBtn, resetBtn, netBtn].forEach((btn) => {
-    if (!btn) return;
-    const onEnter = () => {
-      showPillTooltip(btn.dataset.tip ?? '', btn.dataset.kbd ?? '');
+  pillTipTargets = [dotBtnEl, actionBtn, unlinkBtn, copyBtn, restoreBtn, resetBtn, netBtn].filter(
+    (btn): btn is HTMLButtonElement => btn !== null,
+  );
+  pillTipTargets.forEach((btn) => {
+    btn.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (e.pointerType === 'touch') {
+        lastPointerWasTouch = true;
+        activeTipBtn = null;
+        hidePillTooltip(true);
+      } else {
+        lastPointerWasTouch = false;
+      }
+    });
+    btn.addEventListener('pointerenter', (e: PointerEvent) => {
+      if (e.pointerType === 'touch') {
+        activeTipBtn = null;
+        hidePillTooltip();
+        return;
+      }
+      lastPointerWasTouch = false;
+      stashElementTitle(btn);
+      activeTipBtn = btn;
+      if (transientTipTimeout !== null) {
+        clearTimeout(transientTipTimeout);
+        transientTipTimeout = null;
+      }
+      refreshActivePillTooltip();
+    });
+    btn.addEventListener('mouseenter', () => {
+      if (lastPointerWasTouch) return;
+      stashElementTitle(btn);
+      activeTipBtn = btn;
+      if (transientTipTimeout !== null) {
+        clearTimeout(transientTipTimeout);
+        transientTipTimeout = null;
+      }
+      refreshActivePillTooltip();
+    });
+    btn.addEventListener('focus', () => {
+      if (lastPointerWasTouch) return;
+      activeTipBtn = btn;
+      if (transientTipTimeout !== null) {
+        clearTimeout(transientTipTimeout);
+        transientTipTimeout = null;
+      }
+      refreshActivePillTooltip();
+    });
+    const onLeave = () => {
+      restoreElementTitle(btn);
+      if (activeTipBtn === btn) {
+        activeTipBtn = null;
+        if (transientTipTimeout === null) {
+          hidePillTooltip();
+        }
+      }
     };
-    btn.addEventListener('mouseenter', onEnter);
-    btn.addEventListener('focus', onEnter);
-    btn.addEventListener('mouseleave', hidePillTooltip);
-    btn.addEventListener('blur', hidePillTooltip);
+    btn.addEventListener('pointerleave', onLeave);
+    btn.addEventListener('mouseleave', onLeave);
+    btn.addEventListener('blur', onLeave);
   });
 
   const highlightDropZone = (corner: PillCorner) => {
@@ -2936,32 +3152,46 @@ function mountUi(): void {
     null;
 
   pillEl?.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (
+      (e.pointerType === 'mouse' || !e.pointerType) &&
+      typeof e.button === 'number' &&
+      e.button !== 0
+    ) {
+      return;
+    }
+    if (dragState !== null) return;
     const target = e.target as Element | null;
     const clickedBtn = target?.closest('button');
     if (clickedBtn && clickedBtn !== dotBtnEl) return;
+    suppressNextDotClick = false;
+    if (dragClickResetTimeout !== null) {
+      clearTimeout(dragClickResetTimeout);
+      dragClickResetTimeout = null;
+    }
     syncDropZoneSizes();
+    const pointerId = e.pointerId ?? 0;
     dragState = {
-      pointerId: e.pointerId,
+      pointerId,
       startX: e.clientX,
       startY: e.clientY,
       moved: false,
     };
     try {
-      pillEl.setPointerCapture?.(e.pointerId);
+      pillEl.setPointerCapture?.(pointerId);
     } catch {
       // Ignore pointer capture errors in synthetic test environments
     }
   });
 
   pillEl?.addEventListener('pointermove', (e: PointerEvent) => {
-    if (!dragState) return;
+    if (!dragState || (e.pointerId ?? 0) !== dragState.pointerId) return;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
     if (!dragState.moved && Math.hypot(dx, dy) > 5) {
       dragState.moved = true;
       host.setAttribute('data-naizo-dragging', '1');
       anchorEl?.classList.add('is-dragging');
-      hidePillTooltip();
+      hidePillTooltip(true);
     }
     if (dragState.moved && anchorEl) {
       anchorEl.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
@@ -2970,18 +3200,59 @@ function mountUi(): void {
   });
 
   const finishDrag = (e: PointerEvent) => {
-    if (!dragState) return;
+    if (!dragState || (e.pointerId ?? 0) !== dragState.pointerId) return;
     const wasMoved = dragState.moved;
+    const activePointerId = dragState.pointerId;
     dragState = null;
+    try {
+      pillEl?.releasePointerCapture?.(activePointerId);
+    } catch {
+      // Ignore pointer capture release errors in synthetic test environments
+    }
     host.removeAttribute('data-naizo-dragging');
-    anchorEl?.classList.remove('is-dragging');
-    if (anchorEl) anchorEl.style.transform = '';
-    if (wasMoved && anchorEl) {
+    if (!wasMoved) {
+      anchorEl?.classList.remove('is-dragging');
+      if (anchorEl) anchorEl.style.transform = '';
+      return;
+    }
+
+    if (e.type !== 'pointercancel') {
+      suppressNextDotClick = true;
+      if (dragClickResetTimeout !== null) clearTimeout(dragClickResetTimeout);
+      dragClickResetTimeout = setTimeout(() => {
+        dragClickResetTimeout = null;
+        suppressNextDotClick = false;
+      }, 60);
+    }
+
+    if (!anchorEl) return;
+    const fromRect = anchorEl.getBoundingClientRect();
+    if (e.type !== 'pointercancel') {
       const targetCorner = getNearestViewportCorner(e.clientX, e.clientY);
       highlightDropZone(targetCorner);
       anchorEl.dataset.corner = targetCorner;
       saveUiCorner(targetCorner);
+    } else {
+      const existingCorner = (anchorEl.dataset.corner as PillCorner | undefined) ?? initialCorner;
+      highlightDropZone(existingCorner);
     }
+    anchorEl.style.transform = '';
+
+    const toRect = anchorEl.getBoundingClientRect();
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (toRect.width > 0 && !prefersReducedMotion) {
+      const flipDx = fromRect.left - toRect.left;
+      const flipDy = fromRect.top - toRect.top;
+      if (Math.abs(flipDx) > 0.5 || Math.abs(flipDy) > 0.5) {
+        anchorEl.style.transform = `translate3d(${flipDx}px, ${flipDy}px, 0)`;
+        void anchorEl.offsetWidth;
+      }
+    }
+    anchorEl.classList.remove('is-dragging');
+    anchorEl.style.transform = '';
   };
   pillEl?.addEventListener('pointerup', finishDrag);
   pillEl?.addEventListener('pointercancel', finishDrag);
@@ -3033,10 +3304,11 @@ function setButtonIconAndSr(
 function updateUi(state: string, message: string): void {
   if (!statusEl || !actionBtn) return;
   const online = isOnlineMode();
+  const saveKbd = getSaveShortcutKbd();
   statusEl.textContent = message;
   if (dotBtnEl) {
     dotBtnEl.dataset.tip = message;
-    dotBtnEl.title = message;
+    setPillElementTitle(dotBtnEl, message);
   }
   (document.getElementById(UI_ID) as NaizoHostElement | null)?._setDot?.(state);
 
@@ -3048,29 +3320,31 @@ function updateUi(state: string, message: string): void {
       setButtonIconAndSr(actionSrEl, actionSvgEl, '⬇ Save to PC', PILL_ICONS.download);
       actionBtn.dataset.tip = 'Save to PC';
       actionBtn.dataset.kbd = '';
-      actionBtn.title =
-        'Download portable HTML app to your computer (⌘S / Ctrl+S saves in browser)';
+      setPillElementTitle(
+        actionBtn,
+        'Download portable HTML app to your computer (⌘S / Ctrl+S saves in browser)',
+      );
       actionBtn.setAttribute('aria-label', 'Save portable HTML to PC');
     }
   } else if (state === 'saved' || state === 'error') {
     actionBtn.style.display = 'none';
-    actionBtn.title = 'Save to disk (⌘S / Ctrl+S)';
+    setPillElementTitle(actionBtn, 'Save to disk (⌘S / Ctrl+S)');
   } else if (state === 'needs-permission') {
     actionBtn.style.display = 'inline-block';
     setButtonIconAndSr(actionSrEl, actionSvgEl, 'Resume Disk Sync', PILL_ICONS.link);
     actionBtn.dataset.tip = 'Resume Disk Sync';
-    actionBtn.dataset.kbd = '⌘S';
-    actionBtn.title = 'Resume disk sync (⌘S / Ctrl+S)';
+    actionBtn.dataset.kbd = saveKbd;
+    setPillElementTitle(actionBtn, 'Resume disk sync (⌘S / Ctrl+S)');
     actionBtn.setAttribute('aria-label', 'Resume disk sync');
   } else if (fileHandle) {
     actionBtn.style.display = 'none';
-    actionBtn.title = 'Save to disk (⌘S / Ctrl+S)';
+    setPillElementTitle(actionBtn, 'Save to disk (⌘S / Ctrl+S)');
   } else {
     actionBtn.style.display = 'inline-block';
     setButtonIconAndSr(actionSrEl, actionSvgEl, 'Link Disk', PILL_ICONS.link);
     actionBtn.dataset.tip = 'Link Disk';
-    actionBtn.dataset.kbd = '⌘S';
-    actionBtn.title = 'Link local HTML file on disk (⌘S / Ctrl+S)';
+    actionBtn.dataset.kbd = saveKbd;
+    setPillElementTitle(actionBtn, 'Link local HTML file on disk (⌘S / Ctrl+S)');
     actionBtn.setAttribute('aria-label', 'Link disk file');
   }
 
@@ -3078,20 +3352,20 @@ function updateUi(state: string, message: string): void {
     if (startupInvalidDb) {
       setButtonIconAndSr(restoreSrEl, restoreSvgEl, '↺ Repair', PILL_ICONS.wrench);
       restoreBtn.dataset.tip = 'Repair JSON';
-      restoreBtn.title = 'Repair invalid #naizodb JSON';
+      setPillElementTitle(restoreBtn, 'Repair invalid #naizodb JSON');
       restoreBtn.setAttribute('aria-label', 'Repair invalid #naizodb JSON');
       restoreBtn.style.display = 'inline-block';
     } else {
       setButtonIconAndSr(restoreSrEl, restoreSvgEl, '↺ Restore', PILL_ICONS.restore);
       restoreBtn.dataset.tip = 'Restore Backup';
-      restoreBtn.title = 'Restore browser state before conflict or reset';
+      setPillElementTitle(restoreBtn, 'Restore browser state before conflict or reset');
       restoreBtn.setAttribute('aria-label', 'Restore conflict backup');
       const hasBackup = safeGetStorage(getBackupKey()) !== null;
       restoreBtn.style.display = hasBackup || state === 'conflict' ? 'inline-block' : 'none';
     }
   }
   if (resetBtn) {
-    const showReset = online && !startupInvalidDb && isDirtyFromInitial();
+    const showReset = (online || !fileHandle) && !startupInvalidDb && isDirtyFromInitial();
     resetBtn.style.display = showReset ? 'inline-block' : 'none';
     if (!showReset && resetConfirmEl) {
       resetConfirmEl.style.display = 'none';
@@ -3100,6 +3374,7 @@ function updateUi(state: string, message: string): void {
   if (unlinkBtn) {
     unlinkBtn.style.display = !online && fileHandle ? 'inline-block' : 'none';
   }
+  refreshActivePillTooltip();
 }
 
 // --- 9. Event Delegation for O(1) Input Capture, List Actions & Cross-Tab/Live Sync ---
@@ -3845,6 +4120,7 @@ function handleKeyDown(e: KeyboardEvent): void {
   if (isOnlineMode()) {
     if (storedOk) {
       updateUi('saved', '✓ Saved in Browser');
+      flashPillTooltip('✓ Saved in Browser', 1200);
     }
     return;
   }
@@ -3884,6 +4160,7 @@ function handleStorageEvent(e: StorageEvent): void {
     if (incomingRootHash && incomingRootHash === currentRootHash) {
       lastKnownDiskRaw = serializeDbJson(ensureStore()).trim();
       lastDiskDb = cloneDb(ensureStore());
+      initialDiskDb = cloneDb(lastDiskDb);
       if (saveTimeout !== null) {
         clearTimeout(saveTimeout);
         saveTimeout = null;
@@ -3982,6 +4259,11 @@ function detachListeners(): void {
     themeObserver.disconnect();
     themeObserver = null;
   }
+  if (themeMediaCleanup !== null) {
+    themeMediaCleanup();
+    themeMediaCleanup = null;
+  }
+  clearPillTooltipTimersAndTitles();
   savingCycleStart = 0;
   savingMinCycles = 1;
   if (listenerController !== null) {
@@ -4249,7 +4531,11 @@ export const Naizo: NaizoAPI = {
     writeStoreToDomScript(store, false);
 
     if (fileHandle) {
-      scheduleDiskWrite();
+      if (fileHandlePermission === 'granted') {
+        scheduleDiskWrite();
+      } else {
+        updateUi('needs-permission', 'Resume Disk Sync');
+      }
     } else if (isOnlineMode()) {
       updateUi('saved', 'Saved in Browser');
     } else {
