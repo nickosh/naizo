@@ -1360,7 +1360,7 @@
       <header class="doc-header">
         <div class="doc-topbar">
           <span class="doc-kicker">
-            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~22.2 KB
+            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~22.4 KB
             min+gzip · MIT
           </span>
           <button
@@ -2156,7 +2156,7 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>3. jsDelivr CDN (minified ~22.2 KB gzip)</span>
+          <span>3. jsDelivr CDN (minified ~22.4 KB gzip)</span>
           <button
             type="button"
             class="quiet-btn copy-snippet-btn"
@@ -2406,6 +2406,17 @@ mkdir -p .agents/skills/naizo &amp;&amp; curl -fsSL https://raw.githubuserconten
                 <td>Overrides automatic Local Mode vs. Online Mode detection.</td>
               </tr>
               <tr>
+                <td><code>naizo-no-pill</code></td>
+                <td><code>&lt;html&gt;</code> or <code>&lt;body&gt;</code></td>
+                <td>
+                  Hides the floating Status Pill while keeping <code>localStorage</code>, live file
+                  sync, and <code>⌘S</code> / <code>Ctrl+S</code> saving active (<code
+                    >="false"</code
+                  >
+                  opts out).
+                </td>
+              </tr>
+              <tr>
                 <td><code>naizo-manual</code></td>
                 <td>
                   <code>&lt;html&gt;</code>, <code>&lt;body&gt;</code>, or
@@ -2488,7 +2499,7 @@ Naizo.updateItem('tasks', 0, { done: true });  Naizo.moveItem('tasks', 1, 0);  N
 
 await Naizo.fetch('https://api.example.com/tasks', { into: 'list:tasks' });
 Naizo.bind(rootEl);                     await Naizo.save();                    Naizo.reset();
-await Naizo.unlink();                   await Naizo.copyJSON();
+await Naizo.link();                     await Naizo.unlink();                  await Naizo.copyJSON();
 const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app.html');
 
 // Events: 'naizo:hydrate', 'naizo:change', 'naizo:item', 'naizo:fetch'</code></pre>
@@ -3611,6 +3622,27 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 >API request failed</code
               >), open your browser's <strong>DevTools &rarr; Network</strong> tab to inspect HTTP
               status codes, CORS headers, and request/response payloads directly.
+            </p>
+            <p style="margin: 0.65rem 0 0; font-size: 0.9em; color: var(--muted)">
+              <strong
+                >Hiding the Status Pill (<code>naizo-no-pill</code> /
+                <code>data-naizo-no-pill</code> &amp; <code>Naizo.link()</code>):</strong
+              >
+              Add <code>naizo-no-pill</code> (or <code>data-naizo-no-pill</code>; set
+              <code>="false"</code> to re-enable, with <code>&lt;body&gt;</code> overriding
+              <code>&lt;html&gt;</code>) on <code>&lt;html&gt;</code> or <code>&lt;body&gt;</code>
+              for kiosk views, printable reports, embedded iframes, or custom toolbars. List styles,
+              <code>localStorage</code>, live ~2 s file watching, and <code>⌘S</code> /
+              <code>Ctrl+S</code> disk linking and saving remain active,
+              <code>naizo-no-pill</code> is preserved on HTML export/download, and malformed startup
+              <code>&lt;script id="naizodb"&gt;</code> JSON logs a browser console warning
+              explaining how to reveal <strong>Repair JSON</strong>. For Local Mode apps without the
+              pill, include a small <code>⌘S</code> / <code>Ctrl+S</code> hint or a custom
+              <code
+                >&lt;button type="button" onclick="Naizo.link()"&gt;Link Disk&lt;/button&gt;</code
+              >
+              control (<code>await Naizo.link()</code> resolves <code>true</code> once linked and
+              saved to disk).
             </p>
           </div>
         </details>

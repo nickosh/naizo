@@ -26,6 +26,9 @@ In Japanese, **naizō (ないぞう)** carries two homophonous meanings that def
    - Add a descriptive `naizo-id="project-artifact-slug"` on `<html>` (or `"_meta": { "id": "..." }`) so `localStorage` caches and IndexedDB file handles never collide when multiple HTML tools are opened on `localhost` or `file://`.
 6. **Never filter `[naizo-item]` rows by removing them from the DOM (`D43`):**
    - Removing a `[naizo-item]` node deletes its object from `db.lists`. For search or category filtering, toggle `row.hidden = !matches` (or CSS `display: none`).
+7. **Keep the Status Pill visible unless asked (`naizo-no-pill`, `D56`, `EC53`):**
+   - Only add `naizo-no-pill` (or `data-naizo-no-pill`) on `<html>` or `<body>` when the user asks to hide the Status Pill (e.g., kiosk views, printable reports, embedded iframes) or build a custom persistence toolbar.
+   - When using `naizo-no-pill` in Local Mode, always surface `⌘S` / `Ctrl+S` or a custom `<button type="button" onclick="Naizo.link()">Link Disk</button>` control so users can still link and persist data to `<script id="naizodb">` on disk.
 
 ---
 
@@ -77,8 +80,8 @@ Every `naizo.js` HTML document embeds `<script id="naizodb" type="application/js
 
 ### CDN & Local Script Options (`D17`, `D34`, `D39`)
 
-- **jsDelivr (readable, ~31.5 KB gzipped / ~142.5 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
-- **jsDelivr (minified, ~22.2 KB gzipped):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
+- **jsDelivr (readable, ~31.9 KB gzipped / ~144.2 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
+- **jsDelivr (minified, ~22.4 KB gzipped):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
 - **unpkg:** `https://unpkg.com/naizojs@latest/dist/naizo.js`
 - **Pinned version:** replace `@latest` with a specific published version tag
 - **Local / offline:** `<script src="./dist/naizo.js" defer></script>` (inside the `naizo` repository examples, use `../dist/naizo.js`)
@@ -105,6 +108,7 @@ Both short `naizo` / `naizo-*` attributes and HTML5 `data-naizo` / `data-naizo-*
 | `naizo-strip`                      | `data-naizo-strip`                      | Any element                                                                                            | Excludes the element and its subtree from state binding and strips it from auto-templates and `exportHTML()` / `downloadHTML()` (`D12`, `D47`). |
 | `naizo-id="scope"`                 | `data-naizo-id="scope"`                 | `<html>` or `<body>`                                                                                   | Scopes `localStorage` and IndexedDB keys (`<path>::<scope>`) to avoid collisions on `localhost`.                                               |
 | `naizo-mode="online\|local\|auto"` | `data-naizo-mode="online\|local\|auto"` | `<html>` or `<body>`                                                                                   | Overrides automatic Local Mode vs. Online Mode detection (`D41`, `EC48`).                                                                      |
+| `naizo-no-pill`                    | `data-naizo-no-pill`                    | `<html>` or `<body>`                                                                                   | Skips mounting `#__naizodb_host__` (`<body>` overrides `<html>`, and `="false"` opts out) while retaining `#__naizodb_styles__`, `localStorage`, IndexedDB `fileHandle` auto-resume + ~2 s watch, and `⌘S` / `Ctrl+S`; logs a `console.warn` on malformed startup `#naizodb` JSON and is preserved on export (`D56`, `EC53`). |
 | `naizo-manual`                     | `data-naizo-manual`                     | `<html>`, `<body>`, or `<script>`                                                                      | Disables automatic `initNaizo()` boot when loading the browser IIFE bundle.                                                                    |
 | `naizo-get="url"`                  | `data-naizo-get="url"`                  | `<button>`, `<a>`, or any element                                                                      | Fetches JSON or text via `GET` and routes `2xx` responses via `naizo-into` (or hydrates `#naizodb` when `naizo-into` is omitted, `D43`, `D51`). |
 | `naizo-post="url"`                 | `data-naizo-post="url"`                 | `<button>` or any element                                                                              | Flushes pending edits and sends a CORS-safelisted `text/plain;charset=UTF-8` JSON `POST` (fire-and-forget unless `naizo-into` is set, `D51`).  |
@@ -159,6 +163,7 @@ const apiRes = await Naizo.fetch('https://api.example.com/tasks', {
 Naizo.bind(containerEl); // Hydrate dynamically inserted DOM from store
 const ok = await Naizo.save(); // Flush cache + await single-flight disk write (Promise<boolean>)
 Naizo.reset(); // Back up dirty state to ↺ Restore and reset to initial boot baseline
+const linked = await Naizo.link(); // Prompt/resume FileSystemFileHandle & write #naizodb to disk (Promise<boolean>, D56)
 await Naizo.unlink(); // Forget linked FileSystemFileHandle
 const json = await Naizo.copyJSON(); // Copy 2-space #naizodb JSON to clipboard
 const html = Naizo.exportHTML(); // Clean HTML snapshot with baked attributes & stripped runtime UI
@@ -202,6 +207,7 @@ window.addEventListener('naizo:fetch', (e) => {
   - **Strict `1..6` Left-to-Right `22×22px` Circular Icon Buttons:** `1. Link Disk / Resume Disk Sync` (`#action` Local, Chain Link, `⌘S`) & `Unlink Disk` (`#unlink` Local, Slashed Chain Link `× Unlink`, swapping in Slot 1) → `2. Save to PC` (`#action` Online, Download Tray `⬇ Save to PC`) → `3. Copy JSON / ✓ Copied` (`#copy`, Copy Squares → `1.5s` Emerald Checkmark) → `4. Repair JSON` (`#restore` in Repair mode, Amber Wrench `↺ Repair`, shown when startup `<script id="naizodb">` has malformed JSON so broken hand-edits are never silently overwritten until the user clicks `Repair JSON` to rebuild valid 2-space JSON from live DOM + store values) → `5. Restore Backup` (`#restore` in Backup mode, Amber History Clock-Undo `↺ Restore`, restoring `naizodb_backup_<key>` after a conflict or reset) → `6. Reset to Initial State` (`#reset`, Red Eraser `↺ Reset` — always last before `#net`, shown in Online Mode and unlinked Local Mode `!fileHandle` whenever `localStorage` diverges from `initialDiskDb`, auto-hiding once linked to disk, and opening `#reset-confirm`).
   - **4-Corner Snap Drag & `naizodb_ui_<key>` Persistence (`EC48`):** Dragging `#dot` (or the pill) snaps to any of the 4 viewport corners (`bottom-right`, `bottom-left`, `top-right`, `top-left`) with translucent drop-zone placeholders and persists `{ corner }` in `localStorage` (`naizodb_ui_<suffix>`) without mutating `<script id="naizodb">`.
   - **Rightmost `#net` Wired-Globe Indicator (`D50`, `EC36`):** Hidden when unused; auto-shown at the rightmost end of the status pill when `naizo-get`, `naizo-post`, or `Naizo.fetch()` is active, transitioning between `API idle` (Shared Light Green), `API active` (Bright Emerald `L→R` wave sweep held `>= 600 ms`), and `API request failed` (Danger Red pulse that persists across subsequent successful requests until the user clicks `#net` to clear it or reloads the page) without altering `#dot` or `#status`. `naizo.js` intentionally omits a built-in network inspector so the runtime stays lightweight and flexible—inspect failed HTTP/CORS requests directly in the browser DevTools `Network` tab.
+  - **Opt-In Headless / Pill-Less Mode (`naizo-no-pill` / `data-naizo-no-pill` & `Naizo.link()`, `D56`, `EC53`):** Adding `naizo-no-pill` / `data-naizo-no-pill` on `<html>` or `<body>` (`<body>` overrides `<html>`, and `="false"` opts out) removes `#__naizodb_host__` while keeping `#__naizodb_styles__`, `localStorage`, `#naizodb` hydration, IndexedDB `fileHandle` auto-resume + ~2 s watch, `pagehide` / `visibilitychange` flush, and `⌘S` / `Ctrl+S` active, logs a once-per-boot `console.warn` on malformed startup `#naizodb` JSON (`EC02`/`EC04`/`EC33`), and preserves `naizo-no-pill` across `exportHTML()` / `downloadHTML()`. Call `await Naizo.link()` (`Promise<boolean>`) from a custom toolbar button in Local Mode when the pill is hidden.
 
 ---
 
