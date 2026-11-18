@@ -1,5 +1,15 @@
-import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { runInThisContext } from 'node:vm';
 import { gzipSync } from 'node:zlib';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
@@ -2553,6 +2563,8 @@ describe('naizo.js v0.1.0 core runtime', () => {
       'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js',
     );
     expect(downloadedSiteHtml).not.toContain('src="../dist/naizo.js"');
+    expect(downloadedSiteHtml).toContain('<symbol id="naizo-crest-icon" viewBox="0 0 100 100">');
+    expect(downloadedSiteHtml).toContain('<use href="#naizo-crest-icon"');
 
     for (const exampleHtml of [starterHtml, checklistHtml, notesHtml, inventoryHtml, weatherHtml]) {
       expect(exampleHtml).not.toContain('cloudflareinsights');
@@ -2636,6 +2648,33 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(stagedIndexHtml).toContain('./llms.txt');
     expect(stagedIndexHtml).toContain('./llms-full.txt');
     expect(stagedIndexHtml).toContain('./SKILL.md');
+    expect(stagedIndexHtml).toContain('./logo.png');
+    expect(stagedIndexHtml).toContain('./logo.svg');
+    expect(stagedIndexHtml).toContain('./logo-dark.svg');
+
+    // Execute real _site/ staging copy (cp -RL site/. <stagedDir>/) to confirm logo.svg, logo-dark.svg,
+    // binary logo.png, and dereferenced SKILL.md stage cleanly (M6.2, M11.2)
+    const stagedDir = mkdtempSync(join(tmpdir(), 'naizo-site-stage-'));
+    try {
+      const siteSrcDir = resolve(process.cwd(), 'site');
+      if (process.platform === 'win32') {
+        cpSync(siteSrcDir, stagedDir, { recursive: true, dereference: true });
+      } else {
+        execFileSync('cp', ['-RL', `${siteSrcDir}/.`, `${stagedDir}/`]);
+      }
+      expect(existsSync(join(stagedDir, 'logo.svg'))).toBe(true);
+      expect(existsSync(join(stagedDir, 'logo-dark.svg'))).toBe(true);
+      expect(existsSync(join(stagedDir, 'logo.png'))).toBe(true);
+      expect(
+        readFileSync(join(stagedDir, 'logo.png')).equals(
+          readFileSync(join(siteSrcDir, 'logo.png')),
+        ),
+      ).toBe(true);
+      expect(lstatSync(join(stagedDir, 'SKILL.md')).isFile()).toBe(true);
+      expect(lstatSync(join(stagedDir, 'SKILL.md')).isSymbolicLink()).toBe(false);
+    } finally {
+      rmSync(stagedDir, { recursive: true, force: true });
+    }
   });
 
   it('replaces, clears, and validates lists via Naizo.setList() while preserving pass-through keys (M8.1)', async () => {
@@ -3553,11 +3592,66 @@ describe('naizo.js v0.1.0 core runtime', () => {
       const svgDoc = new DOMParser().parseFromString(svgRaw, 'image/svg+xml');
       expect(svgDoc.querySelector('parsererror')).toBeNull();
       expect(svgDoc.querySelectorAll('svg svg').length).toBe(0);
+      expect(svgDoc.querySelectorAll('rect[width="18"][height="18"]').length).toBe(0);
+      expect(
+        svgDoc.querySelectorAll('rect[width="22"][height="22"][rx="4.5"]').length,
+      ).toBeGreaterThanOrEqual(3);
       const styleBlock = svgDoc.querySelector('style')?.textContent ?? '';
       expect(styleBlock).not.toMatch(/&(?!amp;|lt;|gt;|quot;|apos;)/);
       if (svgPath !== 'docs/design/status-pill-anatomy.svg') {
         expect(styleBlock).toContain('transform-box: fill-box');
         expect(styleBlock).toContain('transform-origin: center');
+      }
+    }
+
+    // M11.2: Verify <symbol id="naizo-crest-icon">, zero 18x18 crest drift in site/index.html,
+    // unlinked Local Mode Reset & D52 docs/USAGE.md alignment, and real min+gzip KB sync within ±1.0 KB
+    expect(currentSiteHtml).toContain('<symbol id="naizo-crest-icon" viewBox="0 0 100 100">');
+    expect(currentSiteHtml).toContain('<use href="#naizo-crest-icon"');
+    expect(currentSiteHtml).not.toContain('width="18" height="18"');
+    expect(usageMd).toContain(
+      'keeping omitted `options.into` non-mutating across all HTTP methods',
+    );
+    expect(readmeMd).toContain('before linking a local file');
+    expect(currentSiteHtml).toContain('before linking a local file');
+    expect(usageMd).toContain('(online || !fileHandle) && isDirtyFromInitial()');
+    expect(productMd).toContain('Online Mode or unlinked Local Mode');
+    expect(skillMd).toContain('unlinked Local Mode');
+    expect(llmsTxt).toContain('unlinked Local Mode');
+    expect(llmsFullTxt).toContain('unlinked Local Mode');
+
+    const actualMinGzipKb =
+      gzipSync(readFileSync(resolve(process.cwd(), 'dist/naizo.min.js')), { level: 9 }).byteLength /
+      1000;
+    const actualReadableGzipKb =
+      gzipSync(readFileSync(resolve(process.cwd(), 'dist/naizo.js')), { level: 9 }).byteLength /
+      1000;
+    for (const kbSurface of [
+      readmeMd,
+      productMd,
+      usageMd,
+      currentSiteHtml,
+      skillMd,
+      llmsTxt,
+      llmsFullTxt,
+    ]) {
+      expect(kbSurface).not.toContain('15.7 KB');
+      expect(kbSurface).not.toContain('23.2 KB');
+      const minKbMatch = kbSurface.match(
+        /(?:min(?:ified)?[^\n~]{0,25}~(\d+\.\d+)\s*KB|~(\d+\.\d+)\s*KB\s*min)/i,
+      );
+      expect(minKbMatch).not.toBeNull();
+      const documentedMinKb = Number.parseFloat(minKbMatch?.[1] ?? minKbMatch?.[2] ?? '0');
+      expect(Math.abs(documentedMinKb - actualMinGzipKb)).toBeLessThanOrEqual(1.0);
+
+      const readableKbMatch = kbSurface.match(
+        /(?:readable[^\n~]{0,25}~(\d+\.\d+)\s*KB|~(\d+\.\d+)\s*KB\s*gzipped\s*(?:readable|\/))/i,
+      );
+      if (readableKbMatch) {
+        const documentedReadableKb = Number.parseFloat(
+          readableKbMatch[1] ?? readableKbMatch[2] ?? '0',
+        );
+        expect(Math.abs(documentedReadableKb - actualReadableGzipKb)).toBeLessThanOrEqual(1.0);
       }
     }
 
@@ -3656,26 +3750,31 @@ describe('naizo.js v0.1.0 core runtime', () => {
     expect(exportedHtml).toContain('"trip_title": "Nagano Alpine Valley & Trail Outing"');
   });
 
-  it('validates M9.1 brand logo assets: site/logo.svg, site/index.html 62x62 Hero Crest with single-block beat completion, and README.md header without changing npm package files (M9.1, D50)', () => {
+  it('validates M9.1 & M11.2 brand logo assets: site/logo.svg, site/logo-dark.svg, 512x512 site/logo.png, media=(prefers-color-scheme: light|dark) favicons, 62x62 Hero Crest, and README.md header without changing npm package files (M9.1, M11.2, D50, D56)', () => {
     vi.useFakeTimers();
     try {
       const logoSvg = readFileSync(resolve(process.cwd(), 'site/logo.svg'), 'utf-8');
+      const logoDarkSvg = readFileSync(resolve(process.cwd(), 'site/logo-dark.svg'), 'utf-8');
+      const logoPng = readFileSync(resolve(process.cwd(), 'site/logo.png'));
       const currentSiteHtml = readFileSync(resolve(process.cwd(), 'site/index.html'), 'utf-8');
       const readmeMd = readFileSync(resolve(process.cwd(), 'README.md'), 'utf-8');
 
-      // 1. Standalone site/logo.svg geometry (0.0 Exact Maru ni Mitsuishi / 品) & Light/Dark Sumi Ink
+      // 1. Standalone site/logo.svg, site/logo-dark.svg (hardcoded #f5f5f4), & 512x512 raster site/logo.png
       expect(logoSvg).toContain('viewBox="0 0 100 100"');
+      expect(logoSvg).toContain('color-scheme: light dark');
       expect(logoSvg).toContain('#1c1917');
       expect(logoSvg).toContain('@media (prefers-color-scheme: dark)');
-      expect(logoSvg).toContain('#e7e5e4');
+      expect(logoSvg).toContain('#f5f5f4');
+      expect(logoSvg).not.toContain('currentColor');
+
       const logoDoc = new DOMParser().parseFromString(logoSvg, 'image/svg+xml');
-      const circle = logoDoc.querySelector('circle');
+      const circle = logoDoc.querySelector('circle.ring');
       expect(circle?.getAttribute('cx')).toBe('50');
       expect(circle?.getAttribute('cy')).toBe('50');
       expect(circle?.getAttribute('r')).toBe('42');
-      expect(circle?.getAttribute('stroke')).toBe('currentColor');
+      expect(circle?.getAttribute('stroke')).toBe('#1c1917');
       expect(circle?.getAttribute('stroke-width')).toBe('8');
-      const rects = Array.from(logoDoc.querySelectorAll('rect'));
+      const rects = Array.from(logoDoc.querySelectorAll('rect.stone'));
       expect(
         rects.map((r) => ({
           x: r.getAttribute('x'),
@@ -3683,46 +3782,97 @@ describe('naizo.js v0.1.0 core runtime', () => {
           w: r.getAttribute('width'),
           h: r.getAttribute('height'),
           rx: r.getAttribute('rx'),
+          fill: r.getAttribute('fill'),
         })),
       ).toEqual([
-        { x: '39', y: '26', w: '22', h: '22', rx: '4.5' },
-        { x: '26', y: '52', w: '22', h: '22', rx: '4.5' },
-        { x: '52', y: '52', w: '22', h: '22', rx: '4.5' },
+        { x: '39', y: '26', w: '22', h: '22', rx: '4.5', fill: '#1c1917' },
+        { x: '26', y: '52', w: '22', h: '22', rx: '4.5', fill: '#1c1917' },
+        { x: '52', y: '52', w: '22', h: '22', rx: '4.5', fill: '#1c1917' },
       ]);
 
-      // 2. site/index.html favicon + SEO metadata (Open Graph, Twitter Card, JSON-LD), examples/*.html favicons, 62x62 Hero Crest markup/keyframes, and single-block beat-boundary hover controller (516.67ms)
-      const siteDoc = new DOMParser().parseFromString(currentSiteHtml, 'text/html');
-      const favicon = siteDoc.querySelector(
-        'head link[rel="icon"][type="image/svg+xml"][href="./logo.svg"]',
+      expect(logoDarkSvg).toContain('viewBox="0 0 100 100"');
+      expect(logoDarkSvg).not.toContain('<style>');
+      expect(logoDarkSvg).not.toContain('currentColor');
+      const logoDarkDoc = new DOMParser().parseFromString(logoDarkSvg, 'image/svg+xml');
+      expect(logoDarkDoc.querySelector('circle')?.getAttribute('stroke')).toBe('#f5f5f4');
+      expect(
+        Array.from(logoDarkDoc.querySelectorAll('rect')).map((r) => ({
+          x: r.getAttribute('x'),
+          y: r.getAttribute('y'),
+          w: r.getAttribute('width'),
+          rx: r.getAttribute('rx'),
+          fill: r.getAttribute('fill'),
+        })),
+      ).toEqual([
+        { x: '39', y: '26', w: '22', rx: '4.5', fill: '#f5f5f4' },
+        { x: '26', y: '52', w: '22', rx: '4.5', fill: '#f5f5f4' },
+        { x: '52', y: '52', w: '22', rx: '4.5', fill: '#f5f5f4' },
+      ]);
+
+      // Verify PNG signature (89 50 4E 47 0D 0A 1A 0A) and IHDR 512x512 dimensions
+      expect(logoPng.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(
+        true,
       );
-      expect(favicon).not.toBeNull();
+      expect(logoPng.subarray(12, 16).toString('ascii')).toBe('IHDR');
+      expect(logoPng.readUInt32BE(16)).toBe(512);
+      expect(logoPng.readUInt32BE(20)).toBe(512);
+
+      // 2. site/index.html light/dark favicons + PNG touch/social card metadata, examples/*.html + status-pill-reference.html dual favicons, and 62x62 Hero Crest
+      const siteDoc = new DOMParser().parseFromString(currentSiteHtml, 'text/html');
+      const headIcons = Array.from(siteDoc.querySelectorAll('head link[rel="icon"]'));
+      expect(
+        headIcons.map((l) => ({
+          type: l.getAttribute('type'),
+          sizes: l.getAttribute('sizes'),
+          media: l.getAttribute('media'),
+          href: l.getAttribute('href'),
+        })),
+      ).toEqual([
+        { type: 'image/png', sizes: '32x32', media: null, href: './logo.png' },
+        {
+          type: 'image/svg+xml',
+          sizes: 'any',
+          media: '(prefers-color-scheme: light)',
+          href: './logo.svg',
+        },
+        {
+          type: 'image/svg+xml',
+          sizes: 'any',
+          media: '(prefers-color-scheme: dark)',
+          href: './logo-dark.svg',
+        },
+      ]);
+      expect(siteDoc.querySelector('head link[rel="shortcut icon"]')).toBeNull();
       expect(
         siteDoc.querySelector(
-          'head link[rel="shortcut icon"][type="image/svg+xml"][href="./logo.svg"]',
+          'head link[rel="apple-touch-icon"][sizes="512x512"][href="./logo.png"]',
         ),
       ).not.toBeNull();
-      expect(
-        siteDoc.querySelector('head link[rel="apple-touch-icon"][href="./logo.svg"]'),
-      ).not.toBeNull();
       expect(siteDoc.querySelector('head meta[property="og:image"]')?.getAttribute('content')).toBe(
-        'https://naizo.js.org/logo.svg',
+        'https://naizo.js.org/logo.png',
       );
       expect(
         siteDoc.querySelector('head meta[property="og:image:type"]')?.getAttribute('content'),
-      ).toBe('image/svg+xml');
+      ).toBe('image/png');
+      expect(
+        siteDoc.querySelector('head meta[property="og:image:width"]')?.getAttribute('content'),
+      ).toBe('512');
+      expect(
+        siteDoc.querySelector('head meta[property="og:image:height"]')?.getAttribute('content'),
+      ).toBe('512');
       expect(
         siteDoc.querySelector('head meta[property="og:image:alt"]')?.getAttribute('content'),
       ).toContain('Maru ni Mitsuishi');
       expect(
         siteDoc.querySelector('head meta[name="twitter:image"]')?.getAttribute('content'),
-      ).toBe('https://naizo.js.org/logo.svg');
+      ).toBe('https://naizo.js.org/logo.png');
       expect(
         siteDoc.querySelector('head meta[name="twitter:image:alt"]')?.getAttribute('content'),
       ).toContain('Maru ni Mitsuishi');
       const siteJsonLd = JSON.parse(
         siteDoc.querySelector('head script[type="application/ld+json"]')?.textContent ?? '{}',
       ) as { image?: string };
-      expect(siteJsonLd.image).toBe('https://naizo.js.org/logo.svg');
+      expect(siteJsonLd.image).toBe('https://naizo.js.org/logo.png');
 
       for (const exFile of [
         'examples/starter.html',
@@ -3730,12 +3880,20 @@ describe('naizo.js v0.1.0 core runtime', () => {
         'examples/notes.html',
         'examples/inventory.html',
         'examples/weather.html',
+        'docs/design/status-pill-reference.html',
       ]) {
         const exHtml = readFileSync(resolve(process.cwd(), exFile), 'utf-8');
         const exDoc = new DOMParser().parseFromString(exHtml, 'text/html');
-        const exFavicon = exDoc.querySelector('head link[rel="icon"][type="image/svg+xml"]');
-        expect(exFavicon?.getAttribute('href')).toContain('data:image/svg+xml');
-        expect(exFavicon?.getAttribute('href')).toContain("r='42'");
+        const lightIcon = exDoc.querySelector(
+          'head link[rel="icon"][type="image/svg+xml"][media="(prefers-color-scheme: light)"]',
+        );
+        const darkIcon = exDoc.querySelector(
+          'head link[rel="icon"][type="image/svg+xml"][media="(prefers-color-scheme: dark)"]',
+        );
+        expect(lightIcon?.getAttribute('href')).toContain('%231c1917');
+        expect(lightIcon?.getAttribute('href')).toContain("width='22'");
+        expect(darkIcon?.getAttribute('href')).toContain('%23f5f5f4');
+        expect(darkIcon?.getAttribute('href')).toContain("width='22'");
       }
 
       const heroCrest = siteDoc.getElementById('hero-crest-link');
@@ -3756,6 +3914,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(currentSiteHtml).toContain('width: 62px;');
       expect(currentSiteHtml).toContain('height: 62px;');
       expect(currentSiteHtml).toContain('margin: 1.5rem auto 2px;');
+      expect(currentSiteHtml).toContain('cursor: default;');
       expect(currentSiteHtml).toContain('@keyframes naizoHeartTop');
       expect(currentSiteHtml).toContain('11.5%');
       expect(currentSiteHtml).toContain('@keyframes naizoHeartBR');

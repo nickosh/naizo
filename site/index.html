@@ -17,9 +17,22 @@
     <meta name="author" content="Nikolay Shishov" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://naizo.js.org/" />
-    <link rel="icon" type="image/svg+xml" href="./logo.svg" />
-    <link rel="shortcut icon" type="image/svg+xml" href="./logo.svg" />
-    <link rel="apple-touch-icon" href="./logo.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./logo.png" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      sizes="any"
+      media="(prefers-color-scheme: light)"
+      href="./logo.svg"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      sizes="any"
+      media="(prefers-color-scheme: dark)"
+      href="./logo-dark.svg"
+    />
+    <link rel="apple-touch-icon" sizes="512x512" href="./logo.png" />
 
     <!-- Open Graph / Social Preview -->
     <meta property="og:type" content="website" />
@@ -33,8 +46,10 @@
       property="og:description"
       content="Turn any single .html file into a self-saving application – from custom dashboards, interactive studios, and personal trackers to calculators, notebooks, specs, and more – with state stored in a built-in JSON block (#naizodb) shared between your browser and AI agents on disk."
     />
-    <meta property="og:image" content="https://naizo.js.org/logo.svg" />
-    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image" content="https://naizo.js.org/logo.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
     <meta
       property="og:image:alt"
       content="naizo.js Maru ni Mitsuishi (丸に三つ石 / 品) crest – single-file HTML boundary enclosing State, Logic, and View"
@@ -50,7 +65,7 @@
       name="twitter:description"
       content="Zero-dependency JavaScript library that gives static HTML files a built-in JSON database (#naizodb), declarative list repeaters, and two-way disk sync for humans and AI agents."
     />
-    <meta name="twitter:image" content="https://naizo.js.org/logo.svg" />
+    <meta name="twitter:image" content="https://naizo.js.org/logo.png" />
     <meta
       name="twitter:image:alt"
       content="naizo.js Maru ni Mitsuishi (丸に三つ石 / 品) crest – single-file HTML boundary enclosing State, Logic, and View"
@@ -79,7 +94,7 @@
         "alternateName": "naizojs",
         "description": "Zero-dependency JavaScript library that turns any single .html file into a self-persisting local-first application with a built-in JSON database (#naizodb) and declarative list repeater for human and AI agent workflows.",
         "url": "https://naizo.js.org/",
-        "image": "https://naizo.js.org/logo.svg",
+        "image": "https://naizo.js.org/logo.png",
         "codeRepository": "https://github.com/nickosh/naizo",
         "programmingLanguage": ["JavaScript", "TypeScript", "HTML"],
         "runtimePlatform": "Browser",
@@ -411,7 +426,7 @@
         height: 62px;
         margin: 1.5rem auto 2px;
         color: var(--text);
-        cursor: pointer;
+        cursor: default;
       }
 
       .hero-crest-svg {
@@ -421,20 +436,12 @@
         display: block;
       }
 
-      .hero-crest-svg .ring {
-        transform-origin: 50px 50px;
-      }
-
-      .hero-crest-svg .c-top {
-        transform-origin: 50px 37px;
-      }
-
-      .hero-crest-svg .c-bl {
-        transform-origin: 37px 63px;
-      }
-
+      .hero-crest-svg .ring,
+      .hero-crest-svg .c-top,
+      .hero-crest-svg .c-bl,
       .hero-crest-svg .c-br {
-        transform-origin: 63px 63px;
+        transform-box: fill-box;
+        transform-origin: center;
       }
 
       @keyframes naizoHeartTop {
@@ -1279,7 +1286,8 @@
         }
       }
       .anim-net-error {
-        transform-origin: 12px 12px;
+        transform-box: fill-box;
+        transform-origin: center;
         animation: naizoDocGlobeErr 1.5s ease-in-out infinite;
       }
 
@@ -1332,12 +1340,27 @@
     </style>
   </head>
   <body>
+    <svg
+      width="0"
+      height="0"
+      style="position: absolute; width: 0; height: 0; overflow: hidden"
+      aria-hidden="true"
+    >
+      <defs>
+        <symbol id="naizo-crest-icon" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="8" />
+          <rect x="39" y="26" width="22" height="22" rx="4.5" fill="currentColor" />
+          <rect x="26" y="52" width="22" height="22" rx="4.5" fill="currentColor" />
+          <rect x="52" y="52" width="22" height="22" rx="4.5" fill="currentColor" />
+        </symbol>
+      </defs>
+    </svg>
     <main class="doc-shell" id="top">
       <!-- Header -->
       <header class="doc-header">
         <div class="doc-topbar">
           <span class="doc-kicker">
-            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~15.7 KB
+            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~22.2 KB
             min+gzip · MIT
           </span>
           <button
@@ -1631,9 +1654,17 @@
                     stroke="#10b981"
                     stroke-width="8"
                   />
-                  <rect class="c-top" x="41" y="28" width="18" height="18" rx="4" fill="#10b981" />
-                  <rect class="c-bl" x="28" y="54" width="18" height="18" rx="4" fill="#10b981" />
-                  <rect class="c-br" x="54" y="54" width="18" height="18" rx="4" fill="#10b981" />
+                  <rect
+                    class="c-top"
+                    x="39"
+                    y="26"
+                    width="22"
+                    height="22"
+                    rx="4.5"
+                    fill="#10b981"
+                  />
+                  <rect class="c-bl" x="26" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
+                  <rect class="c-br" x="52" y="52" width="22" height="22" rx="4.5" fill="#10b981" />
                 </g>
                 <text
                   x="28"
@@ -2125,7 +2156,7 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>3. jsDelivr CDN (minified ~15.7 KB gzip)</span>
+          <span>3. jsDelivr CDN (minified ~22.2 KB gzip)</span>
           <button
             type="button"
             class="quiet-btn copy-snippet-btn"
@@ -2494,17 +2525,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 <td>
                   <span class="status-chip">
                     <svg class="status-crest is-amber" viewBox="0 0 100 100" aria-hidden="true">
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="42"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="8"
-                      />
-                      <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
-                      <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
-                      <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                      <use href="#naizo-crest-icon" />
                     </svg>
                     Browser Cache · Click to Link Disk
                   </span>
@@ -2512,26 +2533,18 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                   ↓ <em>after linking your file</em><br />
                   <span class="status-chip">
                     <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="42"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="8"
-                      />
-                      <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
-                      <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
-                      <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                      <use href="#naizo-crest-icon" />
                     </svg>
                     Synced to Disk
                   </span>
                 </td>
                 <td>
                   Press <code>⌘S</code> / <code>Ctrl+S</code> (or click <strong>Link Disk</strong>)
-                  once to connect your <code>.html</code> file. Every edit saves straight into that
-                  file on your computer, and any changes made by an AI agent on disk appear in your
-                  open tab within ~2 seconds.
+                  once to connect your <code>.html</code> file. Before linking,
+                  <strong>Reset</strong>
+                  can clear temporary browser edits; once linked, every edit saves straight into
+                  that file on your computer and any changes made by an AI agent on disk appear in
+                  your open tab within ~2 seconds.
                 </td>
               </tr>
               <tr>
@@ -2542,17 +2555,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 <td>
                   <span class="status-chip">
                     <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="42"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="8"
-                      />
-                      <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
-                      <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
-                      <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                      <use href="#naizo-crest-icon" />
                     </svg>
                     Saved in Browser
                   </span>
@@ -2572,17 +2575,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 <td>
                   <span class="status-chip">
                     <svg class="status-crest is-amber" viewBox="0 0 100 100" aria-hidden="true">
-                      <circle
-                        cx="50"
-                        cy="50"
-                        r="42"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="8"
-                      />
-                      <rect x="41" y="28" width="18" height="18" rx="4" fill="currentColor" />
-                      <rect x="28" y="54" width="18" height="18" rx="4" fill="currentColor" />
-                      <rect x="54" y="54" width="18" height="18" rx="4" fill="currentColor" />
+                      <use href="#naizo-crest-icon" />
                     </svg>
                     Browser Cache · Click to Link Disk
                   </span>
@@ -2591,8 +2584,9 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                   Edits save immediately in your browser. Because Safari and Firefox do not support
                   direct in-place file writing yet, clicking <strong>Link Disk</strong> (or pressing
                   <code>⌘S</code> / <code>Ctrl+S</code>) downloads an updated
-                  <code>.html</code> copy, and <strong>Copy JSON</strong> copies your data in 1
-                  click.
+                  <code>.html</code> copy, <strong>Copy JSON</strong> copies your data, and
+                  <strong>Reset</strong> clears browser-cached edits back to the file's initial
+                  state.
                 </td>
               </tr>
             </tbody>
@@ -2623,42 +2617,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               <tr>
                 <td>
                   <svg class="status-crest-lg is-green" viewBox="0 0 100 100" aria-hidden="true">
-                    <circle
-                      class="ring"
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="8"
-                    />
-                    <rect
-                      class="c-top"
-                      x="41"
-                      y="28"
-                      width="18"
-                      height="18"
-                      rx="4"
-                      fill="currentColor"
-                    />
-                    <rect
-                      class="c-bl"
-                      x="28"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
-                      fill="currentColor"
-                    />
-                    <rect
-                      class="c-br"
-                      x="54"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
-                      fill="currentColor"
-                    />
+                    <use href="#naizo-crest-icon" />
                   </svg>
                   <strong>Green · Calm</strong>
                 </td>
@@ -2689,29 +2648,29 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     />
                     <rect
                       class="c-top"
-                      x="41"
-                      y="28"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="39"
+                      y="26"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                     <rect
                       class="c-bl"
-                      x="28"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="26"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                     <rect
                       class="c-br"
-                      x="54"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="52"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                   </svg>
@@ -2727,42 +2686,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               <tr>
                 <td>
                   <svg class="status-crest-lg is-amber" viewBox="0 0 100 100" aria-hidden="true">
-                    <circle
-                      class="ring"
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="8"
-                    />
-                    <rect
-                      class="c-top"
-                      x="41"
-                      y="28"
-                      width="18"
-                      height="18"
-                      rx="4"
-                      fill="currentColor"
-                    />
-                    <rect
-                      class="c-bl"
-                      x="28"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
-                      fill="currentColor"
-                    />
-                    <rect
-                      class="c-br"
-                      x="54"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
-                      fill="currentColor"
-                    />
+                    <use href="#naizo-crest-icon" />
                   </svg>
                   <strong>Amber · Calm</strong>
                 </td>
@@ -2791,29 +2715,29 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     />
                     <rect
                       class="c-top"
-                      x="41"
-                      y="28"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="39"
+                      y="26"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                     <rect
                       class="c-bl"
-                      x="28"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="26"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                     <rect
                       class="c-br"
-                      x="54"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="52"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                   </svg>
@@ -2844,29 +2768,29 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     />
                     <rect
                       class="c-top"
-                      x="41"
-                      y="28"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="39"
+                      y="26"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                     <rect
                       class="c-bl"
-                      x="28"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="26"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                     <rect
                       class="c-br"
-                      x="54"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="52"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                   </svg>
@@ -2898,29 +2822,29 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                     />
                     <rect
                       class="c-top"
-                      x="41"
-                      y="28"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="39"
+                      y="26"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                     <rect
                       class="c-bl"
-                      x="28"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="26"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                     <rect
                       class="c-br"
-                      x="54"
-                      y="54"
-                      width="18"
-                      height="18"
-                      rx="4"
+                      x="52"
+                      y="52"
+                      width="22"
+                      height="22"
+                      rx="4.5"
                       fill="currentColor"
                     />
                   </svg>
@@ -2983,11 +2907,8 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 fill="var(--bg)"
                 stroke="var(--rule)"
               />
-              <g transform="translate(38, 42) scale(0.36)">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" />
-                <rect x="41" y="28" width="18" height="18" rx="4" fill="#10b981" />
-                <rect x="28" y="54" width="18" height="18" rx="4" fill="#10b981" />
-                <rect x="54" y="54" width="18" height="18" rx="4" fill="#10b981" />
+              <g transform="translate(38, 42) scale(0.36)" style="color: #10b981">
+                <use href="#naizo-crest-icon" width="100" height="100" />
               </g>
               <line
                 x1="56"
@@ -3543,11 +3464,15 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                   </svg>
                   <strong>6. Reset to Initial State</strong>
                 </td>
-                <td>On hosted web pages after you make edits (always the last button)</td>
+                <td>
+                  On hosted web pages or before linking a local file, after you make edits (always
+                  the last button)
+                </td>
                 <td>
                   Opens a small confirmation prompt (<em>"Reset app to initial state?"</em>), saves
                   a backup under <strong>Restore Backup</strong> just in case, and returns the page
-                  to its original published state.
+                  to its initial state. Once a local file is linked to disk,
+                  <strong>Reset</strong> hides automatically.
                 </td>
               </tr>
               <tr>
