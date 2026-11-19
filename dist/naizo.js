@@ -261,6 +261,8 @@
 	let liveDiskInvalidJson = false;
 	let repairingDiskInvalidDb = false;
 	let overwriteDiskWithoutMerge = false;
+	let confirmedMissingDbInject = false;
+	let lastExternalCheckHadConflict = false;
 	let pendingInitialLinkFile = null;
 	let isDispatchingChange = false;
 	let pendingChangeQueue = [];
@@ -453,14 +455,48 @@
 			custom: db.custom
 		});
 	}
+	function canonicalJson(val) {
+		if (val === null || typeof val !== "object") return JSON.stringify(val);
+		if (Array.isArray(val)) {
+			let out = "[";
+			for (let i = 0; i < val.length; i += 1) {
+				if (i > 0) out += ",";
+				out += canonicalJson(val[i]);
+			}
+			return out + "]";
+		}
+		const rec = val;
+		const keys = Object.keys(rec).sort();
+		let out = "{";
+		let first = true;
+		for (let i = 0; i < keys.length; i += 1) {
+			const k = keys[i];
+			const v = getOwn(rec, k);
+			if (v === void 0) continue;
+			if (!first) out += ",";
+			first = false;
+			out += JSON.stringify(k) + ":" + canonicalJson(v);
+		}
+		return out + "}";
+	}
+	function canonicalContentBuckets(db) {
+		return canonicalJson({
+			fields: db.fields,
+			lists: db.lists,
+			custom: db.custom
+		});
+	}
+	function isInvalidDbState() {
+		return startupInvalidDb || liveDiskInvalidJson;
+	}
 	function normalizeJsonComparison(raw) {
 		const trimmed = raw.trim();
 		if (!trimmed) return "";
 		try {
 			const parsed = JSON.parse(trimmed);
 			const validated = validateAndNormalizeDb(parsed);
-			if (validated) return serializeContentBuckets(validated);
-			return JSON.stringify(parsed);
+			if (validated) return canonicalContentBuckets(validated);
+			return canonicalJson(parsed);
 		} catch {
 			return trimmed;
 		}
@@ -498,7 +534,7 @@
 		const out = {};
 		for (const key of Object.keys(bucket)) {
 			const val = getOwn(bucket, key);
-			if (val !== void 0) setOwn(out, key, fnv1aStringHash(JSON.stringify(val)));
+			if (val !== void 0) setOwn(out, key, fnv1aStringHash(canonicalJson(val)));
 		}
 		return out;
 	}
@@ -509,8 +545,8 @@
 			if (Array.isArray(arr)) {
 				const ids = collectUniqueItemIds(arr);
 				setOwn(out, key, {
-					h: fnv1aStringHash(JSON.stringify(arr)),
-					i: arr.map((item) => fnv1aHex8(JSON.stringify(item))),
+					h: fnv1aStringHash(canonicalJson(arr)),
+					i: arr.map((item) => fnv1aHex8(canonicalJson(item))),
 					...ids !== null ? { k: ids } : {}
 				});
 			}
@@ -525,12 +561,16 @@
 		};
 	}
 	function hashCanonicalDb(raw) {
-		const rootHash = fnv1aStringHash(normalizeJsonComparison(raw));
+		const trimmed = raw.trim();
+		if (!trimmed) return fnv1aStringHash("");
 		try {
-			const validated = validateAndNormalizeDb(JSON.parse(raw.trim()));
-			if (validated) return `${rootHash}|${JSON.stringify(buildDbKeyHashMap(validated))}`;
-		} catch {}
-		return rootHash;
+			const parsed = JSON.parse(trimmed);
+			const validated = validateAndNormalizeDb(parsed);
+			if (validated) return `${fnv1aStringHash(canonicalContentBuckets(validated))}|${JSON.stringify(buildDbKeyHashMap(validated))}`;
+			return fnv1aStringHash(canonicalJson(parsed));
+		} catch {
+			return fnv1aStringHash(trimmed);
+		}
 	}
 	function extractRootDiskHash(storedSnapshot) {
 		const trimmed = storedSnapshot.trim();
@@ -759,9 +799,10 @@
 				opt.removeAttribute("selected");
 			});
 			else {
-				if (el.options.length) el.selectedIndex = 0;
+				const emptyIdx = Array.from(el.options).findIndex((opt) => opt.value === "");
+				el.selectedIndex = emptyIdx;
 				Array.from(el.options).forEach((opt, i) => {
-					if (i === 0) opt.setAttribute("selected", "selected");
+					if (i === emptyIdx) opt.setAttribute("selected", "selected");
 					else opt.removeAttribute("selected");
 				});
 			}
@@ -841,6 +882,21 @@
 		});
 		return lists;
 	}
+	function restoreScopedRadioNames(root) {
+		root.querySelectorAll("input[data-naizo-radio-name]").forEach((r) => {
+			const orig = r.getAttribute("data-naizo-radio-name");
+			if (orig !== null) r.setAttribute("name", orig);
+			r.removeAttribute("data-naizo-radio-name");
+		});
+	}
+	function stripLoadingStateAttrs(root) {
+		root.querySelectorAll("[data-naizo-loading], [data-naizo-loading-disabled]").forEach((el) => {
+			const addedDisabled = el.hasAttribute("data-naizo-loading-disabled");
+			el.removeAttribute("data-naizo-loading");
+			el.removeAttribute("data-naizo-loading-disabled");
+			if (addedDisabled) el.removeAttribute("disabled");
+		});
+	}
 	function ensureListBlueprints(root = document, forceRegenerateAuto = false) {
 		queryListElements(root).forEach((listEl) => {
 			const authoredTpl = listEl.querySelector(AUTHORED_TEMPLATE_SELECTOR);
@@ -855,11 +911,7 @@
 			if (!firstItem) return;
 			const cleanClone = firstItem.cloneNode(true);
 			cleanClone.querySelectorAll(RUNTIME_STRIP_SELECTOR).forEach((n) => n.remove());
-			cleanClone.querySelectorAll("input[data-naizo-radio-name]").forEach((r) => {
-				const orig = r.getAttribute("data-naizo-radio-name");
-				if (orig !== null) r.setAttribute("name", orig);
-				r.removeAttribute("data-naizo-radio-name");
-			});
+			restoreScopedRadioNames(cleanClone);
 			if (cleanClone.matches(BOUND_SELECTOR) && !isIgnoredElement(cleanClone)) clearElementValue(cleanClone);
 			cleanClone.querySelectorAll(BOUND_SELECTOR).forEach((el) => {
 				if (!isIgnoredElement(el)) clearElementValue(el);
@@ -901,51 +953,85 @@
 		if (!Boolean(document.querySelector(`[naizo-add="${escaped}"]:not(.naizo-add-btn), [data-naizo-add="${escaped}"]:not(.naizo-add-btn)`))) {
 			const tag = listEl.tagName.toLowerCase();
 			const anchorEl = tag === "tbody" || tag === "thead" || tag === "tfoot" ? listEl.closest("table") ?? listEl : listEl;
-			if (!anchorEl.nextElementSibling?.classList.contains("naizo-list-footer")) {
+			let cursor = anchorEl.nextElementSibling;
+			let hasFooterForList = false;
+			let insertAfter = anchorEl;
+			while (cursor?.classList.contains("naizo-list-footer")) {
+				if (cursor.querySelector(`[naizo-add="${escaped}"], [data-naizo-add="${escaped}"]`)) {
+					hasFooterForList = true;
+					break;
+				}
+				insertAfter = cursor;
+				cursor = cursor.nextElementSibling;
+			}
+			if (!hasFooterForList) {
 				const addWrap = document.createElement("div");
 				addWrap.className = "naizo-list-footer";
 				addWrap.setAttribute("data-naizo-strip", "true");
-				addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}" aria-label="Add item to ${listName}">+ Add Item</button>`;
-				anchorEl.insertAdjacentElement("afterend", addWrap);
+				const addBtn = document.createElement("button");
+				addBtn.type = "button";
+				addBtn.className = "naizo-add-btn";
+				addBtn.setAttribute("naizo-add", listName);
+				addBtn.setAttribute("aria-label", `Add item to ${listName}`);
+				addBtn.textContent = "+ Add Item";
+				addWrap.appendChild(addBtn);
+				insertAfter.insertAdjacentElement("afterend", addWrap);
 			}
 		}
 	}
-	function bindItemElementToRecord(itemEl, rowObj, listName) {
+	function bindItemElementToRecord(itemEl, rowObj, listName, seedMissing = true) {
 		if (listName) scopeRowRadioInputs(itemEl, listName);
 		itemDataMap.set(itemEl, rowObj);
 		orderInteractiveFirst(queryItemBoundElements(itemEl)).forEach((el) => {
 			const key = getElementKey(el);
 			if (!key) return;
 			if (hasOwn(rowObj, key)) writeElementValue(el, getOwn(rowObj, key));
-			else {
+			else if (seedMissing) {
 				const val = readElementValue(el);
 				if (val !== void 0) setOwn(rowObj, key, val);
-			}
+			} else clearElementValue(el);
 		});
 	}
-	function createItemNode(listEl, itemData = {}) {
+	function createItemNode(listEl, itemData = {}, seedMissing = true) {
 		const tpl = listEl.querySelector(TEMPLATE_SELECTOR);
 		if (!tpl) return null;
 		const fragment = tpl.content.cloneNode(true);
 		const itemEl = fragment.querySelector(ITEM_SELECTOR) ?? fragment.firstElementChild;
 		if (!itemEl) return null;
-		bindItemElementToRecord(itemEl, itemData, getAttr(listEl, "naizo-list") ?? "list");
+		bindItemElementToRecord(itemEl, itemData, getAttr(listEl, "naizo-list") ?? "list", seedMissing);
 		return itemEl;
 	}
-	function renderListItems(listEl, itemsArray) {
+	function renderListItems(listEl, itemsArray, seedMissing = true) {
 		listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((el) => el.remove());
 		itemsArray.forEach((itemData) => {
-			const node = createItemNode(listEl, itemData);
+			const node = createItemNode(listEl, itemData, seedMissing);
 			if (node) listEl.appendChild(node);
 		});
 		decorateListControls(listEl);
 	}
+	function seedInteractiveTemplateDefaultsForList(listName, items) {
+		if (items.length === 0) return;
+		const interactiveTplControls = [];
+		findListElements(listName).forEach((listEl) => {
+			const tpl = listEl.querySelector(TEMPLATE_SELECTOR);
+			const tplItem = tpl?.content.querySelector(ITEM_SELECTOR) ?? tpl?.content.firstElementChild;
+			if (tplItem) queryItemBoundElements(tplItem).forEach((el) => {
+				if (isInteractiveBoundElement(el)) interactiveTplControls.push(el);
+			});
+		});
+		if (interactiveTplControls.length === 0) return;
+		items.forEach((rowObj) => {
+			seedMissingIntoRecord(interactiveTplControls, rowObj);
+		});
+	}
 	function renderListFromStore(listName) {
 		const rawArr = getOwn(ensureStore().lists, listName);
 		const itemsArray = Array.isArray(rawArr) ? rawArr : [];
-		findListElements(listName).forEach((listEl) => {
-			ensureListBlueprints(listEl, false);
-			renderListItems(listEl, itemsArray);
+		const listEls = findListElements(listName);
+		listEls.forEach((listEl) => ensureListBlueprints(listEl, false));
+		seedInteractiveTemplateDefaultsForList(listName, itemsArray);
+		listEls.forEach((listEl) => {
+			renderListItems(listEl, itemsArray, true);
 			syncNetVisibility(listEl);
 		});
 	}
@@ -1001,11 +1087,16 @@
 	function buildInitialBaselineDb(diskDb) {
 		const baseline = cloneDb(diskDb);
 		seedMissingIntoRecord(queryStandaloneBoundElements(document), baseline.fields);
+		const preSeededInteractiveLists = /* @__PURE__ */ new Set();
 		queryListElements(document).forEach((listEl) => {
 			const listName = getAttr(listEl, "naizo-list");
 			if (!listName) return;
 			if (hasOwn(baseline.lists, listName) && Array.isArray(getOwn(baseline.lists, listName))) {
 				const items = getOwn(baseline.lists, listName);
+				if (!preSeededInteractiveLists.has(listName)) {
+					preSeededInteractiveLists.add(listName);
+					seedInteractiveTemplateDefaultsForList(listName, items);
+				}
 				const tpl = listEl.querySelector(TEMPLATE_SELECTOR);
 				const tplItem = tpl?.content.querySelector(ITEM_SELECTOR) ?? tpl?.content.firstElementChild;
 				if (tplItem) {
@@ -1051,10 +1142,10 @@
 		}
 		return out.reverse();
 	}
-	function reconcileListItems(listEl, targetItems, preserveActive) {
+	function reconcileListItems(listEl, targetItems, preserveActive, seedMissing = true) {
 		const currentRows = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
 		if (currentRows.length === 0 || targetItems.length === 0) {
-			renderListItems(listEl, targetItems);
+			renderListItems(listEl, targetItems, seedMissing);
 			return;
 		}
 		const listName = getAttr(listEl, "naizo-list") ?? "list";
@@ -1108,7 +1199,7 @@
 		const prefixLimit = Math.min(rowCount, targetCount);
 		for (let k = 0; k < prefixLimit; k += 1) {
 			if (matchedOldForTarget[k] !== -1 || usedOld[k]) continue;
-			if (oldIds[k] !== null && targetIds[k] !== null) continue;
+			if (oldIds[k] !== null || targetIds[k] !== null) continue;
 			matchedOldForTarget[k] = k;
 			usedOld[k] = true;
 		}
@@ -1127,12 +1218,15 @@
 					const key = getElementKey(el);
 					if (!key) return;
 					if (hasOwn(itemObj, key)) writeElementValue(el, getOwn(itemObj, key));
-					else clearElementValue(el);
+					else if (seedMissing) {
+						const val = readElementValue(el);
+						if (val !== void 0) setOwn(itemObj, key, val);
+					} else clearElementValue(el);
 				});
 				desiredRows.push(rowEl);
 				desiredOldPos.push(oldIdx);
 			} else {
-				const node = createItemNode(listEl, itemObj);
+				const node = createItemNode(listEl, itemObj, seedMissing);
 				if (node) {
 					desiredRows.push(node);
 					desiredOldPos.push(-1);
@@ -1189,25 +1283,30 @@
 				}
 			} else if (!preserveActive || !isElementActive(el)) clearElementValue(el);
 		});
+		const preSeededInteractiveLists = /* @__PURE__ */ new Set();
 		queryListElements(root).forEach((listEl) => {
 			const listName = getAttr(listEl, "naizo-list");
 			if (!listName) return;
 			if (hasOwn(db.lists, listName) && Array.isArray(getOwn(db.lists, listName))) {
 				const targetItems = getOwn(db.lists, listName);
+				if (seedMissingFromDom && !preSeededInteractiveLists.has(listName)) {
+					preSeededInteractiveLists.add(listName);
+					seedInteractiveTemplateDefaultsForList(listName, targetItems);
+				}
 				const currentRows = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
-				if (currentRows.length > 0 && (!seedMissingFromDom || currentRows.every((r) => itemDataMap.has(r)))) reconcileListItems(listEl, targetItems, preserveActive);
-				else renderListItems(listEl, targetItems);
+				if (currentRows.length > 0 && (!seedMissingFromDom || currentRows.every((r) => itemDataMap.has(r)))) reconcileListItems(listEl, targetItems, preserveActive, seedMissingFromDom);
+				else renderListItems(listEl, targetItems, seedMissingFromDom);
 				syncNetVisibility(listEl);
 			} else if (seedMissingFromDom) {
 				const seededItems = [];
 				listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
 					const rowObj = {};
-					bindItemElementToRecord(itemEl, rowObj, listName);
+					bindItemElementToRecord(itemEl, rowObj, listName, true);
 					seededItems.push(rowObj);
 				});
 				setOwn(db.lists, listName, seededItems);
 				decorateListControls(listEl);
-			} else renderListItems(listEl, []);
+			} else renderListItems(listEl, [], false);
 		});
 	}
 	function getCleanHtmlString(portable = isOnlineMode()) {
@@ -1220,20 +1319,11 @@
 			const cloneEl = cloneBound[i];
 			if (liveEl && cloneEl && !isIgnoredElement(liveEl)) bakeClonedElementAttributes(liveEl, cloneEl);
 		}
-		clone.querySelectorAll("input[data-naizo-radio-name]").forEach((r) => {
-			const orig = r.getAttribute("data-naizo-radio-name");
-			if (orig !== null) r.setAttribute("name", orig);
-			r.removeAttribute("data-naizo-radio-name");
-		});
+		restoreScopedRadioNames(clone);
 		clone.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
 			if (listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).length >= 1) listEl.querySelectorAll(AUTO_TEMPLATE_SELECTOR).forEach((tpl) => tpl.remove());
 		});
-		clone.querySelectorAll("[data-naizo-loading], [data-naizo-loading-disabled]").forEach((el) => {
-			const addedDisabled = el.hasAttribute("data-naizo-loading-disabled");
-			el.removeAttribute("data-naizo-loading");
-			el.removeAttribute("data-naizo-loading-disabled");
-			if (addedDisabled) el.removeAttribute("disabled");
-		});
+		stripLoadingStateAttrs(clone);
 		if (portable) {
 			for (const modeHost of [clone, clone.querySelector("body")]) {
 				if (!modeHost) continue;
@@ -1319,6 +1409,14 @@
 			if (lt === -1) break;
 			i = lt;
 			if (bodyText.startsWith("<!--", i)) {
+				if (bodyText.startsWith("<!-->", i)) {
+					i += 5;
+					continue;
+				}
+				if (bodyText.startsWith("<!--->", i)) {
+					i += 6;
+					continue;
+				}
 				const endC = bodyText.indexOf("-->", i + 4);
 				if (endC === -1) break;
 				i = endC + 3;
@@ -1339,8 +1437,8 @@
 				i += 1;
 				continue;
 			}
-			if (openTag.tagName === "script" || openTag.tagName === "style") {
-				const closeRe = openTag.tagName === "script" ? /<\/script(?=[>\s/])[^>]*>/gi : /<\/style(?=[>\s/])[^>]*>/gi;
+			if (openTag.tagName === "script" || openTag.tagName === "style" || openTag.tagName === "title" || openTag.tagName === "textarea") {
+				const closeRe = new RegExp(`</${openTag.tagName}(?=[>\\s/])[^>]*>`, "gi");
 				closeRe.lastIndex = openTag.openEnd;
 				const closeMatch = closeRe.exec(bodyText);
 				if (!closeMatch) break;
@@ -1440,9 +1538,9 @@
 			const bHas = hasOwn(baseItem, prop);
 			const brHas = hasOwn(browserItem, prop);
 			const dkHas = hasOwn(diskItem, prop);
-			const bSer = bHas ? JSON.stringify(getOwn(baseItem, prop)) : void 0;
-			const brSer = brHas ? JSON.stringify(getOwn(browserItem, prop)) : void 0;
-			const dkSer = dkHas ? JSON.stringify(getOwn(diskItem, prop)) : void 0;
+			const bSer = bHas ? canonicalJson(getOwn(baseItem, prop)) : void 0;
+			const brSer = brHas ? canonicalJson(getOwn(browserItem, prop)) : void 0;
+			const dkSer = dkHas ? canonicalJson(getOwn(diskItem, prop)) : void 0;
 			if (brSer === dkSer) {
 				if (dkHas) setOwn(out, prop, cloneJsonValue(getOwn(diskItem, prop)));
 			} else if (brSer !== bSer && dkSer === bSer) {
@@ -1489,12 +1587,15 @@
 		let baseItemHashes = null;
 		let baseIds = null;
 		if (baseItemsMem !== null) {
-			baseItemHashes = baseItemsMem.map((it) => fnv1aHex8(JSON.stringify(it)));
+			baseItemHashes = baseItemsMem.map((it) => fnv1aHex8(canonicalJson(it)));
 			baseIds = collectUniqueItemIds(baseItemsMem);
 		} else if (baseEntry !== void 0 && typeof baseEntry !== "string") {
 			baseItemHashes = baseEntry.i;
 			baseIds = baseEntry.k ?? null;
-		} else if (baseEntry === void 0) baseIds = [];
+		} else if (baseEntry === void 0) {
+			baseItemHashes = [];
+			baseIds = [];
+		}
 		const browserIds = collectUniqueItemIds(browserList);
 		const diskIds = collectUniqueItemIds(diskList);
 		if (baseIds !== null && browserIds !== null && diskIds !== null) {
@@ -1511,7 +1612,7 @@
 				const idKey = browserIds[i];
 				const item = browserList[i];
 				browserObjById.set(idKey, item);
-				browserHashById.set(idKey, fnv1aHex8(JSON.stringify(item)));
+				browserHashById.set(idKey, fnv1aHex8(canonicalJson(item)));
 			}
 			const diskObjById = /* @__PURE__ */ new Map();
 			const diskHashById = /* @__PURE__ */ new Map();
@@ -1519,7 +1620,7 @@
 				const idKey = diskIds[i];
 				const item = diskList[i];
 				diskObjById.set(idKey, item);
-				diskHashById.set(idKey, fnv1aHex8(JSON.stringify(item)));
+				diskHashById.set(idKey, fnv1aHex8(canonicalJson(item)));
 			}
 			const keptById = /* @__PURE__ */ new Map();
 			let hasCollision = false;
@@ -1577,7 +1678,7 @@
 			return {
 				merged,
 				hasCollision,
-				browserKept: JSON.stringify(merged) !== JSON.stringify(diskList)
+				browserKept: canonicalJson(merged) !== canonicalJson(diskList)
 			};
 		}
 		if (baseItemHashes !== null) {
@@ -1587,8 +1688,8 @@
 				let prefixClean = true;
 				for (let i = 0; i < baseLen; i += 1) {
 					const bH = baseItemHashes[i];
-					const brH = fnv1aHex8(JSON.stringify(browserList[i]));
-					const dkH = fnv1aHex8(JSON.stringify(diskList[i]));
+					const brH = fnv1aHex8(canonicalJson(browserList[i]));
+					const dkH = fnv1aHex8(canonicalJson(diskList[i]));
 					if (brH === dkH) merged.push(cloneRecord(diskList[i]));
 					else if (brH !== bH && dkH === bH) merged.push(cloneRecord(browserList[i]));
 					else if (brH === bH && dkH !== bH) merged.push(cloneRecord(diskList[i]));
@@ -1603,7 +1704,7 @@
 					return {
 						merged,
 						hasCollision: false,
-						browserKept: JSON.stringify(merged) !== JSON.stringify(diskList)
+						browserKept: canonicalJson(merged) !== canonicalJson(diskList)
 					};
 				}
 			}
@@ -1629,8 +1730,8 @@
 				const baseHash = typeof baseEntry === "string" ? baseEntry : baseEntry?.h;
 				const browserVal = hasOwn(browserBucket, key) ? getOwn(browserBucket, key) : void 0;
 				const diskVal = hasOwn(diskBucket, key) ? getOwn(diskBucket, key) : void 0;
-				const browserSer = browserVal !== void 0 ? JSON.stringify(browserVal) : void 0;
-				const diskSer = diskVal !== void 0 ? JSON.stringify(diskVal) : void 0;
+				const browserSer = browserVal !== void 0 ? canonicalJson(browserVal) : void 0;
+				const diskSer = diskVal !== void 0 ? canonicalJson(diskVal) : void 0;
 				if (browserSer === diskSer) {
 					if (diskVal !== void 0) setOwn(out, key, cloneJsonValue(diskVal));
 					continue;
@@ -1646,7 +1747,7 @@
 					} else if (!browserChanged && diskChanged) {
 						if (diskVal !== void 0) setOwn(out, key, cloneJsonValue(diskVal));
 					} else if (isListsBucket && Array.isArray(browserVal) && Array.isArray(diskVal)) {
-						const listRes = mergeList3Way(baseEntry, baseDb && hasOwn(baseDb.lists, key) && Array.isArray(getOwn(baseDb.lists, key)) ? getOwn(baseDb.lists, key) : null, browserVal, diskVal);
+						const listRes = mergeList3Way(baseEntry, baseDb !== null ? hasOwn(baseDb.lists, key) && Array.isArray(getOwn(baseDb.lists, key)) ? getOwn(baseDb.lists, key) : [] : null, browserVal, diskVal);
 						if (listRes.hasCollision) hasCollision = true;
 						if (listRes.browserKept) browserKeptKeys = true;
 						setOwn(out, key, listRes.merged);
@@ -1705,18 +1806,17 @@
 		writeQueued = false;
 		if (typeof modifiedMs === "number") lastObservedModified = modifiedMs;
 		safeSetStorage(getRawBackupKey(), rawDiskScript);
-		startupInvalidDb = true;
 		liveDiskInvalidJson = true;
 		repairingDiskInvalidDb = false;
 		if (isNoPillMode()) console.warn("[naizo.js] Linked disk file contains invalid #naizodb JSON; automatic disk writes are paused and raw text was backed up.");
 		updateUi("error", "Invalid #naizodb JSON");
 	}
 	function restoreConflictBackup() {
-		if (startupInvalidDb) {
-			const wasLiveDiskInvalid = liveDiskInvalidJson;
+		if (isInvalidDbState()) {
+			const wasStartupInvalid = startupInvalidDb;
 			startupInvalidDb = false;
 			liveDiskInvalidJson = false;
-			hydrateSubtreeFromStore(document, false, !wasLiveDiskInvalid);
+			hydrateSubtreeFromStore(document, false, wasStartupInvalid);
 			if (fileHandle) {
 				repairingDiskInvalidDb = true;
 				flushPersistence(false);
@@ -1736,7 +1836,8 @@
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
 	}
 	async function checkDiskForExternalChanges() {
-		if (!fileHandle || typeof fileHandle.getFile !== "function" || startupInvalidDb && !liveDiskInvalidJson) return false;
+		lastExternalCheckHadConflict = false;
+		if (!fileHandle || typeof fileHandle.getFile !== "function" || startupInvalidDb) return false;
 		if (writeInFlightPromise !== null) return false;
 		try {
 			if (await fileHandle.queryPermission({ mode: "readwrite" }) !== "granted") return false;
@@ -1752,11 +1853,11 @@
 				return false;
 			}
 			if (liveDiskInvalidJson) {
-				startupInvalidDb = false;
 				liveDiskInvalidJson = false;
 				repairingDiskInvalidDb = false;
 			} else if (lastKnownDiskRaw !== null && normalizeJsonComparison(diskScriptRaw) === normalizeJsonComparison(lastKnownDiskRaw)) return false;
-			const { browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+			const { hasCollision, browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+			lastExternalCheckHadConflict = hasCollision;
 			if (browserKeptKeys) scheduleDiskWrite();
 			return true;
 		} catch {
@@ -1778,14 +1879,10 @@
 		}
 	}
 	async function performSingleDiskWrite() {
-		if (!fileHandle || startupInvalidDb) {
+		if (!fileHandle || isInvalidDbState()) {
 			pendingInitialLinkFile = null;
 			return false;
 		}
-		const forceOverwrite = overwriteDiskWithoutMerge;
-		overwriteDiskWithoutMerge = false;
-		const isRepairWrite = repairingDiskInvalidDb;
-		repairingDiskInvalidDb = false;
 		const preReadLink = pendingInitialLinkFile;
 		pendingInitialLinkFile = null;
 		try {
@@ -1795,9 +1892,16 @@
 				updateUi("needs-permission", "Resume Disk Sync");
 				return false;
 			}
+			const forceOverwrite = overwriteDiskWithoutMerge;
+			overwriteDiskWithoutMerge = false;
+			const isRepairWrite = repairingDiskInvalidDb;
+			repairingDiskInvalidDb = false;
+			const preConfirmedMissingBlock = confirmedMissingDbInject;
+			confirmedMissingDbInject = false;
 			if (persistTimeout !== null) flushPersistence(false);
 			let fileTextToWrite;
 			let payloadToWrite;
+			let diskRawSnapshotForTracking = null;
 			let preWriteHadCollision = false;
 			let skipWritable = false;
 			let preWriteModifiedMs;
@@ -1806,6 +1910,7 @@
 				preWriteModifiedMs = diskFile.lastModified;
 				const existingFileText = preReadLink ? preReadLink.text : await readFileTextPreservingBom(diskFile);
 				const diskScriptRaw = extractDbScriptBody(existingFileText);
+				let parsedExistingDiskDb = null;
 				if (!forceOverwrite && diskScriptRaw !== null) {
 					const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
 					if (!diskDetailed.ok) {
@@ -1813,24 +1918,29 @@
 							enterLiveDiskInvalidJsonState(diskScriptRaw, diskFile.lastModified);
 							return false;
 						}
-					} else if (lastKnownDiskRaw !== null && normalizeJsonComparison(diskScriptRaw) !== normalizeJsonComparison(lastKnownDiskRaw)) {
-						const { hasCollision, browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
-						preWriteHadCollision = hasCollision;
-						if (!browserKeptKeys) {
-							if (typeof diskFile.lastModified === "number") lastObservedModified = diskFile.lastModified;
-							return true;
+					} else {
+						parsedExistingDiskDb = diskDetailed.db;
+						if (lastKnownDiskRaw !== null && normalizeJsonComparison(diskScriptRaw) !== normalizeJsonComparison(lastKnownDiskRaw)) {
+							const { hasCollision, browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
+							preWriteHadCollision = hasCollision;
+							if (!browserKeptKeys) {
+								if (typeof diskFile.lastModified === "number") lastObservedModified = diskFile.lastModified;
+								return true;
+							}
 						}
 					}
 				}
-				payloadToWrite = serializeDbJson(ensureStore());
-				if (diskScriptRaw !== null && diskScriptRaw === payloadToWrite.trim()) {
+				const currentStore = ensureStore();
+				payloadToWrite = serializeDbJson(currentStore);
+				if (!forceOverwrite && !isRepairWrite && diskScriptRaw !== null && (diskScriptRaw === payloadToWrite.trim() || parsedExistingDiskDb !== null && canonicalJson(parsedExistingDiskDb) === canonicalJson(currentStore))) {
 					skipWritable = true;
 					fileTextToWrite = existingFileText;
+					diskRawSnapshotForTracking = diskScriptRaw;
 				} else {
 					const formattedBlock = "\n" + payloadToWrite + "\n";
 					const replaced = replaceDbScriptInHtml(existingFileText, formattedBlock);
 					if (replaced.missingBlock) {
-						if (!(typeof window !== "undefined" && typeof window.confirm === "function" ? window.confirm("Selected file does not contain <script id=\"naizodb\">. Insert #naizodb into this file?") : false)) {
+						if (!(preConfirmedMissingBlock || (typeof window !== "undefined" && typeof window.confirm === "function" ? window.confirm("Selected file does not contain <script id=\"naizodb\">. Insert #naizodb into this file?") : false))) {
 							console.warn("[naizo.js] Refusing to overwrite file without #naizodb block.");
 							updateUi("error", "Target file lacks #naizodb");
 							return false;
@@ -1848,13 +1958,14 @@
 				await writable.close();
 			}
 			const exactWrittenTrimmed = payloadToWrite.trim();
-			lastKnownDiskRaw = exactWrittenTrimmed;
-			const writtenParsed = parseDbScriptDetailed(exactWrittenTrimmed);
+			const trackedDiskRaw = diskRawSnapshotForTracking ?? exactWrittenTrimmed;
+			lastKnownDiskRaw = trackedDiskRaw;
+			const writtenParsed = parseDbScriptDetailed(trackedDiskRaw);
 			if (writtenParsed.ok) {
 				lastDiskDb = cloneDb(writtenParsed.db);
 				initialDiskDb = cloneDb(lastDiskDb);
 			}
-			safeSetStorage(getSnapshotKey(), hashCanonicalDb(exactWrittenTrimmed));
+			safeSetStorage(getSnapshotKey(), hashCanonicalDb(trackedDiskRaw));
 			if (skipWritable) {
 				if (typeof preWriteModifiedMs === "number") lastObservedModified = preWriteModifiedMs;
 			} else if (typeof fileHandle.getFile === "function") try {
@@ -1874,7 +1985,7 @@
 		}
 	}
 	async function writeToDisk() {
-		if (!fileHandle || startupInvalidDb) return false;
+		if (!fileHandle || isInvalidDbState()) return false;
 		if (writeInFlightPromise !== null) {
 			writeQueued = true;
 			return writeInFlightPromise;
@@ -1885,7 +1996,7 @@
 				do {
 					writeQueued = false;
 					lastResult = await performSingleDiskWrite();
-				} while (writeQueued && fileHandle && !startupInvalidDb);
+				} while (writeQueued && fileHandle && !isInvalidDbState());
 				return lastResult;
 			} finally {
 				writeInFlightPromise = null;
@@ -1895,7 +2006,7 @@
 		return runner;
 	}
 	function scheduleDiskWrite() {
-		if (!fileHandle || startupInvalidDb) return;
+		if (!fileHandle || isInvalidDbState()) return;
 		updateUi("saving", "Saving...");
 		if (saveTimeout !== null) clearTimeout(saveTimeout);
 		saveTimeout = setTimeout(() => {
@@ -1919,6 +2030,10 @@
 		const db = ensureStore();
 		writeStoreToDomScript(db, true);
 		const storedOk = safeSetStorage(getPageKey(), JSON.stringify(db));
+		if (liveDiskInvalidJson) {
+			updateUi("error", "Invalid #naizodb JSON");
+			return storedOk;
+		}
 		if (!fileHandle) {
 			updateUnlinkedStatusUi(storedOk);
 			return storedOk;
@@ -1977,17 +2092,8 @@
 			host.classList.remove("dark", "light");
 			if (host.classList.length === 0) host.removeAttribute("class");
 		}
-		root.querySelectorAll("[data-naizo-loading], [data-naizo-loading-disabled]").forEach((el) => {
-			const addedDisabled = el.hasAttribute("data-naizo-loading-disabled");
-			el.removeAttribute("data-naizo-loading");
-			el.removeAttribute("data-naizo-loading-disabled");
-			if (addedDisabled) el.removeAttribute("disabled");
-		});
-		root.querySelectorAll("input[data-naizo-radio-name]").forEach((r) => {
-			const orig = r.getAttribute("data-naizo-radio-name");
-			if (orig !== null) r.setAttribute("name", orig);
-			r.removeAttribute("data-naizo-radio-name");
-		});
+		stripLoadingStateAttrs(root);
+		restoreScopedRadioNames(root);
 		root.querySelectorAll(LIST_SELECTOR).forEach((listEl) => {
 			if (listEl.closest(`[naizo-ignore], [data-naizo-ignore], template`)) return;
 			const tpl = listEl.querySelector(":scope > template");
@@ -1997,11 +2103,7 @@
 			if (bpSource) {
 				const bpClone = bpSource.cloneNode(true);
 				bpClone.querySelectorAll(RUNTIME_STRIP_SELECTOR).forEach((n) => n.remove());
-				bpClone.querySelectorAll("input[data-naizo-radio-name]").forEach((r) => {
-					const orig = r.getAttribute("data-naizo-radio-name");
-					if (orig !== null) r.setAttribute("name", orig);
-					r.removeAttribute("data-naizo-radio-name");
-				});
+				restoreScopedRadioNames(bpClone);
 				bpClone.querySelectorAll("[naizo-ignore], [data-naizo-ignore]").forEach((ig) => {
 					ig.innerHTML = "";
 				});
@@ -2031,7 +2133,7 @@
 		}
 	}
 	async function connectOrResumeDisk() {
-		if (startupInvalidDb) return false;
+		if (isInvalidDbState()) return false;
 		if (persistTimeout !== null) flushPersistence(false);
 		if (saveTimeout !== null) {
 			clearTimeout(saveTimeout);
@@ -2061,6 +2163,7 @@
 				}]
 			});
 			let confirmedWrongFileOverwrite = false;
+			let confirmedMissingBlock = false;
 			let preReadLink = null;
 			if (typeof pickedHandle.getFile === "function") {
 				const diskFile = await pickedHandle.getFile();
@@ -2071,7 +2174,14 @@
 				};
 				if (existingFileText.trim() !== "") {
 					const diskScriptRaw = extractDbScriptBody(existingFileText);
-					if (diskScriptRaw !== null) {
+					if (diskScriptRaw === null) {
+						if (!(typeof window !== "undefined" && typeof window.confirm === "function" ? window.confirm("Selected file does not contain <script id=\"naizodb\">. Insert #naizodb into this file?") : false)) {
+							console.warn("[naizo.js] Refusing to overwrite file without #naizodb block.");
+							updateUi("error", "Target file lacks #naizodb");
+							return false;
+						}
+						confirmedMissingBlock = true;
+					} else {
 						const pageScopeId = getDocumentScopeId();
 						const diskScopeId = extractScopeIdFromRawHtml(existingFileText, diskScriptRaw);
 						const scopeIdsConflict = Boolean(pageScopeId && diskScopeId && pageScopeId !== diskScopeId);
@@ -2086,6 +2196,7 @@
 				}
 			}
 			overwriteDiskWithoutMerge = confirmedWrongFileOverwrite;
+			confirmedMissingDbInject = confirmedMissingBlock;
 			pendingInitialLinkFile = preReadLink;
 			fileHandle = pickedHandle;
 			fileHandlePermission = "granted";
@@ -3020,7 +3131,7 @@
 				e.preventDefault();
 				return;
 			}
-			if (!startupInvalidDb && !isOnlineMode() && (!fileHandle || fileHandlePermission !== "granted")) connectOrResumeDisk();
+			if (!isInvalidDbState() && !isOnlineMode() && (!fileHandle || fileHandlePermission !== "granted")) connectOrResumeDisk();
 		});
 		actionBtn?.addEventListener("click", () => {
 			if (isOnlineMode()) Naizo.downloadHTML();
@@ -3255,8 +3366,8 @@
 		document.body.appendChild(host);
 	}
 	function isDirtyFromInitial() {
-		if (!initialDiskDb || startupInvalidDb) return false;
-		return serializeContentBuckets(ensureStore()) !== serializeContentBuckets(initialDiskDb);
+		if (!initialDiskDb || isInvalidDbState()) return false;
+		return canonicalContentBuckets(ensureStore()) !== canonicalContentBuckets(initialDiskDb);
 	}
 	function setButtonIconAndSr(srEl, svgEl, srText, svgInner) {
 		if (srEl && srEl.textContent !== srText) srEl.textContent = srText;
@@ -3307,7 +3418,7 @@
 			actionBtn.setAttribute("aria-label", "Link disk file");
 		}
 		if (restoreBtn) {
-			if (startupInvalidDb) {
+			if (isInvalidDbState()) {
 				setButtonIconAndSr(restoreSrEl, restoreSvgEl, "↺ Repair", PILL_ICONS.wrench);
 				restoreBtn.dataset.tip = "Repair JSON";
 				setPillElementTitle(restoreBtn, "Repair invalid #naizodb JSON");
@@ -3323,7 +3434,7 @@
 			}
 		}
 		if (resetBtn) {
-			const showReset = (online || !fileHandle) && !startupInvalidDb && isDirtyFromInitial();
+			const showReset = (online || !fileHandle) && !isInvalidDbState() && isDirtyFromInitial();
 			resetBtn.style.display = showReset ? "inline-block" : "none";
 			if (!showReset && resetConfirmEl) resetConfirmEl.style.display = "none";
 		}
@@ -3487,15 +3598,7 @@
 			return;
 		}
 		listEls.forEach((el) => ensureListBlueprints(el, false));
-		const interactiveTplControls = [];
-		listEls.forEach((listEl) => {
-			const tpl = listEl.querySelector(TEMPLATE_SELECTOR);
-			const tplItem = tpl?.content.querySelector(ITEM_SELECTOR) ?? tpl?.content.firstElementChild;
-			if (tplItem) queryItemBoundElements(tplItem).forEach((el) => {
-				if (isInteractiveBoundElement(el)) interactiveTplControls.push(el);
-			});
-		});
-		seedMissingIntoRecord(interactiveTplControls, rowObj);
+		seedInteractiveTemplateDefaultsForList(listName, [rowObj]);
 		const createdPairs = [];
 		for (const listEl of listEls) {
 			const node = createItemNode(listEl, rowObj);
@@ -3664,12 +3767,12 @@
 	function routeFetchPayload(target, extracted) {
 		if (target === null) return;
 		if (target === "db") {
-			if (startupInvalidDb) throw new Error("Cannot hydrate #naizodb while startup JSON is invalid");
+			if (isInvalidDbState()) throw new Error("Cannot hydrate #naizodb while startup JSON is invalid");
 			if (!isRemoteNaizoDbCandidate(extracted)) throw new Error("Response is not a valid NaizoDatabase object");
 			const normalized = validateAndNormalizeDb(extracted);
 			if (!normalized) throw new Error("Response failed NaizoDatabase validation");
 			const prevDb = ensureStore();
-			if (!isStoreContentEmpty(prevDb) && serializeContentBuckets(prevDb) !== serializeContentBuckets(normalized)) safeSetStorage(getBackupKey(), JSON.stringify(cloneDb(prevDb)));
+			if (!isStoreContentEmpty(prevDb) && canonicalContentBuckets(prevDb) !== canonicalContentBuckets(normalized)) safeSetStorage(getBackupKey(), JSON.stringify(cloneDb(prevDb)));
 			store = normalized;
 			storeInitialized = true;
 			hydrateSubtreeFromStore(document, true, false);
@@ -3825,7 +3928,7 @@
 		}
 	}
 	function runAutoTriggers(root = document) {
-		if (startupInvalidDb) return;
+		if (isInvalidDbState()) return;
 		const candidates = [];
 		if (root instanceof Element && root.matches(API_REQUEST_SELECTOR)) candidates.push(root);
 		root.querySelectorAll(API_REQUEST_SELECTOR).forEach((el) => {
@@ -3845,7 +3948,8 @@
 	function resolveClickedAddListEl(addBtn, listName) {
 		const ancestorList = addBtn.closest(LIST_SELECTOR);
 		if (ancestorList && getAttr(ancestorList, "naizo-list") === listName) return ancestorList;
-		const prev = addBtn.closest(".naizo-list-footer")?.previousElementSibling;
+		let prev = addBtn.closest(".naizo-list-footer")?.previousElementSibling ?? null;
+		while (prev?.classList.contains("naizo-list-footer")) prev = prev.previousElementSibling;
 		if (prev instanceof HTMLElement) {
 			if (prev.matches(LIST_SELECTOR) && getAttr(prev, "naizo-list") === listName) return prev;
 			const escaped = escapeSelectorAttr(listName);
@@ -3916,7 +4020,7 @@
 		handledKeyEvents.add(e);
 		e.preventDefault();
 		const storedOk = flushPersistence(false);
-		if (startupInvalidDb) return;
+		if (isInvalidDbState()) return;
 		if (isOnlineMode()) {
 			if (storedOk) {
 				updateUi("saved", "✓ Saved in Browser");
@@ -3938,14 +4042,14 @@
 			clearTimeout(saveTimeout);
 			saveTimeout = null;
 		}
-		if (fileHandle && !startupInvalidDb) writeToDisk();
+		if (fileHandle && !isInvalidDbState()) writeToDisk();
 	}
 	function handleStorageEvent(e) {
 		if (!e.key || !e.newValue) return;
-		if (writeInFlightPromise !== null || startupInvalidDb) return;
+		if (writeInFlightPromise !== null || isInvalidDbState()) return;
 		if (e.key === getSnapshotKey()) {
 			const incomingRootHash = extractRootDiskHash(e.newValue);
-			const currentRootHash = fnv1aStringHash(serializeContentBuckets(ensureStore()));
+			const currentRootHash = fnv1aStringHash(canonicalContentBuckets(ensureStore()));
 			if (incomingRootHash && incomingRootHash === currentRootHash) {
 				lastKnownDiskRaw = serializeDbJson(ensureStore()).trim();
 				lastDiskDb = cloneDb(ensureStore());
@@ -4244,8 +4348,8 @@
 						}
 					} else {
 						const lastRow = rows[rows.length - 1];
-						if (lastRow && lastRow !== fromEl) {
-							listEl.insertBefore(fromEl, lastRow.nextSibling);
+						if (lastRow) {
+							if (lastRow !== fromEl) listEl.insertBefore(fromEl, lastRow.nextSibling);
 							return;
 						}
 					}
@@ -4292,7 +4396,7 @@
 				clearTimeout(saveTimeout);
 				saveTimeout = null;
 			}
-			if (startupInvalidDb || !initialDiskDb) return;
+			if (isInvalidDbState() || !initialDiskDb) return;
 			if (isDirtyFromInitial()) safeSetStorage(getBackupKey(), JSON.stringify(ensureStore()));
 			store = cloneDb(initialDiskDb);
 			storeInitialized = true;
@@ -4324,15 +4428,18 @@
 			lastObservedModified = null;
 			overwriteDiskWithoutMerge = false;
 			repairingDiskInvalidDb = false;
+			confirmedMissingDbInject = false;
 			pendingInitialLinkFile = null;
 			await deleteHandleFromIDB();
+			let storedOk = true;
 			if (liveDiskInvalidJson) {
-				startupInvalidDb = false;
 				liveDiskInvalidJson = false;
-				writeStoreToDomScript(ensureStore(), false);
+				const db = ensureStore();
+				writeStoreToDomScript(db, false);
+				storedOk = safeSetStorage(getPageKey(), JSON.stringify(db));
 			}
 			if (startupInvalidDb) return;
-			updateUnlinkedStatusUi(true);
+			updateUnlinkedStatusUi(storedOk);
 		},
 		async copyJSON() {
 			flushPersistence(false);
@@ -4359,8 +4466,10 @@
 				a.click();
 				URL.revokeObjectURL(url);
 			}
-			if (isOnlineMode()) updateUi("saved", "Saved to PC · Ready for Local Mode");
-			else updateUi("saved", "Downloaded HTML Snapshot");
+			if (!liveDiskInvalidJson) {
+				if (isOnlineMode()) updateUi("saved", "Saved to PC · Ready for Local Mode");
+				else updateUi("saved", "Downloaded HTML Snapshot");
+			}
 			return html;
 		}
 	};
@@ -4383,6 +4492,8 @@
 		liveDiskInvalidJson = false;
 		repairingDiskInvalidDb = false;
 		overwriteDiskWithoutMerge = false;
+		confirmedMissingDbInject = false;
+		lastExternalCheckHadConflict = false;
 		pendingInitialLinkFile = null;
 		netRevealed = false;
 		netState = "idle";
@@ -4448,9 +4559,9 @@
 			if (perm === "granted") {
 				startDiskWatch();
 				await checkDiskForExternalChanges();
-				if (startupInvalidDb) return;
-				const isDirtyComparedToDisk = lastDiskDb === null || serializeContentBuckets(ensureStore()) !== serializeContentBuckets(lastDiskDb);
-				if (hasBootConflict || safeGetStorage(getBackupKey()) !== null) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
+				if (isInvalidDbState()) return;
+				const isDirtyComparedToDisk = lastDiskDb === null || canonicalContentBuckets(ensureStore()) !== canonicalContentBuckets(lastDiskDb);
+				if (hasBootConflict || lastExternalCheckHadConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
 				else if (isDirtyComparedToDisk) updateUi("cached", "Browser Cache · Click to Link Disk");
 				else updateUi("saved", "Synced to Disk");
 			} else updateUi("needs-permission", "Resume Disk Sync");

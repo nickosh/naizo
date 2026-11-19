@@ -194,8 +194,9 @@ const items = rows
   });
 
 const html = fs.readFileSync(htmlPath, "utf8");
-const re = /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
-const match = html.match(re);
+const re = /<!---?>|<!--[\s\S]*?-->|(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script\s*>)|<(script|style|title|textarea)\b[^>]*>[\s\S]*?<\/\4\s*>/gi;
+let match;
+while ((match = re.exec(html)) && !match[1]) {}
 if (!match) throw new Error("Missing #naizodb block");
 
 const db = JSON.parse(match[2]);
@@ -203,8 +204,9 @@ db.lists.cards = items;
 db._meta = { ...db._meta, updatedAt: new Date().toISOString() };
 
 const json = JSON.stringify(db, null, 2).replace(/</g, "\\u003c");
-// Always use a replacement callback so "$1" or "$&" in cell data is never mangled
-fs.writeFileSync(htmlPath, html.replace(re, (_m, open, _inner, close) => `${open}\n${json}\n${close}`), "utf8");
+// Slice around match.index so HTML comments stay intact and "$1" / "$&" in cell data is never expanded
+const next = `${html.slice(0, match.index)}${match[1]}\n${json}\n${match[3]}${html.slice(match.index + match[0].length)}`;
+fs.writeFileSync(htmlPath, next, "utf8");
 '
 ```
 
@@ -219,7 +221,7 @@ import re
 
 html_path = pathlib.Path("studio.html")
 db_re = re.compile(
-    r'(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\'naizodb\'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(</script>)',
+    r'<!---?>|<!--[\s\S]*?-->|(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\'naizodb\'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(</script\s*>)|<(script|style|title|textarea)\b[^>]*>[\s\S]*?</\4\s*>',
     re.IGNORECASE,
 )
 
@@ -231,7 +233,7 @@ with open("seed.csv", newline="", encoding="utf-8-sig") as f:
     ]
 
 html = html_path.read_text(encoding="utf-8")
-match = db_re.search(html)
+match = next((m for m in db_re.finditer(html) if m.group(1)), None)
 if not match:
     raise RuntimeError("Missing #naizodb block")
 
@@ -240,7 +242,7 @@ db.setdefault("lists", {})["cards"] = cards
 db.setdefault("_meta", {})["updatedAt"] = dt.datetime.now(dt.timezone.utc).isoformat()
 
 payload = json.dumps(db, indent=2, ensure_ascii=False).replace("<", "\\u003c")
-updated = db_re.sub(lambda m: f"{m.group(1)}\n{payload}\n{m.group(3)}", html, count=1)
+updated = f"{html[:match.start()]}{match.group(1)}\n{payload}\n{match.group(3)}{html[match.end():]}"
 html_path.write_text(updated, encoding="utf-8")
 ```
 

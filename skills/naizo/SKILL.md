@@ -116,8 +116,8 @@ Every `naizo.js` HTML document embeds `<script id="naizodb" type="application/js
 
 ### CDN & Local Script Options (`D17`, `D34`, `D39`)
 
-- **jsDelivr (readable, ~39.9 KB gzipped / ~176.3 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
-- **jsDelivr (minified, ~27.0 KB gzipped / 91.9 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
+- **jsDelivr (readable, ~40.5 KB gzipped / ~180.2 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
+- **jsDelivr (minified, ~27.4 KB gzipped / 92.7 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
 - **unpkg:** `https://unpkg.com/naizojs@latest/dist/naizo.js`
 - **Pinned version:** replace `@latest` with a specific published version tag
 - **Local / offline:** `<script src="./dist/naizo.js" defer></script>` (inside the `naizo` repository examples, use `../dist/naizo.js`)
@@ -763,15 +763,16 @@ When modifying an existing `naizo.js` `.html` file on disk to update data (`fiel
 1. Read the file and extract the JSON inside the live `<script id="naizodb" type="application/json">...</script>` in `<head>` (skipping any `<!-- ... -->` HTML comments if the file contains commented-out examples, `EC60`).
 2. Parse the JSON and update `db.fields`, `db.lists`, or `db.custom` while keeping untouched keys and item `id`s intact (`EC58`: unique primitive `item.id`s merge item-by-item across additions, deletions, reorders, and per-property live edits; `id`-less checklists merge disjoint `0 .. base.length - 1` row edits and appends).
 3. Update `db._meta = { ...db._meta, updatedAt: new Date().toISOString() }`.
-4. Serialize with `JSON.stringify(db, null, 2).replace(/</g, '\\u003c')` and replace **only** the `<script id="naizodb">...</script>` block in the HTML file (using a callback replacement function so `$1` or `$&` inside user JSON values are never interpreted as regex capture groups):
+4. Serialize with `JSON.stringify(db, null, 2).replace(/</g, '\\u003c')` and replace **only** the live `<script id="naizodb">...</script>` block in the HTML file by slicing around `match.index` (skipping HTML comments and preceding raw-text `<script>`/`<style>`/`<title>`/`<textarea>` blocks per `EC60`, while never expanding `$1` or `$&` inside user JSON values):
 
 ```bash
 node -e '
 const fs = require("fs");
 const file = "plan.html";
 const html = fs.readFileSync(file, "utf8");
-const re = /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
-const match = html.match(re);
+const re = /<!---?>|<!--[\s\S]*?-->|(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script\s*>)|<(script|style|title|textarea)\b[^>]*>[\s\S]*?<\/\4\s*>/gi;
+let match;
+while ((match = re.exec(html)) && !match[1]) {}
 if (!match) throw new Error("Missing #naizodb block");
 const db = JSON.parse(match[2]);
 
@@ -780,7 +781,8 @@ db.fields.status = "Approved";
 db._meta = { ...db._meta, updatedAt: new Date().toISOString() };
 
 const json = JSON.stringify(db, null, 2).replace(/</g, "\\u003c");
-fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n${json}\n${close}`), "utf8");
+const next = `${html.slice(0, match.index)}${match[1]}\n${json}\n${match[3]}${html.slice(match.index + match[0].length)}`;
+fs.writeFileSync(file, next, "utf8");
 '
 ```
 

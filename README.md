@@ -7,7 +7,7 @@
 **Self-persisting HTML for human & AI workflows.**
 
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#)
-[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~27.0_KB-blue.svg)](#)
+[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~27.4_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 _`naizo.js` is a zero-dependency JavaScript library that turns any single `.html` file into a self-saving local-first application — from custom dashboards, interactive studios, and personal trackers to calculators, notebooks, specs, and more._
@@ -128,7 +128,7 @@ Humans prefer interacting with visual controls in the browser (and writing clean
 <!-- jsDelivr CDN (readable bundle) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified bundle (~27.0 KB gzipped, works on either CDN) -->
+<!-- Prebuilt minified bundle (~27.4 KB gzipped, works on either CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- unpkg CDN (readable bundle) -->
@@ -352,7 +352,7 @@ Several tools explore reactive HTML, declarative persistence, or self-saving sin
 | **Zero-Server Local Disk Save**       | **Yes** (surgical `#naizodb` File System API + HTML fallback) | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                | **Yes** (`⌘S` File System Access API; Chromium only)        |
 | **Two-Way Human ↔ AI Disk Sync**      | **Yes** (~2 s live watch + 3-way key/item merge + restore)    | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                | Manual reload only (`⌘S` overwrites external disk edits)    |
 | **Declarative List Repeater**         | **Yes** (`naizo-list` / `naizo-item`)                         | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    | N/A (hardcoded page sidebar)                                |
-| **Runtime Footprint (Gzip)**          | **~27.0 KB** (0 deps)                                         | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    | ~5.5 KB bundled app (0 deps)                                |
+| **Runtime Footprint (Gzip)**          | **~27.4 KB** (0 deps)                                         | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    | ~5.5 KB bundled app (0 deps)                                |
 
 ---
 

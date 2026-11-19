@@ -132,10 +132,10 @@ JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
 Load one provider in `<head>` with `defer` (`D34`, `D39`):
 
 ```html
-<!-- Readable IIFE bundle (~39.9 KB gzipped / ~176.3 KB raw, jsDelivr) -->
+<!-- Readable IIFE bundle (~40.5 KB gzipped / ~180.2 KB raw, jsDelivr) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified IIFE bundle (~27.0 KB gzipped / 91.9 KB raw) -->
+<!-- Prebuilt minified IIFE bundle (~27.4 KB gzipped / 92.7 KB raw) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- Alternative: unpkg -->
@@ -1225,8 +1225,9 @@ node -e '
 const fs = require("fs");
 const file = "plan.html";
 const html = fs.readFileSync(file, "utf8");
-const re = /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
-const match = html.match(re);
+const re = /<!---?>|<!--[\s\S]*?-->|(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script\s*>)|<(script|style|title|textarea)\b[^>]*>[\s\S]*?<\/\4\s*>/gi;
+let match;
+while ((match = re.exec(html)) && !match[1]) {}
 if (!match) throw new Error("Missing #naizodb block");
 const db = JSON.parse(match[2]);
 
@@ -1237,7 +1238,8 @@ db.lists.milestones.push({ done: false, task: "Added by CLI agent on disk", owne
 db._meta = { ...db._meta, updatedAt: new Date().toISOString() };
 
 const json = JSON.stringify(db, null, 2).replace(/</g, "\\u003c");
-fs.writeFileSync(file, html.replace(re, (_m, open, _inner, close) => `${open}\n${json}\n${close}`), "utf8");
+const next = `${html.slice(0, match.index)}${match[1]}\n${json}\n${match[3]}${html.slice(match.index + match[0].length)}`;
+fs.writeFileSync(file, next, "utf8");
 '
 ```
 
