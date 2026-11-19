@@ -79,12 +79,14 @@ interface FileSystemWritableFileStream {
 }
 
 interface NaizoFile {
+  name?: string;
   lastModified?: number;
   text?: () => Promise<string>;
   arrayBuffer?: () => Promise<ArrayBuffer>;
 }
 
 interface NaizoFileHandle {
+  name?: string;
   queryPermission(descriptor?: FileSystemPermissionDescriptor): Promise<PermissionState>;
   requestPermission(descriptor?: FileSystemPermissionDescriptor): Promise<PermissionState>;
   createWritable(): Promise<FileSystemWritableFileStream>;
@@ -113,9 +115,6 @@ const DISK_DEBOUNCE_MS = 250;
 const DISK_WATCH_INTERVAL_MS = 2000;
 const NET_ACTIVE_HOLD_MS = 600;
 const SAVING_CYCLE_MS = 1550;
-const NAIZODB_SCRIPT_RE =
-  /(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script>)/i;
-const HEAD_OPEN_RE = /(<head\b[^>]*>)/i;
 const CDN_NAIZO_MIN_JS_URL = 'https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js';
 const RELATIVE_NAIZO_SCRIPT_RE = /(?:^|[\\/])naizo(?:\.min)?\.js(?:[?#].*)?$/i;
 const ABSOLUTE_OR_SCHEME_URL_RE = /^(?:https?:|file:|data:|blob:|\/\/)/i;
@@ -333,6 +332,10 @@ function getBackupKey(): string {
   return 'naizodb_backup_' + getStorageSuffix();
 }
 
+function getRawBackupKey(): string {
+  return 'naizodb_raw_backup_' + getStorageSuffix();
+}
+
 function getUiKey(): string {
   return 'naizodb_ui_' + getStorageSuffix();
 }
@@ -429,10 +432,6 @@ function findListElements(listName: string): HTMLElement[] {
   return result;
 }
 
-function findListElement(listName: string): HTMLElement | null {
-  return findListElements(listName)[0] ?? null;
-}
-
 function toTextValue(val: unknown): string {
   if (val == null) return '';
   if (typeof val === 'string') return val;
@@ -461,6 +460,10 @@ let store: NaizoDatabase = createEmptyDb();
 let storeInitialized = false;
 let bootHydrated = false;
 let startupInvalidDb = false;
+let liveDiskInvalidJson = false;
+let repairingDiskInvalidDb = false;
+let overwriteDiskWithoutMerge = false;
+let pendingInitialLinkFile: { file: NaizoFile; text: string } | null = null;
 let isDispatchingChange = false;
 let pendingChangeQueue: Array<Record<string, unknown>> = [];
 let batchDepth = 0;
@@ -708,19 +711,51 @@ function normalizeJsonComparison(raw: string): string {
   }
 }
 
+interface DiskListHashEntry {
+  h: string;
+  i: string[];
+  k?: string[];
+}
+
+type DiskListHashValue = string | DiskListHashEntry;
+
 interface DiskKeyHashMap {
   fields: Record<string, string>;
-  lists: Record<string, string>;
+  lists: Record<string, DiskListHashValue>;
   custom: Record<string, string>;
 }
 
-function fnv1aStringHash(input: string): string {
+function fnv1aHex8(input: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < input.length; i += 1) {
     hash ^= input.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
-  return 'fnv1a:' + (hash >>> 0).toString(16).padStart(8, '0');
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function fnv1aStringHash(input: string): string {
+  return 'fnv1a:' + fnv1aHex8(input);
+}
+
+function getPrimitiveItemIdKey(item: Record<string, unknown>): string | null {
+  if (!hasOwn(item, 'id')) return null;
+  const id = getOwn(item, 'id');
+  if (typeof id === 'string') return id.trim().length > 0 ? `string:${id}` : null;
+  if (typeof id === 'number') return Number.isFinite(id) ? `number:${String(id)}` : null;
+  return null;
+}
+
+function collectUniqueItemIds(items: Array<Record<string, unknown>>): string[] | null {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const key = getPrimitiveItemIdKey(item);
+    if (!key || seen.has(key)) return null;
+    seen.add(key);
+    ids.push(key);
+  }
+  return ids;
 }
 
 function buildKeyHashesForBucket(bucket: Record<string, unknown>): Record<string, string> {
@@ -734,10 +769,29 @@ function buildKeyHashesForBucket(bucket: Record<string, unknown>): Record<string
   return out;
 }
 
+function buildListHashesForBucket(
+  lists: Record<string, Array<Record<string, unknown>>>,
+): Record<string, DiskListHashEntry> {
+  const out: Record<string, DiskListHashEntry> = {};
+  for (const key of Object.keys(lists)) {
+    const arr = getOwn(lists, key);
+    if (Array.isArray(arr)) {
+      const ids = collectUniqueItemIds(arr);
+      const entry: DiskListHashEntry = {
+        h: fnv1aStringHash(JSON.stringify(arr)),
+        i: arr.map((item) => fnv1aHex8(JSON.stringify(item))),
+        ...(ids !== null ? { k: ids } : {}),
+      };
+      setOwn(out, key, entry);
+    }
+  }
+  return out;
+}
+
 function buildDbKeyHashMap(db: NaizoDatabase): DiskKeyHashMap {
   return {
     fields: buildKeyHashesForBucket(db.fields),
-    lists: buildKeyHashesForBucket(db.lists),
+    lists: buildListHashesForBucket(db.lists),
     custom: buildKeyHashesForBucket(db.custom),
   };
 }
@@ -777,9 +831,34 @@ function extractKeyHashManifest(storedSnapshot: string): DiskKeyHashMap | null {
       isPlainObject(parsed.lists) &&
       isPlainObject(parsed.custom)
     ) {
+      const rawLists = parsed.lists as Record<string, unknown>;
+      const cleanLists: Record<string, DiskListHashValue> = {};
+      for (const k of Object.keys(rawLists)) {
+        const entry = getOwn(rawLists, k);
+        if (typeof entry === 'string') {
+          setOwn(cleanLists, k, entry);
+        } else if (
+          isPlainObject(entry) &&
+          typeof entry.h === 'string' &&
+          Array.isArray(entry.i) &&
+          entry.i.every((h) => typeof h === 'string')
+        ) {
+          const ids =
+            Array.isArray(entry.k) &&
+            entry.k.length === entry.i.length &&
+            entry.k.every((id) => typeof id === 'string')
+              ? (entry.k as string[])
+              : undefined;
+          setOwn(cleanLists, k, {
+            h: entry.h,
+            i: entry.i as string[],
+            ...(ids !== undefined ? { k: ids } : {}),
+          });
+        }
+      }
       return {
         fields: parsed.fields as Record<string, string>,
-        lists: parsed.lists as Record<string, string>,
+        lists: cleanLists,
         custom: parsed.custom as Record<string, string>,
       };
     }
@@ -1273,17 +1352,24 @@ function decorateListControls(listEl: HTMLElement): void {
   });
 
   const escaped = escapeSelectorAttr(listName);
-  if (!document.querySelector(`[naizo-add="${escaped}"], [data-naizo-add="${escaped}"]`)) {
-    const addWrap = document.createElement('div');
-    addWrap.className = 'naizo-list-footer';
-    addWrap.setAttribute('data-naizo-strip', 'true');
-    addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}" aria-label="Add item to ${listName}">+ Add Item</button>`;
+  const hasAuthoredAdd = Boolean(
+    document.querySelector(
+      `[naizo-add="${escaped}"]:not(.naizo-add-btn), [data-naizo-add="${escaped}"]:not(.naizo-add-btn)`,
+    ),
+  );
+  if (!hasAuthoredAdd) {
     const tag = listEl.tagName.toLowerCase();
     const anchorEl =
       tag === 'tbody' || tag === 'thead' || tag === 'tfoot'
         ? (listEl.closest('table') ?? listEl)
         : listEl;
-    anchorEl.insertAdjacentElement('afterend', addWrap);
+    if (!anchorEl.nextElementSibling?.classList.contains('naizo-list-footer')) {
+      const addWrap = document.createElement('div');
+      addWrap.className = 'naizo-list-footer';
+      addWrap.setAttribute('data-naizo-strip', 'true');
+      addWrap.innerHTML = `<button type="button" class="naizo-add-btn" naizo-add="${listName}" aria-label="Add item to ${listName}">+ Add Item</button>`;
+      anchorEl.insertAdjacentElement('afterend', addWrap);
+    }
   }
 }
 
@@ -1446,6 +1532,192 @@ function buildInitialBaselineDb(diskDb: NaizoDatabase): NaizoDatabase {
   return baseline;
 }
 
+function computeLongestIncreasingIndices(
+  entries: Array<{ targetIdx: number; oldPos: number }>,
+): number[] {
+  const n = entries.length;
+  if (n === 0) return [];
+  const tails: number[] = [];
+  const prev = Array.from({ length: n }, () => -1);
+  for (let i = 0; i < n; i += 1) {
+    const val = entries[i]!.oldPos;
+    let lo = 0;
+    let hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (entries[tails[mid]!]!.oldPos < val) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo > 0) prev[i] = tails[lo - 1]!;
+    tails[lo] = i;
+  }
+  const out: number[] = [];
+  let cur = tails[tails.length - 1]!;
+  while (cur !== -1) {
+    out.push(entries[cur]!.targetIdx);
+    cur = prev[cur]!;
+  }
+  return out.reverse();
+}
+
+function reconcileListItems(
+  listEl: HTMLElement,
+  targetItems: Array<Record<string, unknown>>,
+  preserveActive: boolean,
+): void {
+  const currentRows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
+  if (currentRows.length === 0 || targetItems.length === 0) {
+    renderListItems(listEl, targetItems);
+    return;
+  }
+
+  const listName = getAttr(listEl, 'naizo-list') ?? 'list';
+  const rowCount = currentRows.length;
+  const targetCount = targetItems.length;
+  const matchedOldForTarget = Array.from({ length: targetCount }, () => -1);
+  const usedOld = Array.from({ length: rowCount }, () => false);
+
+  const oldRecords = currentRows.map((r) => itemDataMap.get(r));
+  const oldIds = oldRecords.map((rec) => (rec ? getPrimitiveItemIdKey(rec) : null));
+  const targetIds = targetItems.map((rec) => getPrimitiveItemIdKey(rec));
+
+  // Pass 1: exact itemDataMap object reference
+  const refToOldIndices = new Map<Record<string, unknown>, number[]>();
+  for (let i = 0; i < rowCount; i += 1) {
+    const rec = oldRecords[i];
+    if (rec) {
+      const list = refToOldIndices.get(rec);
+      if (list) list.push(i);
+      else refToOldIndices.set(rec, [i]);
+    }
+  }
+  for (let j = 0; j < targetCount; j += 1) {
+    const candidateList = refToOldIndices.get(targetItems[j]!);
+    const oldIdx = candidateList?.shift();
+    if (oldIdx !== undefined && !usedOld[oldIdx]) {
+      matchedOldForTarget[j] = oldIdx;
+      usedOld[oldIdx] = true;
+    }
+  }
+
+  // Pass 2: unique primitive id (only for ids appearing once in currentRows and once in targetItems)
+  const oldIdCounts = new Map<string, number>();
+  const oldIdIndex = new Map<string, number>();
+  for (let i = 0; i < rowCount; i += 1) {
+    const idKey = oldIds[i];
+    if (idKey) {
+      oldIdCounts.set(idKey, (oldIdCounts.get(idKey) ?? 0) + 1);
+      oldIdIndex.set(idKey, i);
+    }
+  }
+  const targetIdCounts = new Map<string, number>();
+  for (let j = 0; j < targetCount; j += 1) {
+    const idKey = targetIds[j];
+    if (idKey) targetIdCounts.set(idKey, (targetIdCounts.get(idKey) ?? 0) + 1);
+  }
+  for (let j = 0; j < targetCount; j += 1) {
+    if (matchedOldForTarget[j] !== -1) continue;
+    const idKey = targetIds[j];
+    if (!idKey || targetIdCounts.get(idKey) !== 1 || oldIdCounts.get(idKey) !== 1) continue;
+    const oldIdx = oldIdIndex.get(idKey);
+    if (oldIdx !== undefined && !usedOld[oldIdx]) {
+      matchedOldForTarget[j] = oldIdx;
+      usedOld[oldIdx] = true;
+    }
+  }
+
+  // Pass 3: aligned prefix for id-less rows (do not conflate two distinct primitive ids)
+  const prefixLimit = Math.min(rowCount, targetCount);
+  for (let k = 0; k < prefixLimit; k += 1) {
+    if (matchedOldForTarget[k] !== -1 || usedOld[k]) continue;
+    if (oldIds[k] !== null && targetIds[k] !== null) continue;
+    matchedOldForTarget[k] = k;
+    usedOld[k] = true;
+  }
+
+  for (let i = 0; i < rowCount; i += 1) {
+    if (!usedOld[i]) currentRows[i]!.remove();
+  }
+
+  const desiredRows: HTMLElement[] = [];
+  const desiredOldPos: number[] = [];
+  for (let j = 0; j < targetCount; j += 1) {
+    const itemObj = targetItems[j]!;
+    const oldIdx = matchedOldForTarget[j]!;
+    if (oldIdx !== -1) {
+      const rowEl = currentRows[oldIdx]!;
+      if (rowEl.querySelector('input[type="radio"]:not([data-naizo-radio-name])')) {
+        scopeRowRadioInputs(rowEl, listName);
+      }
+      itemDataMap.set(rowEl, itemObj);
+      orderInteractiveFirst(queryItemBoundElements(rowEl)).forEach((el) => {
+        if (preserveActive && isElementActive(el)) return;
+        const key = getElementKey(el);
+        if (!key) return;
+        if (hasOwn(itemObj, key)) {
+          writeElementValue(el, getOwn(itemObj, key));
+        } else {
+          clearElementValue(el);
+        }
+      });
+      desiredRows.push(rowEl);
+      desiredOldPos.push(oldIdx);
+    } else {
+      const node = createItemNode(listEl, itemObj);
+      if (node) {
+        desiredRows.push(node);
+        desiredOldPos.push(-1);
+      }
+    }
+  }
+
+  const survivingEntries: Array<{ targetIdx: number; oldPos: number }> = [];
+  let activeEntryPos = -1;
+  for (let j = 0; j < desiredRows.length; j += 1) {
+    const oldPos = desiredOldPos[j]!;
+    if (oldPos >= 0) {
+      if (preserveActive && activeEntryPos === -1 && isElementActive(desiredRows[j]!)) {
+        activeEntryPos = survivingEntries.length;
+      }
+      survivingEntries.push({ targetIdx: j, oldPos });
+    }
+  }
+
+  let stationaryIndices: number[];
+  if (activeEntryPos !== -1) {
+    const activeEntry = survivingEntries[activeEntryPos]!;
+    const before = survivingEntries
+      .slice(0, activeEntryPos)
+      .filter((e) => e.oldPos < activeEntry.oldPos);
+    const after = survivingEntries
+      .slice(activeEntryPos + 1)
+      .filter((e) => e.oldPos > activeEntry.oldPos);
+    stationaryIndices = [
+      ...computeLongestIncreasingIndices(before),
+      activeEntry.targetIdx,
+      ...computeLongestIncreasingIndices(after),
+    ];
+  } else {
+    stationaryIndices = computeLongestIncreasingIndices(survivingEntries);
+  }
+
+  const stationarySet = new Set<number>(stationaryIndices);
+  const lastStationaryIdx =
+    stationaryIndices.length > 0 ? stationaryIndices[stationaryIndices.length - 1]! : -1;
+  let nextRef: ChildNode | null =
+    lastStationaryIdx !== -1 ? desiredRows[lastStationaryIdx]!.nextSibling : null;
+
+  for (let j = desiredRows.length - 1; j >= 0; j -= 1) {
+    const rowEl = desiredRows[j]!;
+    if (!stationarySet.has(j)) {
+      listEl.insertBefore(rowEl, nextRef);
+    }
+    nextRef = rowEl;
+  }
+
+  decorateListControls(listEl);
+}
+
 function hydrateSubtreeFromStore(
   root: ParentNode = document,
   preserveActive = false,
@@ -1477,22 +1749,15 @@ function hydrateSubtreeFromStore(
     if (hasOwn(db.lists, listName) && Array.isArray(getOwn(db.lists, listName))) {
       const targetItems = getOwn(db.lists, listName) as Array<Record<string, unknown>>;
       const currentRows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
-      if (preserveActive && isElementActive(listEl) && currentRows.length === targetItems.length) {
-        currentRows.forEach((rowEl, idx) => {
-          const itemObj = targetItems[idx];
-          if (!itemObj) return;
-          itemDataMap.set(rowEl, itemObj);
-          queryItemBoundElements(rowEl).forEach((el) => {
-            if (isElementActive(el)) return;
-            const key = getElementKey(el);
-            if (key && hasOwn(itemObj, key)) {
-              writeElementValue(el, getOwn(itemObj, key));
-            }
-          });
-        });
+      if (
+        currentRows.length > 0 &&
+        (!seedMissingFromDom || currentRows.every((r) => itemDataMap.has(r)))
+      ) {
+        reconcileListItems(listEl, targetItems, preserveActive);
       } else {
         renderListItems(listEl, targetItems);
       }
+      syncNetVisibility(listEl);
     } else if (seedMissingFromDom) {
       const seededItems: Array<Record<string, unknown>> = [];
       listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR).forEach((itemEl) => {
@@ -1583,10 +1848,153 @@ async function readFileTextPreservingBom(file: NaizoFile): Promise<string> {
   return '';
 }
 
+interface ScannedHtmlTag {
+  tagName: string;
+  attrs: Record<string, string>;
+  openStart: number;
+  openEnd: number;
+  closeStart: number;
+  closeEnd: number;
+}
+
+function parseHtmlOpenTag(
+  text: string,
+  startIdx: number,
+): { tagName: string; attrs: Record<string, string>; openStart: number; openEnd: number } | null {
+  const len = text.length;
+  let pos = startIdx + 1;
+  while (pos < len) {
+    const c = text.charCodeAt(pos);
+    const isNameChar =
+      (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 45 || c === 58;
+    if (!isNameChar) break;
+    pos += 1;
+  }
+  if (pos === startIdx + 1) return null;
+  const tagName = text.slice(startIdx + 1, pos).toLowerCase();
+  const attrs: Record<string, string> = {};
+
+  while (pos < len) {
+    while (pos < len && /\s/.test(text[pos]!)) pos += 1;
+    if (pos >= len) return null;
+    const ch = text[pos]!;
+    if (ch === '>') {
+      return { tagName, attrs, openStart: startIdx, openEnd: pos + 1 };
+    }
+    if (ch === '/') {
+      pos += 1;
+      continue;
+    }
+    const attrStart = pos;
+    while (pos < len && !/[\s=/>"']/.test(text[pos]!)) pos += 1;
+    if (pos === attrStart) {
+      pos += 1;
+      continue;
+    }
+    const attrName = text.slice(attrStart, pos).toLowerCase();
+    while (pos < len && /\s/.test(text[pos]!)) pos += 1;
+    let attrVal = '';
+    if (pos < len && text[pos] === '=') {
+      pos += 1;
+      while (pos < len && /\s/.test(text[pos]!)) pos += 1;
+      if (pos < len && (text[pos] === '"' || text[pos] === "'")) {
+        const quote = text[pos]!;
+        pos += 1;
+        const qEnd = text.indexOf(quote, pos);
+        if (qEnd === -1) return null;
+        attrVal = text.slice(pos, qEnd);
+        pos = qEnd + 1;
+      } else {
+        const valStart = pos;
+        while (
+          pos < len &&
+          !/\s/.test(text[pos]!) &&
+          text[pos] !== '>' &&
+          !(text[pos] === '/' && text[pos + 1] === '>')
+        ) {
+          pos += 1;
+        }
+        attrVal = text.slice(valStart, pos);
+      }
+    }
+    if (!hasOwn(attrs, attrName)) {
+      setOwn(attrs, attrName, attrVal);
+    }
+  }
+  return null;
+}
+
+function scanHtmlTags(
+  bodyText: string,
+  stopPred: (tag: ScannedHtmlTag) => boolean,
+): ScannedHtmlTag | null {
+  let i = 0;
+  const len = bodyText.length;
+  while (i < len) {
+    const lt = bodyText.indexOf('<', i);
+    if (lt === -1) break;
+    i = lt;
+    if (bodyText.startsWith('<!--', i)) {
+      const endC = bodyText.indexOf('-->', i + 4);
+      if (endC === -1) break;
+      i = endC + 3;
+      continue;
+    }
+    const nextCode = bodyText.charCodeAt(i + 1);
+    const isAsciiAlpha = (nextCode >= 65 && nextCode <= 90) || (nextCode >= 97 && nextCode <= 122);
+    if (!isAsciiAlpha) {
+      const nextCh = bodyText[i + 1];
+      if (nextCh === '!' || nextCh === '?' || nextCh === '/') {
+        const gt = bodyText.indexOf('>', i + 2);
+        if (gt === -1) break;
+        i = gt + 1;
+      } else {
+        i += 1;
+      }
+      continue;
+    }
+
+    const openTag = parseHtmlOpenTag(bodyText, i);
+    if (!openTag) {
+      i += 1;
+      continue;
+    }
+
+    if (openTag.tagName === 'script' || openTag.tagName === 'style') {
+      const closeRe =
+        openTag.tagName === 'script' ? /<\/script(?=[>\s/])[^>]*>/gi : /<\/style(?=[>\s/])[^>]*>/gi;
+      closeRe.lastIndex = openTag.openEnd;
+      const closeMatch = closeRe.exec(bodyText);
+      if (!closeMatch) break;
+      const fullTag: ScannedHtmlTag = {
+        ...openTag,
+        closeStart: closeMatch.index,
+        closeEnd: closeMatch.index + closeMatch[0].length,
+      };
+      if (stopPred(fullTag)) return fullTag;
+      i = fullTag.closeEnd;
+      continue;
+    }
+
+    const fullTag: ScannedHtmlTag = {
+      ...openTag,
+      closeStart: openTag.openEnd,
+      closeEnd: openTag.openEnd,
+    };
+    if (stopPred(fullTag)) return fullTag;
+    i = openTag.openEnd;
+  }
+  return null;
+}
+
+function findDbScriptSpan(bodyText: string): ScannedHtmlTag | null {
+  return scanHtmlTags(bodyText, (t) => t.tagName === 'script' && getOwn(t.attrs, 'id') === DB_ID);
+}
+
 function extractDbScriptBody(htmlText: string): string | null {
   const bodyText = htmlText.startsWith('\uFEFF') ? htmlText.slice(1) : htmlText;
-  const match = NAIZODB_SCRIPT_RE.exec(bodyText);
-  return match ? (match[2]?.trim() ?? '') : null;
+  const span = findDbScriptSpan(bodyText);
+  return span ? bodyText.slice(span.openEnd, span.closeStart).trim() : null;
 }
 
 function replaceDbScriptInHtml(
@@ -1595,13 +2003,11 @@ function replaceDbScriptInHtml(
 ): { ok: boolean; html: string; missingBlock: boolean } {
   const hasBom = fileText.startsWith('\uFEFF');
   const bodyText = hasBom ? fileText.slice(1) : fileText;
+  const span = findDbScriptSpan(bodyText);
 
-  if (NAIZODB_SCRIPT_RE.test(bodyText)) {
-    const replaced = bodyText.replace(
-      NAIZODB_SCRIPT_RE,
-      (_match, openTag: string, _inner: string, closeTag: string) =>
-        `${openTag}${formattedBlock}${closeTag}`,
-    );
+  if (span) {
+    const replaced =
+      bodyText.slice(0, span.openEnd) + formattedBlock + bodyText.slice(span.closeStart);
     return {
       ok: true,
       html: (hasBom ? '\uFEFF' : '') + replaced,
@@ -1628,25 +2034,309 @@ function injectDbScriptIntoHtml(fileText: string, formattedBlock: string): strin
   const hasBom = fileText.startsWith('\uFEFF');
   const bodyText = hasBom ? fileText.slice(1) : fileText;
   const scriptTag = `\n<script id="${DB_ID}" type="application/json">${formattedBlock}</script>`;
-  if (HEAD_OPEN_RE.test(bodyText)) {
-    const injected = bodyText.replace(HEAD_OPEN_RE, (headTag) => `${headTag}${scriptTag}`);
+  const headSpan = scanHtmlTags(bodyText, (t) => t.tagName === 'head');
+  if (headSpan) {
+    const injected =
+      bodyText.slice(0, headSpan.openEnd) + scriptTag + bodyText.slice(headSpan.openEnd);
     return (hasBom ? '\uFEFF' : '') + injected;
   }
   return (hasBom ? '\uFEFF' : '') + `${scriptTag}\n${bodyText}`;
+}
+
+function extractScopeIdFromRawHtml(fileText: string, diskScriptRaw: string): string {
+  const bodyText = fileText.startsWith('\uFEFF') ? fileText.slice(1) : fileText;
+  let htmlId = '';
+  let bodyId = '';
+  scanHtmlTags(bodyText, (t) => {
+    if (t.tagName === 'html' && !htmlId) {
+      const v = (getOwn(t.attrs, 'naizo-id') ?? getOwn(t.attrs, 'data-naizo-id')) as
+        | string
+        | undefined;
+      if (v && v.trim()) htmlId = v.trim();
+    } else if (t.tagName === 'body') {
+      const v = (getOwn(t.attrs, 'naizo-id') ?? getOwn(t.attrs, 'data-naizo-id')) as
+        | string
+        | undefined;
+      if (v && v.trim()) bodyId = v.trim();
+      return true;
+    }
+    return false;
+  });
+  if (htmlId) return htmlId;
+  if (bodyId) return bodyId;
+  if (diskScriptRaw.includes('"id"')) {
+    try {
+      const parsed = JSON.parse(diskScriptRaw) as { _meta?: { id?: unknown } };
+      if (typeof parsed?._meta?.id === 'string' && parsed._meta.id.trim()) {
+        return parsed._meta.id.trim();
+      }
+    } catch {
+      // Ignore invalid JSON during scope inspection
+    }
+  }
+  return '';
+}
+
+function mergeItemProperties(
+  baseItem: Record<string, unknown>,
+  browserItem: Record<string, unknown>,
+  diskItem: Record<string, unknown>,
+): { item: Record<string, unknown>; hasCollision: boolean } {
+  const out: Record<string, unknown> = {};
+  let hasCollision = false;
+  const allProps = new Set<string>([
+    ...Object.keys(diskItem),
+    ...Object.keys(browserItem),
+    ...Object.keys(baseItem),
+  ]);
+  for (const prop of allProps) {
+    const bHas = hasOwn(baseItem, prop);
+    const brHas = hasOwn(browserItem, prop);
+    const dkHas = hasOwn(diskItem, prop);
+    const bSer = bHas ? JSON.stringify(getOwn(baseItem, prop)) : undefined;
+    const brSer = brHas ? JSON.stringify(getOwn(browserItem, prop)) : undefined;
+    const dkSer = dkHas ? JSON.stringify(getOwn(diskItem, prop)) : undefined;
+
+    if (brSer === dkSer) {
+      if (dkHas) setOwn(out, prop, cloneJsonValue(getOwn(diskItem, prop)));
+    } else if (brSer !== bSer && dkSer === bSer) {
+      if (brHas) setOwn(out, prop, cloneJsonValue(getOwn(browserItem, prop)));
+    } else if (brSer === bSer && dkSer !== bSer) {
+      if (dkHas) setOwn(out, prop, cloneJsonValue(getOwn(diskItem, prop)));
+    } else {
+      hasCollision = true;
+      if (dkHas) setOwn(out, prop, cloneJsonValue(getOwn(diskItem, prop)));
+    }
+  }
+  return { item: out, hasCollision };
+}
+
+function weaveOrderedIds(
+  primaryIds: string[],
+  secondaryIds: string[],
+  keptById: Map<string, Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const primaryKept = primaryIds.filter((id) => keptById.has(id));
+  const primarySet = new Set<string>(primaryKept);
+  const beforeAnchor = new Map<string, string[]>();
+  const tailIds: string[] = [];
+  let nextAnchor: string | null = null;
+
+  for (let i = secondaryIds.length - 1; i >= 0; i -= 1) {
+    const id = secondaryIds[i]!;
+    if (primarySet.has(id)) {
+      nextAnchor = id;
+    } else if (keptById.has(id)) {
+      if (nextAnchor !== null) {
+        const list = beforeAnchor.get(nextAnchor);
+        if (list) list.push(id);
+        else beforeAnchor.set(nextAnchor, [id]);
+      } else {
+        tailIds.push(id);
+      }
+    }
+  }
+
+  const out: Array<Record<string, unknown>> = [];
+  for (const pId of primaryKept) {
+    const pre = beforeAnchor.get(pId);
+    if (pre) {
+      for (let i = pre.length - 1; i >= 0; i -= 1) {
+        out.push(keptById.get(pre[i]!)!);
+      }
+    }
+    out.push(keptById.get(pId)!);
+  }
+  for (let i = tailIds.length - 1; i >= 0; i -= 1) {
+    out.push(keptById.get(tailIds[i]!)!);
+  }
+  return out;
+}
+
+function mergeList3Way(
+  baseEntry: DiskListHashValue | undefined,
+  baseItemsMem: Array<Record<string, unknown>> | null,
+  browserList: Array<Record<string, unknown>>,
+  diskList: Array<Record<string, unknown>>,
+): { merged: Array<Record<string, unknown>>; hasCollision: boolean; browserKept: boolean } {
+  let baseItemHashes: string[] | null = null;
+  let baseIds: string[] | null = null;
+  if (baseItemsMem !== null) {
+    baseItemHashes = baseItemsMem.map((it) => fnv1aHex8(JSON.stringify(it)));
+    baseIds = collectUniqueItemIds(baseItemsMem);
+  } else if (baseEntry !== undefined && typeof baseEntry !== 'string') {
+    baseItemHashes = baseEntry.i;
+    baseIds = baseEntry.k ?? null;
+  } else if (baseEntry === undefined) {
+    baseIds = [];
+  }
+
+  const browserIds = collectUniqueItemIds(browserList);
+  const diskIds = collectUniqueItemIds(diskList);
+
+  // Path A: Unique primitive item.id across base, browser, and disk
+  if (baseIds !== null && browserIds !== null && diskIds !== null) {
+    const baseHashById = new Map<string, string>();
+    const baseObjById = new Map<string, Record<string, unknown>>();
+    for (let i = 0; i < baseIds.length; i += 1) {
+      const idKey = baseIds[i]!;
+      if (baseItemHashes?.[i] !== undefined) baseHashById.set(idKey, baseItemHashes[i]!);
+      if (baseItemsMem?.[i]) baseObjById.set(idKey, baseItemsMem[i]!);
+    }
+    const browserObjById = new Map<string, Record<string, unknown>>();
+    const browserHashById = new Map<string, string>();
+    for (let i = 0; i < browserIds.length; i += 1) {
+      const idKey = browserIds[i]!;
+      const item = browserList[i]!;
+      browserObjById.set(idKey, item);
+      browserHashById.set(idKey, fnv1aHex8(JSON.stringify(item)));
+    }
+    const diskObjById = new Map<string, Record<string, unknown>>();
+    const diskHashById = new Map<string, string>();
+    for (let i = 0; i < diskIds.length; i += 1) {
+      const idKey = diskIds[i]!;
+      const item = diskList[i]!;
+      diskObjById.set(idKey, item);
+      diskHashById.set(idKey, fnv1aHex8(JSON.stringify(item)));
+    }
+
+    const keptById = new Map<string, Record<string, unknown>>();
+    let hasCollision = false;
+    const allIds = new Set<string>([...baseIds, ...browserIds, ...diskIds]);
+
+    for (const idKey of allIds) {
+      const inBase = baseHashById.has(idKey);
+      const inBr = browserObjById.has(idKey);
+      const inDk = diskObjById.has(idKey);
+      const bH = baseHashById.get(idKey);
+      const brH = browserHashById.get(idKey);
+      const dkH = diskHashById.get(idKey);
+
+      if (inBase) {
+        if (inBr && inDk) {
+          if (brH === dkH) {
+            keptById.set(idKey, cloneRecord(diskObjById.get(idKey)!));
+          } else if (brH !== bH && dkH === bH) {
+            keptById.set(idKey, cloneRecord(browserObjById.get(idKey)!));
+          } else if (brH === bH && dkH !== bH) {
+            keptById.set(idKey, cloneRecord(diskObjById.get(idKey)!));
+          } else {
+            const baseObj = baseObjById.get(idKey);
+            if (baseObj) {
+              const propRes = mergeItemProperties(
+                baseObj,
+                browserObjById.get(idKey)!,
+                diskObjById.get(idKey)!,
+              );
+              if (propRes.hasCollision) hasCollision = true;
+              keptById.set(idKey, propRes.item);
+            } else {
+              hasCollision = true;
+              keptById.set(idKey, cloneRecord(diskObjById.get(idKey)!));
+            }
+          }
+        } else if (inBr && !inDk) {
+          if (brH !== bH) hasCollision = true;
+        } else if (!inBr && inDk) {
+          if (dkH !== bH) {
+            hasCollision = true;
+            keptById.set(idKey, cloneRecord(diskObjById.get(idKey)!));
+          }
+        }
+      } else if (inBr && !inDk) {
+        keptById.set(idKey, cloneRecord(browserObjById.get(idKey)!));
+      } else if (!inBr && inDk) {
+        keptById.set(idKey, cloneRecord(diskObjById.get(idKey)!));
+      } else if (inBr && inDk) {
+        if (brH !== dkH) hasCollision = true;
+        keptById.set(idKey, cloneRecord(diskObjById.get(idKey)!));
+      }
+    }
+
+    const baseSet = new Set<string>(baseIds);
+    const brSet = new Set<string>(browserIds);
+    const dkSet = new Set<string>(diskIds);
+    const sameOrder = (a: string[], b: string[]): boolean =>
+      a.length === b.length && a.every((v, idx) => v === b[idx]);
+    const diskKeptBaseOrder = sameOrder(
+      diskIds.filter((id) => baseSet.has(id)),
+      baseIds.filter((id) => dkSet.has(id)),
+    );
+    const browserReordered = !sameOrder(
+      browserIds.filter((id) => baseSet.has(id)),
+      baseIds.filter((id) => brSet.has(id)),
+    );
+    const useBrowserOrder = diskKeptBaseOrder && browserReordered;
+    const merged = weaveOrderedIds(
+      useBrowserOrder ? browserIds : diskIds,
+      useBrowserOrder ? diskIds : browserIds,
+      keptById,
+    );
+    return {
+      merged,
+      hasCollision,
+      browserKept: JSON.stringify(merged) !== JSON.stringify(diskList),
+    };
+  }
+
+  // Path B: Conservative aligned-prefix checklist merge
+  if (baseItemHashes !== null) {
+    const baseLen = baseItemHashes.length;
+    if (browserList.length >= baseLen && diskList.length >= baseLen) {
+      const merged: Array<Record<string, unknown>> = [];
+      let prefixClean = true;
+      for (let i = 0; i < baseLen; i += 1) {
+        const bH = baseItemHashes[i]!;
+        const brH = fnv1aHex8(JSON.stringify(browserList[i]!));
+        const dkH = fnv1aHex8(JSON.stringify(diskList[i]!));
+        if (brH === dkH) {
+          merged.push(cloneRecord(diskList[i]!));
+        } else if (brH !== bH && dkH === bH) {
+          merged.push(cloneRecord(browserList[i]!));
+        } else if (brH === bH && dkH !== bH) {
+          merged.push(cloneRecord(diskList[i]!));
+        } else {
+          prefixClean = false;
+          break;
+        }
+      }
+      if (prefixClean) {
+        for (let i = baseLen; i < diskList.length; i += 1) {
+          merged.push(cloneRecord(diskList[i]!));
+        }
+        for (let i = baseLen; i < browserList.length; i += 1) {
+          merged.push(cloneRecord(browserList[i]!));
+        }
+        return {
+          merged,
+          hasCollision: false,
+          browserKept: JSON.stringify(merged) !== JSON.stringify(diskList),
+        };
+      }
+    }
+  }
+
+  return {
+    merged: diskList.map((it) => cloneRecord(it)),
+    hasCollision: true,
+    browserKept: false,
+  };
 }
 
 function shallowMergeDatabases(
   baseHashes: DiskKeyHashMap | null,
   browserDb: NaizoDatabase,
   diskDb: NaizoDatabase,
+  baseDb: NaizoDatabase | null = null,
 ): { merged: NaizoDatabase; hasCollision: boolean; browserKeptKeys: boolean } {
   let hasCollision = false;
   let browserKeptKeys = false;
 
   const mergeBucket = (
-    baseBucketHashes: Record<string, string> | null,
+    baseBucketHashes: Record<string, DiskListHashValue> | null,
     browserBucket: Record<string, unknown>,
     diskBucket: Record<string, unknown>,
+    isListsBucket: boolean,
   ): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
     const allKeys = new Set<string>([
@@ -1656,10 +2346,11 @@ function shallowMergeDatabases(
     ]);
 
     for (const key of allKeys) {
-      const baseHash =
+      const baseEntry =
         baseBucketHashes && hasOwn(baseBucketHashes, key)
-          ? (getOwn(baseBucketHashes, key) as string | undefined)
+          ? (getOwn(baseBucketHashes, key) as DiskListHashValue | undefined)
           : undefined;
+      const baseHash = typeof baseEntry === 'string' ? baseEntry : baseEntry?.h;
       const browserVal = hasOwn(browserBucket, key) ? getOwn(browserBucket, key) : undefined;
       const diskVal = hasOwn(diskBucket, key) ? getOwn(diskBucket, key) : undefined;
 
@@ -1682,6 +2373,20 @@ function shallowMergeDatabases(
           if (browserVal !== undefined) setOwn(out, key, cloneJsonValue(browserVal));
         } else if (!browserChanged && diskChanged) {
           if (diskVal !== undefined) setOwn(out, key, cloneJsonValue(diskVal));
+        } else if (isListsBucket && Array.isArray(browserVal) && Array.isArray(diskVal)) {
+          const baseItemsMem =
+            baseDb && hasOwn(baseDb.lists, key) && Array.isArray(getOwn(baseDb.lists, key))
+              ? (getOwn(baseDb.lists, key) as Array<Record<string, unknown>>)
+              : null;
+          const listRes = mergeList3Way(
+            baseEntry,
+            baseItemsMem,
+            browserVal as Array<Record<string, unknown>>,
+            diskVal as Array<Record<string, unknown>>,
+          );
+          if (listRes.hasCollision) hasCollision = true;
+          if (listRes.browserKept) browserKeptKeys = true;
+          setOwn(out, key, listRes.merged);
         } else {
           hasCollision = true;
           if (diskVal !== undefined) setOwn(out, key, cloneJsonValue(diskVal));
@@ -1694,13 +2399,24 @@ function shallowMergeDatabases(
     return out;
   };
 
-  const mergedFields = mergeBucket(baseHashes?.fields ?? null, browserDb.fields, diskDb.fields);
+  const mergedFields = mergeBucket(
+    baseHashes?.fields ?? null,
+    browserDb.fields,
+    diskDb.fields,
+    false,
+  );
   const mergedLists = mergeBucket(
     baseHashes?.lists ?? null,
     browserDb.lists,
     diskDb.lists,
+    true,
   ) as Record<string, Array<Record<string, unknown>>>;
-  const mergedCustom = mergeBucket(baseHashes?.custom ?? null, browserDb.custom, diskDb.custom);
+  const mergedCustom = mergeBucket(
+    baseHashes?.custom ?? null,
+    browserDb.custom,
+    diskDb.custom,
+    false,
+  );
 
   return {
     merged: {
@@ -1725,6 +2441,7 @@ function applyExternalDiskUpdate(
     baseHashes,
     currentBrowserDb,
     diskDb,
+    lastDiskDb,
   );
 
   if (hasCollision) {
@@ -1756,11 +2473,41 @@ function applyExternalDiskUpdate(
   return { hasCollision, browserKeptKeys };
 }
 
+function enterLiveDiskInvalidJsonState(rawDiskScript: string, modifiedMs?: number): void {
+  if (saveTimeout !== null) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  writeQueued = false;
+  if (typeof modifiedMs === 'number') {
+    lastObservedModified = modifiedMs;
+  }
+  safeSetStorage(getRawBackupKey(), rawDiskScript);
+  startupInvalidDb = true;
+  liveDiskInvalidJson = true;
+  repairingDiskInvalidDb = false;
+  if (isNoPillMode()) {
+    console.warn(
+      '[naizo.js] Linked disk file contains invalid #naizodb JSON; automatic disk writes are paused and raw text was backed up.',
+    );
+  }
+  updateUi('error', 'Invalid #naizodb JSON');
+}
+
 function restoreConflictBackup(): void {
   if (startupInvalidDb) {
+    const wasLiveDiskInvalid = liveDiskInvalidJson;
     startupInvalidDb = false;
-    hydrateSubtreeFromStore(document, false, true);
-    flushPersistence(true);
+    liveDiskInvalidJson = false;
+    hydrateSubtreeFromStore(document, false, !wasLiveDiskInvalid);
+    if (fileHandle) {
+      repairingDiskInvalidDb = true;
+      flushPersistence(false);
+      updateUi('saving', 'Saving...');
+      void writeToDisk();
+    } else {
+      flushPersistence(true);
+    }
     window.dispatchEvent(new CustomEvent('naizo:hydrate', { detail: store }));
     return;
   }
@@ -1777,7 +2524,13 @@ function restoreConflictBackup(): void {
 
 // --- 7. Persistence Engine (localStorage + Surgical File System Access API + Live Watch) ---
 async function checkDiskForExternalChanges(): Promise<boolean> {
-  if (!fileHandle || typeof fileHandle.getFile !== 'function' || startupInvalidDb) return false;
+  if (
+    !fileHandle ||
+    typeof fileHandle.getFile !== 'function' ||
+    (startupInvalidDb && !liveDiskInvalidJson)
+  ) {
+    return false;
+  }
   if (writeInFlightPromise !== null) return false;
   try {
     const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
@@ -1796,14 +2549,23 @@ async function checkDiskForExternalChanges(): Promise<boolean> {
     }
     const diskScriptRaw = extractDbScriptBody(fileText);
     if (diskScriptRaw === null) return false;
-    if (
+    const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
+    if (!diskDetailed.ok) {
+      enterLiveDiskInvalidJsonState(diskScriptRaw, diskFile.lastModified);
+      return false;
+    }
+
+    const recoveringFromInvalid = liveDiskInvalidJson;
+    if (recoveringFromInvalid) {
+      startupInvalidDb = false;
+      liveDiskInvalidJson = false;
+      repairingDiskInvalidDb = false;
+    } else if (
       lastKnownDiskRaw !== null &&
       normalizeJsonComparison(diskScriptRaw) === normalizeJsonComparison(lastKnownDiskRaw)
     ) {
       return false;
     }
-    const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
-    if (!diskDetailed.ok) return false;
 
     const { browserKeptKeys } = applyExternalDiskUpdate(diskDetailed.db, diskScriptRaw, true);
     if (browserKeptKeys) {
@@ -1832,7 +2594,17 @@ function stopDiskWatch(): void {
 }
 
 async function performSingleDiskWrite(): Promise<boolean> {
-  if (!fileHandle || startupInvalidDb) return false;
+  if (!fileHandle || startupInvalidDb) {
+    pendingInitialLinkFile = null;
+    return false;
+  }
+  const forceOverwrite = overwriteDiskWithoutMerge;
+  overwriteDiskWithoutMerge = false;
+  const isRepairWrite = repairingDiskInvalidDb;
+  repairingDiskInvalidDb = false;
+  const preReadLink = pendingInitialLinkFile;
+  pendingInitialLinkFile = null;
+
   try {
     const perm = await fileHandle.queryPermission({ mode: 'readwrite' });
     fileHandlePermission = perm;
@@ -1848,19 +2620,28 @@ async function performSingleDiskWrite(): Promise<boolean> {
     let fileTextToWrite: string;
     let payloadToWrite: string;
     let preWriteHadCollision = false;
+    let skipWritable = false;
+    let preWriteModifiedMs: number | undefined;
 
-    if (typeof fileHandle.getFile === 'function') {
-      const diskFile = await fileHandle.getFile();
-      const existingFileText = await readFileTextPreservingBom(diskFile);
+    if (preReadLink !== null || typeof fileHandle.getFile === 'function') {
+      const diskFile = preReadLink ? preReadLink.file : await fileHandle.getFile!();
+      preWriteModifiedMs = diskFile.lastModified;
+      const existingFileText = preReadLink
+        ? preReadLink.text
+        : await readFileTextPreservingBom(diskFile);
       const diskScriptRaw = extractDbScriptBody(existingFileText);
 
-      if (
-        diskScriptRaw !== null &&
-        lastKnownDiskRaw !== null &&
-        normalizeJsonComparison(diskScriptRaw) !== normalizeJsonComparison(lastKnownDiskRaw)
-      ) {
+      if (!forceOverwrite && diskScriptRaw !== null) {
         const diskDetailed = parseDbScriptDetailed(diskScriptRaw);
-        if (diskDetailed.ok) {
+        if (!diskDetailed.ok) {
+          if (!isRepairWrite) {
+            enterLiveDiskInvalidJsonState(diskScriptRaw, diskFile.lastModified);
+            return false;
+          }
+        } else if (
+          lastKnownDiskRaw !== null &&
+          normalizeJsonComparison(diskScriptRaw) !== normalizeJsonComparison(lastKnownDiskRaw)
+        ) {
           const { hasCollision, browserKeptKeys } = applyExternalDiskUpdate(
             diskDetailed.db,
             diskScriptRaw,
@@ -1877,33 +2658,40 @@ async function performSingleDiskWrite(): Promise<boolean> {
       }
 
       payloadToWrite = serializeDbJson(ensureStore());
-      const formattedBlock = '\n' + payloadToWrite + '\n';
-      const replaced = replaceDbScriptInHtml(existingFileText, formattedBlock);
-
-      if (replaced.missingBlock) {
-        const confirmed =
-          typeof window !== 'undefined' && typeof window.confirm === 'function'
-            ? window.confirm(
-                'Selected file does not contain <script id="naizodb">. Insert #naizodb into this file?',
-              )
-            : false;
-        if (!confirmed) {
-          console.warn('[naizo.js] Refusing to overwrite file without #naizodb block.');
-          updateUi('error', 'Target file lacks #naizodb');
-          return false;
-        }
-        fileTextToWrite = injectDbScriptIntoHtml(existingFileText, formattedBlock);
+      if (diskScriptRaw !== null && diskScriptRaw === payloadToWrite.trim()) {
+        skipWritable = true;
+        fileTextToWrite = existingFileText;
       } else {
-        fileTextToWrite = replaced.html;
+        const formattedBlock = '\n' + payloadToWrite + '\n';
+        const replaced = replaceDbScriptInHtml(existingFileText, formattedBlock);
+
+        if (replaced.missingBlock) {
+          const confirmed =
+            typeof window !== 'undefined' && typeof window.confirm === 'function'
+              ? window.confirm(
+                  'Selected file does not contain <script id="naizodb">. Insert #naizodb into this file?',
+                )
+              : false;
+          if (!confirmed) {
+            console.warn('[naizo.js] Refusing to overwrite file without #naizodb block.');
+            updateUi('error', 'Target file lacks #naizodb');
+            return false;
+          }
+          fileTextToWrite = injectDbScriptIntoHtml(existingFileText, formattedBlock);
+        } else {
+          fileTextToWrite = replaced.html;
+        }
       }
     } else {
       payloadToWrite = serializeDbJson(ensureStore());
       fileTextToWrite = getCleanHtmlString(false);
     }
 
-    const writable = await fileHandle.createWritable();
-    await writable.write(fileTextToWrite);
-    await writable.close();
+    if (!skipWritable) {
+      const writable = await fileHandle.createWritable();
+      await writable.write(fileTextToWrite);
+      await writable.close();
+    }
 
     const exactWrittenTrimmed = payloadToWrite.trim();
     lastKnownDiskRaw = exactWrittenTrimmed;
@@ -1914,7 +2702,11 @@ async function performSingleDiskWrite(): Promise<boolean> {
     }
     safeSetStorage(getSnapshotKey(), hashCanonicalDb(exactWrittenTrimmed));
 
-    if (typeof fileHandle.getFile === 'function') {
+    if (skipWritable) {
+      if (typeof preWriteModifiedMs === 'number') {
+        lastObservedModified = preWriteModifiedMs;
+      }
+    } else if (typeof fileHandle.getFile === 'function') {
       try {
         const updatedFile = await fileHandle.getFile();
         if (typeof updatedFile.lastModified === 'number') {
@@ -1949,20 +2741,20 @@ async function writeToDisk(): Promise<boolean> {
     return writeInFlightPromise;
   }
 
-  writeInFlightPromise = (async () => {
+  const runner = (async () => {
     let lastResult = false;
-    do {
-      writeQueued = false;
-      lastResult = await performSingleDiskWrite();
-    } while (writeQueued && fileHandle && !startupInvalidDb);
-    return lastResult;
+    try {
+      do {
+        writeQueued = false;
+        lastResult = await performSingleDiskWrite();
+      } while (writeQueued && fileHandle && !startupInvalidDb);
+      return lastResult;
+    } finally {
+      writeInFlightPromise = null;
+    }
   })();
-
-  try {
-    return await writeInFlightPromise;
-  } finally {
-    writeInFlightPromise = null;
-  }
+  writeInFlightPromise = runner;
+  return runner;
 }
 
 function scheduleDiskWrite(): void {
@@ -2035,6 +2827,116 @@ function schedulePersist(): void {
   }, PERSIST_DEBOUNCE_MS);
 }
 
+function safeDecodeUriComponent(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function getSuggestedFilename(): string {
+  const rawSeg =
+    typeof location !== 'undefined' && location.pathname
+      ? location.pathname.split('/').pop() || ''
+      : '';
+  const decoded = safeDecodeUriComponent(rawSeg).trim();
+  return decoded || 'index.html';
+}
+
+function normalizeRootForShellCompare(root: HTMLElement): string {
+  root.querySelectorAll(RUNTIME_STRIP_SELECTOR).forEach((el) => el.remove());
+  root.querySelectorAll(`#${DB_ID}`).forEach((el) => el.remove());
+
+  if (typeof document !== 'undefined' && typeof NodeFilter !== 'undefined') {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
+    const comments: Comment[] = [];
+    let cur = walker.nextNode();
+    while (cur) {
+      comments.push(cur as Comment);
+      cur = walker.nextNode();
+    }
+    comments.forEach((c) => c.remove());
+  }
+
+  for (const host of [root, root.querySelector<HTMLElement>('body')]) {
+    if (!host) continue;
+    host.removeAttribute('data-theme');
+    host.removeAttribute('data-naizo-manual');
+    host.removeAttribute('naizo-manual');
+    host.classList.remove('dark', 'light');
+    if (host.classList.length === 0) host.removeAttribute('class');
+  }
+
+  root.querySelectorAll('[data-naizo-loading], [data-naizo-loading-disabled]').forEach((el) => {
+    const addedDisabled = el.hasAttribute('data-naizo-loading-disabled');
+    el.removeAttribute('data-naizo-loading');
+    el.removeAttribute('data-naizo-loading-disabled');
+    if (addedDisabled) el.removeAttribute('disabled');
+  });
+
+  root.querySelectorAll<HTMLInputElement>('input[data-naizo-radio-name]').forEach((r) => {
+    const orig = r.getAttribute('data-naizo-radio-name');
+    if (orig !== null) r.setAttribute('name', orig);
+    r.removeAttribute('data-naizo-radio-name');
+  });
+
+  root.querySelectorAll<HTMLElement>(LIST_SELECTOR).forEach((listEl) => {
+    if (listEl.closest(`[naizo-ignore], [data-naizo-ignore], template`)) return;
+    const tpl = listEl.querySelector<HTMLTemplateElement>(':scope > template');
+    const bpSource =
+      tpl?.content.querySelector<HTMLElement>(ITEM_SELECTOR) ??
+      (tpl?.content.firstElementChild as HTMLElement | null) ??
+      listEl.querySelector<HTMLElement>(DIRECT_ITEM_SELECTOR);
+
+    listEl.querySelectorAll(':scope > template').forEach((n) => n.remove());
+    listEl.querySelectorAll(DIRECT_ITEM_SELECTOR).forEach((n) => n.remove());
+
+    if (bpSource) {
+      const bpClone = bpSource.cloneNode(true) as HTMLElement;
+      bpClone.querySelectorAll(RUNTIME_STRIP_SELECTOR).forEach((n) => n.remove());
+      bpClone.querySelectorAll<HTMLInputElement>('input[data-naizo-radio-name]').forEach((r) => {
+        const orig = r.getAttribute('data-naizo-radio-name');
+        if (orig !== null) r.setAttribute('name', orig);
+        r.removeAttribute('data-naizo-radio-name');
+      });
+      bpClone.querySelectorAll('[naizo-ignore], [data-naizo-ignore]').forEach((ig) => {
+        ig.innerHTML = '';
+      });
+      if (bpClone.matches(BOUND_SELECTOR)) clearElementValue(bpClone);
+      bpClone.querySelectorAll(BOUND_SELECTOR).forEach((el) => clearElementValue(el));
+      const normTpl = document.createElement('template');
+      normTpl.content.appendChild(bpClone);
+      listEl.prepend(normTpl);
+    }
+  });
+
+  root.querySelectorAll('[naizo-ignore], [data-naizo-ignore]').forEach((ig) => {
+    ig.innerHTML = '';
+  });
+
+  root.querySelectorAll(BOUND_SELECTOR).forEach((el) => {
+    if (!el.closest('template')) clearElementValue(el);
+  });
+
+  return root.outerHTML.replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
+}
+
+function doesRawHtmlShellDifferFromOpenPage(rawFileText: string): boolean {
+  if (typeof DOMParser === 'undefined' || typeof document === 'undefined') return false;
+  try {
+    const cleanRaw = rawFileText.startsWith('\uFEFF') ? rawFileText.slice(1) : rawFileText;
+    const diskDoc = new DOMParser().parseFromString(cleanRaw, 'text/html');
+    const liveClone = document.documentElement.cloneNode(true) as HTMLElement;
+    return (
+      normalizeRootForShellCompare(liveClone) !==
+      normalizeRootForShellCompare(diskDoc.documentElement)
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function connectOrResumeDisk(): Promise<boolean> {
   if (startupInvalidDb) return false;
   if (persistTimeout !== null) {
@@ -2063,10 +2965,57 @@ async function connectOrResumeDisk(): Promise<boolean> {
 
   if (typeof window.showSaveFilePicker === 'function') {
     try {
-      fileHandle = await window.showSaveFilePicker({
-        suggestedName: location.pathname.split('/').pop() || 'index.html',
+      const suggestedName = getSuggestedFilename();
+      const pickedHandle = await window.showSaveFilePicker({
+        suggestedName,
         types: [{ description: 'HTML Document', accept: { 'text/html': ['.html'] } }],
       });
+
+      let confirmedWrongFileOverwrite = false;
+      let preReadLink: { file: NaizoFile; text: string } | null = null;
+      if (typeof pickedHandle.getFile === 'function') {
+        const diskFile = await pickedHandle.getFile();
+        const existingFileText = await readFileTextPreservingBom(diskFile);
+        preReadLink = { file: diskFile, text: existingFileText };
+        if (existingFileText.trim() !== '') {
+          const diskScriptRaw = extractDbScriptBody(existingFileText);
+          if (diskScriptRaw !== null) {
+            const pageScopeId = getDocumentScopeId();
+            const diskScopeId = extractScopeIdFromRawHtml(existingFileText, diskScriptRaw);
+            const scopeIdsConflict = Boolean(
+              pageScopeId && diskScopeId && pageScopeId !== diskScopeId,
+            );
+            const scopeIdsMatch = Boolean(
+              pageScopeId && diskScopeId && pageScopeId === diskScopeId,
+            );
+            const pickedName =
+              typeof pickedHandle.name === 'string' ? pickedHandle.name.trim() : '';
+            const handleNameDiffers = pickedName.length > 0 && pickedName !== suggestedName;
+
+            if (
+              scopeIdsConflict ||
+              (!scopeIdsMatch &&
+                handleNameDiffers &&
+                doesRawHtmlShellDifferFromOpenPage(existingFileText))
+            ) {
+              const confirmed =
+                typeof window !== 'undefined' && typeof window.confirm === 'function'
+                  ? window.confirm(
+                      'Selected file appears to belong to a different Naizo document and already contains #naizodb data. Overwrite its #naizodb state with this page?',
+                    )
+                  : false;
+              if (!confirmed) {
+                return false;
+              }
+              confirmedWrongFileOverwrite = true;
+            }
+          }
+        }
+      }
+
+      overwriteDiskWithoutMerge = confirmedWrongFileOverwrite;
+      pendingInitialLinkFile = preReadLink;
+      fileHandle = pickedHandle;
       fileHandlePermission = 'granted';
       saveHandleToIDB(fileHandle);
       startDiskWatch();
@@ -3480,6 +4429,57 @@ function updateUi(state: string, message: string): void {
   refreshActivePillTooltip();
 }
 
+function findRowElementInList(
+  listEl: HTMLElement,
+  rowObj: Record<string, unknown> | undefined,
+  fallbackIndex: number,
+): HTMLElement | undefined {
+  const rows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
+  if (rowObj) {
+    const matched = rows.find((r) => itemDataMap.get(r) === rowObj);
+    if (matched) return matched;
+  }
+  return fallbackIndex >= 0 ? rows[fallbackIndex] : undefined;
+}
+
+function resolveListItemIndex(
+  listEl: HTMLElement,
+  listName: string,
+  itemEl: HTMLElement,
+): { idx: number; total: number } {
+  const mappedObj = itemDataMap.get(itemEl);
+  const listArr = getOwn(ensureStore().lists, listName);
+  if (mappedObj && Array.isArray(listArr)) {
+    const mappedIdx = listArr.indexOf(mappedObj);
+    if (mappedIdx !== -1) {
+      return { idx: mappedIdx, total: listArr.length };
+    }
+  }
+  const rows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
+  return { idx: rows.indexOf(itemEl), total: rows.length };
+}
+
+function propagateItemKeyAcrossContainers(
+  listName: string | null,
+  sourceListEl: HTMLElement | null,
+  sourceItemEl: HTMLElement,
+  rowObj: Record<string, unknown>,
+  fallbackIndex: number,
+  key: string,
+  val: unknown,
+  sourceEl?: Element,
+): void {
+  propagateItemKey(sourceItemEl, key, val, sourceEl);
+  if (!listName) return;
+  findListElements(listName).forEach((otherListEl) => {
+    if (otherListEl === sourceListEl) return;
+    const mirrorItemEl = findRowElementInList(otherListEl, rowObj, fallbackIndex);
+    if (mirrorItemEl && mirrorItemEl !== sourceItemEl) {
+      propagateItemKey(mirrorItemEl, key, val, sourceEl);
+    }
+  });
+}
+
 // --- 9. Event Delegation for O(1) Input Capture, List Actions & Cross-Tab/Live Sync ---
 function handleInputOrChange(e: Event): void {
   const target = e.target;
@@ -3507,11 +4507,20 @@ function handleInputOrChange(e: Event): void {
     const prevVal = getOwn(rowObj, key);
     if (!shouldUpdateStoredValue(prevVal, nextVal, exists)) return;
     setOwn(rowObj, key, nextVal);
-    propagateItemKey(itemEl, key, nextVal, boundEl);
     const listEl = itemEl.closest<HTMLElement>(LIST_SELECTOR);
     const listName = listEl ? getAttr(listEl, 'naizo-list') : null;
     const listArr = listName ? getOwn(db.lists, listName) : undefined;
     const index = Array.isArray(listArr) ? listArr.indexOf(rowObj) : -1;
+    propagateItemKeyAcrossContainers(
+      listName,
+      listEl,
+      itemEl,
+      rowObj,
+      index,
+      key,
+      nextVal,
+      boundEl,
+    );
     schedulePersist();
     dispatchChangeEvent({
       scope: 'lists',
@@ -3577,8 +4586,12 @@ function handleFormReset(e: Event): void {
       if (isIgnoredElement(itemEl)) return;
       const rowObj = getOrBindItemRecord(itemEl);
       if (!rowObj) return;
+      const listEl = itemEl.closest<HTMLElement>(LIST_SELECTOR);
+      const listName = listEl ? getAttr(listEl, 'naizo-list') : null;
+      const listArr = listName ? getOwn(db.lists, listName) : undefined;
+      const idx = Array.isArray(listArr) ? listArr.indexOf(rowObj) : -1;
       applyResetElements(queryItemBoundElements(itemEl), rowObj, (key, val, srcEl) => {
-        propagateItemKey(itemEl, key, val, srcEl);
+        propagateItemKeyAcrossContainers(listName, listEl, itemEl, rowObj, idx, key, val, srcEl);
       });
     });
 
@@ -3592,7 +4605,7 @@ function handleFormReset(e: Event): void {
 function addItemInternal(
   listName: string,
   itemData: Record<string, unknown>,
-  focusFirstInput: boolean,
+  focusTargetListEl: HTMLElement | null,
 ): void {
   if (!listName || !isPlainObject(itemData) || !isValidJsonValue(itemData)) {
     console.warn('[naizo.js] Rejected invalid list item data for:', listName);
@@ -3606,8 +4619,8 @@ function addItemInternal(
     setOwn(db.lists, listName, listArr);
   }
 
-  const listEl = findListElement(listName);
-  if (!listEl) {
+  const listEls = findListElements(listName);
+  if (listEls.length === 0) {
     listArr.push(rowObj);
     persistStoreMutation();
     dispatchChangeEvent({
@@ -3621,15 +4634,39 @@ function addItemInternal(
     return;
   }
 
-  ensureListBlueprints(listEl, false);
-  const node = createItemNode(listEl, rowObj);
-  if (node) {
-    listEl.appendChild(node);
+  listEls.forEach((el) => ensureListBlueprints(el, false));
+  // Seed interactive defaults across all container templates before passive leaves
+  const interactiveTplControls: Element[] = [];
+  listEls.forEach((listEl) => {
+    const tpl = listEl.querySelector<HTMLTemplateElement>(TEMPLATE_SELECTOR);
+    const tplItem =
+      tpl?.content.querySelector<HTMLElement>(ITEM_SELECTOR) ??
+      (tpl?.content.firstElementChild as HTMLElement | null);
+    if (tplItem) {
+      queryItemBoundElements(tplItem).forEach((el) => {
+        if (isInteractiveBoundElement(el)) interactiveTplControls.push(el);
+      });
+    }
+  });
+  seedMissingIntoRecord(interactiveTplControls, rowObj);
+
+  const createdPairs: Array<{ listEl: HTMLElement; node: HTMLElement }> = [];
+  for (const listEl of listEls) {
+    const node = createItemNode(listEl, rowObj);
+    if (node) {
+      listEl.appendChild(node);
+      createdPairs.push({ listEl, node });
+    }
+  }
+
+  if (createdPairs.length > 0) {
     listArr.push(rowObj);
     const index = listArr.length - 1;
-    decorateListControls(listEl);
-    Naizo.bind(node);
-    dispatchItemEvent(listName, node, rowObj, index);
+    for (const { listEl, node } of createdPairs) {
+      decorateListControls(listEl);
+      Naizo.bind(node);
+      dispatchItemEvent(listName, node, rowObj, index);
+    }
     persistStoreMutation();
     dispatchChangeEvent({
       scope: 'lists',
@@ -3639,8 +4676,9 @@ function addItemInternal(
       value: rowObj,
       source: 'api',
     });
-    if (focusFirstInput) {
-      const firstInput = node.querySelector<HTMLElement>(
+    if (focusTargetListEl) {
+      const focusPair = createdPairs.find((p) => p.listEl === focusTargetListEl) ?? createdPairs[0];
+      const firstInput = focusPair?.node.querySelector<HTMLElement>(
         'input[type="text"], [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], textarea',
       );
       firstInput?.focus();
@@ -3742,6 +4780,18 @@ function isValueEmptyForInit(val: unknown): boolean {
   return false;
 }
 
+function isStoreContentEmpty(db: NaizoDatabase): boolean {
+  const fieldsEmpty = Object.keys(db.fields).every((k) =>
+    isValueEmptyForInit(getOwn(db.fields, k)),
+  );
+  const listsEmpty = Object.keys(db.lists).every((k) => {
+    const arr = getOwn(db.lists, k);
+    return !Array.isArray(arr) || arr.length === 0;
+  });
+  const customEmpty = Object.keys(db.custom).length === 0;
+  return fieldsEmpty && listsEmpty && customEmpty;
+}
+
 function isInitTargetEmpty(target: string | null, method: string): boolean {
   const db = ensureStore();
   if (target !== null) {
@@ -3788,15 +4838,7 @@ function isInitTargetEmpty(target: string | null, method: string): boolean {
   if (method !== 'GET' && target === null) {
     return false;
   }
-  const fieldsEmpty = Object.keys(db.fields).every((k) =>
-    isValueEmptyForInit(getOwn(db.fields, k)),
-  );
-  const listsEmpty = Object.keys(db.lists).every((k) => {
-    const arr = getOwn(db.lists, k);
-    return !Array.isArray(arr) || arr.length === 0;
-  });
-  const customEmpty = Object.keys(db.custom).length === 0;
-  return fieldsEmpty && listsEmpty && customEmpty;
+  return isStoreContentEmpty(db);
 }
 
 function writeSelectorTarget(selector: string, extracted: unknown): void {
@@ -3844,6 +4886,13 @@ function routeFetchPayload(target: string | null, extracted: unknown): void {
     const normalized = validateAndNormalizeDb(extracted);
     if (!normalized) {
       throw new Error('Response failed NaizoDatabase validation');
+    }
+    const prevDb = ensureStore();
+    if (
+      !isStoreContentEmpty(prevDb) &&
+      serializeContentBuckets(prevDb) !== serializeContentBuckets(normalized)
+    ) {
+      safeSetStorage(getBackupKey(), JSON.stringify(cloneDb(prevDb)));
     }
     store = normalized;
     storeInitialized = true;
@@ -4125,6 +5174,26 @@ function runAutoTriggers(root: ParentNode = document): void {
   }
 }
 
+function resolveClickedAddListEl(addBtn: Element, listName: string): HTMLElement | null {
+  const ancestorList = addBtn.closest<HTMLElement>(LIST_SELECTOR);
+  if (ancestorList && getAttr(ancestorList, 'naizo-list') === listName) {
+    return ancestorList;
+  }
+  const footer = addBtn.closest('.naizo-list-footer');
+  const prev = footer?.previousElementSibling;
+  if (prev instanceof HTMLElement) {
+    if (prev.matches(LIST_SELECTOR) && getAttr(prev, 'naizo-list') === listName) {
+      return prev;
+    }
+    const escaped = escapeSelectorAttr(listName);
+    const inner = prev.querySelector<HTMLElement>(
+      `[naizo-list="${escaped}"], [data-naizo-list="${escaped}"]`,
+    );
+    if (inner && !isIgnoredElement(inner)) return inner;
+  }
+  return findListElements(listName)[0] ?? null;
+}
+
 function handleListClicks(e: Event): void {
   const target = e.target as Element | null;
   if (!target || typeof target.closest !== 'function') return;
@@ -4132,7 +5201,9 @@ function handleListClicks(e: Event): void {
   const addBtn = target.closest('[naizo-add], [data-naizo-add]');
   if (addBtn) {
     const listName = getAttr(addBtn, 'naizo-add');
-    if (listName) addItemInternal(listName, {}, true);
+    if (listName) {
+      addItemInternal(listName, {}, resolveClickedAddListEl(addBtn, listName));
+    }
     return;
   }
 
@@ -4142,8 +5213,7 @@ function handleListClicks(e: Event): void {
     const listEl = itemEl?.closest<HTMLElement>(LIST_SELECTOR);
     if (itemEl && listEl) {
       const listName = getAttr(listEl, 'naizo-list');
-      const rows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
-      const idx = rows.indexOf(itemEl);
+      const idx = listName ? resolveListItemIndex(listEl, listName, itemEl).idx : -1;
       if (listName && idx !== -1) {
         Naizo.removeItem(listName, idx);
       } else {
@@ -4162,12 +5232,11 @@ function handleListClicks(e: Event): void {
     if (!itemEl || !listEl) return;
     const listName = getAttr(listEl, 'naizo-list');
     if (!listName) return;
-    const rows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
-    const idx = rows.indexOf(itemEl);
+    const { idx, total } = resolveListItemIndex(listEl, listName, itemEl);
     if (idx === -1) return;
     if (dir === 'up' && idx > 0) {
       Naizo.moveItem(listName, idx, idx - 1);
-    } else if (dir === 'down' && idx < rows.length - 1) {
+    } else if (dir === 'down' && idx < total - 1) {
       Naizo.moveItem(listName, idx, idx + 1);
     }
     return;
@@ -4282,14 +5351,16 @@ function handleStorageEvent(e: StorageEvent): void {
     const currentBrowserDb = cloneDb(ensureStore());
     const oldDb = e.oldValue ? parseCachedState(e.oldValue) : null;
     const storedSnap = safeGetStorage(getSnapshotKey());
+    const storedManifest = storedSnap ? extractKeyHashManifest(storedSnap) : null;
     const baseHashes: DiskKeyHashMap | null = oldDb
       ? buildDbKeyHashMap(oldDb)
-      : ((storedSnap ? extractKeyHashManifest(storedSnap) : null) ??
-        (lastDiskDb ? buildDbKeyHashMap(lastDiskDb) : null));
+      : (storedManifest ?? (lastDiskDb ? buildDbKeyHashMap(lastDiskDb) : null));
+    const baseDbForMerge: NaizoDatabase | null = oldDb ?? (!storedManifest ? lastDiskDb : null);
     const { merged, hasCollision, browserKeptKeys } = shallowMergeDatabases(
       baseHashes,
       currentBrowserDb,
       incomingDb,
+      baseDbForMerge,
     );
     mergedCollision = hasCollision;
     if (hasCollision) {
@@ -4525,7 +5596,7 @@ export const Naizo: NaizoAPI = {
     });
   },
   addItem(listName: string, itemData: Record<string, unknown> = {}): void {
-    addItemInternal(listName, itemData, false);
+    addItemInternal(listName, itemData, null);
   },
   updateItem(listName: string, index: number, partialData: Record<string, unknown>): void {
     if (!listName || !isPlainObject(partialData) || !isValidJsonValue(partialData)) {
@@ -4538,16 +5609,15 @@ export const Naizo: NaizoAPI = {
     const rowObj = listArr[index] as Record<string, unknown> | undefined;
     if (!isPlainObject(rowObj)) return;
 
-    const listEl = findListElement(listName);
-    const rows = listEl
-      ? Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR))
-      : [];
-    const itemEl = rows[index];
+    const listEls = findListElements(listName);
+    const matchedRows = listEls
+      .map((listEl) => findRowElementInList(listEl, rowObj, index))
+      .filter((el): el is HTMLElement => el !== undefined);
 
     for (const key of Object.keys(partialData)) {
       const val = cloneJsonValue(getOwn(partialData, key));
       setOwn(rowObj, key, val);
-      if (itemEl) {
+      for (const itemEl of matchedRows) {
         propagateItemKey(itemEl, key, val);
       }
     }
@@ -4564,16 +5634,16 @@ export const Naizo: NaizoAPI = {
   removeItem(listName: string, index: number): void {
     const db = ensureStore();
     const listArr = getOwn(db.lists, listName);
+    const removedObj =
+      Array.isArray(listArr) && index >= 0 && index < listArr.length
+        ? (listArr[index] as Record<string, unknown> | undefined)
+        : undefined;
     if (Array.isArray(listArr) && index >= 0 && index < listArr.length) {
       listArr.splice(index, 1);
     }
-    const listEl = findListElement(listName);
-    if (listEl) {
-      const items = listEl.querySelectorAll(DIRECT_ITEM_SELECTOR);
-      if (items[index]) {
-        items[index].remove();
-      }
-    }
+    findListElements(listName).forEach((listEl) => {
+      findRowElementInList(listEl, removedObj, index)?.remove();
+    });
     persistStoreMutation();
     dispatchChangeEvent({ scope: 'lists', action: 'remove', list: listName, index, source: 'api' });
   },
@@ -4581,6 +5651,7 @@ export const Naizo: NaizoAPI = {
     if (fromIndex === toIndex) return;
     const db = ensureStore();
     const listArr = getOwn(db.lists, listName);
+    let movedObj: Record<string, unknown> | undefined;
     if (
       Array.isArray(listArr) &&
       fromIndex >= 0 &&
@@ -4589,18 +5660,37 @@ export const Naizo: NaizoAPI = {
       toIndex < listArr.length
     ) {
       const [moved] = listArr.splice(fromIndex, 1);
+      movedObj = moved as Record<string, unknown> | undefined;
       if (moved) listArr.splice(toIndex, 0, moved);
     }
 
-    const listEl = findListElement(listName);
-    if (listEl) {
-      const items = Array.from(listEl.querySelectorAll(DIRECT_ITEM_SELECTOR));
-      const fromEl = items[fromIndex];
-      const targetEl = items[toIndex];
-      if (fromEl && targetEl) {
+    findListElements(listName).forEach((listEl) => {
+      const rows = Array.from(listEl.querySelectorAll<HTMLElement>(DIRECT_ITEM_SELECTOR));
+      const fromEl = movedObj
+        ? (rows.find((r) => itemDataMap.get(r) === movedObj) ?? rows[fromIndex])
+        : rows[fromIndex];
+      if (!fromEl) return;
+      if (movedObj && Array.isArray(listArr)) {
+        const nextObj = listArr[toIndex + 1] as Record<string, unknown> | undefined;
+        if (nextObj) {
+          const nextEl = rows.find((r) => r !== fromEl && itemDataMap.get(r) === nextObj);
+          if (nextEl) {
+            listEl.insertBefore(fromEl, nextEl);
+            return;
+          }
+        } else {
+          const lastRow = rows[rows.length - 1];
+          if (lastRow && lastRow !== fromEl) {
+            listEl.insertBefore(fromEl, lastRow.nextSibling);
+            return;
+          }
+        }
+      }
+      const targetEl = rows[toIndex];
+      if (targetEl && targetEl !== fromEl) {
         listEl.insertBefore(fromEl, fromIndex < toIndex ? targetEl.nextSibling : targetEl);
       }
-    }
+    });
     persistStoreMutation();
     dispatchChangeEvent({
       scope: 'lists',
@@ -4612,11 +5702,14 @@ export const Naizo: NaizoAPI = {
     });
   },
   bind(root: ParentNode = document): void {
-    ensureStore();
+    const db = ensureStore();
+    const beforeContent = serializeContentBuckets(db);
     hydrateSubtreeFromStore(root, false);
     syncNetVisibility(root);
     runAutoTriggers(root);
-    schedulePersist();
+    if (serializeContentBuckets(db) !== beforeContent) {
+      schedulePersist();
+    }
   },
   fetch(url: string, options?: NaizoFetchOptions): Promise<NaizoFetchResult> {
     return executeFetch(url, options);
@@ -4681,7 +5774,15 @@ export const Naizo: NaizoAPI = {
     fileHandle = null;
     fileHandlePermission = 'prompt';
     lastObservedModified = null;
+    overwriteDiskWithoutMerge = false;
+    repairingDiskInvalidDb = false;
+    pendingInitialLinkFile = null;
     await deleteHandleFromIDB();
+    if (liveDiskInvalidJson) {
+      startupInvalidDb = false;
+      liveDiskInvalidJson = false;
+      writeStoreToDomScript(ensureStore(), false);
+    }
     if (startupInvalidDb) return;
     updateUnlinkedStatusUi(true);
   },
@@ -4701,10 +5802,7 @@ export const Naizo: NaizoAPI = {
   downloadHTML(filename?: string): string {
     const html = getCleanHtmlString(true);
     if (startupInvalidDb) return html;
-    const suggested =
-      filename && filename.trim()
-        ? filename.trim()
-        : location.pathname.split('/').pop() || 'index.html';
+    const suggested = filename && filename.trim() ? filename.trim() : getSuggestedFilename();
     const finalName = /\.html?$/i.test(suggested) ? suggested : `${suggested}.html`;
     if (
       typeof Blob !== 'undefined' &&
@@ -4743,7 +5841,13 @@ export async function initNaizo(): Promise<void> {
   fileHandle = null;
   fileHandlePermission = 'prompt';
   lastObservedModified = null;
+  lastKnownDiskRaw = null;
+  lastDiskDb = null;
   initialDiskDb = null;
+  liveDiskInvalidJson = false;
+  repairingDiskInvalidDb = false;
+  overwriteDiskWithoutMerge = false;
+  pendingInitialLinkFile = null;
   netRevealed = false;
   netState = 'idle';
   netInFlightCount = 0;
@@ -4841,9 +5945,11 @@ export async function initNaizo(): Promise<void> {
       if (perm === 'granted') {
         startDiskWatch();
         await checkDiskForExternalChanges();
+        if (startupInvalidDb) return;
         const isDirtyComparedToDisk =
+          lastDiskDb === null ||
           serializeContentBuckets(ensureStore()) !== serializeContentBuckets(lastDiskDb);
-        if (hasBootConflict) {
+        if (hasBootConflict || safeGetStorage(getBackupKey()) !== null) {
           updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
         } else if (isDirtyComparedToDisk) {
           updateUi('cached', 'Browser Cache · Click to Link Disk');
