@@ -706,6 +706,10 @@
         margin-bottom: 1.35rem;
       }
 
+      .spec-meta-row > * {
+        min-width: 0;
+      }
+
       .field-group {
         display: block;
         font-size: 0.8rem;
@@ -715,8 +719,9 @@
       .field-group input[type='text'],
       .field-group select,
       .field-group textarea {
-        display: block;
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
         margin-top: 0.3rem;
         padding: 0.42rem 0.6rem;
         font: inherit;
@@ -725,6 +730,11 @@
         background: var(--bg);
         border: 1px solid var(--rule);
         border-radius: var(--radius);
+      }
+
+      .field-group input[type='text'],
+      .field-group textarea {
+        display: block;
       }
 
       .spec-subhead {
@@ -1364,7 +1374,7 @@
       <header class="doc-header">
         <div class="doc-topbar">
           <span class="doc-kicker">
-            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~23.0 KB
+            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~27.0 KB
             min+gzip · MIT
           </span>
           <button
@@ -1533,9 +1543,10 @@
             <span class="flow-actor">4. Live Co-Editing with AI Agents</span>
             <p class="flow-detail">
               While your file is linked, you and your AI agent (Claude Code, Cursor, Antigravity,
-              Codex, or Gemini CLI) can work on it together. When the agent updates the file on
-              disk, your open browser tab picks up the changes automatically within ~2 seconds
-              without interrupting what you are typing.
+              Codex, or Gemini CLI) can work on it together – even checking off or editing different
+              items in the same list at the same time. When the agent updates the file on disk, your
+              open browser tab merges the changes automatically within ~2 seconds without
+              interrupting what you are typing.
             </p>
           </li>
         </ul>
@@ -1939,25 +1950,38 @@
                 </p>
               </li>
               <li>
-                <span class="flow-actor">Surgical Disk Writes</span>
+                <span class="flow-actor">Surgical Disk Writes &amp; Safe Linking</span>
                 <p class="flow-detail">
-                  In Chromium browsers (Chrome, Edge, Brave, Arc), linking a local file via the File
-                  System Access API stores the handle in IndexedDB (<code>NaizoDB_Handles</code>)
-                  and surgically replaces only the <code>&lt;script id="naizodb"&gt;</code> block on
-                  disk. Runtime DOM mutations from third-party libraries (Tailwind CDN, Lucide,
-                  Mermaid) never pollute your source file.
+                  In Chromium browsers with the File System Access API (Chrome, Edge, Arc, and Opera
+                  out of the box, or Brave with
+                  <code>brave://flags/#file-system-access-api</code> enabled), linking a local file
+                  stores the handle in IndexedDB (<code>NaizoDB_Handles</code>) and surgically
+                  replaces only the live <code>&lt;script id="naizodb"&gt;</code> block on disk –
+                  skipping no-op writes so file timestamps stay untouched when data has not changed,
+                  preserving HTML comments, and confirming first if you accidentally pick a
+                  different existing <code>#naizodb</code> app file. Runtime DOM mutations from
+                  third-party libraries (Tailwind CDN, Lucide, Mermaid) never pollute your source
+                  file.
                 </p>
               </li>
               <li>
-                <span class="flow-actor">3-Way Key Merge &amp; Restore</span>
+                <span class="flow-actor">3-Way Key &amp; Per-Item List Merge</span>
                 <p class="flow-detail">
                   A lightweight ~2 s <code>file.lastModified</code> watcher (plus tab-focus and
-                  pre-write checks) compares per-key <code>fnv1a:</code> hashes across
-                  <code>fields</code>, <code>lists</code>, and <code>custom</code>. Unrelated human
-                  and agent edits merge cleanly, focused inputs
-                  (<code>document.activeElement</code>) are protected from mid-keystroke overwrites,
-                  and same-key collisions are backed up to <code>localStorage</code> with a 1-click
-                  <code>↺ Restore</code> button in the status pill.
+                  pre-write checks) compares per-key and per-item <code>fnv1a:</code> hashes across
+                  <code>fields</code>, <code>lists</code>, and <code>custom</code>. Unrelated
+                  top-level edits and concurrent edits to different list items (by unique primitive
+                  <code>id</code> or unshifted checklist rows and appends) merge cleanly in place
+                  while keeping focus and cursor position on <code>document.activeElement</code>;
+                  same-field or same-item collisions (and full-database
+                  <code>naizo-get</code> replacements) are backed up to
+                  <code>localStorage</code> with a 1-click <code>↺ Restore</code> button in the
+                  status pill. If an external edit writes malformed JSON into
+                  <code>#naizodb</code> on disk, automatic disk writes pause immediately (<code
+                    >Invalid #naizodb JSON</code
+                  >
+                  + <code>Repair JSON</code>) with a raw text backup and recover automatically once
+                  valid JSON is restored on disk.
                 </p>
               </li>
               <li>
@@ -2180,7 +2204,7 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>3. jsDelivr CDN (minified ~23.0 KB gzip)</span>
+          <span>3. jsDelivr CDN (minified ~27.0 KB gzip)</span>
           <button
             type="button"
             class="quiet-btn copy-snippet-btn"
@@ -2647,7 +2671,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               <tr>
                 <td>
                   <strong>On Your Computer (Live File Sync)</strong><br />
-                  Chrome, Edge, Brave, Arc on <code>file://</code> or <code>localhost</code>
+                  Chrome, Edge, Arc, Opera on <code>file://</code> or <code>localhost</code>
                 </td>
                 <td>
                   <span class="status-chip">
@@ -2667,31 +2691,46 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 </td>
                 <td>
                   Press <code>⌘S</code> / <code>Ctrl+S</code> (or click <strong>Link Disk</strong>)
-                  once to connect your <code>.html</code> file. Before linking,
-                  <strong>Reset</strong>
-                  can clear temporary browser edits; once linked, every edit saves straight into
-                  that file on your computer and any changes made by an AI agent on disk appear in
-                  your open tab within ~2 seconds.
+                  once to connect your <code>.html</code> file.
+                  <em
+                    >(Your OS Save dialog asks <strong>"Replace?"</strong> once because browser
+                    security requires your confirmation to grant write access so
+                    <code>naizo.js</code> can update <code>#naizodb</code> in place.)</em
+                  >
+                  Before linking a local file, <strong>Reset</strong> clears temporary browser
+                  edits; once linked, every edit saves straight into that file and AI agent updates
+                  (including different rows in the same list) merge live within ~2 seconds.
                 </td>
               </tr>
               <tr>
                 <td>
-                  <strong>On the Web (Hosted Page)</strong><br />
-                  All modern browsers on GitHub Pages or <code>https://</code>
+                  <strong>On Your Computer (Brave)</strong><br />
+                  Brave on <code>file://</code> or <code>localhost</code>
                 </td>
                 <td>
+                  <span class="status-chip">
+                    <svg class="status-crest is-amber" viewBox="0 0 100 100" aria-hidden="true">
+                      <use href="#naizo-crest-icon" />
+                    </svg>
+                    Browser Cache · Click to Link Disk
+                  </span>
+                  <br />
+                  ↓ <em>with flag enabled</em><br />
                   <span class="status-chip">
                     <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
                       <use href="#naizo-crest-icon" />
                     </svg>
-                    Saved in Browser
+                    Synced to Disk
                   </span>
                 </td>
                 <td>
-                  Your edits save immediately in your browser so you can experiment freely. Click
-                  <strong>Save to PC</strong> anytime to download your customized
-                  <code>.html</code> file to your computer, or click <strong>Reset</strong> to
-                  return the page to its original state.
+                  Brave disables the File System Access API by default – enable
+                  <code>brave://flags/#file-system-access-api</code> once and relaunch for live
+                  two-way <code>.html</code> file sync just like Chrome; otherwise, Brave saves in
+                  <code>localStorage</code> and uses the downloaded <code>.html</code> (<code
+                    >⌘S</code
+                  >
+                  / <strong>Link Disk</strong>) + <code>📋 Copy JSON</code> loop.
                 </td>
               </tr>
               <tr>
@@ -2708,17 +2747,48 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                   </span>
                 </td>
                 <td>
-                  Edits save immediately in your browser. Because Safari and Firefox do not support
-                  direct in-place file writing yet, clicking <strong>Link Disk</strong> (or pressing
-                  <code>⌘S</code> / <code>Ctrl+S</code>) downloads an updated
-                  <code>.html</code> copy, <strong>Copy JSON</strong> copies your data, and
-                  <strong>Reset</strong> clears browser-cached edits back to the file's initial
-                  state.
+                  Edits save immediately in your browser (<code>localStorage</code>). Because Safari
+                  and Firefox do not support direct in-place file writing yet, pressing
+                  <code>⌘S</code> / <code>Ctrl+S</code> (or clicking <strong>Link Disk</strong> /
+                  <code>⬇ Save to PC</code>) downloads an updated <code>.html</code> copy,
+                  <code>📋 Copy JSON</code> copies <code>#naizodb</code> to hand edits back to AI
+                  agents, and <strong>Reset</strong> clears browser-cached edits back to the file's
+                  initial state.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>On the Web (Hosted Page)</strong><br />
+                  All modern browsers on GitHub Pages or <code>https://</code>
+                </td>
+                <td>
+                  <span class="status-chip">
+                    <svg class="status-crest is-green" viewBox="0 0 100 100" aria-hidden="true">
+                      <use href="#naizo-crest-icon" />
+                    </svg>
+                    Saved in Browser
+                  </span>
+                </td>
+                <td>
+                  Your edits save immediately in your browser (<code>localStorage</code>) so you can
+                  experiment freely. Click <strong>Save to PC</strong> (<code>⬇ Save to PC</code>)
+                  anytime to download your customized <code>.html</code> file to your computer, or
+                  click <strong>Reset</strong> to return the page to its original state.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <p style="margin: 0.35rem 0 0; font-size: 0.92em; color: var(--muted)">
+          <strong>Local files vs. live-reload dev servers:</strong> Open <code>.html</code> files
+          directly via <code>file://</code> or serve them with a plain non-watching static server
+          (<code>python3 -m http.server</code>, <code>npx serve</code>). Avoid file-watching
+          live-reload dev servers (<strong>Vite</strong>, <strong>VS Code Live Server</strong>,
+          <strong>BrowserSync</strong>) while a file is linked to disk – every surgical
+          <code>#naizodb</code> save updates the <code>.html</code> file on disk and causes
+          live-reload watchers to refresh the page in a loop.
+        </p>
 
         <h3 style="margin: 2rem 0 0.5rem; font-size: 1.15rem">
           1. What the Status Crest (<code>丸に三つ石</code> / <code>品</code>) Tells You
@@ -2925,10 +2995,11 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 </td>
                 <td><code>External Disk Edit · Conflict Backed Up</code></td>
                 <td>
-                  You and an AI agent (or text editor) changed the exact same field at the same
-                  time. The file's newest version is shown on screen, and your browser version was
-                  automatically saved – click <strong>Restore Backup</strong> if you want your
-                  version back.
+                  You and an AI agent (or text editor) changed the exact same field or list item at
+                  the same time (edits to different fields or different checklist/<code>id</code>
+                  items merge automatically). The file's newest version is shown on screen, and your
+                  browser version was automatically saved – click <strong>Restore Backup</strong> if
+                  you want your version back.
                 </td>
               </tr>
               <tr>
@@ -2979,9 +3050,11 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 </td>
                 <td><code>Invalid #naizodb JSON</code></td>
                 <td>
-                  Someone edited the file's data block by hand and left a typo. Automatic saving
-                  pauses immediately so your file is never damaged – click
-                  <strong>Repair JSON</strong> to rebuild clean, valid data from the page.
+                  Someone (or an external tool) saved a syntax error in <code>#naizodb</code> –
+                  either on startup or while live-linked. Automatic disk saving pauses immediately
+                  (backing up the raw text) so your file is never damaged – fix the typo on disk to
+                  auto-recover, or click <strong>Repair JSON</strong> to rebuild clean data from the
+                  page.
                 </td>
               </tr>
             </tbody>
@@ -3497,9 +3570,10 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 <td>When opening a local file on your computer</td>
                 <td>
                   <strong>Link Disk</strong> connects your open tab to the <code>.html</code> file
-                  on your computer so edits save straight to disk. Once connected, this same first
-                  slot turns into <strong>Unlink Disk</strong> in case you want to stop syncing to
-                  that file.
+                  on your computer so edits save straight to disk (confirming first if you
+                  accidentally pick a different existing <code>#naizodb</code> file). Once
+                  connected, this same first slot turns into <strong>Unlink Disk</strong> in case
+                  you want to stop syncing to that file.
                 </td>
               </tr>
               <tr>
@@ -3549,10 +3623,13 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                   </svg>
                   <strong>4. Repair JSON</strong>
                 </td>
-                <td>Only if the file's data block has a syntax error on startup</td>
+                <td>
+                  If the file's <code>#naizodb</code> JSON has a syntax error (on startup or from an
+                  external disk edit)
+                </td>
                 <td>
                   Rebuilds and saves a clean, valid JSON data block from the values currently shown
-                  on the page, unlocking normal saving after a broken manual edit.
+                  on the page, unlocking normal saving after a broken edit.
                 </td>
               </tr>
               <tr>
@@ -3569,7 +3646,10 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                   </svg>
                   <strong>5. Restore Backup</strong>
                 </td>
-                <td>After a simultaneous edit conflict or after clicking <strong>Reset</strong></td>
+                <td>
+                  After a simultaneous edit conflict, a full-database fetch replacement, or clicking
+                  <strong>Reset</strong>
+                </td>
                 <td>
                   Restores your previous browser version in 1 click so you never lose work when an
                   external edit or a reset replaces what was on screen.
@@ -3666,12 +3746,47 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
 
         <details class="inspector-panel" naizo-ignore>
           <summary class="inspector-summary">
-            <span>For Developers — Network Rules, CORS, &amp; Storage Keys</span>
+            <span
+              >For Developers — Browsers, Live-Reload Servers, Network Rules, &amp; Storage
+              Keys</span
+            >
             <span style="color: var(--faint)"
-              >Local vs. Online API behavior &amp; DevTools debugging</span
+              >File-sync mechanics, local vs. online APIs &amp; DevTools debugging</span
             >
           </summary>
           <div class="inspector-body">
+            <p style="margin: 0.65rem 0 0; font-size: 0.9em; color: var(--muted)">
+              <strong
+                >Browser file-sync details (<code>Chrome</code>, <code>Edge</code>,
+                <code>Arc</code>, <code>Opera</code> vs. <code>Brave</code> vs.
+                <code>Safari</code> / <code>Firefox</code>):</strong
+              >
+              Linking uses <code>showSaveFilePicker()</code> with URL-decoded filenames so a single
+              <code>⌘S</code> / <code>Ctrl+S</code> gesture grants read-write access without losing
+              user activation; the OS Save dialog asks <em>"Replace?"</em> once because browser
+              security requires explicit confirmation to write back into an existing file in place
+              (saving to a new empty <code>"Save As"</code> file or a renamed copy of the same app
+              never nags, while picking a different existing <code>#naizodb</code> app asks for
+              confirmation before overwriting). Brave disables <code>showSaveFilePicker</code> by
+              default behind <code>brave://flags/#file-system-access-api</code>; until enabled,
+              Brave uses the same <code>localStorage</code> + downloaded <code>.html</code> (<code
+                >⌘S</code
+              >
+              / <code>⬇ Save to PC</code>) + <code>📋 Copy JSON</code> workflow as Safari and
+              Firefox.
+            </p>
+            <p style="margin: 0.65rem 0 0.5rem; font-size: 0.9em; color: var(--muted)">
+              <strong
+                >Avoid file-watching live-reload dev servers (<code>Vite</code>,
+                <code>VS Code Live Server</code>, <code>BrowserSync</code>):</strong
+              >
+              File-watching dev servers trigger a full browser reload every time
+              <code>naizo.js</code> writes <code>&lt;script id="naizodb"&gt;</code> to disk –
+              creating a save-reload loop and dropping <code>file://</code> transient file-handle
+              permissions. Open local <code>.html</code> files directly via <code>file://</code> or
+              serve them with a plain non-watching static server (<code>python3 -m http.server</code
+              >, <code>npx serve</code>).
+            </p>
             <div class="table-wrap">
               <table class="clean-table" style="margin-top: 0.5rem">
                 <thead>
@@ -3760,7 +3875,7 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               for kiosk views, printable reports, embedded iframes, or custom toolbars. List styles,
               <code>localStorage</code>, live ~2 s file watching, and <code>⌘S</code> /
               <code>Ctrl+S</code> disk linking and saving remain active,
-              <code>naizo-no-pill</code> is preserved on HTML export/download, and malformed startup
+              <code>naizo-no-pill</code> is preserved on HTML export/download, and malformed
               <code>&lt;script id="naizodb"&gt;</code> JSON logs a browser console warning
               explaining how to reveal <strong>Repair JSON</strong>. For Local Mode apps without the
               pill, include a small <code>⌘S</code> / <code>Ctrl+S</code> hint or a custom

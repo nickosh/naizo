@@ -37,7 +37,7 @@ function readScriptDb(): NaizoDatabase {
   return JSON.parse(raw) as NaizoDatabase;
 }
 
-describe('naizo.js v0.1.0 core runtime', () => {
+describe('naizo.js core runtime', () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.removeAttribute('data-naizo-manual');
@@ -3546,7 +3546,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
     }
   });
 
-  it('keeps all three documentation tiers synchronized for Mini-API Client, Naizo.setList, Status Pill 1-6 buttons (including Repair JSON), #dot Logo States, #net rules, M12.2 naizo-no-pill & Naizo.link(), and M13.2 Naizo.batch, Naizo.ready, naizo-pill-corner, 9 Golden Rules, & omitted directives (M8.2, M9.3, M11.2, M12.2, M13.2, D46, D50, D53, D56, D57, D58, EC53, EC54, EC55, EC56, EC57)', () => {
+  it('keeps all three documentation tiers synchronized for Mini-API Client, Naizo.setList, Status Pill 1-6 buttons (including Repair JSON), #dot Logo States, #net rules, M12.2 naizo-no-pill & Naizo.link(), M13.2 Naizo.batch, Naizo.ready, naizo-pill-corner, 9 Golden Rules, & omitted directives, and M15.2 Browser Matrix, live-reload server rules, two-tier list merge, live malformed-JSON protection, & wrong-file guard (M8.2, M9.3, M11.2, M12.2, M13.2, M15.2, D46, D50, D53, D56, D57, D58, D59, EC53-EC61)', () => {
     const readmeMd = readFileSync(resolve(process.cwd(), 'README.md'), 'utf-8');
     const usageMd = readFileSync(resolve(process.cwd(), 'docs/USAGE.md'), 'utf-8');
     const productMd = readFileSync(resolve(process.cwd(), 'docs/PRODUCT.md'), 'utf-8');
@@ -3589,9 +3589,20 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(docSurface).toContain('Naizo.ready');
       expect(docSurface).toContain('naizo-pill-corner');
       expect(docSurface).toContain('data-naizo-pill-corner');
+      expect(docSurface).toContain('brave://flags/#file-system-access-api');
+      expect(docSurface).toContain('Opera');
+      expect(docSurface).toContain('Replace?');
+      expect(docSurface).toContain('Safari');
+      expect(docSurface).toContain('Firefox');
+      expect(docSurface).toContain('Copy JSON');
+      expect(docSurface).toContain('Vite');
+      expect(docSurface).toContain('Live Server');
+      expect(docSurface).toContain('BrowserSync');
+      expect(docSurface).toContain('python3 -m http.server');
+      expect(docSurface).toContain('Invalid #naizodb JSON');
     }
 
-    // M12.2 & M13.2 / D53: Tier-1 public entry surfaces stay free of internal runtime identifiers
+    // M12.2, M13.2, & M15.2 / D53: Tier-1 public entry surfaces stay free of internal runtime identifiers
     for (const tier1Surface of [readmeMd, currentSiteHtml]) {
       expect(tier1Surface).not.toContain('isNoPillMode');
       expect(tier1Surface).not.toContain('startupInvalidDb');
@@ -3604,13 +3615,51 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(tier1Surface).not.toContain('batchDepth');
       expect(tier1Surface).not.toContain('readSavedUiCorner');
       expect(tier1Surface).not.toContain('writeElementValue');
+      expect(tier1Surface).not.toContain('shallowMergeDatabases');
+      expect(tier1Surface).not.toContain('hydrateSubtreeFromStore');
+      expect(tier1Surface).not.toContain('checkDiskForExternalChanges');
+      expect(tier1Surface).not.toContain('performSingleDiskWrite');
+      expect(tier1Surface).not.toContain('extractDbScriptBody');
+      expect(tier1Surface).not.toContain('replaceDbScriptInHtml');
+      expect(tier1Surface).not.toContain('injectDbScriptIntoHtml');
+      expect(tier1Surface).not.toContain('itemDataMap');
+      expect(tier1Surface).not.toContain('findListElements');
+      expect(tier1Surface).not.toContain('mergeList3Way');
+      expect(tier1Surface).not.toContain('reconcileListItems');
+      expect(tier1Surface).not.toContain('liveDiskInvalidJson');
+      expect(tier1Surface).not.toContain('scanHtmlTags');
+      expect(tier1Surface).not.toContain('getSuggestedFilename');
       expect(tier1Surface).toContain('onclick="Naizo.link()"');
       expect(tier1Surface).toContain('deferPersist');
       expect(tier1Surface).toContain('selectedIndex = -1');
+      expect(tier1Surface).toContain('Chrome, Edge, Arc');
+      expect(tier1Surface).toContain('per-item');
+      expect(tier1Surface).toContain('unique primitive');
+      expect(tier1Surface).toContain('activeElement');
+      expect(tier1Surface).toContain('raw text backup');
+      expect(tier1Surface.replace(/\s+/g, ' ')).toContain('different existing');
       expect(tier1Surface.replace(/\s+/g, ' ')).toContain(
         "{ scope: 'lists', action: 'update', list, index, key, value, source: 'dom', db }",
       );
     }
+
+    // M15.2: Tier-2 & Tier-3 cover two-tier 3-way list merge, in-place list reconciliation,
+    // live malformed-JSON protection, rename-friendly wrong-file guard, & O(1) read-only view semantics
+    for (const techSurface of [productMd, usageMd, agentsMd, skillMd, llmsTxt, llmsFullTxt]) {
+      expect(techSurface).toContain('Path A');
+      expect(techSurface).toContain('Path B');
+      expect(techSurface).toContain('naizodb_disk_hash_');
+      expect(techSurface).toContain('naizodb_raw_backup_');
+      expect(techSurface).toContain('activeElement');
+      expect(techSurface).toContain('suggestedName');
+      expect(techSurface).toContain('mtime');
+    }
+    for (const devAiSurface of [usageMd, agentsMd, skillMd, llmsTxt, llmsFullTxt]) {
+      expect(devAiSurface).toContain('read-only');
+      expect(devAiSurface).toContain('`db`');
+      expect(devAiSurface).toContain('naizodb_backup_');
+    }
+    expect(usageMd).toContain('"tasks":{"h":"fnv1a:');
 
     // M12.2 & M13.2: Tier-2 & Tier-3 contracts cover ="false" opt-out, #__naizodb_styles__, console.warn,
     // AI authoring rules, 9 modernized framework-free Golden Rules, and omitted-directive HTML5 patterns (a)-(g)
@@ -3725,16 +3774,19 @@ describe('naizo.js v0.1.0 core runtime', () => {
       expect(kbSurface).not.toContain('15.7 KB');
       expect(kbSurface).not.toContain('22.2 KB');
       expect(kbSurface).not.toContain('22.4 KB');
+      expect(kbSurface).not.toContain('23.0 KB');
+      expect(kbSurface).not.toContain('23.0_KB');
       expect(kbSurface).not.toContain('23.2 KB');
       expect(kbSurface).not.toContain('31.5 KB');
       expect(kbSurface).not.toContain('31.9 KB');
+      expect(kbSurface).not.toContain('32.9 KB');
+      expect(kbSurface).not.toContain('144.8 KB');
       const minKbMatch = kbSurface.match(
         /(?:min(?:ified)?[^\n~]{0,25}~(\d+\.\d+)\s*KB|~(\d+\.\d+)\s*KB\s*min)/i,
       );
       expect(minKbMatch).not.toBeNull();
       const documentedMinKb = Number.parseFloat(minKbMatch?.[1] ?? minKbMatch?.[2] ?? '0');
-      // Interim M15.1 tolerance while M15.2 doc surfaces still carry M13.2 ~23.0 KB / ~32.9 KB; M15.2 syncs docs to ~26.9 KB / ~39.8 KB and restores <= 1.0
-      expect(Math.abs(documentedMinKb - actualMinGzipKb)).toBeLessThanOrEqual(4.5);
+      expect(Math.abs(documentedMinKb - actualMinGzipKb)).toBeLessThanOrEqual(1.0);
 
       const readableKbMatch = kbSurface.match(
         /(?:readable[^\n~]{0,25}~(\d+\.\d+)\s*KB|~(\d+\.\d+)\s*KB\s*gzipped\s*(?:readable|\/))/i,
@@ -3743,7 +3795,7 @@ describe('naizo.js v0.1.0 core runtime', () => {
         const documentedReadableKb = Number.parseFloat(
           readableKbMatch[1] ?? readableKbMatch[2] ?? '0',
         );
-        expect(Math.abs(documentedReadableKb - actualReadableGzipKb)).toBeLessThanOrEqual(7.5);
+        expect(Math.abs(documentedReadableKb - actualReadableGzipKb)).toBeLessThanOrEqual(1.0);
       }
     }
 
@@ -7435,6 +7487,86 @@ describe('naizo.js v0.1.0 core runtime', () => {
       window.NaizoDB = NaizoDB;
       vi.unstubAllGlobals();
       vi.useRealTimers();
+    }
+  });
+
+  it('enforces M15.2 Chromium <select> & .kpi-card CSS invariants across site/index.html, examples/*.html, and basecoat-ui-and-dense-forms.md, plus versionless contributor and test labels (M15.2, D01, D33, D59, EC61)', () => {
+    const currentSiteHtml = readFileSync(resolve(process.cwd(), 'site/index.html'), 'utf-8');
+    const currentInventoryHtml = readFileSync(
+      resolve(process.cwd(), 'examples/inventory.html'),
+      'utf-8',
+    );
+    const basecoatCookbook = readFileSync(
+      resolve(process.cwd(), 'skills/naizo/references/cookbook/basecoat-ui-and-dense-forms.md'),
+      'utf-8',
+    );
+    const agentsMd = readFileSync(resolve(process.cwd(), 'AGENTS.md'), 'utf-8');
+    const productMd = readFileSync(resolve(process.cwd(), 'docs/PRODUCT.md'), 'utf-8');
+    const thisTestSource = readFileSync(resolve(process.cwd(), 'tests/naizo.test.ts'), 'utf-8');
+
+    // 1. Zero CSS rules targeting <select> / .select may set `display: block` across site/index.html & all examples/*.html
+    const htmlSurfaces: Array<[string, string]> = [
+      ['site/index.html', currentSiteHtml],
+      ['examples/starter.html', starterHtml],
+      ['examples/checklist.html', checklistHtml],
+      ['examples/notes.html', notesHtml],
+      ['examples/inventory.html', currentInventoryHtml],
+      ['examples/weather.html', weatherHtml],
+    ];
+    for (const [label, html] of htmlSurfaces) {
+      const styleBlocks = Array.from(html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)).map(
+        (m) => (m[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, ''),
+      );
+      for (const css of styleBlocks) {
+        for (const ruleMatch of css.matchAll(/([^{}]+)\{([^{}]+)\}/g)) {
+          const selectors = (ruleMatch[1] ?? '').split(',').map((s) => s.trim());
+          const body = ruleMatch[2] ?? '';
+          const targetsSelect = selectors.some((sel) =>
+            /(?:^|[\s>+~])select(?:$|[\s.:#[[\]])|\.select\b/.test(sel),
+          );
+          if (targetsSelect) {
+            expect(body, `${label} selector "${selectors.join(', ')}"`).not.toMatch(
+              /display\s*:\s*block\b/i,
+            );
+          }
+        }
+      }
+    }
+
+    // Verify site/index.html keeps width: 100%, min-width: 0, max-width: 100% on .field-group select & display: block on text/textarea
+    expect(currentSiteHtml).toContain('.spec-meta-row > * {\n        min-width: 0;\n      }');
+    expect(currentSiteHtml).toMatch(
+      /\.field-group input\[type='text'\],\s*\.field-group select,\s*\.field-group textarea\s*\{\s*width:\s*100%;\s*min-width:\s*0;\s*max-width:\s*100%;/,
+    );
+    expect(currentSiteHtml).toMatch(
+      /\.field-group input\[type='text'\],\s*\.field-group textarea\s*\{\s*display:\s*block;\s*\}/,
+    );
+
+    // 2. Standalone Basecoat .select `appearance: none` + `.kpi-card` alignment in examples/inventory.html & cookbook
+    expect(currentInventoryHtml).toMatch(
+      /\.select\s*\{\s*appearance:\s*none;\s*-webkit-appearance:\s*none;\s*\}/,
+    );
+    expect(currentInventoryHtml).toMatch(
+      /\.kpi-card\s*\{\s*display:\s*flex;\s*flex-direction:\s*column;\s*justify-content:\s*space-between;\s*\}/,
+    );
+    expect(basecoatCookbook).toMatch(
+      /\.select\s*\{\s*appearance:\s*none;\s*-webkit-appearance:\s*none;\s*\}/,
+    );
+    expect(basecoatCookbook).toContain('display: block');
+    expect(basecoatCookbook).toContain('-webkit-appearance: none');
+
+    // 3. Versionless contributor & test labels (D01, D33, EC61)
+    const hardcodedTag = `v${'0.1.0'}`;
+    expect(agentsMd).not.toContain(hardcodedTag);
+    expect(agentsMd).toContain('@0.1.0');
+    expect(productMd).not.toContain(hardcodedTag);
+
+    const testTitles = Array.from(
+      thisTestSource.matchAll(/^\s*(?:describe|it)\(\s*(['"`])([\s\S]*?)\1/gm),
+    ).map((m) => m[2] ?? '');
+    expect(testTitles.length).toBeGreaterThanOrEqual(46);
+    for (const title of testTitles) {
+      expect(title).not.toContain(hardcodedTag);
     }
   });
 });

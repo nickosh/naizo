@@ -252,11 +252,23 @@
         gap: 0.5rem;
       }
 
+      /* Standalone Basecoat <select> reset (prevents double carets without Tailwind Preflight) */
+      .select {
+        appearance: none;
+        -webkit-appearance: none;
+      }
+
       /* KPI Summary Grid */
       .kpi-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
         gap: 0.875rem;
+      }
+
+      .kpi-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
       }
 
       .kpi-card header {

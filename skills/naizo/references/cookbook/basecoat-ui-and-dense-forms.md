@@ -110,6 +110,12 @@ body {
   box-sizing: border-box;
 }
 
+/* Suppress native OS arrow so standalone Basecoat .select renders only its built-in SVG chevron */
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 /* Span full row cleanly at any column count without forcing an implicit 2nd column on mobile */
 .field-span-full {
   grid-column: 1 / -1;
@@ -134,7 +140,7 @@ textarea.textarea {
 
 Why each rule matters:
 
-- **`.select` containment (`min-width: 0; max-width: 100%; width: 100%`):** Native `<select>` intrinsic width equals its longest `<option>` text. Without `min-width: 0` on both the grid track child and `.select`, long option labels blow out `1fr` card columns on `600px` split-screen windows.
+- **`.select` containment (`min-width: 0; max-width: 100%; width: 100%`) & `appearance: none` (`-webkit-appearance: none`):** Native `<select>` intrinsic width equals its longest `<option>` text. Without `min-width: 0` on both the grid track child and `.select`, long option labels blow out `1fr` card columns on `600px` split-screen windows. Adding `appearance: none; -webkit-appearance: none;` suppresses the browser's default OS arrow when loading `basecoat.cdn.min.css` standalone (without Tailwind Preflight) so Basecoat's SVG chevron never double-renders; also never set `display: block` on `<select>` (use `width: 100%` instead so Chromium's internal `inline-flex` `<select>` layout keeps the caret on one line).
 - **`.field-span-full { grid-column: 1 / -1 }`:** Hardcoding inline `style="grid-column: span 2"` forces CSS Grid to create an implicit second track even on single-column mobile viewports; `1 / -1` spans all active tracks cleanly.
 - **`field-sizing: fixed; resize: vertical` (no `flex: 1`):** Basecoat sets `field-sizing: content` on `.textarea`, which ignores `rows="3"` and makes side-by-side textareas uneven in height, while `flex: 1` locks `flex-basis` and disables the user's resize handle. Setting `field-sizing: fixed; resize: vertical` aligns top and bottom edges while keeping manual vertical resize smooth.
 
@@ -331,5 +337,6 @@ Native HTML `<dialog>` modals work cleanly with Basecoat UI and `naizo.js` when 
 - **Calling `Naizo.setField('theme', 'dark')` on boot when `matchMedia` is dark:** Mutates `store` away from `initialDiskDb` before the user touches anything, prematurely surfacing `↺ Reset` in Online Mode and unlinked Local Mode (`EC48`). Use `"theme": "system"` instead.
 - **Putting `naizo-strip` instead of `naizo-ignore` on reusable `<dialog>` modals:** `naizo-strip` deletes the `<dialog>` element permanently when a user clicks `⬇ Save to PC` (`Naizo.downloadHTML()`), breaking modal buttons in the downloaded `.html` copy (`D47`).
 - **Setting `flex: 1` on `.textarea` inside flex column labels:** Locks `flex-basis` and disables the browser's native vertical resize handle; use `field-sizing: fixed; resize: vertical; min-height: 5.25rem` instead.
+- **Setting `display: block` on `<select>` or omitting `appearance: none` on standalone Basecoat `.select`:** `display: block` overrides Chromium's internal `inline-flex` `<select>` layout and wraps the dropdown caret onto a second line (use `width: 100%` instead), while loading `basecoat.cdn.min.css` without Tailwind Preflight renders double carets unless `.select` sets `appearance: none; -webkit-appearance: none;`.
 - **Binding boolean `true` / `false` values to `<select class="select">`:** HTML `<select>` values are always strings (`"true"` / `"false"`). Use `<input type="checkbox">` for booleans, or store string enums on `<select>`.
 - **Docking fixed toast notifications at `bottom: 1rem; right: 1rem`:** Collides with the default `bottom-right` Status Pill (`16px` inset). Place app toasts at `top-right` or `bottom-center` (or set `naizo-pill-corner="bottom-left"` when `bottom-right` hosts persistent app chrome, `D57`).
