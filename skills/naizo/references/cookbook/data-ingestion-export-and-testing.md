@@ -194,7 +194,7 @@ const items = rows
   });
 
 const html = fs.readFileSync(htmlPath, "utf8");
-const re = /<!---?>|<!--[\s\S]*?-->|(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script\s*>)|<(script|style|title|textarea)\b[^>]*>[\s\S]*?<\/\4\s*>/gi;
+const re = /<!---?>|<!--[\s\S]*?--!?>|(<script(?=[>\s/])(?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*(?<=[\s/"\x27])id\s*=\s*(?:"naizodb"|\x27naizodb\x27|naizodb(?=[>\s/]))(?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*>)([\s\S]*?)(<\/script(?=[>\s/])[^>]*>)|<(script|style|title|textarea)(?=[>\s/])(?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*>[\s\S]*?<\/\4(?=[>\s/])[^>]*>/gi;
 let match;
 while ((match = re.exec(html)) && !match[1]) {}
 if (!match) throw new Error("Missing #naizodb block");
@@ -221,7 +221,7 @@ import re
 
 html_path = pathlib.Path("studio.html")
 db_re = re.compile(
-    r'<!---?>|<!--[\s\S]*?-->|(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|\'naizodb\'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(</script\s*>)|<(script|style|title|textarea)\b[^>]*>[\s\S]*?</\4\s*>',
+    r"""<!---?>|<!--[\s\S]*?--!?>|(<script(?=[>\s/])(?:[^>"']|"[^"]*"|'[^']*')*(?<=[\s/"'])id\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))(?:[^>"']|"[^"]*"|'[^']*')*>)([\s\S]*?)(</script(?=[>\s/])[^>]*>)|<(script|style|title|textarea)(?=[>\s/])(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?</\4(?=[>\s/])[^>]*>""",
     re.IGNORECASE,
 )
 
@@ -308,6 +308,6 @@ test('hydrates studio cleanly, resets cached edits, and exports strip-clean HTML
 ## 5. Pitfalls to Avoid & Why
 
 - **Looping `Naizo.addItem()` or `Naizo.removeItem()` across 100+ imported CSV rows:** Fires `O(N)` synchronous DOM clones, full-DB `JSON.stringify` passes, and `naizo:change` events on half-populated arrays (`EC54`). Always build the array in memory and call `Naizo.setList(name, rows)` once.
-- **Using string replacement `html.replace(re, '$1\n' + json + '\n$3')` in Node.js CLI scripts:** JavaScript treats `$&`, `$1`, and `$$` inside the replacement string as regex capture tokens, silently corrupting user notes containing dollar amounts (`$100`) or shell snippets (`D54`). Always pass a replacement function `(_m, open, _inner, close) => ...`.
+- **Using string replacement `html.replace(re, '$1\n' + json + '\n$3')` in Node.js CLI scripts:** JavaScript treats `$&`, `$1`, and `$$` inside a replacement pattern string as regex capture tokens, silently corrupting user notes containing dollar amounts (`$100`) or shell snippets (`D54`). Always advance past HTML comments and preceding raw-text/RCDATA blocks via `while ((match = re.exec(html)) && !match[1]) {}` and slice around `match.index` (`${html.slice(0, match.index)}${match[1]}\n${json}\n${match[3]}${html.slice(match.index + match[0].length)}`, `EC60`, `D60`) rather than passing a replacement pattern string to `.replace()`.
 - **Forgetting `.replace(/</g, '\\u003c')` when writing `#naizodb` from Python or Node:** A literal `</script>` or `<!--` inside a user's imported CSV comment prematurely terminates `<script id="naizodb">` and breaks the HTML document (`EC08`).
 - **Mutating `db.lists.raw_records` destructively during deduplication:** Deletes original survey/CSV provenance so mistakes cannot be un-merged. Keep `raw_records` immutable and record merge/triage decisions in `db.custom` or a separate canonical list (`D58`).

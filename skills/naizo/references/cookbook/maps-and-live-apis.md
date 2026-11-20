@@ -22,8 +22,8 @@ Mount OpenLayers into a dynamically created `data-naizo-strip="true"` child insi
 ```html
 <head>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css" />
-  <script src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" defer></script>
 </head>
 
 <body>
@@ -39,6 +39,7 @@ Mount OpenLayers into a dynamically created `data-naizo-strip="true"` child insi
     let pinFeature = null;
 
     function ensureMapMounted() {
+      if (typeof window.Naizo === 'undefined') return;
       const frame = document.getElementById('map-frame');
       if (!frame) return;
       if (typeof window.ol === 'undefined') {
@@ -258,7 +259,7 @@ Pair declarative `naizo-post` / `naizo-get` buttons (`naizo-into="#api-receipt"`
 >
   Sync Route Snapshot
 </button>
-<p id="api-receipt" naizo-ignore>Ready to sync.</p>
+<p id="api-receipt">Ready to sync.</p>
 
 <script>
   window.addEventListener('naizo:fetch', (e) => {
@@ -278,6 +279,7 @@ Pair declarative `naizo-post` / `naizo-get` buttons (`naizo-into="#api-receipt"`
 
 ## 5. Pitfalls to Avoid & Why
 
+- **Putting `naizo-ignore` (or `data-naizo-ignore`) on a `naizo-into="#selector"` target (`EC50`, `D60`):** `naizo.js`'s selector writer strictly skips `[naizo-ignore]` and `[naizo-strip]` subtrees (`!isIgnoredElement(el)`) so custom widgets remain isolated from declarative writes; adding `naizo-ignore` to `<p id="api-receipt">` causes `naizo-into="#api-receipt"` to fail (`Target selector "#api-receipt" matched no elements`) and latches `#net` Red even on HTTP `200`. Leave `<p id="api-receipt">` without `naizo-ignore` — because `naizo.js` binds strictly opt-in `naizo="key"` / `data-naizo="key"` elements (`D08`, `EC11`), an unbound display element already stays out of `#naizodb`.
 - **Passing `{ into: 'db' }` to `Naizo.fetch()` for third-party REST APIs:** `{ into: 'db' }` expects a `{ _meta, fields, lists, custom }` `NaizoDatabase` object (and endpoints returning a top-level `"fields"` key like Jira/Airtable would clobber `store`, `D52`). Omit `options.into` when fetching external API JSON in JavaScript, then write normalized values via `Naizo.setField()` / `Naizo.setList()`.
 - **Setting `crossOrigin: 'anonymous'` unconditionally on all map tile layers:** Tile servers that omit `Access-Control-Allow-Origin: *` fail to load images on `file://` (`Origin: null`) when `crossOrigin: 'anonymous'` is forced. Leave `crossOrigin: null` unless reading pixel data via `canvas.toDataURL()`.
 - **Leaving `.ol-viewport` or loading skeletons without `data-naizo-strip`:** Bakes dozens of transient tile `<img>` tags and skeleton placeholders into `⬇ Save to PC` downloads (`D47`).

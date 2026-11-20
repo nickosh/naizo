@@ -7,7 +7,7 @@
 **Self-persisting HTML for human & AI workflows.**
 
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#)
-[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~27.4_KB-blue.svg)](#)
+[![Bundle Size](https://img.shields.io/badge/min%2Bgzip-~28.0_KB-blue.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 _`naizo.js` is a zero-dependency JavaScript library that turns any single `.html` file into a self-saving local-first application — from custom dashboards, interactive studios, and personal trackers to calculators, notebooks, specs, and more._
@@ -71,13 +71,13 @@ Humans prefer interacting with visual controls in the browser (and writing clean
 
 **Easy for humans to write by hand, and effortless for AI agents to generate.** No Node.js, bundler, or backend server is required — just standard HTML and a couple of readable attributes:
 
-1. **Embed `#naizodb`:** Place `<script id="naizodb" type="application/json">` and the `naizo.js` script tag inside `<head>`.
-2. **Bind Your HTML:** Add `naizo="key"` to fields you want to persist and `naizo-list="name"` + `naizo-item` to repeating lists in `<body>`.
+1. **Embed `#naizodb`:** Set `naizo-id="..."` on `<html>` (so multiple local files never mix up their browser storage) and place `<script id="naizodb" type="application/json">` + the `naizo.js` script tag inside `<head>`.
+2. **Bind Your HTML:** Add `naizo="key"` to fields you want to persist and `naizo-list="name"` + `<template naizo-template>` (`naizo-item`) to repeating lists in `<body>`.
 3. **Link & Save:** Open the `.html` file in your browser and click the bottom-right status pill (or press `⌘S` / `Ctrl+S`) to link it on disk — or click **`⬇ Save to PC`** when viewing a hosted page online.
 
 ```html
 <!doctype html>
-<html lang="en">
+<html lang="en" naizo-id="launch-plan">
   <head>
     <meta charset="UTF-8" />
     <title>My Project Plan</title>
@@ -113,10 +113,12 @@ Humans prefer interacting with visual controls in the browser (and writing clean
     </label>
 
     <div naizo-list="tasks">
-      <div naizo-item>
-        <label><input type="checkbox" naizo="done" /></label>
-        <label><input type="text" naizo="task" placeholder="Describe task..." /></label>
-      </div>
+      <template naizo-template>
+        <div naizo-item>
+          <label><input type="checkbox" naizo="done" /></label>
+          <label><input type="text" naizo="task" placeholder="Describe task..." /></label>
+        </div>
+      </template>
     </div>
   </body>
 </html>
@@ -128,7 +130,7 @@ Humans prefer interacting with visual controls in the browser (and writing clean
 <!-- jsDelivr CDN (readable bundle) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified bundle (~27.4 KB gzipped, works on either CDN) -->
+<!-- Prebuilt minified bundle (~28.0 KB gzipped, works on either CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- unpkg CDN (readable bundle) -->
@@ -281,7 +283,7 @@ See [docs/USAGE.md](docs/USAGE.md) for the complete API, event payloads, and arc
 | :------------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **On Your Computer (Live File Sync)**<br>Chrome, Edge, Arc, Opera (`file://` / `localhost`) | Amber `Browser Cache · Click to Link Disk`<br>↓ _after linking_<br>Green `Synced to Disk`                                    | Press `⌘S` / `Ctrl+S` (or click **Link Disk**) once to connect your `.html` file. _(Your OS Save dialog asks **"Replace?"** once because browser security requires your confirmation to grant write access so `naizo.js` can update `#naizodb` in place.)_ Before linking a local file, **Reset** clears temporary browser edits; once linked, every edit saves straight into that file and AI agent edits (including different rows in the same list) merge live within ~2 seconds. |
 | **On Your Computer (Brave)**<br>Brave (`file://` / `localhost`)                             | Amber `Browser Cache · Click to Link Disk`<br>↓ _with flag enabled_<br>Green `Synced to Disk`                                | Brave disables the File System Access API by default — enable `brave://flags/#file-system-access-api` once and relaunch for live two-way `.html` file sync just like Chrome; otherwise, Brave saves in `localStorage` and uses the downloaded `.html` (`⌘S` / **Link Disk**) + `📋 Copy JSON` loop.                                                                                                                                                                                  |
-| **On Your Computer (Safari & Firefox)**<br>Safari & Firefox (`file://` / `localhost`)       | Amber `Browser Cache · Click to Link Disk`<br>Buttons: **Link Disk** (downloads updated `.html`) · **Copy JSON** · **Reset** | Edits save immediately in your browser (`localStorage`). Because Safari and Firefox do not support direct in-place file writing yet, pressing `⌘S` / `Ctrl+S` (or clicking **Link Disk** / `⬇ Save to PC`) downloads an updated `.html` copy, `📋 Copy JSON` copies `#naizodb` to hand edits back to AI agents, and **Reset** clears browser-cached edits back to initial state.                                                                                                     |
+| **On Your Computer (Safari & Firefox)**<br>Safari & Firefox (`file://` / `localhost`)       | Amber `Browser Cache · Click to Link Disk`<br>Buttons: **Link Disk** (downloads updated `.html`) · **Copy JSON** · **Reset** | Edits save immediately in your browser (`localStorage`). Because Safari and Firefox do not support direct in-place file writing yet, pressing `⌘S` / `Ctrl+S` (or clicking **Link Disk** / `⬇ Save to PC`) downloads an updated `.html` copy (flashing `✓ Downloaded HTML Snapshot` while keeping the crest Amber), `📋 Copy JSON` copies `#naizodb` to hand edits back to AI agents, and **Reset** clears browser-cached edits back to initial state.                               |
 | **On the Web (Hosted Page)**<br>All modern browsers on GitHub Pages or `https://`           | Green `Saved in Browser`<br>Buttons: **Save to PC** · **Copy JSON** · **Reset**                                              | Your edits save immediately in your browser (`localStorage`) so you can experiment freely. Click **`⬇ Save to PC`** anytime to download your customized `.html` file to your computer, or click **Reset** to return the page to its original published state.                                                                                                                                                                                                                        |
 
 > **Local files vs. live-reload dev servers:** Open `.html` files directly via `file://` or serve them with a plain non-watching static server (`python3 -m http.server`, `npx serve`). Avoid file-watching live-reload dev servers (**Vite**, **VS Code Live Server**, **BrowserSync**) while a file is linked to disk — every surgical `#naizodb` save updates the `.html` file on disk and causes live-reload watchers to refresh the page in a loop.
@@ -352,7 +354,7 @@ Several tools explore reactive HTML, declarative persistence, or self-saving sin
 | **Zero-Server Local Disk Save**       | **Yes** (surgical `#naizodb` File System API + HTML fallback) | Requires `POST /_/save` server or desktop app                               | **Yes** (File System Access API + download fallback) | No (cloud APIs or download)                    | No                                                  | Yes (via Saver plugins / download)                                                | **Yes** (`⌘S` File System Access API; Chromium only)        |
 | **Two-Way Human ↔ AI Disk Sync**      | **Yes** (~2 s live watch + 3-way key/item merge + restore)    | Server ETag / 3-way `merge` plugin                                          | Manual reload / JSON replace                         | No                                             | No (`localStorage` masks disk edits)                | No                                                                                | Manual reload only (`⌘S` overwrites external disk edits)    |
 | **Declarative List Repeater**         | **Yes** (`naizo-list` / `naizo-item`)                         | Basic (`add-from` / `add-to` template clone)                                | N/A                                                  | **Yes** (`mv-multiple`)                        | **Yes** (`x-for`)                                   | Wiki templates                                                                    | N/A (hardcoded page sidebar)                                |
-| **Runtime Footprint (Gzip)**          | **~27.4 KB** (0 deps)                                         | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    | ~5.5 KB bundled app (0 deps)                                |
+| **Runtime Footprint (Gzip)**          | **~28.0 KB** (0 deps)                                         | ~3 KB loader + network plugins (~1 MB standalone)                           | ~700 KB bundled app                                  | ~60+ KB                                        | ~16 KB                                              | ~56 KB – 2+ MB                                                                    | ~5.5 KB bundled app (0 deps)                                |
 
 ---
 

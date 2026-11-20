@@ -2436,7 +2436,7 @@ describe('naizo.js core runtime', () => {
     ].join('\n');
 
     const makeRe = () =>
-      /<!---?>|<!--[\s\S]*?-->|(<script\b[^>]*\bid\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))[^>]*>)([\s\S]*?)(<\/script\s*>)|<(script|style|title|textarea)\b[^>]*>[\s\S]*?<\/\4\s*>/gi;
+      /<!---?>|<!--[\s\S]*?--!?>|(<script(?=[>\s/])(?:[^>"']|"[^"]*"|'[^']*')*(?<=[\s/"'])id\s*=\s*(?:"naizodb"|'naizodb'|naizodb(?=[>\s/]))(?:[^>"']|"[^"]*"|'[^']*')*>)([\s\S]*?)(<\/script(?=[>\s/])[^>]*>)|<(script|style|title|textarea)(?=[>\s/])(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/\4(?=[>\s/])[^>]*>/gi;
     const re = makeRe();
     let match: RegExpExecArray | null = null;
     while ((match = re.exec(sampleHtml)) && !match[1]) {
@@ -3648,6 +3648,8 @@ describe('naizo.js core runtime', () => {
       expect(tier1Surface).not.toContain('mergeList3Way');
       expect(tier1Surface).not.toContain('reconcileListItems');
       expect(tier1Surface).not.toContain('liveDiskInvalidJson');
+      expect(tier1Surface).not.toContain('isInvalidDbState');
+      expect(tier1Surface).not.toContain('flashPillTooltip');
       expect(tier1Surface).not.toContain('scanHtmlTags');
       expect(tier1Surface).not.toContain('getSuggestedFilename');
       expect(tier1Surface).toContain('onclick="Naizo.link()"');
@@ -3802,6 +3804,15 @@ describe('naizo.js core runtime', () => {
       expect(kbSurface).not.toContain('31.9 KB');
       expect(kbSurface).not.toContain('32.9 KB');
       expect(kbSurface).not.toContain('144.8 KB');
+      expect(kbSurface).not.toContain('27.0 KB');
+      expect(kbSurface).not.toContain('91.9 KB');
+      expect(kbSurface).not.toContain('39.9 KB');
+      expect(kbSurface).not.toContain('176.3 KB');
+      expect(kbSurface).not.toContain('27.4 KB');
+      expect(kbSurface).not.toContain('27.4_KB');
+      expect(kbSurface).not.toContain('92.7 KB');
+      expect(kbSurface).not.toContain('40.5 KB');
+      expect(kbSurface).not.toContain('180.2 KB');
       const minKbMatch = kbSurface.match(
         /(?:min(?:ified)?[^\n~]{0,25}~(\d+\.\d+)\s*KB|~(\d+\.\d+)\s*KB\s*min)/i,
       );
@@ -3816,8 +3827,7 @@ describe('naizo.js core runtime', () => {
         const documentedReadableKb = Number.parseFloat(
           readableKbMatch[1] ?? readableKbMatch[2] ?? '0',
         );
-        // Interim M19.1 tolerance while M19.3 doc surfaces still carry M15.3 ~40.5 KB; M19.3 syncs all 7 surfaces and restores <= 1.0
-        expect(Math.abs(documentedReadableKb - actualReadableGzipKb)).toBeLessThanOrEqual(1.5);
+        expect(Math.abs(documentedReadableKb - actualReadableGzipKb)).toBeLessThanOrEqual(1.0);
       }
     }
 
@@ -9842,6 +9852,265 @@ describe('naizo.js core runtime', () => {
       document.documentElement.removeAttribute('naizo-id');
       document.documentElement.removeAttribute('data-theme');
     }
+  });
+
+  it('verifies M19.3 maps-and-live-apis.md #api-receipt routing, quoted-attribute-safe Node.js & Python 3 surgical #naizodb CLI regexes, and three-tier documentation & publishing sync (M19.3, D46, D51, D53, D58, D60, EC50, EC59, EC60, EC62)', async () => {
+    const mapsCookbook = readFileSync(
+      resolve(process.cwd(), 'skills/naizo/references/cookbook/maps-and-live-apis.md'),
+      'utf-8',
+    );
+    const ingestionCookbook = readFileSync(
+      resolve(
+        process.cwd(),
+        'skills/naizo/references/cookbook/data-ingestion-export-and-testing.md',
+      ),
+      'utf-8',
+    );
+    const usageMd = readFileSync(resolve(process.cwd(), 'docs/USAGE.md'), 'utf-8');
+    const skillMd = readFileSync(resolve(process.cwd(), 'skills/naizo/SKILL.md'), 'utf-8');
+    const llmsFullTxt = readFileSync(resolve(process.cwd(), 'site/llms-full.txt'), 'utf-8');
+    const llmsTxt = readFileSync(resolve(process.cwd(), 'site/llms.txt'), 'utf-8');
+    const readmeMd = readFileSync(resolve(process.cwd(), 'README.md'), 'utf-8');
+    const publishingMd = readFileSync(resolve(process.cwd(), 'docs/PUBLISHING.md'), 'utf-8');
+
+    // 1. Cookbook #api-receipt omits naizo-ignore (EC50) and routes declarative naizo-post without latching #net Red
+    expect(mapsCookbook).toContain('<p id="api-receipt">Ready to sync.</p>');
+    expect(mapsCookbook).not.toContain('<p id="api-receipt" naizo-ignore>');
+    expect(mapsCookbook).toContain('Target selector "#api-receipt" matched no elements');
+
+    const receiptFetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ url: 'https://httpbin.org/post' }),
+      json: async () => ({ url: 'https://httpbin.org/post' }),
+    } as unknown as Response);
+    const onReceiptFetch = (ev: Event) => {
+      const { ok, method, status, target } =
+        (ev as CustomEvent<Record<string, unknown>>).detail || {};
+      if (target !== '#api-receipt') return;
+      const el = document.getElementById('api-receipt');
+      if (el) {
+        el.textContent = ok
+          ? `✓ ${String(method)} succeeded (${String(status)})`
+          : `⚠ ${String(method)} failed`;
+      }
+    };
+    window.addEventListener('naizo:fetch', onReceiptFetch);
+    try {
+      document.documentElement.setAttribute('naizo-id', 'm19-3-cookbook-receipt');
+      document.head.innerHTML =
+        '<script id="naizodb" type="application/json">{"_meta":{},"fields":{"title":"Route"},"lists":{},"custom":{}}</script>';
+      document.body.innerHTML = `
+        <button
+          id="sync-route-btn"
+          type="button"
+          naizo-post="https://httpbin.org/post"
+          naizo-body="db"
+          naizo-path="url"
+          naizo-into="#api-receipt"
+        >
+          Sync Route Snapshot
+        </button>
+        <p id="api-receipt">Ready to sync.</p>
+      `;
+      await initNaizo();
+      document.getElementById('sync-route-btn')?.click();
+      await new Promise((r) => setTimeout(r, 25));
+
+      expect(document.getElementById('api-receipt')?.textContent).toBe('✓ POST succeeded (200)');
+      const netBtn = document.getElementById('__naizodb_host__')?.shadowRoot?.getElementById('net');
+      expect(netBtn?.classList.contains('error')).toBe(false);
+      expect(Naizo.getField('api-receipt')).toBeUndefined();
+    } finally {
+      window.removeEventListener('naizo:fetch', onReceiptFetch);
+      receiptFetchSpy.mockRestore();
+      window.__naizoCleanup?.();
+      document.documentElement.removeAttribute('naizo-id');
+    }
+
+    // 2. Quoted-attribute-safe Node.js & Python 3 surgical #naizodb CLI regexes across all 4 surfaces
+    const jsSurfaces: Array<[string, string]> = [
+      ['docs/USAGE.md', usageMd],
+      ['skills/naizo/SKILL.md', skillMd],
+      ['site/llms-full.txt', llmsFullTxt],
+      ['data-ingestion-export-and-testing.md', ingestionCookbook],
+    ];
+    const extractedJsSources: string[] = [];
+    for (const [label, content] of jsSurfaces) {
+      const m = content.match(/const re = \/(.+)\/gi;/);
+      expect(m, `${label} must define const re = /.../gi;`).not.toBeNull();
+      const src = m![1]!;
+      expect(src).toContain('<!---?>|<!--[\\s\\S]*?--!?>');
+      expect(src).toContain('<script(?=[>\\s/])');
+      expect(src).toContain('(?:[^>"\\x27]|"[^"]*"|\\x27[^\\x27]*\\x27)*');
+      expect(src).toContain(
+        '(?<=[\\s/"\\x27])id\\s*=\\s*(?:"naizodb"|\\x27naizodb\\x27|naizodb(?=[>\\s/]))',
+      );
+      expect(src).toContain('<\\/script(?=[>\\s/])[^>]*>');
+      expect(src).toContain('<(script|style|title|textarea)(?=[>\\s/])');
+      expect(src).toContain('<\\/\\4(?=[>\\s/])[^>]*>');
+      extractedJsSources.push(src);
+    }
+    expect(new Set(extractedJsSources).size).toBe(1);
+
+    const pyRegexMatch = ingestionCookbook.match(/r"""([\s\S]+?)"""/);
+    expect(pyRegexMatch).not.toBeNull();
+    const pyRegexSource = pyRegexMatch![1]!;
+    expect(pyRegexSource).toContain('<!---?>|<!--[\\s\\S]*?--!?>');
+    expect(pyRegexSource).toContain('(?:[^>"\']|"[^"]*"|\'[^\']*\')*');
+    expect(pyRegexSource).toContain(
+      '(?<=[\\s/"\'])id\\s*=\\s*(?:"naizodb"|\'naizodb\'|naizodb(?=[>\\s/]))',
+    );
+    expect(pyRegexSource).toContain('</\\4(?=[>\\s/])[^>]*>');
+    expect(ingestionCookbook).not.toContain('Always pass a replacement function');
+
+    const adversarialHtml = [
+      '<!-->',
+      '<!--->',
+      '<!---->',
+      '<!-- <script id="naizodb">{"fields":{"comment1":1}}</script> -->',
+      '<!-- <script id="naizodb">{"fields":{"bangComment":1}}</script> --!>',
+      '<!doctype html><html><head>',
+      '<title data-gt="a > b"><!-- <script id="naizodb">{"fields":{"inTitle":1}}</script></title >',
+      '<title-bar data-unclosed="1">Custom element with hyphenated prefix',
+      '<style data-media="(width > 600px)">/* <script id="naizodb">{"fields":{"inStyle":1}}</script> */</style/>',
+      '<script data-id="naizodb" type="application/json">{"fields":{"dataId":1}}</script>',
+      '<script data-doc=\'id="naizodb"\' type="application/json">{"fields":{"quotedAttr1":1}}</script>',
+      '<script data-doc="id=\'naizodb\'" type="application/json">{"fields":{"quotedAttr2":1}}</script>',
+      '<script data-cmp="x > y">const s = \'<script id="naizodb">{"fields":{"inScript":1}}<\' + \'/script>\';</script >',
+      '<textarea data-hint="use > here"><script id="naizodb">{"fields":{"inTextarea":1}}</script></textarea>',
+      '<script data-before="1 > 0" id="naizodb" type="application/json" data-after=\'2 > 1\'>',
+      '{"_meta":{},"fields":{"target":"real"},"lists":{},"custom":{}}',
+      '</script/>',
+      '</head><body></body></html>',
+    ].join('\n');
+
+    const openVariants = [
+      '<script id=naizodb>',
+      "<script id='naizodb'>",
+      '<script/id="naizodb">',
+      '<script type="application/json"id="naizodb">',
+    ];
+    const nonMatchingSnippets = [
+      '<script-custom id="naizodb">{"fields":{"bad":1}}</script-custom>',
+      '<script data-id="naizodb">{"fields":{"bad":1}}</script>',
+      '<script id="naizodb-2">{"fields":{"bad":1}}</script>',
+      '<script id=naizodb2>{"fields":{"bad":1}}</script>',
+      '<script data-doc=\'id="naizodb"\'>{"fields":{"bad":1}}</script>',
+    ];
+
+    // Execute Node.js CLI regex against adversarial cases, $1/$&/$$ & </script> round-trip, open variants, and non-matches
+    const jsCliRe = new RegExp(extractedJsSources[0]!, 'gi');
+    let jsMatch: RegExpExecArray | null = null;
+    while ((jsMatch = jsCliRe.exec(adversarialHtml)) && !jsMatch[1]) {
+      // Skip comments and preceding raw-text / RCDATA blocks
+    }
+    expect(jsMatch).not.toBeNull();
+    const parsedJsDb = JSON.parse(jsMatch![2]!) as NaizoDatabase;
+    expect(parsedJsDb.fields).toEqual({ target: 'real' });
+    parsedJsDb.fields.note = 'Cost $100 ($1 / $& / $$ / $4) and </script> <!-- --!>';
+    const jsSerialized = JSON.stringify(parsedJsDb, null, 2).replace(/</g, '\\u003c');
+    const jsUpdatedHtml = `${adversarialHtml.slice(0, jsMatch!.index)}${jsMatch![1]}\n${jsSerialized}\n${jsMatch![3]}${adversarialHtml.slice(jsMatch!.index + jsMatch![0].length)}`;
+    expect(jsUpdatedHtml).toContain(
+      '<!-- <script id="naizodb">{"fields":{"bangComment":1}}</script> --!>',
+    );
+    expect(jsUpdatedHtml).toContain('<title-bar data-unclosed="1">');
+    expect(jsUpdatedHtml).toContain(
+      '<script data-id="naizodb" type="application/json">{"fields":{"dataId":1}}</script>',
+    );
+    expect(jsUpdatedHtml).toContain(
+      '<script data-doc=\'id="naizodb"\' type="application/json">{"fields":{"quotedAttr1":1}}</script>',
+    );
+
+    jsCliRe.lastIndex = 0;
+    let jsRoundtrip: RegExpExecArray | null = null;
+    while ((jsRoundtrip = jsCliRe.exec(jsUpdatedHtml)) && !jsRoundtrip[1]) {
+      // Skip comments and preceding raw-text / RCDATA blocks
+    }
+    expect(jsRoundtrip).not.toBeNull();
+    expect((JSON.parse(jsRoundtrip![2]!) as NaizoDatabase).fields.note).toBe(
+      'Cost $100 ($1 / $& / $$ / $4) and </script> <!-- --!>',
+    );
+
+    for (const variant of openVariants) {
+      jsCliRe.lastIndex = 0;
+      const html = `<html><head>${variant}{"fields":{"ok":1}}</script ></head></html>`;
+      let mv: RegExpExecArray | null = null;
+      while ((mv = jsCliRe.exec(html)) && !mv[1]) {
+        // Advance
+      }
+      expect(mv, `Node CLI regex should match ${variant}`).not.toBeNull();
+      expect((JSON.parse(mv![2]!) as NaizoDatabase).fields.ok).toBe(1);
+    }
+    for (const bad of nonMatchingSnippets) {
+      jsCliRe.lastIndex = 0;
+      const html = `<html><head>${bad}</head></html>`;
+      let mn: RegExpExecArray | null = null;
+      while ((mn = jsCliRe.exec(html)) && !mn[1]) {
+        // Advance
+      }
+      expect(mn, `Node CLI regex must ignore ${bad}`).toBeNull();
+    }
+
+    // Execute real python3 subprocess using the exact Python regex extracted from data-ingestion-export-and-testing.md
+    const pyScript = [
+      'import json, re, sys',
+      'payload_in = json.loads(sys.stdin.read())',
+      'db_re = re.compile(payload_in["pattern"], re.IGNORECASE)',
+      'html = payload_in["html"]',
+      'm = next((m for m in db_re.finditer(html) if m.group(1)), None)',
+      'assert m is not None, "Python failed to match #naizodb"',
+      'db = json.loads(m.group(2))',
+      'assert db["fields"] == {"target": "real"}, f"Wrong Python match: {db}"',
+      'db["fields"]["note"] = payload_in["note"]',
+      'ser = json.dumps(db, indent=2, ensure_ascii=False).replace("<", "\\\\u003c")',
+      'updated = f"{html[:m.start()]}{m.group(1)}\\n{ser}\\n{m.group(3)}{html[m.end():]}"',
+      'm2 = next((m for m in db_re.finditer(updated) if m.group(1)), None)',
+      'assert m2 is not None and json.loads(m2.group(2))["fields"]["note"] == payload_in["note"]',
+      'for v in payload_in["variants"]:',
+      '    hv = f"<html><head>{v}{{\\"fields\\":{{\\"ok\\":1}}}}</script ></head></html>"',
+      '    mv = next((m for m in db_re.finditer(hv) if m.group(1)), None)',
+      '    assert mv is not None and json.loads(mv.group(2))["fields"]["ok"] == 1, v',
+      'for bad in payload_in["nonMatches"]:',
+      '    hb = f"<html><head>{bad}</head></html>"',
+      '    mn = next((m for m in db_re.finditer(hb) if m.group(1)), None)',
+      '    assert mn is None, bad',
+      'print("PY_CLI_OK")',
+    ].join('\n');
+    const pyOut = execFileSync('python3', ['-c', pyScript], {
+      input: JSON.stringify({
+        pattern: pyRegexSource,
+        html: adversarialHtml,
+        note: 'Cost $100 ($1 / $& / $$ / $4) and </script> <!-- --!>',
+        variants: openVariants,
+        nonMatches: nonMatchingSnippets,
+      }),
+      encoding: 'utf8',
+    }).trim();
+    expect(pyOut).toBe('PY_CLI_OK');
+
+    // 3. Three-tier documentation & publishing sync assertions (USAGE.md, README.md, PUBLISHING.md, SKILL.md, llms*.txt)
+    expect(usageMd).toContain('liveDiskInvalidJson');
+    expect(usageMd).toContain('isInvalidDbState()');
+    expect(usageMd).toContain('fromIndex, toIndex');
+    expect(usageMd).toContain('✓ Downloaded HTML Snapshot');
+    for (const fnName of [
+      'applyFilter',
+      'syncTabs',
+      'syncKeyResultSlots',
+      'paintAllocationTracks',
+      'syncCardDecorations',
+      'syncSquadOptions',
+    ]) {
+      expect(usageMd).toContain(`window.addEventListener('naizo:hydrate', ${fnName});`);
+    }
+    expect(skillMd).toContain('fromIndex?, toIndex?');
+    expect(llmsFullTxt).toContain('fromIndex?, toIndex?');
+    expect(llmsTxt).toContain('fromIndex?, toIndex?');
+    expect(readmeMd).toContain('<html lang="en" naizo-id="launch-plan">');
+    expect(readmeMd).toContain('<template naizo-template>');
+    expect(publishingMd).toContain('/references/cookbook/*.md');
   });
 });
 
