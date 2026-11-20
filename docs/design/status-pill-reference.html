@@ -18,6 +18,7 @@
     />
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #faf8f5;
         --surface: #f3efe8;
         --card: #ffffff;
@@ -54,6 +55,7 @@
       }
 
       [data-theme='dark'] {
+        color-scheme: dark;
         --bg: #141311;
         --surface: #1d1b18;
         --card: #181614;
@@ -84,6 +86,20 @@
         --drop-active-bg: rgba(255, 255, 255, 0.16);
         --drop-active-border: rgba(255, 255, 255, 0.52);
         --drop-active-shadow: 0 0 16px rgba(255, 255, 255, 0.1);
+      }
+
+      [data-theme='light'] {
+        color-scheme: light;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
       }
 
       * {
@@ -268,21 +284,21 @@
           box-shadow 0.14s ease;
         z-index: 5;
       }
-      .pill-drop-zone.corner-br {
-        bottom: 14px;
-        right: 14px;
+      .pill-drop-zone[data-corner='bottom-right'] {
+        bottom: 16px;
+        right: 16px;
       }
-      .pill-drop-zone.corner-bl {
-        bottom: 14px;
-        left: 14px;
+      .pill-drop-zone[data-corner='bottom-left'] {
+        bottom: 16px;
+        left: 16px;
       }
-      .pill-drop-zone.corner-tr {
-        top: 14px;
-        right: 14px;
+      .pill-drop-zone[data-corner='top-right'] {
+        top: 16px;
+        right: 16px;
       }
-      .pill-drop-zone.corner-tl {
-        top: 14px;
-        left: 14px;
+      .pill-drop-zone[data-corner='top-left'] {
+        top: 16px;
+        left: 16px;
       }
       .stage.dragging .pill-drop-zone,
       .stage.preview-zones .pill-drop-zone {
@@ -300,11 +316,12 @@
       .pill-anchor {
         position: absolute;
         z-index: 20;
+        pointer-events: none;
         display: flex;
         flex-direction: column;
         align-items: flex-end;
-        gap: 7px;
-        transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+        gap: 8px;
+        transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
       }
       .pill-anchor.is-dragging {
         transition: none;
@@ -313,30 +330,32 @@
       .pill-anchor.is-dragging .pill-tooltip {
         opacity: 0 !important;
       }
-      .pill-anchor.corner-br {
-        bottom: 14px;
-        right: 14px;
+      .pill-anchor[data-corner='bottom-right'] {
+        bottom: 16px;
+        right: 16px;
         align-items: flex-end;
       }
-      .pill-anchor.corner-bl {
-        bottom: 14px;
-        left: 14px;
+      .pill-anchor[data-corner='bottom-left'] {
+        bottom: 16px;
+        left: 16px;
         align-items: flex-start;
       }
-      .pill-anchor.corner-tr {
-        top: 14px;
-        right: 14px;
+      .pill-anchor[data-corner='top-right'] {
+        top: 16px;
+        right: 16px;
         align-items: flex-end;
         flex-direction: column-reverse;
       }
-      .pill-anchor.corner-tl {
-        top: 14px;
-        left: 14px;
+      .pill-anchor[data-corner='top-left'] {
+        top: 16px;
+        left: 16px;
         align-items: flex-start;
         flex-direction: column-reverse;
       }
 
       .pill {
+        pointer-events: auto;
+        touch-action: none;
         display: inline-flex;
         align-items: center;
         gap: 5px;
@@ -409,17 +428,12 @@
         display: block;
         flex-shrink: 0;
       }
-      .naizo-logo-svg .ring {
-        transform-origin: 50px 50px;
-      }
-      .naizo-logo-svg .c-top {
-        transform-origin: 50px 37px;
-      }
-      .naizo-logo-svg .c-bl {
-        transform-origin: 37px 63px;
-      }
+      .naizo-logo-svg .ring,
+      .naizo-logo-svg .c-top,
+      .naizo-logo-svg .c-bl,
       .naizo-logo-svg .c-br {
-        transform-origin: 63px 63px;
+        transform-box: fill-box;
+        transform-origin: center;
       }
 
       /* 1. Boot-Up Animation (1x on initNaizo mount, ~1.25s) */
@@ -907,7 +921,8 @@
         display: block;
         flex-shrink: 0;
         overflow: visible;
-        transform-origin: 12px 12px;
+        transform-box: fill-box;
+        transform-origin: center;
       }
       .net-globe-svg .globe-lit {
         opacity: 0;
@@ -952,6 +967,9 @@
 
       /* Unified Frosted-Glass Hover Tooltip */
       .pill-tooltip {
+        position: absolute;
+        bottom: calc(100% + 7px);
+        right: 0;
         padding: 4px 10px;
         border-radius: 999px;
         background: var(--pill-bg);
@@ -974,7 +992,17 @@
         align-items: center;
         gap: 6px;
       }
-      .pill-tooltip.visible {
+      .pill-anchor[data-corner$='-left'] .pill-tooltip {
+        right: auto;
+        left: 0;
+      }
+      .pill-anchor[data-corner^='top-'] .pill-tooltip {
+        bottom: auto;
+        top: calc(100% + 7px);
+        transform: translateY(-4px) scale(0.97);
+      }
+      .pill-tooltip.visible,
+      .pill-anchor[data-corner^='top-'] .pill-tooltip.visible {
         opacity: 1;
         transform: translateY(0) scale(1);
       }
@@ -990,9 +1018,11 @@
 
       /* #reset-confirm Frosted Popover */
       .confirm-pop {
+        pointer-events: auto;
         display: none;
         align-items: center;
         gap: 6px;
+        white-space: nowrap;
         padding: 5px 10px;
         border-radius: 999px;
         background: var(--pill-bg);
@@ -1090,17 +1120,12 @@
         overflow: visible;
         display: block;
       }
-      .hero-crest-svg .ring {
-        transform-origin: 50px 50px;
-      }
-      .hero-crest-svg .c-top {
-        transform-origin: 50px 37px;
-      }
-      .hero-crest-svg .c-bl {
-        transform-origin: 37px 63px;
-      }
+      .hero-crest-svg .ring,
+      .hero-crest-svg .c-top,
+      .hero-crest-svg .c-bl,
       .hero-crest-svg .c-br {
-        transform-origin: 63px 63px;
+        transform-box: fill-box;
+        transform-origin: center;
       }
       .hero-crest-link.is-beating .ring {
         animation: naizoRingBreath 1.55s ease-out infinite;
@@ -1161,17 +1186,20 @@
         <button class="chip" data-state="local-cache">
           <span class="dot-swatch" style="background: #f59e0b"></span>3. Local · Unlinked Cache
         </button>
+        <button class="chip" data-state="local-needs-permission">
+          <span class="dot-swatch" style="background: #f59e0b"></span>4. Local · Resume Disk Sync
+        </button>
         <button class="chip" data-state="local-conflict">
-          <span class="dot-swatch" style="background: #f59e0b"></span>4. Local · Conflict Backed Up
+          <span class="dot-swatch" style="background: #f59e0b"></span>5. Local · Conflict Backed Up
         </button>
         <button class="chip" data-state="online-saved">
-          <span class="dot-swatch" style="background: #10b981"></span>5. Online · Saved in Browser
+          <span class="dot-swatch" style="background: #10b981"></span>6. Online · Saved in Browser
         </button>
         <button class="chip" data-state="online-dirty">
-          <span class="dot-swatch" style="background: #10b981"></span>6. Online · Edited (+ Reset)
+          <span class="dot-swatch" style="background: #10b981"></span>7. Online · Edited (+ Reset)
         </button>
         <button class="chip" data-state="error">
-          <span class="dot-swatch" style="background: #ef4444"></span>7. Error · Invalid JSON
+          <span class="dot-swatch" style="background: #ef4444"></span>8. Error · Invalid JSON
         </button>
       </div>
 
@@ -1200,14 +1228,14 @@
         </div>
 
         <!-- 4 Translucent White Corner Drop-Zone Placeholders -->
-        <div class="pill-drop-zone corner-tl" data-corner="corner-tl"></div>
-        <div class="pill-drop-zone corner-tr" data-corner="corner-tr"></div>
-        <div class="pill-drop-zone corner-bl" data-corner="corner-bl"></div>
-        <div class="pill-drop-zone corner-br active-target" data-corner="corner-br"></div>
+        <div class="pill-drop-zone" data-corner="top-left"></div>
+        <div class="pill-drop-zone" data-corner="top-right"></div>
+        <div class="pill-drop-zone" data-corner="bottom-left"></div>
+        <div class="pill-drop-zone active-target" data-corner="bottom-right"></div>
 
-        <div class="pill-anchor corner-br" id="pill-anchor">
+        <div class="pill-anchor" id="pill-anchor" data-corner="bottom-right">
           <div class="confirm-pop" id="reset-confirm" role="group" aria-label="Confirm reset">
-            <span>Reset to initial state?</span>
+            <span>Reset app to initial state?</span>
             <button type="button" class="danger" id="reset-yes">Reset</button>
             <button type="button" id="reset-cancel">Cancel</button>
           </div>
@@ -1268,7 +1296,7 @@
               </svg>
             </button>
 
-            <span class="pill-sep"></span>
+            <span class="pill-sep" id="dot-sep" aria-hidden="true"></span>
 
             <!-- 1. #action (Local: Link Disk / Resume Disk Sync) or 2. #action (Online: Save to PC) -->
             <button
@@ -1795,10 +1823,12 @@ Click #net to clear back to Idle</pre>
             True translucent frosted glass (<code>blur(12px) saturate(180%)</code>) with a
             whisper-ring shadow (<code>border: transparent</code>), 4-corner frosted drop
             placeholders remembered across sessions via <code>naizodb_ui_&lt;suffix&gt;</code> in
-            <code>localStorage</code>, and sweet-spot <code>Saving → Static</code> cycle completion
-            (<code>syncSavingBeat()</code> plays at least 1 full <code>1.55s</code> cycle and
-            finishes the active cycle before stopping, while urgent <code>Conflict</code> /
-            <code>Error</code> states and <code>↺ Restore</code> switch immediately).
+            <code>localStorage</code> (with optional initial corner hint
+            <code>naizo-pill-corner</code> or pill-less opt-out <code>naizo-no-pill</code>), and
+            sweet-spot <code>Saving → Static</code> cycle completion (<code>syncSavingBeat()</code>
+            plays at least 1 full <code>1.55s</code> cycle and finishes the active cycle before
+            stopping, while urgent <code>Conflict</code> / <code>Error</code> states and
+            <code>↺ Restore</code> switch immediately).
           </div>
         </div>
       </div>
@@ -1949,8 +1979,17 @@ Click #net to clear back to Idle</pre>
           status: 'Browser Cache · Click to Link Disk',
           action: { icon: 'link', tip: 'Link Disk', sr: 'Link Disk', kbd: '⌘S' },
           restore: null,
-          reset: false,
+          reset: true,
           unlink: false,
+          confirm: false,
+        },
+        'local-needs-permission': {
+          dotClass: 'needs-permission',
+          status: 'Resume Disk Sync',
+          action: { icon: 'link', tip: 'Resume Disk Sync', sr: 'Resume Disk Sync', kbd: '⌘S' },
+          restore: null,
+          reset: false,
+          unlink: true,
           confirm: false,
         },
         'local-conflict': {
@@ -2198,6 +2237,12 @@ Click #net to clear back to Idle</pre>
       let heroCrestTimer = null;
 
       heroCrestEl.addEventListener('mouseenter', () => {
+        if (
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) {
+          return;
+        }
         if (heroCrestTimer) {
           clearTimeout(heroCrestTimer);
           heroCrestTimer = null;
@@ -2227,10 +2272,11 @@ Click #net to clear back to Idle</pre>
       const zones = Array.from(document.querySelectorAll('.pill-drop-zone'));
       const toggleZonesBtn = document.getElementById('toggle-zones-btn');
       const UI_STORAGE_KEY = 'naizodb_ui_status-pill-reference';
+      const VALID_CORNERS = ['bottom-right', 'bottom-left', 'top-right', 'top-left'];
 
-      function saveUiCorner(cornerClass) {
+      function saveUiCorner(corner) {
         try {
-          localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({ corner: cornerClass }));
+          localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({ corner }));
         } catch {
           // Ignore storage errors
         }
@@ -2241,12 +2287,9 @@ Click #net to clear back to Idle</pre>
           const raw = localStorage.getItem(UI_STORAGE_KEY);
           if (!raw) return;
           const parsed = JSON.parse(raw);
-          if (
-            parsed &&
-            ['corner-br', 'corner-bl', 'corner-tr', 'corner-tl'].includes(parsed.corner)
-          ) {
+          if (parsed && VALID_CORNERS.includes(parsed.corner)) {
             highlightCorner(parsed.corner);
-            anchor.className = 'pill-anchor ' + parsed.corner;
+            anchor.dataset.corner = parsed.corner;
           }
         } catch {
           // Ignore invalid JSON
@@ -2276,16 +2319,16 @@ Click #net to clear back to Idle</pre>
         const isBottom = clientY - rect.top >= rect.height / 2;
         return isBottom
           ? isRight
-            ? 'corner-br'
-            : 'corner-bl'
+            ? 'bottom-right'
+            : 'bottom-left'
           : isRight
-            ? 'corner-tr'
-            : 'corner-tl';
+            ? 'top-right'
+            : 'top-left';
       }
 
-      function highlightCorner(cornerClass) {
+      function highlightCorner(corner) {
         zones.forEach((z) => {
-          z.classList.toggle('active-target', z.dataset.corner === cornerClass);
+          z.classList.toggle('active-target', z.dataset.corner === corner);
         });
       }
 
@@ -2314,14 +2357,23 @@ Click #net to clear back to Idle</pre>
         const wasMoved = dragState.moved;
         dragState = null;
         stage.classList.remove('dragging');
+        if (wasMoved) {
+          const fromRect = anchor.getBoundingClientRect();
+          const targetCorner = getNearestCorner(e.clientX, e.clientY);
+          anchor.style.transform = '';
+          highlightCorner(targetCorner);
+          anchor.dataset.corner = targetCorner;
+          saveUiCorner(targetCorner);
+          const toRect = anchor.getBoundingClientRect();
+          const flipDx = fromRect.left - toRect.left;
+          const flipDy = fromRect.top - toRect.top;
+          if (Math.abs(flipDx) > 0.5 || Math.abs(flipDy) > 0.5) {
+            anchor.style.transform = `translate3d(${flipDx}px, ${flipDy}px, 0)`;
+            void anchor.offsetWidth;
+          }
+        }
         anchor.classList.remove('is-dragging');
         anchor.style.transform = '';
-        if (wasMoved) {
-          const targetCorner = getNearestCorner(e.clientX, e.clientY);
-          highlightCorner(targetCorner);
-          anchor.className = 'pill-anchor ' + targetCorner;
-          saveUiCorner(targetCorner);
-        }
       }
       dotEl.addEventListener('pointerup', finishDrag);
       dotEl.addEventListener('pointercancel', finishDrag);

@@ -78,17 +78,17 @@
       }
     </script>
 
-    <!-- 2. OpenLayers Interactive Map (OSGeo BSD-2-Clause CDN, zero API key; app remains usable offline) -->
+    <!-- 2. Load naizo.js locally or via CDN (before OpenLayers so Naizo is ready if ol.js resolves early, EC57):
+         <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script> -->
+    <script src="../dist/naizo.js" defer></script>
+
+    <!-- 3. OpenLayers Interactive Map (OSGeo BSD-2-Clause CDN, zero API key; app remains usable offline) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css" />
     <script
       id="openlayers-cdn-script"
       src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js"
       defer
     ></script>
-
-    <!-- 3. Load naizo.js locally or via CDN:
-         <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script> -->
-    <script src="../dist/naizo.js" defer></script>
 
     <style>
       :root {
@@ -135,6 +135,7 @@
       }
 
       html[data-theme='dark'] {
+        color-scheme: dark;
         --bg: #141311;
         --surface: #1c1b18;
         --surface-subtle: #24221e;
@@ -150,6 +151,10 @@
         --ok-soft: rgba(52, 211, 153, 0.14);
         --rain: #60a5fa;
         --rain-soft: rgba(96, 165, 250, 0.15);
+      }
+
+      html[data-theme='light'] {
+        color-scheme: light;
       }
 
       * {
@@ -496,6 +501,10 @@
       .search-clear-btn:hover {
         color: var(--ink);
         background: var(--surface-subtle);
+      }
+
+      .search-field-box input:placeholder-shown + .search-clear-btn {
+        display: none;
       }
 
       .search-dropdown {
@@ -945,7 +954,9 @@
         color: #ffffff;
       }
 
-      .wx-card-add-btn.is-just-added {
+      .wx-card-add-btn.is-just-added,
+      .sky-add-hero-btn.is-just-added,
+      .ts-quick-add.is-just-added {
         background: var(--ok);
         border-color: var(--ok);
         color: #ffffff;
@@ -2108,6 +2119,23 @@
         let syncingUi = false;
         let pendingSyncUi = false;
         let initialForecastBooted = false;
+        let flashedSlotKey = '';
+        let flashedSlotLabel = '';
+        let flashedSlotTimer = null;
+
+        function hasStopCoords(stop) {
+          return (
+            Boolean(stop) &&
+            stop.lat !== null &&
+            stop.lat !== undefined &&
+            stop.lat !== '' &&
+            stop.lon !== null &&
+            stop.lon !== undefined &&
+            stop.lon !== '' &&
+            Number.isFinite(Number(stop.lat)) &&
+            Number.isFinite(Number(stop.lon))
+          );
+        }
 
         function wxMeta(code, isNight) {
           const n = Number(code ?? 0);
@@ -2297,6 +2325,7 @@
         }
 
         function ensureMapMounted() {
+          if (typeof window.Naizo === 'undefined') return;
           const ol = window.ol;
           if (typeof ol === 'undefined') return;
           const stage = document.getElementById('map-stage');
@@ -2492,6 +2521,7 @@
         }
 
         function renderRouteOnMap() {
+          if (typeof window.Naizo === 'undefined') return;
           const stops = Naizo.getList('route');
           const legendEl = document.getElementById('map-route-legend');
           if (legendEl) {
@@ -2511,9 +2541,9 @@
           const unit = getUnit();
 
           stops.forEach(function (stop, idx) {
+            if (!hasStopCoords(stop)) return;
             const sLat = Number(stop.lat);
             const sLon = Number(stop.lon);
-            if (!Number.isFinite(sLat) || !Number.isFinite(sLon)) return;
             const merc = ol.proj.fromLonLat([sLon, sLat]);
             mercCoords.push(merc);
 
@@ -2567,15 +2597,14 @@
         }
 
         function fitSavedRouteOnMap() {
+          if (typeof window.Naizo === 'undefined') return;
           const ol = window.ol;
           if (!olMap || typeof ol === 'undefined') return;
           const view = olMap.getView();
           const mercCoords = [];
           Naizo.getList('route').forEach(function (s) {
-            const lat = Number(s.lat);
-            const lon = Number(s.lon);
-            if (Number.isFinite(lat) && Number.isFinite(lon)) {
-              mercCoords.push(ol.proj.fromLonLat([lon, lat]));
+            if (hasStopCoords(s)) {
+              mercCoords.push(ol.proj.fromLonLat([Number(s.lon), Number(s.lat)]));
             }
           });
           if (mercCoords.length === 0) {
@@ -2775,14 +2804,16 @@
               stats.appendChild(hlSpan);
               stats.appendChild(rainSpan);
 
+              const daySlotKey = 'day:' + dayObj.date;
+              const isDayFlashed = flashedSlotKey === daySlotKey && Boolean(flashedSlotLabel);
               const addBtn = document.createElement('button');
               addBtn.type = 'button';
-              addBtn.className = 'wx-card-add-btn';
-              addBtn.textContent = '+ Add ' + sky.time;
+              addBtn.className = 'wx-card-add-btn' + (isDayFlashed ? ' is-just-added' : '');
+              addBtn.textContent = isDayFlashed ? flashedSlotLabel : '+ Add ' + sky.time;
               addBtn.addEventListener('click', function (ev) {
                 ev.stopPropagation();
                 selectedDateIso = dayObj.date;
-                addWeatherSlotToRoute(dayObj.date, hour, addBtn);
+                addWeatherSlotToRoute(dayObj.date, hour, daySlotKey);
               });
 
               card.addEventListener('click', function () {
@@ -2862,10 +2893,16 @@
           }
 
           const heroAddBtn = document.getElementById('add-hero-slot-btn');
-          if (heroAddBtn && !heroAddBtn.hasAttribute('data-flash')) {
-            const dShort = activeDay ? formatDayShort(activeDay.date) : { dow: 'Slot', md: '' };
-            heroAddBtn.textContent =
-              '+ Add ' + [dShort.dow, dShort.md].filter(Boolean).join(' ') + ' · ' + sky.time;
+          if (heroAddBtn) {
+            const isHeroFlashed = flashedSlotKey === 'hero' && Boolean(flashedSlotLabel);
+            heroAddBtn.classList.toggle('is-just-added', isHeroFlashed);
+            if (isHeroFlashed) {
+              heroAddBtn.textContent = flashedSlotLabel;
+            } else {
+              const dShort = activeDay ? formatDayShort(activeDay.date) : { dow: 'Slot', md: '' };
+              heroAddBtn.textContent =
+                '+ Add ' + [dShort.dow, dShort.md].filter(Boolean).join(' ') + ' · ' + sky.time;
+            }
           }
 
           // 6 Clickable Time-of-Day Cards (or 6 Shimmer Skeletons while loading)
@@ -2916,16 +2953,18 @@
             mid.appendChild(tempSpan);
             mid.appendChild(rainSpan);
 
+            const timeSlotKey = 'slot:' + slot.hour;
+            const isSlotFlashed = flashedSlotKey === timeSlotKey && Boolean(flashedSlotLabel);
             const qAdd = document.createElement('button');
             qAdd.type = 'button';
-            qAdd.className = 'ts-quick-add';
-            qAdd.textContent = '+ Route';
+            qAdd.className = 'ts-quick-add' + (isSlotFlashed ? ' is-just-added' : '');
+            qAdd.textContent = isSlotFlashed ? flashedSlotLabel : '+ Route';
             qAdd.addEventListener('click', function (ev) {
               ev.stopPropagation();
               const dateToUse = activeDay ? activeDay.date : 'Custom';
               Naizo.batch(function () {
                 Naizo.setField('target_hour', slot.hour);
-                addWeatherSlotToRoute(dateToUse, slot.hour, qAdd);
+                addWeatherSlotToRoute(dateToUse, slot.hour, timeSlotKey);
               });
             });
 
@@ -2943,7 +2982,7 @@
         // ======================================================================
         // ADD WEATHER-DATE-TIME SLOT TO PERSISTED ROUTE (#naizodb lists.route)
         // ======================================================================
-        function addWeatherSlotToRoute(dateIso, hour, triggerBtn) {
+        function addWeatherSlotToRoute(dateIso, hour, slotKey) {
           const h = Math.max(0, Math.min(23, Math.round(Number(hour) || 0)));
           const sky = getSkyPhase(h);
           const dayObj =
@@ -2981,22 +3020,22 @@
             condition: snap.condition || '',
           };
 
+          const nextStopNum = Naizo.getList('route').length + 1;
+          if (slotKey) {
+            flashedSlotKey = String(slotKey);
+            flashedSlotLabel = '✓ Added #' + nextStopNum;
+            if (flashedSlotTimer) clearTimeout(flashedSlotTimer);
+            flashedSlotTimer = setTimeout(function () {
+              flashedSlotKey = '';
+              flashedSlotLabel = '';
+              flashedSlotTimer = null;
+              renderForecastStudio();
+            }, 900);
+          }
+
           Naizo.addItem('route', newStop);
           const newIndex = Naizo.getList('route').length - 1;
           highlightRouteCard(newIndex);
-
-          if (triggerBtn) {
-            const origText = triggerBtn.textContent;
-            triggerBtn.setAttribute('data-flash', '1');
-            triggerBtn.classList.add('is-just-added');
-            triggerBtn.textContent = '✓ Added #' + (newIndex + 1);
-            setTimeout(function () {
-              triggerBtn.removeAttribute('data-flash');
-              triggerBtn.classList.remove('is-just-added');
-              triggerBtn.textContent = origText;
-              renderForecastStudio();
-            }, 1100);
-          }
         }
 
         function syncUndoClearButtons() {
@@ -3070,6 +3109,12 @@
               const theme = String(Naizo.getField('theme') || 'system');
               document.documentElement.setAttribute('data-theme', theme);
 
+              const queryInput = document.getElementById('place-query');
+              const clearQueryBtn = document.getElementById('clear-query-btn');
+              if (clearQueryBtn) {
+                clearQueryBtn.hidden = !queryInput || queryInput.value.trim().length === 0;
+              }
+
               const lat = Number(Naizo.getField('latitude') ?? 36.2478);
               const lon = Number(Naizo.getField('longitude') ?? 137.6356);
               const elev = Naizo.getField('elevation_m');
@@ -3130,6 +3175,13 @@
                 const stop = stops[idx] || {};
                 const numEl = cardEl.querySelector('[data-stop-num]');
                 if (numEl) numEl.textContent = String(idx + 1);
+
+                const focusBtn = cardEl.querySelector('[data-focus-stop]');
+                if (focusBtn) {
+                  const hasCoords = hasStopCoords(stop);
+                  focusBtn.hidden = !hasCoords;
+                  focusBtn.disabled = !hasCoords;
+                }
 
                 const wxChip = cardEl.querySelector('[data-stop-wx]');
                 if (wxChip) {
@@ -4025,6 +4077,10 @@
           const clearBtn = document.getElementById('clear-query-btn');
           const resultsEl = document.getElementById('search-results');
 
+          if (clearBtn) {
+            clearBtn.hidden = !queryInput || queryInput.value.trim().length === 0;
+          }
+
           if (queryInput) {
             queryInput.addEventListener('input', function () {
               const val = queryInput.value.trim();
@@ -4147,14 +4203,6 @@
             clearRouteBtn.addEventListener('click', clearAllSavedPins);
           }
 
-          // Live slider feedback on every drag pixel (input event)
-          const hourSlider = document.getElementById('hour-slider');
-          if (hourSlider) {
-            hourSlider.addEventListener('input', function () {
-              renderForecastStudio();
-            });
-          }
-
           const prevBtn = document.getElementById('wx-prev-btn');
           if (prevBtn) {
             prevBtn.addEventListener('click', function () {
@@ -4187,7 +4235,7 @@
             heroAddBtn.addEventListener('click', function () {
               const dateToUse =
                 selectedDateIso || (liveForecast.days[0] ? liveForecast.days[0].date : 'Planned');
-              addWeatherSlotToRoute(dateToUse, getActiveHour(), heroAddBtn);
+              addWeatherSlotToRoute(dateToUse, getActiveHour(), 'hero');
             });
           }
 
@@ -4204,15 +4252,13 @@
               const allItems = Array.from(routeListEl.querySelectorAll(':scope > [naizo-item]'));
               const idx = allItems.indexOf(itemEl);
               const stop = Naizo.getList('route')[idx];
-              if (!stop) return;
+              if (!hasStopCoords(stop)) return;
               const sLat = Number(stop.lat);
               const sLon = Number(stop.lon);
-              if (Number.isFinite(sLat) && Number.isFinite(sLon)) {
-                void selectSpotAndFetch(sLat, sLon, String(stop.place || ''));
-                const mapBlock = document.getElementById('block-map');
-                if (mapBlock && typeof mapBlock.scrollIntoView === 'function') {
-                  mapBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
+              void selectSpotAndFetch(sLat, sLon, String(stop.place || ''));
+              const mapBlock = document.getElementById('block-map');
+              if (mapBlock && typeof mapBlock.scrollIntoView === 'function') {
+                mapBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }
             });
           }

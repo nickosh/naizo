@@ -37,7 +37,7 @@
               "category": "Architecture",
               "pinned": true,
               "updatedAt": "2026-10-22T09:30:00.000Z",
-              "body": "Keep <body> as the declarative template and <script id=\"naizodb\"> as the canonical JSON database.\n\nAction items:\n- [x] Escape < as \\u003c when serializing JSON\n- [x] Preserve leading UTF-8 BOM on disk writes\n- [ ] Benchmark 2s lastModified watcher on large specs"
+              "body": "Keep \u003cbody> as the declarative template and \u003cscript id=\"naizodb\"> as the canonical JSON database.\n\nAction items:\n- [x] Escape \u003c as \\u003c when serializing JSON\n- [x] Preserve leading UTF-8 BOM on disk writes\n- [ ] Benchmark 2s lastModified watcher on large specs"
             },
             {
               "id": "note-102",
@@ -61,7 +61,7 @@
               "category": "Meeting",
               "pinned": false,
               "updatedAt": "2026-10-22T16:05:00.000Z",
-              "body": "Observed behavior when a CLI agent edits #naizodb while a human is typing in a bound input:\n- Unrelated top-level keys merge cleanly.\n- Same-key collisions let disk win and save pre-merge browser state to naizodb_backup_<key>.\n- Focused document.activeElement is never clobbered mid-keystroke."
+              "body": "Observed behavior when a CLI agent edits #naizodb while a human is typing in a bound input:\n- Unrelated top-level keys merge cleanly.\n- Same-key collisions let disk win and save pre-merge browser state to naizodb_backup_\u003ckey>.\n- Focused document.activeElement is never clobbered mid-keystroke."
             }
           ]
         },
@@ -525,6 +525,7 @@
                 <option value="Research">Research</option>
                 <option value="Meeting">Meeting</option>
                 <option value="Scratchpad">Scratchpad</option>
+                <option value="Uncategorized">Uncategorized</option>
               </select>
             </label>
           </div>
@@ -666,6 +667,67 @@
           return trimmed.split(/\s+/).length;
         }
 
+        const BASE_CATEGORIES = ['Architecture', 'Runbook', 'Research', 'Meeting', 'Scratchpad'];
+
+        function getNoteCategoryLabel(note) {
+          const raw = note && typeof note.category === 'string' ? note.category.trim() : '';
+          return raw || 'Uncategorized';
+        }
+
+        function syncCategoryFilterOptions(notes) {
+          if (!categoryFilter) return;
+          const counts = new Map();
+          for (let i = 0; i < notes.length; i += 1) {
+            const label = getNoteCategoryLabel(notes[i]);
+            counts.set(label, (counts.get(label) || 0) + 1);
+          }
+
+          const storedFilter =
+            window.Naizo && typeof window.Naizo.getField === 'function'
+              ? String(window.Naizo.getField('category_filter') || 'all').trim() || 'all'
+              : String(categoryFilter.value || 'all').trim() || 'all';
+
+          const namedCategories = BASE_CATEGORIES.slice();
+          counts.forEach(function (_, key) {
+            if (key !== 'Uncategorized' && !namedCategories.includes(key)) {
+              namedCategories.push(key);
+            }
+          });
+          if (
+            storedFilter !== 'all' &&
+            storedFilter !== 'Uncategorized' &&
+            !namedCategories.includes(storedFilter)
+          ) {
+            namedCategories.push(storedFilter);
+          }
+
+          const desiredValues = ['all'].concat(namedCategories, ['Uncategorized']);
+          const existingValues = Array.from(categoryFilter.options).map(function (o) {
+            return o.value;
+          });
+          if (existingValues.join('\n') !== desiredValues.join('\n')) {
+            categoryFilter.innerHTML = '';
+            for (let i = 0; i < desiredValues.length; i += 1) {
+              const opt = document.createElement('option');
+              opt.value = desiredValues[i];
+              categoryFilter.appendChild(opt);
+            }
+          }
+
+          for (let i = 0; i < categoryFilter.options.length; i += 1) {
+            const opt = categoryFilter.options[i];
+            if (opt.value === 'all') {
+              opt.textContent = 'All Categories (' + notes.length + ')';
+            } else {
+              opt.textContent = opt.value + ' (' + (counts.get(opt.value) || 0) + ')';
+            }
+          }
+
+          if (categoryFilter.value !== storedFilter) {
+            categoryFilter.value = storedFilter;
+          }
+        }
+
         function getFilteredNoteEntries(notes) {
           const query = String((searchInput && searchInput.value) || '')
             .trim()
@@ -678,7 +740,7 @@
             if (!note) continue;
             const title = String(note.title || '');
             const body = String(note.body || '');
-            const category = String(note.category || 'Scratchpad');
+            const category = getNoteCategoryLabel(note);
             if (cat !== 'all' && category !== cat) continue;
             if (
               query &&
@@ -746,6 +808,7 @@
               applyTheme();
 
               const notes = ensureNoteIds();
+              syncCategoryFilterOptions(notes);
               const filtered = getFilteredNoteEntries(notes);
               let activeId = window.Naizo.get('activeNoteId');
 
@@ -830,7 +893,7 @@
 
                   const catSpan = document.createElement('span');
                   catSpan.className = 'category-pill';
-                  catSpan.textContent = String(note.category || 'Scratchpad');
+                  catSpan.textContent = getNoteCategoryLabel(note);
 
                   const tasks = countMarkdownTasks(note.body);
                   const taskSpan = document.createElement('span');
@@ -864,10 +927,13 @@
         function createNewNote() {
           if (!window.Naizo) return;
           if (searchInput && searchInput.value) searchInput.value = '';
+          const filterVal = categoryFilter ? categoryFilter.value : 'all';
           const defaultCategory =
-            categoryFilter && categoryFilter.value !== 'all'
-              ? categoryFilter.value
-              : 'Architecture';
+            filterVal === 'Uncategorized'
+              ? ''
+              : filterVal && filterVal !== 'all'
+                ? filterVal
+                : 'Architecture';
           const newId = 'note-' + Date.now();
           window.Naizo.batch(function () {
             window.Naizo.addItem('notes', {
@@ -894,9 +960,6 @@
         }
         if (searchInput) {
           searchInput.addEventListener('input', syncNotebookUi);
-        }
-        if (categoryFilter) {
-          categoryFilter.addEventListener('change', syncNotebookUi);
         }
 
         if (notesListEl) {
@@ -954,18 +1017,19 @@
           if (
             detail.scope === 'lists' &&
             detail.list === 'notes' &&
-            detail.key &&
-            detail.key !== 'updatedAt'
+            (detail.key ? detail.key !== 'updatedAt' : detail.action === 'update')
           ) {
             const notes = window.Naizo.getList('notes');
-            const activeId = window.Naizo.get('activeNoteId');
-            const activeIdx = notes.findIndex(function (n) {
-              return n && n.id === activeId;
-            });
-            if (activeIdx !== -1) {
+            const targetIdx =
+              typeof detail.index === 'number' && detail.index >= 0 && detail.index < notes.length
+                ? detail.index
+                : notes.findIndex(function (n) {
+                    return n && n.id === window.Naizo.get('activeNoteId');
+                  });
+            if (targetIdx !== -1) {
               window.Naizo.batch(
                 function () {
-                  window.Naizo.updateItem('notes', activeIdx, {
+                  window.Naizo.updateItem('notes', targetIdx, {
                     updatedAt: new Date().toISOString(),
                   });
                 },

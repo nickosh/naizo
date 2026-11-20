@@ -1743,16 +1743,15 @@
           }
         }
 
-        function syncLocationFilterOptions(items) {
-          const storedLoc = String(Naizo.getField('filter_location') || 'all').trim() || 'all';
+        function ensureLocationOptionsPresent(extraLocations) {
+          if (!filterLocationSelect) return;
           const locations = new Set(BASE_LOCATIONS);
-          items.forEach((item) => {
-            const loc = String(item?.location || '').trim();
-            if (loc) locations.add(loc);
+          extraLocations.forEach((raw) => {
+            const loc = String(raw || '').trim();
+            if (loc && loc !== 'all') {
+              locations.add(loc);
+            }
           });
-          if (storedLoc && storedLoc !== 'all') {
-            locations.add(storedLoc);
-          }
 
           const existingValues = Array.from(filterLocationSelect.options).map((o) => o.value);
           const desiredValues = ['all', ...locations];
@@ -1769,6 +1768,66 @@
               filterLocationSelect.appendChild(opt);
             });
           }
+        }
+
+        function seedInitialLocationOptionsBeforeHydration() {
+          if (!filterLocationSelect) return;
+          const candidates = [];
+          const collectFromDb = (db) => {
+            if (!db || typeof db !== 'object') return;
+            const filterLoc = db.fields && db.fields.filter_location;
+            if (typeof filterLoc === 'string') candidates.push(filterLoc);
+            const inv = db.lists && db.lists.inventory;
+            if (Array.isArray(inv)) {
+              inv.forEach((item) => {
+                if (item && typeof item.location === 'string') {
+                  candidates.push(item.location);
+                }
+              });
+            }
+          };
+
+          const rawDisk = document.getElementById('naizodb')?.textContent || '';
+          if (rawDisk.trim()) {
+            try {
+              collectFromDb(JSON.parse(rawDisk));
+            } catch {
+              // Ignore malformed JSON during pre-hydration option seed
+            }
+          }
+
+          try {
+            const rawPath =
+              typeof window.location !== 'undefined' && window.location.pathname
+                ? window.location.pathname
+                : '/';
+            const normPath = rawPath.replace(/\/index\.html?$/i, '/') || '/';
+            const scopeId = (
+              document.documentElement.getAttribute('naizo-id') ||
+              document.documentElement.getAttribute('data-naizo-id') ||
+              document.body?.getAttribute('naizo-id') ||
+              document.body?.getAttribute('data-naizo-id') ||
+              ''
+            ).trim();
+            const stateKey = 'naizodb_state_' + (scopeId ? `${normPath}::${scopeId}` : normPath);
+            const rawCached = localStorage.getItem(stateKey);
+            if (rawCached) {
+              collectFromDb(JSON.parse(rawCached));
+            }
+          } catch {
+            // Ignore storage access or parse errors
+          }
+
+          ensureLocationOptionsPresent(candidates);
+        }
+
+        function syncLocationFilterOptions(items) {
+          const storedLoc = String(Naizo.getField('filter_location') || 'all').trim() || 'all';
+          const extra = items.map((item) => item?.location);
+          if (storedLoc && storedLoc !== 'all') {
+            extra.push(storedLoc);
+          }
+          ensureLocationOptionsPresent(extra);
           if (filterLocationSelect.value !== storedLoc) {
             filterLocationSelect.value = storedLoc;
           }
@@ -1942,6 +2001,7 @@
           showModalDialog(createDialog);
         }
 
+        seedInitialLocationOptionsBeforeHydration();
         resetCreateForm();
 
         // Event bindings: Theme Toggle
@@ -1965,13 +2025,7 @@
           }
         }
 
-        // Event bindings: Search & Filter controls
-        searchInput.addEventListener('input', refreshInventoryView);
-        filterTypeSelect.addEventListener('change', refreshInventoryView);
-        filterStatusSelect.addEventListener('change', refreshInventoryView);
-        filterLocationSelect.addEventListener('change', refreshInventoryView);
-        sortBySelect.addEventListener('change', refreshInventoryView);
-
+        // Event bindings: Search & Filter controls (naizo="..." controls refresh via naizo:change)
         clearSearchBtn.addEventListener('click', () => {
           Naizo.setField('search_query', '');
           refreshInventoryView();
@@ -2097,11 +2151,29 @@
           activeCardRefForProp = null;
         });
 
+        propKeyInput.addEventListener('input', () => {
+          propKeyInput.setCustomValidity('');
+        });
+        addPropForm.addEventListener('reset', () => {
+          propKeyInput.setCustomValidity('');
+        });
+
         addPropForm.addEventListener('submit', (e) => {
           e.preventDefault();
           const key = propKeyInput.value.trim();
           const rawVal = propValInput.value.trim();
-          if (!key || rawVal === '') return;
+          if (!key || rawVal === '' || STANDARD_CARD_KEYS.has(key)) {
+            if (STANDARD_CARD_KEYS.has(key)) {
+              propKeyInput.setCustomValidity(
+                'Standard card field — edit this field directly on the card.',
+              );
+              if (typeof propKeyInput.reportValidity === 'function') {
+                propKeyInput.reportValidity();
+              }
+            }
+            return;
+          }
+          propKeyInput.setCustomValidity('');
           const items = Naizo.getList('inventory');
           const targetIdx = resolveActiveCardIndex(items);
           activeCardIdForProp = null;
@@ -2123,17 +2195,23 @@
         });
 
         // Event bindings: Inspect #naizodb JSON Modal
+        function dismissInspectModal() {
+          closeModalDialog(inspectDialog);
+          if (jsonPreviewBox) jsonPreviewBox.textContent = '';
+        }
+
         document.getElementById('inspect-json-btn').addEventListener('click', () => {
           syncJsonInspector();
           showModalDialog(inspectDialog);
         });
         document
           .getElementById('close-json-modal-btn')
-          .addEventListener('click', () => closeModalDialog(inspectDialog));
-        document
-          .getElementById('close-json-x-btn')
-          .addEventListener('click', () => closeModalDialog(inspectDialog));
-        bindBackdropDismiss(inspectDialog);
+          .addEventListener('click', dismissInspectModal);
+        document.getElementById('close-json-x-btn').addEventListener('click', dismissInspectModal);
+        bindBackdropDismiss(inspectDialog, dismissInspectModal);
+        inspectDialog.addEventListener('close', () => {
+          if (jsonPreviewBox) jsonPreviewBox.textContent = '';
+        });
         document.getElementById('copy-json-modal-btn').addEventListener('click', (e) => {
           const btn = e.currentTarget;
           void Naizo.copyJSON().then(() => {

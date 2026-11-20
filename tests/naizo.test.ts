@@ -9307,6 +9307,542 @@ describe('naizo.js core runtime', () => {
       vi.useRealTimers();
     }
   });
+
+  it('enforces M19.2 blueprint, playground, and status-pill design-asset invariants across raw-< escaping, weather.html ol.js boot resilience, notes.html Uncategorized filtering, inventory.html custom filter_location boot & STANDARD_CARD_KEYS guard, and site/index.html monotonic task IDs (M19.2, D45, D47, D50, D56, D58, D60, EC08, EC15, EC48, EC52, EC57, EC58, EC62)', async () => {
+    const rawSiteHtml = readFileSync(resolve(process.cwd(), 'site/index.html'), 'utf-8');
+    const rawStarterHtml = readFileSync(resolve(process.cwd(), 'examples/starter.html'), 'utf-8');
+    const rawChecklistHtml = readFileSync(
+      resolve(process.cwd(), 'examples/checklist.html'),
+      'utf-8',
+    );
+    const rawNotesHtml = readFileSync(resolve(process.cwd(), 'examples/notes.html'), 'utf-8');
+    const rawInventoryHtml = readFileSync(
+      resolve(process.cwd(), 'examples/inventory.html'),
+      'utf-8',
+    );
+    const rawWeatherHtml = readFileSync(resolve(process.cwd(), 'examples/weather.html'), 'utf-8');
+    const pillStatesSvg = readFileSync(
+      resolve(process.cwd(), 'docs/design/status-pill-states.svg'),
+      'utf-8',
+    );
+    const pillStatesPng = readFileSync(
+      resolve(process.cwd(), 'docs/design/status-pill-states.png'),
+    );
+    const pillRefHtml = readFileSync(
+      resolve(process.cwd(), 'docs/design/status-pill-reference.html'),
+      'utf-8',
+    );
+
+    // 1. All 6 HTML blueprints keep valid #naizodb JSON with zero raw `<` characters (EC08, EC62)
+    const blueprintSources: Array<[string, string]> = [
+      ['site/index.html', rawSiteHtml],
+      ['examples/starter.html', rawStarterHtml],
+      ['examples/checklist.html', rawChecklistHtml],
+      ['examples/notes.html', rawNotesHtml],
+      ['examples/inventory.html', rawInventoryHtml],
+      ['examples/weather.html', rawWeatherHtml],
+    ];
+    for (const [label, html] of blueprintSources) {
+      const dbMatch = html.match(
+        /<script\s+id="naizodb"\s+type="application\/json">([\s\S]*?)<\/script>/i,
+      );
+      expect(dbMatch, `${label} must include <script id="naizodb">`).not.toBeNull();
+      const rawJson = dbMatch![1] ?? '';
+      expect(rawJson, `${label} #naizodb must escape < as \\u003c`).not.toContain('<');
+      const parsed = JSON.parse(rawJson) as NaizoDatabase;
+      expect(parsed).toHaveProperty('_meta');
+      expect(parsed).toHaveProperty('fields');
+      expect(parsed).toHaveProperty('lists');
+      expect(parsed).toHaveProperty('custom');
+    }
+
+    const parsedNotesDb = JSON.parse(
+      rawNotesHtml.match(
+        /<script\s+id="naizodb"\s+type="application\/json">([\s\S]*?)<\/script>/i,
+      )![1]!,
+    ) as NaizoDatabase;
+    expect(parsedNotesDb.lists.notes?.[0]?.body).toContain('<script id="naizodb">');
+    expect(parsedNotesDb.lists.notes?.[0]?.body).toContain('<body>');
+    expect(parsedNotesDb.lists.notes?.[3]?.body).toContain('naizodb_backup_<key>');
+
+    // Static CSS, markup, & design-asset checks across site/index.html, starter/checklist, and docs/design/
+    expect(rawSiteHtml).toContain('color-scheme: light dark;');
+    expect(rawSiteHtml).toMatch(/html\[data-theme='dark'\]\s*\{[\s\S]*?color-scheme:\s*dark;/);
+    expect(rawSiteHtml).toMatch(/html\[data-theme='light'\]\s*\{\s*color-scheme:\s*light;\s*\}/);
+    expect(rawSiteHtml).not.toContain('`main`');
+    expect(rawSiteHtml).toContain('<code>main</code>');
+    expect(rawSiteHtml).not.toContain("addEventListener('naizo:item'");
+    expect(rawSiteHtml).toContain('https://github.com/nickosh/naizo/blob/main/docs/USAGE.md');
+    expect(rawSiteHtml).toContain('./references/cookbook/basecoat-ui-and-dense-forms.md');
+    expect(rawSiteHtml).toContain('./references/cookbook/third-party-dom-and-export.md');
+    expect(rawSiteHtml).toContain('./references/cookbook/maps-and-live-apis.md');
+    expect(rawSiteHtml).toContain('./references/cookbook/audio-motion-and-svg-avatars.md');
+    expect(rawSiteHtml).toContain('./references/cookbook/data-ingestion-export-and-testing.md');
+    expect(rawSiteHtml).toMatch(/\.task-title-label\s*\{[\s\S]*?min-width:\s*0;/);
+    expect(rawStarterHtml).toMatch(/\.item-task\s*\{[\s\S]*?min-width:\s*0;/);
+    expect(rawChecklistHtml).toMatch(/\.check-task\s*\{[\s\S]*?min-width:\s*0;/);
+    expect(rawWeatherHtml).toContain('color-scheme: light dark;');
+    expect(rawWeatherHtml).toMatch(/html\[data-theme='dark'\]\s*\{[\s\S]*?color-scheme:\s*dark;/);
+    expect(rawWeatherHtml).toMatch(/html\[data-theme='light'\]\s*\{\s*color-scheme:\s*light;\s*\}/);
+
+    const parsedSvgDoc = new DOMParser().parseFromString(pillStatesSvg, 'image/svg+xml');
+    expect(parsedSvgDoc.querySelector('parsererror')).toBeNull();
+    expect(pillStatesSvg).toContain('#restore (wrench · EC04)');
+    expect(pillStatesPng.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    expect(pillStatesPng.readUInt32BE(16)).toBe(1440);
+    expect(pillStatesPng.readUInt32BE(20)).toBe(1230);
+    expect(pillRefHtml).toContain('transform-box: fill-box;');
+    expect(pillRefHtml).toContain('prefers-reduced-motion: reduce');
+    expect(pillRefHtml).toContain('local-needs-permission');
+    expect(pillRefHtml).toContain('id="dot-sep"');
+    expect(pillRefHtml).toContain('Reset app to initial state?');
+
+    const runInlineBlueprintScript = (scriptCode: string): AbortController => {
+      const abortCtrl = new AbortController();
+      const origWinAdd = window.addEventListener.bind(window);
+      const origDocAdd = document.addEventListener.bind(document);
+      const winSpy = vi
+        .spyOn(window, 'addEventListener')
+        .mockImplementation(
+          (
+            type: string,
+            listener: EventListenerOrEventListenerObject,
+            options?: boolean | AddEventListenerOptions,
+          ) => {
+            const opts: AddEventListenerOptions =
+              typeof options === 'boolean'
+                ? { capture: options, signal: abortCtrl.signal }
+                : { ...options, signal: abortCtrl.signal };
+            origWinAdd(type, listener, opts);
+          },
+        );
+      const docSpy = vi
+        .spyOn(document, 'addEventListener')
+        .mockImplementation(
+          (
+            type: string,
+            listener: EventListenerOrEventListenerObject,
+            options?: boolean | AddEventListenerOptions,
+          ) => {
+            const opts: AddEventListenerOptions =
+              typeof options === 'boolean'
+                ? { capture: options, signal: abortCtrl.signal }
+                : { ...options, signal: abortCtrl.signal };
+            origDocAdd(type, listener, opts);
+          },
+        );
+      try {
+        runInThisContext(scriptCode);
+      } finally {
+        docSpy.mockRestore();
+        winSpy.mockRestore();
+      }
+      return abortCtrl;
+    };
+
+    // 2. examples/weather.html: loads ../dist/naizo.js before ol.js, guards ensureMapMounted() when window.Naizo is undefined,
+    // keeps flashedSlotKey visible across renderForecastStudio() re-renders, disables [data-focus-stop] on coord-less stops,
+    // and keeps #clear-query-btn hidden when #place-query is empty (EC57, EC62)
+    const naizoScriptIdx = rawWeatherHtml.indexOf('src="../dist/naizo.js"');
+    const olScriptIdx = rawWeatherHtml.indexOf('id="openlayers-cdn-script"');
+    expect(naizoScriptIdx).toBeGreaterThanOrEqual(0);
+    expect(olScriptIdx).toBeGreaterThan(naizoScriptIdx);
+
+    vi.useFakeTimers();
+    let weatherAbort: AbortController | null = null;
+    const olMapCalls: unknown[] = [];
+    const mockHourlyTimes = Array.from(
+      { length: 24 },
+      (_, h) => `2026-11-20T${String(h).padStart(2, '0')}:00`,
+    );
+    const mockOpenMeteo = {
+      timezone: 'Asia/Tokyo',
+      elevation: 1500,
+      daily: {
+        time: ['2026-11-20'],
+        weather_code: [1],
+        temperature_2m_max: [12],
+        temperature_2m_min: [3],
+        precipitation_probability_max: [10],
+        wind_speed_10m_max: [8],
+        sunrise: ['2026-11-20T06:30'],
+        sunset: ['2026-11-20T16:45'],
+      },
+      hourly: {
+        time: mockHourlyTimes,
+        temperature_2m: Array(24).fill(9),
+        precipitation_probability: Array(24).fill(10),
+        wind_speed_10m: Array(24).fill(8),
+        weather_code: Array(24).fill(1),
+      },
+    };
+    const weatherFetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify(mockOpenMeteo),
+        json: async () => mockOpenMeteo,
+      } as unknown as Response;
+    });
+    try {
+      localStorage.clear();
+      const weatherDoc = new DOMParser().parseFromString(rawWeatherHtml, 'text/html');
+      document.documentElement.setAttribute(
+        'naizo-id',
+        weatherDoc.documentElement.getAttribute('naizo-id') ?? '',
+      );
+      document.head.innerHTML = weatherDoc.head.innerHTML;
+      document.body.innerHTML = weatherDoc.body.innerHTML;
+
+      class MockVectorSource {
+        clear(): void {}
+        addFeature(): void {}
+        getFeatures(): unknown[] {
+          return [];
+        }
+        getExtent(): number[] {
+          return [0, 0, 1, 1];
+        }
+      }
+      (window as unknown as Record<string, unknown>).ol = {
+        Map: class {
+          constructor(opts: unknown) {
+            olMapCalls.push(opts);
+          }
+          on(): void {}
+          addOverlay(): void {}
+          removeOverlay(): void {}
+          updateSize(): void {}
+          getCoordinateFromPixel(): number[] {
+            return [0, 0];
+          }
+          forEachFeatureAtPixel(): undefined {
+            return undefined;
+          }
+          getTargetElement(): HTMLElement {
+            return document.body;
+          }
+          getView(): {
+            animate: () => void;
+            fit: () => void;
+            getZoom: () => number;
+          } {
+            return { animate: () => {}, fit: () => {}, getZoom: () => 12 };
+          }
+        },
+        View: class {},
+        Overlay: class {
+          setPosition(): void {}
+          getPosition(): number[] {
+            return [0, 0];
+          }
+        },
+        Feature: class {
+          set(): void {}
+          setStyle(): void {}
+        },
+        control: { defaults: () => undefined },
+        interaction: { defaults: () => undefined },
+        extent: { boundingExtent: () => [0, 0, 1, 1] },
+        layer: {
+          Tile: class {
+            setSource(): void {}
+          },
+          Vector: class {},
+        },
+        source: { OSM: class {}, XYZ: class {}, Vector: MockVectorSource },
+        geom: { Point: class {}, LineString: class {} },
+        proj: {
+          fromLonLat: (coords: number[]) => coords,
+          toLonLat: (coords: number[]) => coords,
+        },
+        style: {
+          Style: class {},
+          Stroke: class {},
+          Circle: class {},
+          Fill: class {},
+          Text: class {},
+        },
+      };
+
+      // Simulate ol.js already loaded while window.Naizo is still undefined
+      Reflect.deleteProperty(window, 'Naizo');
+      Reflect.deleteProperty(window, 'NaizoDB');
+
+      weatherAbort = runInlineBlueprintScript(
+        weatherDoc.body.querySelector('script')?.textContent ?? '',
+      );
+      document.getElementById('openlayers-cdn-script')?.dispatchEvent(new Event('load'));
+      expect(olMapCalls.length).toBe(0);
+      expect((document.getElementById('clear-query-btn') as HTMLButtonElement | null)?.hidden).toBe(
+        true,
+      );
+
+      // Now initialize Naizo; naizo:hydrate mounts the map and loads the forecast cleanly
+      window.Naizo = Naizo;
+      window.NaizoDB = NaizoDB;
+      await initNaizo();
+      await vi.advanceTimersByTimeAsync(20);
+      expect(olMapCalls.length).toBe(1);
+
+      // Click "+ Add ..." on first daily card -> adds stop #3 and re-renders studio while keeping '✓ Added #3' visible for 900ms
+      const firstDayAddBtn = document.querySelector<HTMLButtonElement>(
+        '#day-cards-grid .wx-card-add-btn',
+      );
+      expect(firstDayAddBtn).not.toBeNull();
+      firstDayAddBtn!.click();
+
+      const rerenderedDayBtn = document.querySelector<HTMLButtonElement>(
+        '#day-cards-grid .wx-card-add-btn',
+      );
+      expect(rerenderedDayBtn?.textContent).toBe('✓ Added #3');
+      expect(rerenderedDayBtn?.classList.contains('is-just-added')).toBe(true);
+
+      // Another studio re-render within 900ms preserves the flash
+      await vi.advanceTimersByTimeAsync(400);
+      Naizo.setField('target_hour', 11);
+      expect(
+        document.querySelector<HTMLButtonElement>('#day-cards-grid .wx-card-add-btn')?.textContent,
+      ).toBe('✓ Added #3');
+
+      await vi.advanceTimersByTimeAsync(600);
+      expect(
+        document.querySelector<HTMLButtonElement>('#day-cards-grid .wx-card-add-btn')?.textContent,
+      ).toContain('+ Add ');
+
+      // Adding a blank custom stop (lat/lon null) disables & hides [data-focus-stop]
+      document.getElementById('add-blank-stop-btn')?.click();
+      const stopRows = Array.from(
+        document.querySelectorAll<HTMLElement>('[naizo-list="route"] > [naizo-item]'),
+      );
+      const firstFocusBtn = stopRows[0]?.querySelector<HTMLButtonElement>('[data-focus-stop]');
+      const customFocusBtn =
+        stopRows[stopRows.length - 1]?.querySelector<HTMLButtonElement>('[data-focus-stop]');
+      expect(firstFocusBtn?.hidden).toBe(false);
+      expect(firstFocusBtn?.disabled).toBe(false);
+      expect(customFocusBtn?.hidden).toBe(true);
+      expect(customFocusBtn?.disabled).toBe(true);
+
+      // #clear-query-btn toggles with #place-query and stays hidden on export when empty
+      const placeQueryIn = document.getElementById('place-query') as HTMLInputElement;
+      const clearQueryBtn = document.getElementById('clear-query-btn') as HTMLButtonElement;
+      placeQueryIn.value = 'Tokyo';
+      placeQueryIn.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(clearQueryBtn.hidden).toBe(false);
+      clearQueryBtn.click();
+      expect(placeQueryIn.value).toBe('');
+      expect(clearQueryBtn.hidden).toBe(true);
+      const exportedWeatherDoc = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
+      expect(
+        (exportedWeatherDoc.getElementById('clear-query-btn') as HTMLButtonElement | null)?.hidden,
+      ).toBe(true);
+    } finally {
+      weatherFetchSpy.mockRestore();
+      weatherAbort?.abort();
+      window.__naizoCleanup?.();
+      Reflect.deleteProperty(window, 'ol');
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('data-theme');
+      window.Naizo = Naizo;
+      window.NaizoDB = NaizoDB;
+      vi.useRealTimers();
+    }
+
+    // 3. examples/notes.html: distinguishes blank "" category (Uncategorized) from Scratchpad and uses e.detail.index on item updates
+    let notesAbort: AbortController | null = null;
+    try {
+      localStorage.clear();
+      const notesDoc = new DOMParser().parseFromString(rawNotesHtml, 'text/html');
+      document.documentElement.setAttribute(
+        'naizo-id',
+        notesDoc.documentElement.getAttribute('naizo-id') ?? '',
+      );
+      document.head.innerHTML = notesDoc.head.innerHTML;
+      document.body.innerHTML = notesDoc.body.innerHTML;
+
+      await initNaizo();
+      notesAbort = runInlineBlueprintScript(
+        notesDoc.body.querySelector('script')?.textContent ?? '',
+      );
+
+      const catFilter = document.getElementById('category-filter') as HTMLSelectElement;
+      catFilter.value = 'Uncategorized';
+      catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(0);
+
+      // Creating a new note while filtering by Uncategorized stores category: '' and increments Uncategorized (1) while Scratchpad stays (0)
+      document.getElementById('new-note-btn')?.click();
+      const notesAfterCreate = Naizo.getList('notes');
+      const createdIdx = notesAfterCreate.length - 1;
+      const createdNote = notesAfterCreate[createdIdx];
+      expect(createdNote?.category).toBe('');
+      expect(document.querySelector('#note-index-list .category-pill')?.textContent?.trim()).toBe(
+        'Uncategorized',
+      );
+      const uncatOpt = Array.from(catFilter.options).find((o) => o.value === 'Uncategorized');
+      const scratchOpt = Array.from(catFilter.options).find((o) => o.value === 'Scratchpad');
+      expect(uncatOpt?.textContent).toBe('Uncategorized (1)');
+      expect(scratchOpt?.textContent).toBe('Scratchpad (0)');
+
+      catFilter.value = 'Scratchpad';
+      catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(0);
+
+      catFilter.value = 'all';
+      catFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(document.querySelectorAll('#note-index-list > .note-index-item').length).toBe(5);
+
+      // Editing a non-active note pane updates updatedAt at e.detail.index rather than activeNoteId
+      const panes = Array.from(
+        document.querySelectorAll<HTMLElement>('#notes-list > [naizo-item]'),
+      );
+      const activeBeforeTs = Naizo.getList('notes')[createdIdx]?.updatedAt;
+      Naizo.updateItem('notes', 1, { updatedAt: '2000-01-01T00:00:00.000Z' });
+      const secondTitleIn = panes[1]?.querySelector<HTMLInputElement>('input[naizo="title"]');
+      expect(secondTitleIn).not.toBeNull();
+      secondTitleIn!.value = 'Direct Index Updated Note';
+      secondTitleIn!.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(Naizo.getList('notes')[1]?.updatedAt).not.toBe('2000-01-01T00:00:00.000Z');
+      expect(Naizo.getList('notes')[createdIdx]?.updatedAt).toBe(activeBeforeTs);
+    } finally {
+      notesAbort?.abort();
+      window.__naizoCleanup?.();
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('data-theme');
+    }
+
+    // 4. examples/inventory.html: seeds custom filter_location <option> before hydration (zero EC15 warnings),
+    // blocks STANDARD_CARD_KEYS in + Key, and clears #json-preview-box when #inspect-json-dialog closes
+    let invAbort: AbortController | null = null;
+    const invWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      localStorage.clear();
+      const invDoc = new DOMParser().parseFromString(rawInventoryHtml, 'text/html');
+      const invScope = invDoc.documentElement.getAttribute('naizo-id') ?? '';
+      document.documentElement.setAttribute('naizo-id', invScope);
+      document.head.innerHTML = invDoc.head.innerHTML;
+      document.body.innerHTML = invDoc.body.innerHTML;
+
+      const seededDb = JSON.parse(
+        document.getElementById('naizodb')?.textContent ?? '{}',
+      ) as NaizoDatabase;
+      seededDb.fields.filter_location = 'Osaka R&D Lab';
+      seededDb.lists.inventory = [
+        ...(seededDb.lists.inventory ?? []),
+        {
+          id: 'inv-199',
+          sku: 'NAIZO-OSK-99',
+          name: 'Osaka Signal Analyzer',
+          type: 'Hardware',
+          status: 'In Stock',
+          location: 'Osaka R&D Lab',
+          owner: 'Rina Kato',
+          qty: 1,
+          unitCost: 900,
+          notes: 'Custom location item',
+        },
+      ];
+      localStorage.setItem(`naizodb_state_/::${invScope}`, JSON.stringify(seededDb));
+
+      // Run inline <script> BEFORE initNaizo() (matching <script defer> boot order)
+      invAbort = runInlineBlueprintScript(invDoc.body.querySelector('script')?.textContent ?? '');
+      await initNaizo();
+
+      expect(invWarnSpy).not.toHaveBeenCalled();
+      const filterLocSelect = document.getElementById(
+        'filter-location-select',
+      ) as HTMLSelectElement;
+      expect(filterLocSelect.value).toBe('Osaka R&D Lab');
+      expect(Naizo.getField('filter_location')).toBe('Osaka R&D Lab');
+      const visibleCards = Array.from(
+        document.querySelectorAll<HTMLElement>('#inventory-grid > [naizo-item]'),
+      ).filter((el) => !el.hidden);
+      expect(visibleCards.length).toBe(1);
+
+      // Reset filter to show all cards, then verify + Key blocks STANDARD_CARD_KEYS ('status', 'id')
+      document.getElementById('reset-filters-btn')?.click();
+      const firstCardAddPropBtn = document.querySelector<HTMLButtonElement>(
+        '#inventory-grid > [naizo-item] [data-add-card-prop]',
+      );
+      firstCardAddPropBtn?.click();
+
+      const propKeyInput = document.getElementById('prop-key-input') as HTMLInputElement;
+      const propValInput = document.getElementById('prop-val-input') as HTMLInputElement;
+      const addPropForm = document.getElementById('add-prop-form') as HTMLFormElement;
+
+      propKeyInput.value = 'status';
+      propValInput.value = 'Retired';
+      addPropForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      expect(Naizo.getList('inventory')[0]?.status).toBe('Assigned');
+      expect(propKeyInput.validationMessage).toContain('Standard card field');
+
+      propKeyInput.value = 'id';
+      propKeyInput.dispatchEvent(new Event('input', { bubbles: true }));
+      propValInput.value = 'hijacked-id';
+      addPropForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      expect(Naizo.getList('inventory')[0]?.id).toBe('inv-101');
+
+      propKeyInput.value = 'assetTag';
+      propKeyInput.dispatchEvent(new Event('input', { bubbles: true }));
+      propValInput.value = 'TYO-88';
+      addPropForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      expect(Naizo.getList('inventory')[0]?.assetTag).toBe('TYO-88');
+
+      // Inspect #naizodb modal populates preview while open and clears #json-preview-box on close before exportHTML()
+      document.getElementById('inspect-json-btn')?.click();
+      const previewBox = document.getElementById('json-preview-box')!;
+      expect(previewBox.textContent).toContain('"naizo-inventory-studio"');
+      document.getElementById('close-json-modal-btn')?.click();
+      expect(previewBox.textContent).toBe('');
+      const exportedInvDoc = new DOMParser().parseFromString(Naizo.exportHTML(), 'text/html');
+      expect(exportedInvDoc.getElementById('json-preview-box')?.textContent).toBe('');
+    } finally {
+      invWarnSpy.mockRestore();
+      invAbort?.abort();
+      window.__naizoCleanup?.();
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('data-theme');
+    }
+
+    // 5. site/index.html: deleting task-1 then triggering Simulate AI Edit generates collision-free task-4 & 'per-item 3-way merge'
+    let siteAbort: AbortController | null = null;
+    try {
+      localStorage.clear();
+      const siteDoc = new DOMParser().parseFromString(rawSiteHtml, 'text/html');
+      document.documentElement.setAttribute(
+        'naizo-id',
+        siteDoc.documentElement.getAttribute('naizo-id') ?? '',
+      );
+      document.head.innerHTML = siteDoc.head.innerHTML;
+      document.body.innerHTML = siteDoc.body.innerHTML;
+
+      await initNaizo();
+      siteAbort = runInlineBlueprintScript(siteDoc.body.querySelector('script')?.textContent ?? '');
+
+      // Remove task-1 -> remaining IDs are ['task-2', 'task-3'] (length 2)
+      Naizo.removeItem('tasks', 0);
+      expect(Naizo.getList('tasks').map((t) => t.id)).toEqual(['task-2', 'task-3']);
+
+      // Mark remaining tasks done, then click Simulate AI Edit to append a new task
+      document.getElementById('simulate-agent-btn')?.click();
+      document.getElementById('simulate-agent-btn')?.click();
+      document.getElementById('simulate-agent-btn')?.click();
+
+      const tasksAfterSim = Naizo.getList('tasks');
+      const taskIds = tasksAfterSim.map((t) => (typeof t.id === 'string' ? t.id : ''));
+      expect(taskIds).toEqual(['task-2', 'task-3', 'task-4']);
+      expect(new Set(taskIds).size).toBe(taskIds.length);
+      expect(tasksAfterSim[2]?.title).toBe('Verify per-item 3-way merge with CLI agent');
+    } finally {
+      siteAbort?.abort();
+      window.__naizoCleanup?.();
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('data-theme');
+    }
+  });
 });
 
 function cloneJsonForTest<T>(val: T): T {
