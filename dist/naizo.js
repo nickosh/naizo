@@ -325,6 +325,12 @@
 	let autoTriggeredElements = /* @__PURE__ */ new WeakSet();
 	let listenerController = null;
 	let initEpoch = 0;
+	function isCurrentEpoch(epoch) {
+		return epoch === initEpoch;
+	}
+	function isCurrentHandle(epoch, handle) {
+		return epoch === initEpoch && fileHandle === handle;
+	}
 	function getExplicitNaizoMode() {
 		if (typeof document === "undefined") return "auto";
 		const raw = ((document.documentElement ? getAttr(document.documentElement, "naizo-mode") : null) ?? (document.body ? getAttr(document.body, "naizo-mode") : null) ?? "auto").trim().toLowerCase();
@@ -372,22 +378,22 @@
 			onFail?.();
 		}
 	}
-	function saveHandleToIDB(handle) {
-		idbStore("readwrite", (idb) => idb.put(handle, getPageKey()));
+	function saveHandleToIDB(handle, key = getPageKey()) {
+		idbStore("readwrite", (idb) => idb.put(handle, key));
 	}
-	function deleteHandleFromIDB() {
+	function deleteHandleFromIDB(key = getPageKey()) {
 		return new Promise((resolve) => {
 			idbStore("readwrite", (idb) => {
-				const delReq = idb.delete(getPageKey());
+				const delReq = idb.delete(key);
 				delReq.onsuccess = () => resolve();
 				delReq.onerror = () => resolve();
 			}, resolve);
 		});
 	}
-	function loadHandleFromIDB() {
+	function loadHandleFromIDB(key = getPageKey()) {
 		return new Promise((resolve) => {
 			idbStore("readonly", (idb) => {
-				const getReq = idb.get(getPageKey());
+				const getReq = idb.get(key);
 				getReq.onsuccess = () => resolve(getReq.result ?? null);
 				getReq.onerror = () => resolve(null);
 			}, () => resolve(null));
@@ -895,7 +901,10 @@
 			const addedDisabled = el.hasAttribute("data-naizo-loading-disabled");
 			el.removeAttribute("data-naizo-loading");
 			el.removeAttribute("data-naizo-loading-disabled");
-			if (addedDisabled) el.removeAttribute("disabled");
+			if (addedDisabled) {
+				if ("disabled" in el) el.disabled = false;
+				el.removeAttribute("disabled");
+			}
 		});
 	}
 	function ensureListBlueprints(root = document, forceRegenerateAuto = false) {
@@ -1850,17 +1859,18 @@
 	}
 	async function checkDiskForExternalChanges() {
 		lastExternalCheckHadConflict = false;
+		const epoch = initEpoch;
 		const handle = fileHandle;
 		if (!handle || typeof handle.getFile !== "function" || startupInvalidDb) return false;
 		if (writeInFlightPromise !== null) return false;
 		try {
 			const perm = await handle.queryPermission({ mode: "readwrite" });
-			if (fileHandle !== handle || startupInvalidDb || perm !== "granted") return false;
+			if (!isCurrentHandle(epoch, handle) || startupInvalidDb || perm !== "granted") return false;
 			const diskFile = await handle.getFile();
-			if (fileHandle !== handle || startupInvalidDb) return false;
+			if (!isCurrentHandle(epoch, handle) || startupInvalidDb) return false;
 			if (typeof diskFile.lastModified === "number" && lastObservedModified !== null && diskFile.lastModified === lastObservedModified) return false;
 			const fileText = await readFileTextPreservingBom(diskFile);
-			if (fileHandle !== handle || startupInvalidDb) return false;
+			if (!isCurrentHandle(epoch, handle) || startupInvalidDb) return false;
 			if (fileText.trim() === "") return false;
 			if (typeof diskFile.lastModified === "number") lastObservedModified = diskFile.lastModified;
 			const diskScriptRaw = extractDbScriptBody(fileText);
@@ -1896,17 +1906,17 @@
 			watchInterval = null;
 		}
 	}
-	async function performSingleDiskWrite() {
+	async function performSingleDiskWrite(epoch) {
 		const handle = fileHandle;
-		if (!handle || isInvalidDbState()) {
-			pendingInitialLinkFile = null;
+		if (!handle || !isCurrentEpoch(epoch) || isInvalidDbState()) {
+			if (isCurrentEpoch(epoch)) pendingInitialLinkFile = null;
 			return false;
 		}
 		const preReadLink = pendingInitialLinkFile;
 		pendingInitialLinkFile = null;
 		try {
 			const perm = await handle.queryPermission({ mode: "readwrite" });
-			if (fileHandle !== handle) return false;
+			if (!isCurrentHandle(epoch, handle)) return false;
 			fileHandlePermission = perm;
 			if (perm !== "granted") {
 				updateUi("needs-permission", "Resume Disk Sync");
@@ -1927,10 +1937,10 @@
 			let preWriteModifiedMs;
 			if (preReadLink !== null || typeof handle.getFile === "function") {
 				const diskFile = preReadLink ? preReadLink.file : await handle.getFile();
-				if (fileHandle !== handle) return false;
+				if (!isCurrentHandle(epoch, handle)) return false;
 				preWriteModifiedMs = diskFile.lastModified;
 				const existingFileText = preReadLink ? preReadLink.text : await readFileTextPreservingBom(diskFile);
-				if (fileHandle !== handle) return false;
+				if (!isCurrentHandle(epoch, handle)) return false;
 				const diskScriptRaw = extractDbScriptBody(existingFileText);
 				let parsedExistingDiskDb = null;
 				if (!forceOverwrite && diskScriptRaw !== null) {
@@ -1976,15 +1986,21 @@
 			}
 			if (!skipWritable) {
 				const writable = await handle.createWritable();
-				if (fileHandle !== handle) {
+				if (!isCurrentHandle(epoch, handle)) {
 					try {
 						await writable.abort?.();
 					} catch {}
 					return false;
 				}
 				await writable.write(fileTextToWrite);
+				if (!isCurrentHandle(epoch, handle)) {
+					try {
+						await writable.abort?.();
+					} catch {}
+					return false;
+				}
 				await writable.close();
-				if (fileHandle !== handle) return false;
+				if (!isCurrentHandle(epoch, handle)) return false;
 			}
 			const exactWrittenTrimmed = payloadToWrite.trim();
 			const trackedDiskRaw = diskRawSnapshotForTracking ?? exactWrittenTrimmed;
@@ -1999,10 +2015,10 @@
 				if (typeof preWriteModifiedMs === "number") lastObservedModified = preWriteModifiedMs;
 			} else if (typeof handle.getFile === "function") try {
 				const updatedFile = await handle.getFile();
-				if (fileHandle !== handle) return false;
+				if (!isCurrentHandle(epoch, handle)) return false;
 				if (typeof updatedFile.lastModified === "number") lastObservedModified = updatedFile.lastModified;
 			} catch {
-				if (fileHandle !== handle) return false;
+				if (!isCurrentHandle(epoch, handle)) return false;
 			}
 			if (serializeDbJson(ensureStore()).trim() !== exactWrittenTrimmed) {
 				writeQueued = true;
@@ -2011,7 +2027,7 @@
 			else updateUi("saved", "Synced to Disk");
 			return true;
 		} catch (err) {
-			if (fileHandle !== handle) return false;
+			if (!isCurrentHandle(epoch, handle)) return false;
 			console.warn("[naizo.js] Disk write failed:", err);
 			updateUi("cached", "Browser Cache · Click to Link Disk");
 			return false;
@@ -2023,14 +2039,15 @@
 			writeQueued = true;
 			return writeInFlightPromise;
 		}
+		const writerEpoch = initEpoch;
 		let runner = null;
 		runner = (async () => {
 			let lastResult = false;
 			try {
 				do {
 					writeQueued = false;
-					lastResult = await performSingleDiskWrite();
-				} while (writeQueued && fileHandle && !isInvalidDbState());
+					lastResult = await performSingleDiskWrite(writerEpoch);
+				} while (isCurrentEpoch(writerEpoch) && writeQueued && fileHandle && !isInvalidDbState());
 				return lastResult;
 			} finally {
 				if (writeInFlightPromise === runner) writeInFlightPromise = null;
@@ -2178,24 +2195,30 @@
 	}
 	async function connectOrResumeDisk() {
 		if (isInvalidDbState()) return false;
+		const epoch = initEpoch;
 		if (persistTimeout !== null) flushPersistence(false);
 		if (saveTimeout !== null) {
 			clearTimeout(saveTimeout);
 			saveTimeout = null;
 		}
-		if (fileHandle) try {
-			const perm = await fileHandle.requestPermission({ mode: "readwrite" });
-			fileHandlePermission = perm;
-			if (perm === "granted") {
-				startDiskWatch();
-				return await writeToDisk();
+		if (fileHandle) {
+			const handle = fileHandle;
+			try {
+				const perm = await handle.requestPermission({ mode: "readwrite" });
+				if (!isCurrentHandle(epoch, handle)) return false;
+				fileHandlePermission = perm;
+				if (perm === "granted") {
+					startDiskWatch();
+					return await writeToDisk();
+				}
+				updateUi("needs-permission", "Resume Disk Sync");
+				return false;
+			} catch {
+				if (!isCurrentHandle(epoch, handle)) return false;
+				fileHandlePermission = "prompt";
+				updateUi("needs-permission", "Resume Disk Sync");
+				return false;
 			}
-			updateUi("needs-permission", "Resume Disk Sync");
-			return false;
-		} catch {
-			fileHandlePermission = "prompt";
-			updateUi("needs-permission", "Resume Disk Sync");
-			return false;
 		}
 		if (typeof window.showSaveFilePicker === "function") try {
 			const suggestedName = getSuggestedFilename();
@@ -2206,12 +2229,15 @@
 					accept: { "text/html": [".html"] }
 				}]
 			});
+			if (!isCurrentEpoch(epoch) || isInvalidDbState()) return false;
 			let confirmedWrongFileOverwrite = false;
 			let confirmedMissingBlock = false;
 			let preReadLink = null;
 			if (typeof pickedHandle.getFile === "function") {
 				const diskFile = await pickedHandle.getFile();
+				if (!isCurrentEpoch(epoch) || isInvalidDbState()) return false;
 				const existingFileText = await readFileTextPreservingBom(diskFile);
+				if (!isCurrentEpoch(epoch) || isInvalidDbState()) return false;
 				preReadLink = {
 					file: diskFile,
 					text: existingFileText
@@ -3189,7 +3215,9 @@
 			restoreConflictBackup();
 		});
 		copyBtn?.addEventListener("click", () => {
+			const copyEpoch = initEpoch;
 			Naizo.copyJSON().then(() => {
+				if (!isCurrentEpoch(copyEpoch) || !copyBtn.isConnected) return;
 				if (copyResetTimeout !== null) clearTimeout(copyResetTimeout);
 				copyBtn.classList.add("copied");
 				copyBtn.dataset.tip = "✓ Copied";
@@ -3199,6 +3227,7 @@
 				else showPillTooltip("✓ Copied", "");
 				copyResetTimeout = setTimeout(() => {
 					copyResetTimeout = null;
+					if (!isCurrentEpoch(copyEpoch) || !copyBtn.isConnected) return;
 					copyBtn.classList.remove("copied");
 					copyBtn.dataset.tip = "Copy JSON";
 					if (copySrEl) copySrEl.textContent = "📋 Copy";
@@ -3577,7 +3606,7 @@
 		if (!(form instanceof Element) || !form.isConnected || isIgnoredElement(form)) return;
 		const resetEpoch = initEpoch;
 		setTimeout(() => {
-			if (e.defaultPrevented || !form.isConnected || resetEpoch !== initEpoch) return;
+			if (e.defaultPrevented || !form.isConnected || !isCurrentEpoch(resetEpoch)) return;
 			const db = ensureStore();
 			let changed = false;
 			const applyResetElements = (elements, targetRec, propagate) => {
@@ -3858,14 +3887,23 @@
 		writeSelectorTarget(target, extracted);
 	}
 	async function executeFetch(url, options, declarativeBodySource) {
+		const epoch = initEpoch;
 		const trimmedUrl = (url ?? "").trim();
 		const method = (options?.method ?? "GET").trim().toUpperCase() || "GET";
 		const rawInto = options?.into !== void 0 ? options.into.trim() : "";
 		const target = rawInto.length > 0 ? rawInto : null;
 		const rawPath = options?.path !== void 0 ? options.path.trim() : "";
+		const buildStaleFetchResult = (finalStatus) => ({
+			url: trimmedUrl,
+			method,
+			ok: false,
+			status: finalStatus,
+			target,
+			data: null,
+			error: "Aborted due to Naizo re-initialization"
+		});
 		beginNetRequest();
 		const finishFetch = (ok, finalStatus, data, error) => {
-			endNetRequest(ok);
 			const result = {
 				url: trimmedUrl,
 				method,
@@ -3875,6 +3913,8 @@
 				data,
 				error
 			};
+			if (!isCurrentEpoch(epoch)) return result;
+			endNetRequest(ok);
 			dispatchFetchEvent(result);
 			return result;
 		};
@@ -3900,9 +3940,11 @@
 			if (options?.signal) fetchInit.signal = options.signal;
 			const res = await fetch(trimmedUrl, fetchInit);
 			status = res.status;
+			if (!isCurrentEpoch(epoch)) return buildStaleFetchResult(status);
 			if (options?.mode === "no-cors" && target === null && res.type === "opaque") return finishFetch(true, 0, null, null);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const rawText = await res.text();
+			if (!isCurrentEpoch(epoch)) return buildStaleFetchResult(status);
 			const contentType = (res.headers?.get?.("content-type") ?? "").toLowerCase();
 			const mustParseJson = target !== null && (target === "db" || target.startsWith("field:") || target.startsWith("list:") || target.startsWith("custom:")) || rawPath.length > 0;
 			let parsed;
@@ -3922,6 +3964,7 @@
 			routeFetchPayload(target, extracted);
 			return finishFetch(true, status, extracted, null);
 		} catch (err) {
+			if (!isCurrentEpoch(epoch)) return buildStaleFetchResult(status);
 			return finishFetch(false, status, null, err instanceof Error ? err.message : String(err));
 		}
 	}
@@ -3952,6 +3995,7 @@
 		const cfg = getDeclarativeRequestConfig(el);
 		if (!cfg) return null;
 		if (el.getAttribute("data-naizo-loading") === "true") return null;
+		const reqEpoch = initEpoch;
 		el.setAttribute("data-naizo-loading", "true");
 		let addedDisabled = false;
 		if (applyDisabledGuard) {
@@ -3970,11 +4014,13 @@
 				mode: cfg.mode
 			}, cfg.method === "POST" ? cfg.bodySource ?? "db" : void 0);
 		} finally {
-			el.removeAttribute("data-naizo-loading");
-			if (addedDisabled || el.hasAttribute("data-naizo-loading-disabled")) {
-				el.removeAttribute("data-naizo-loading-disabled");
-				if ("disabled" in el) el.disabled = false;
-				el.removeAttribute("disabled");
+			if (isCurrentEpoch(reqEpoch)) {
+				el.removeAttribute("data-naizo-loading");
+				if (addedDisabled || el.hasAttribute("data-naizo-loading-disabled")) {
+					el.removeAttribute("data-naizo-loading-disabled");
+					if ("disabled" in el) el.disabled = false;
+					el.removeAttribute("disabled");
+				}
 			}
 		}
 	}
@@ -4167,6 +4213,8 @@
 	function detachListeners() {
 		initEpoch += 1;
 		stopDiskWatch();
+		writeInFlightPromise = null;
+		writeQueued = false;
 		if (persistTimeout !== null) {
 			clearTimeout(persistTimeout);
 			persistTimeout = null;
@@ -4179,6 +4227,10 @@
 			clearTimeout(netHoldTimeout);
 			netHoldTimeout = null;
 		}
+		netInFlightCount = 0;
+		netPendingError = false;
+		netState = "idle";
+		if (typeof document !== "undefined") stripLoadingStateAttrs(document);
 		teardownUiTimersAndObservers();
 		resetChangeDispatchState();
 		bootHydrated = false;
@@ -4188,7 +4240,7 @@
 		}
 	}
 	function attachListeners() {
-		if (typeof window !== "undefined" && typeof window.__naizoCleanup === "function") window.__naizoCleanup();
+		if (typeof window !== "undefined" && typeof window.__naizoCleanup === "function" && window.__naizoCleanup !== detachListeners) window.__naizoCleanup();
 		detachListeners();
 		const controller = new AbortController();
 		listenerController = controller;
@@ -4493,6 +4545,8 @@
 			return connectOrResumeDisk();
 		},
 		async unlink() {
+			const epoch = initEpoch;
+			const pageKeyAtUnlink = getPageKey();
 			stopDiskWatch();
 			if (saveTimeout !== null) {
 				clearTimeout(saveTimeout);
@@ -4505,19 +4559,17 @@
 			repairingDiskInvalidDb = false;
 			confirmedMissingDbInject = false;
 			pendingInitialLinkFile = null;
-			await deleteHandleFromIDB();
 			let storedOk = true;
 			if (liveDiskInvalidJson) {
 				liveDiskInvalidJson = false;
 				const db = ensureStore();
 				writeStoreToDomScript(db, false);
-				storedOk = safeSetStorage(getPageKey(), JSON.stringify(db));
+				storedOk = safeSetStorage(pageKeyAtUnlink, JSON.stringify(db));
 			}
-			if (startupInvalidDb) {
-				updateUi("error", "Invalid #naizodb JSON");
-				return;
-			}
-			updateUnlinkedStatusUi(storedOk);
+			if (startupInvalidDb) updateUi("error", "Invalid #naizodb JSON");
+			else updateUnlinkedStatusUi(storedOk);
+			await deleteHandleFromIDB(pageKeyAtUnlink);
+			if (!isCurrentEpoch(epoch) || fileHandle !== null) return;
 		},
 		async copyJSON() {
 			flushPersistence(false);
@@ -4555,31 +4607,43 @@
 		}
 	};
 	const NaizoDB = Naizo;
-	async function loadAndQueryPersistedHandle(epoch) {
-		const loadedHandle = await loadHandleFromIDB();
-		if (epoch !== initEpoch) return { ok: false };
+	async function loadAndQueryPersistedHandle(epoch, pageKey) {
+		const loadedHandle = await loadHandleFromIDB(pageKey);
+		if (!isCurrentEpoch(epoch)) return { ok: false };
 		if (loadedHandle && fileHandle === null) {
 			fileHandle = loadedHandle;
 			try {
 				const perm = await loadedHandle.queryPermission({ mode: "readwrite" });
-				if (epoch !== initEpoch || fileHandle !== loadedHandle) return { ok: false };
+				if (!isCurrentEpoch(epoch)) return { ok: false };
+				if (!isCurrentHandle(epoch, loadedHandle)) return {
+					ok: true,
+					loaded: false
+				};
 				fileHandlePermission = perm;
 				return {
 					ok: true,
+					loaded: true,
+					handle: loadedHandle,
 					perm
 				};
 			} catch {
-				if (epoch !== initEpoch || fileHandle !== loadedHandle) return { ok: false };
+				if (!isCurrentEpoch(epoch)) return { ok: false };
+				if (!isCurrentHandle(epoch, loadedHandle)) return {
+					ok: true,
+					loaded: false
+				};
 				fileHandlePermission = "prompt";
 				return {
 					ok: true,
+					loaded: true,
+					handle: loadedHandle,
 					perm: "prompt"
 				};
 			}
 		}
 		return {
 			ok: true,
-			perm: fileHandlePermission
+			loaded: false
 		};
 	}
 	async function initNaizo() {
@@ -4618,7 +4682,7 @@
 		netPendingError = false;
 		autoTriggeredElements = /* @__PURE__ */ new WeakSet();
 		attachListeners();
-		const currentInitEpoch = ++initEpoch;
+		const currentInitEpoch = initEpoch;
 		mountUi();
 		ensureListBlueprints(document, true);
 		syncNetVisibility(document);
@@ -4642,9 +4706,9 @@
 			updateUi("error", "Invalid #naizodb JSON");
 			bootHydrated = true;
 			window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
-			const invalidHandleRes = await loadAndQueryPersistedHandle(currentInitEpoch);
+			const invalidHandleRes = await loadAndQueryPersistedHandle(currentInitEpoch, pageKey);
 			if (!invalidHandleRes.ok) return;
-			if (fileHandle) {
+			if (invalidHandleRes.loaded) {
 				if (isInvalidDbState()) updateUi("error", "Invalid #naizodb JSON");
 				else if (invalidHandleRes.perm === "granted") {
 					startDiskWatch();
@@ -4682,17 +4746,19 @@
 		else updateUnlinkedStatusUi(storedOk);
 		bootHydrated = true;
 		window.dispatchEvent(new CustomEvent("naizo:hydrate", { detail: store }));
-		const validHandleRes = await loadAndQueryPersistedHandle(currentInitEpoch);
+		const validHandleRes = await loadAndQueryPersistedHandle(currentInitEpoch, pageKey);
 		if (!validHandleRes.ok) return;
-		if (fileHandle) {
+		if (validHandleRes.loaded) {
 			if (validHandleRes.perm === "granted") {
 				startDiskWatch();
 				await checkDiskForExternalChanges();
-				if (currentInitEpoch !== initEpoch || !fileHandle || isInvalidDbState()) return;
-				const isDirtyComparedToDisk = lastDiskDb === null || canonicalContentBuckets(ensureStore()) !== canonicalContentBuckets(lastDiskDb);
-				if (hasBootConflict || lastExternalCheckHadConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
-				else if (isDirtyComparedToDisk) updateUi("cached", "Browser Cache · Click to Link Disk");
-				else updateUi("saved", "Synced to Disk");
+				if (!isCurrentEpoch(currentInitEpoch)) return;
+				if (isCurrentHandle(currentInitEpoch, validHandleRes.handle) && !isInvalidDbState()) {
+					const isDirtyComparedToDisk = lastDiskDb === null || canonicalContentBuckets(ensureStore()) !== canonicalContentBuckets(lastDiskDb);
+					if (hasBootConflict || lastExternalCheckHadConflict) updateUi("conflict", "External Disk Edit · Conflict Backed Up");
+					else if (isDirtyComparedToDisk) updateUi("cached", "Browser Cache · Click to Link Disk");
+					else updateUi("saved", "Synced to Disk");
+				}
 			} else updateUi("needs-permission", "Resume Disk Sync");
 		}
 		runAutoTriggers(document);

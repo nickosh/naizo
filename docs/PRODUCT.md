@@ -1,10 +1,10 @@
 # naizo — Product Definition
 
-Status: Specification adopted 2026-10-18, updated 2026-11-20 (`D38`–`D60`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status), [USAGE.md](USAGE.md) (comprehensive usage and authoring reference).
+Status: Specification adopted 2026-10-18, updated 2026-11-22 (`D38`–`D61`). Companions: [PLAN.md](PLAN.md) (what to build and sequencing), [DECISIONS.md](DECISIONS.md) (why major decisions were made), [EDGE_CASES.md](EDGE_CASES.md) (boundary behaviors and resolution status), [USAGE.md](USAGE.md) (comprehensive usage and authoring reference).
 
 ## One-liner
 
-**`naizo.js`** (`naizo`, npm package `naizojs`) is a zero-dependency, lightweight script (~28.0 KB minified + gzipped / 94.8 KB raw, ~41.6 KB gzipped / ~185.3 KB raw unminified) providing a self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) that keeps human edits in the browser and AI agent edits on disk in two-way sync.
+**`naizo.js`** (`naizo`, npm package `naizojs`) is a zero-dependency, lightweight script (~28.1 KB minified + gzipped / 95.6 KB raw, ~41.9 KB gzipped / ~187.8 KB raw unminified) providing a self-persisting HTML built-in database (`#naizodb`) and declarative list repeater (`[naizo-list]` / `[data-naizo-list]`) that keeps human edits in the browser and AI agent edits on disk in two-way sync.
 
 ## Name & Meaning
 
