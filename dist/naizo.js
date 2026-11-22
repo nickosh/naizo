@@ -286,6 +286,7 @@
 	let watchInterval = null;
 	let writeInFlightPromise = null;
 	let writeQueued = false;
+	let currentPillState = "cached";
 	let uiHost = null;
 	let statusEl = null;
 	let dotBtnEl = null;
@@ -2096,7 +2097,7 @@
 			return storedOk;
 		}
 		if (!fileHandle) {
-			const isShowingConflict = Boolean(dotBtnEl?.classList.contains("conflict")) || statusEl?.textContent === "External Disk Edit · Conflict Backed Up";
+			const isShowingConflict = currentPillState === "conflict" || Boolean(dotBtnEl?.classList.contains("conflict")) || statusEl?.textContent === "External Disk Edit · Conflict Backed Up";
 			if (scheduleDisk || hadPendingPersist || batchDepth > 0 && batchDirty || !isShowingConflict) updateUnlinkedStatusUi(storedOk);
 			return storedOk;
 		}
@@ -2266,6 +2267,7 @@
 					}
 				}
 			}
+			if (currentPillState !== "conflict" || confirmedWrongFileOverwrite) safeRemoveStorage(getBackupKey());
 			overwriteDiskWithoutMerge = confirmedWrongFileOverwrite;
 			confirmedMissingDbInject = confirmedMissingBlock;
 			pendingInitialLinkFile = preReadLink;
@@ -3477,6 +3479,7 @@
 		}
 	}
 	function updateUi(state, message) {
+		currentPillState = state;
 		if (!statusEl || !actionBtn) return;
 		const online = isOnlineMode();
 		const saveKbd = getSaveShortcutKbd();
@@ -4256,6 +4259,7 @@
 		if (typeof document !== "undefined") stripLoadingStateAttrs(document);
 		teardownUiTimersAndObservers();
 		resetChangeDispatchState();
+		currentPillState = "cached";
 		bootHydrated = false;
 		if (listenerController !== null) {
 			listenerController.abort();
@@ -4698,6 +4702,7 @@
 		fileHandlePermission = "prompt";
 		writeInFlightPromise = null;
 		writeQueued = false;
+		currentPillState = "cached";
 		netRevealed = false;
 		netState = "idle";
 		netInFlightCount = 0;

@@ -10630,6 +10630,310 @@ describe('naizo.js core runtime', () => {
       vi.useRealTimers();
     }
   });
+
+  it('clears stale pre-link Reset/fetch backups on first-time Link Disk while preserving canceled-link, link-time collision, active boot conflict (pill & naizo-no-pill), and Resume Disk Sync backups across source and dist/naizo.js (M19.6, D56, D62, EC64)', async () => {
+    vi.useFakeTimers();
+    const origIDB = globalThis.indexedDB;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const idbMap = new Map<string, unknown>();
+
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: {
+        open: () => {
+          const req: {
+            result: unknown;
+            onsuccess: null | (() => void);
+            onerror: null | (() => void);
+            onupgradeneeded: null | (() => void);
+          } = {
+            result: {
+              createObjectStore: () => ({}),
+              transaction: () => ({
+                objectStore: () => ({
+                  get: (k: string) => {
+                    const r: { result: unknown; onsuccess: null | (() => void) } = {
+                      result: idbMap.get(k),
+                      onsuccess: null,
+                    };
+                    queueMicrotask(() => r.onsuccess?.());
+                    return r;
+                  },
+                  put: (v: unknown, k: string) => {
+                    idbMap.set(k, v);
+                    return {};
+                  },
+                  delete: (k: string) => {
+                    idbMap.delete(k);
+                    const r: { onsuccess: null | (() => void) } = { onsuccess: null };
+                    queueMicrotask(() => r.onsuccess?.());
+                    return r;
+                  },
+                }),
+              }),
+            },
+            onsuccess: null,
+            onerror: null,
+            onupgradeneeded: null,
+          };
+          queueMicrotask(() => req.onsuccess?.());
+          return req;
+        },
+      },
+    });
+
+    try {
+      // 1. Unlinked scratch edits -> Reset -> canceled picker/EC28 keeps backup -> successful Link Disk clears stale backup & hides #restore
+      document.documentElement.setAttribute('naizo-id', 'm19-6-link-clear');
+      const baseJson = JSON.stringify(
+        { _meta: {}, fields: { title: 'Clean Initial' }, lists: {}, custom: {} },
+        null,
+        2,
+      );
+      let diskHtml = `<!doctype html><html naizo-id="m19-6-link-clear"><head><script id="naizodb" type="application/json">\n${baseJson}\n</script></head><body><input naizo="title" type="text" value="" /></body></html>`;
+      let diskMtime = 1000;
+
+      document.head.innerHTML = `<script id="naizodb" type="application/json">\n${baseJson}\n</script>`;
+      document.body.innerHTML = `<input id="t-in" type="text" naizo="title" value="" />`;
+      await initNaizo();
+      await vi.advanceTimersByTimeAsync(10);
+
+      const shadow = document.getElementById('__naizodb_host__')!.shadowRoot!;
+      const restoreBtn = shadow.getElementById('restore') as HTMLButtonElement;
+      const resetBtn = shadow.getElementById('reset') as HTMLButtonElement;
+
+      Naizo.setField('title', 'Temporary Scratch Experiment');
+      expect(resetBtn.style.display).toBe('inline-block');
+      Naizo.reset();
+      expect(Naizo.getField('title')).toBe('Clean Initial');
+      expect(resetBtn.style.display).toBe('none');
+      expect(restoreBtn.style.display).toBe('inline-block');
+      expect(localStorage.getItem('naizodb_backup_/::m19-6-link-clear')).not.toBeNull();
+
+      // Canceling showSaveFilePicker keeps unlinked Reset backup intact
+      window.showSaveFilePicker = vi.fn().mockRejectedValue(new Error('AbortError'));
+      expect(await Naizo.link()).toBe(false);
+      expect(restoreBtn.style.display).toBe('inline-block');
+      expect(localStorage.getItem('naizodb_backup_/::m19-6-link-clear')).not.toBeNull();
+
+      // Canceling EC28 missing-#naizodb prompt also keeps unlinked Reset backup intact
+      confirmSpy.mockReturnValue(false);
+      window.showSaveFilePicker = vi.fn().mockResolvedValue({
+        name: 'plain.html',
+        queryPermission: vi.fn().mockResolvedValue('granted'),
+        requestPermission: vi.fn().mockResolvedValue('granted'),
+        getFile: vi.fn().mockResolvedValue({
+          lastModified: diskMtime,
+          text: async () => '<!doctype html><html><head></head><body>No db</body></html>',
+        }),
+        createWritable: vi.fn(),
+      });
+      expect(await Naizo.link()).toBe(false);
+      expect(localStorage.getItem('naizodb_backup_/::m19-6-link-clear')).not.toBeNull();
+
+      // Confirming first-time Link Disk clears the stale Reset backup and hides #restore alongside #reset!
+      window.showSaveFilePicker = vi.fn().mockResolvedValue({
+        name: 'index.html',
+        queryPermission: vi.fn().mockResolvedValue('granted'),
+        requestPermission: vi.fn().mockResolvedValue('granted'),
+        getFile: vi.fn().mockImplementation(async () => ({
+          lastModified: diskMtime,
+          text: async () => diskHtml,
+        })),
+        createWritable: vi.fn().mockImplementation(async () => ({
+          write: async (nextHtml: string) => {
+            diskHtml = nextHtml;
+            diskMtime += 100;
+          },
+          close: async () => {},
+        })),
+      });
+      expect(await Naizo.link()).toBe(true);
+      expect(shadow.getElementById('status')?.textContent).toBe('Synced to Disk');
+      expect(resetBtn.style.display).toBe('none');
+      expect(restoreBtn.style.display).toBe('none');
+      expect(localStorage.getItem('naizodb_backup_/::m19-6-link-clear')).toBeNull();
+
+      // 2. Fresh link-time disk collision discovered DURING Link Disk still writes new backup & reveals #restore
+      await Naizo.unlink();
+      Naizo.setField('title', 'Old Scratch');
+      Naizo.reset();
+      expect(
+        JSON.parse(localStorage.getItem('naizodb_backup_/::m19-6-link-clear') ?? '{}').fields
+          ?.title,
+      ).toBe('Old Scratch');
+
+      Naizo.setField('title', 'Browser Link Edit');
+      const agentDiskJson = JSON.stringify(
+        { _meta: {}, fields: { title: 'Agent Concurrent Disk Edit' }, lists: {}, custom: {} },
+        null,
+        2,
+      );
+      diskHtml = `<!doctype html><html naizo-id="m19-6-link-clear"><head><script id="naizodb" type="application/json">\n${agentDiskJson}\n</script></head><body><input naizo="title" type="text" value="" /></body></html>`;
+      diskMtime += 500;
+
+      expect(await Naizo.link()).toBe(true);
+      expect(Naizo.getField('title')).toBe('Agent Concurrent Disk Edit');
+      expect(shadow.getElementById('status')?.textContent).toBe(
+        'External Disk Edit · Conflict Backed Up',
+      );
+      expect(restoreBtn.style.display).toBe('inline-block');
+      // Backup holds the fresh collision ("Browser Link Edit"), NOT the stale pre-reset "Old Scratch"!
+      expect(
+        JSON.parse(localStorage.getItem('naizodb_backup_/::m19-6-link-clear') ?? '{}').fields
+          ?.title,
+      ).toBe('Browser Link Edit');
+
+      // 3. Active unresolved boot conflict preserved across Link Disk (including in naizo-no-pill headless mode!)
+      document.documentElement.setAttribute('naizo-id', 'm19-6-headless-conflict');
+      document.documentElement.setAttribute('naizo-no-pill', '');
+      const v0Json = JSON.stringify(
+        { _meta: {}, fields: { title: 'V0' }, lists: {}, custom: {} },
+        null,
+        2,
+      );
+      document.head.innerHTML = `<script id="naizodb" type="application/json">\n${v0Json}\n</script>`;
+      document.body.innerHTML = `<input id="t-in" type="text" naizo="title" value="" />`;
+      await initNaizo();
+      await vi.advanceTimersByTimeAsync(10);
+      const baseSnap = localStorage.getItem('naizodb_disk_hash_/::m19-6-headless-conflict')!;
+
+      localStorage.setItem(
+        'naizodb_state_/::m19-6-headless-conflict',
+        JSON.stringify({
+          _meta: {},
+          fields: { title: 'Browser Cached Conflict' },
+          lists: {},
+          custom: {},
+        }),
+      );
+      localStorage.setItem('naizodb_disk_hash_/::m19-6-headless-conflict', baseSnap);
+      const vDiskJson = JSON.stringify(
+        { _meta: {}, fields: { title: 'Disk Boot Conflict' }, lists: {}, custom: {} },
+        null,
+        2,
+      );
+      let conflictDiskHtml = `<!doctype html><html naizo-id="m19-6-headless-conflict" naizo-no-pill><head><script id="naizodb" type="application/json">\n${vDiskJson}\n</script></head><body><input naizo="title" type="text" value="" /></body></html>`;
+      document.head.innerHTML = `<script id="naizodb" type="application/json">\n${vDiskJson}\n</script>`;
+      await initNaizo();
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(
+        JSON.parse(localStorage.getItem('naizodb_backup_/::m19-6-headless-conflict') ?? '{}').fields
+          ?.title,
+      ).toBe('Browser Cached Conflict');
+      // Calling copyJSON() in headless mode does not drop currentPillState === 'conflict', and Link Disk preserves the boot conflict backup!
+      await Naizo.copyJSON();
+      window.showSaveFilePicker = vi.fn().mockResolvedValue({
+        name: 'index.html',
+        queryPermission: vi.fn().mockResolvedValue('granted'),
+        requestPermission: vi.fn().mockResolvedValue('granted'),
+        getFile: vi
+          .fn()
+          .mockResolvedValue({ lastModified: 3000, text: async () => conflictDiskHtml }),
+        createWritable: vi.fn().mockResolvedValue({
+          write: async (nextHtml: string) => {
+            conflictDiskHtml = nextHtml;
+          },
+          close: async () => {},
+        }),
+      });
+      expect(await Naizo.link()).toBe(true);
+      expect(
+        JSON.parse(localStorage.getItem('naizodb_backup_/::m19-6-headless-conflict') ?? '{}').fields
+          ?.title,
+      ).toBe('Browser Cached Conflict');
+      document.documentElement.removeAttribute('naizo-no-pill');
+
+      // 4. Resume Disk Sync on an already-linked handle ('prompt' -> 'granted') preserves post-link backups
+      document.documentElement.setAttribute('naizo-id', 'm19-6-resume-keep');
+      let resumePerm: PermissionState = 'prompt';
+      idbMap.set('naizodb_state_/::m19-6-resume-keep', {
+        name: 'index.html',
+        queryPermission: vi.fn().mockImplementation(async () => resumePerm),
+        requestPermission: vi.fn().mockImplementation(async () => {
+          resumePerm = 'granted';
+          return 'granted';
+        }),
+        getFile: vi.fn().mockResolvedValue({
+          lastModified: 4000,
+          text: async () =>
+            `<!doctype html><html naizo-id="m19-6-resume-keep"><head><script id="naizodb" type="application/json">\n${baseJson}\n</script></head><body></body></html>`,
+        }),
+        createWritable: vi.fn().mockResolvedValue({ write: async () => {}, close: async () => {} }),
+      });
+      localStorage.setItem(
+        'naizodb_backup_/::m19-6-resume-keep',
+        JSON.stringify({
+          _meta: {},
+          fields: { title: 'Post-Link Fetch Backup' },
+          lists: {},
+          custom: {},
+        }),
+      );
+      document.head.innerHTML = `<script id="naizodb" type="application/json">\n${baseJson}\n</script>`;
+      document.body.innerHTML = `<input id="t-in" type="text" naizo="title" value="" />`;
+      await initNaizo();
+      await vi.advanceTimersByTimeAsync(20);
+
+      const resumeShadow = document.getElementById('__naizodb_host__')!.shadowRoot!;
+      expect(resumeShadow.getElementById('status')?.textContent).toBe('Resume Disk Sync');
+      expect((resumeShadow.getElementById('restore') as HTMLButtonElement).style.display).toBe(
+        'inline-block',
+      );
+      expect(await Naizo.link()).toBe(true);
+      expect(resumeShadow.getElementById('status')?.textContent).toBe('Synced to Disk');
+      expect((resumeShadow.getElementById('restore') as HTMLButtonElement).style.display).toBe(
+        'inline-block',
+      );
+      expect(localStorage.getItem('naizodb_backup_/::m19-6-resume-keep')).not.toBeNull();
+
+      // 5. Shipped dist/naizo.js IIFE bundle parity check
+      window.__naizoCleanup?.();
+      document.documentElement.setAttribute('data-naizo-manual', 'true');
+      document.documentElement.setAttribute('naizo-id', 'm19-6-bundle');
+      document.head.innerHTML = `<script id="naizodb" type="application/json">\n${baseJson}\n</script>`;
+      document.body.innerHTML = `<input id="t-in" type="text" naizo="title" value="" />`;
+      const bundleCode = readFileSync(resolve(process.cwd(), 'dist/naizo.js'), 'utf-8');
+      runInThisContext(bundleCode);
+      await window.Naizo.init();
+      await vi.advanceTimersByTimeAsync(10);
+
+      window.Naizo.setField('title', 'Bundle Scratch');
+      window.Naizo.reset();
+      const bRestore = document
+        .getElementById('__naizodb_host__')!
+        .shadowRoot!.getElementById('restore') as HTMLButtonElement;
+      expect(bRestore.style.display).toBe('inline-block');
+      window.showSaveFilePicker = vi.fn().mockResolvedValue({
+        name: 'index.html',
+        queryPermission: vi.fn().mockResolvedValue('granted'),
+        requestPermission: vi.fn().mockResolvedValue('granted'),
+        getFile: vi.fn().mockResolvedValue({
+          lastModified: 5000,
+          text: async () =>
+            `<!doctype html><html naizo-id="m19-6-bundle"><head><script id="naizodb" type="application/json">\n${baseJson}\n</script></head><body></body></html>`,
+        }),
+        createWritable: vi.fn().mockResolvedValue({ write: async () => {}, close: async () => {} }),
+      });
+      expect(await window.Naizo.link()).toBe(true);
+      expect(bRestore.style.display).toBe('none');
+      expect(localStorage.getItem('naizodb_backup_/::m19-6-bundle')).toBeNull();
+    } finally {
+      confirmSpy.mockRestore();
+      warnSpy.mockRestore();
+      window.__naizoCleanup?.();
+      document.documentElement.removeAttribute('naizo-id');
+      document.documentElement.removeAttribute('naizo-no-pill');
+      document.documentElement.removeAttribute('data-naizo-manual');
+      Reflect.deleteProperty(window, 'showSaveFilePicker');
+      Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: origIDB });
+      window.Naizo = Naizo;
+      window.NaizoDB = NaizoDB;
+      vi.useRealTimers();
+    }
+  });
 });
 
 function cloneJsonForTest<T>(val: T): T {

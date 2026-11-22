@@ -1381,7 +1381,7 @@
       <header class="doc-header">
         <div class="doc-topbar">
           <span class="doc-kicker">
-            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~28.3 KB
+            naizo.js · 内蔵 (built-in) &amp; 内臓 (internal organs) · zero dependencies · ~28.4 KB
             min+gzip · MIT
           </span>
           <button
@@ -2218,7 +2218,7 @@ Loading #naizodb...</pre>
         <pre><code id="cdn-jsdelivr">&lt;script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer&gt;&lt;/script&gt;</code></pre>
 
         <div class="snippet-bar" naizo-ignore>
-          <span>3. jsDelivr CDN (minified ~28.3 KB gzip)</span>
+          <span>3. jsDelivr CDN (minified ~28.4 KB gzip)</span>
           <button
             type="button"
             class="quiet-btn copy-snippet-btn"
@@ -3690,11 +3690,14 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
                 </td>
                 <td>
                   After a simultaneous edit conflict, a full-database fetch replacement, or clicking
-                  <strong>Reset</strong>
+                  <strong>Reset</strong> before linking
                 </td>
                 <td>
                   Restores your previous browser version in 1 click so you never lose work when an
-                  external edit or a reset replaces what was on screen.
+                  external edit or a reset replaces what was on screen. Connecting a local file via
+                  <strong>Link Disk</strong> automatically clears temporary pre-link
+                  <strong>Reset</strong> backups for a clean slate while keeping real conflict
+                  backups available.
                 </td>
               </tr>
               <tr>
@@ -3809,13 +3812,14 @@ const html = Naizo.exportHTML();        const portable = Naizo.downloadHTML('app
               security requires explicit confirmation to write back into an existing file in place
               (saving to a new empty <code>"Save As"</code> file or a renamed copy of the same app
               never nags, while picking a different existing <code>#naizodb</code> app asks for
-              confirmation before overwriting). Brave disables <code>showSaveFilePicker</code> by
-              default behind <code>brave://flags/#file-system-access-api</code>; until enabled,
-              Brave uses the same <code>localStorage</code> + downloaded <code>.html</code> (<code
-                >⌘S</code
-              >
-              / <code>⬇ Save to PC</code>) + <code>📋 Copy JSON</code> workflow as Safari and
-              Firefox.
+              confirmation before overwriting). First-time linking also clears stale pre-link
+              <code>Reset</code> backups (<code>naizodb_backup_&lt;key&gt;</code>) alongside
+              <strong>Reset</strong> while preserving active boot conflicts, link-time/post-link
+              disk collisions, and <strong>Resume Disk Sync</strong> backups. Brave disables
+              <code>showSaveFilePicker</code> by default behind
+              <code>brave://flags/#file-system-access-api</code>; until enabled, Brave uses the same
+              <code>localStorage</code> + downloaded <code>.html</code> (<code>⌘S</code> /
+              <code>⬇ Save to PC</code>) + <code>📋 Copy JSON</code> workflow as Safari and Firefox.
             </p>
             <p style="margin: 0.65rem 0 0.5rem; font-size: 0.9em; color: var(--muted)">
               <strong

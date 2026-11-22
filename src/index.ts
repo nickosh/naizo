@@ -488,6 +488,7 @@ let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let watchInterval: ReturnType<typeof setInterval> | null = null;
 let writeInFlightPromise: Promise<boolean> | null = null;
 let writeQueued = false;
+let currentPillState = 'cached';
 let uiHost: NaizoHostElement | null = null;
 let statusEl: HTMLElement | null = null;
 let dotBtnEl: HTMLButtonElement | null = null;
@@ -3024,6 +3025,7 @@ function flushPersistence(scheduleDisk = true): boolean {
 
   if (!fileHandle) {
     const isShowingConflict =
+      currentPillState === 'conflict' ||
       Boolean(dotBtnEl?.classList.contains('conflict')) ||
       statusEl?.textContent === 'External Disk Edit · Conflict Backed Up';
     if (scheduleDisk || hadPendingPersist || (batchDepth > 0 && batchDirty) || !isShowingConflict) {
@@ -3255,6 +3257,9 @@ async function connectOrResumeDisk(): Promise<boolean> {
         }
       }
 
+      if (currentPillState !== 'conflict' || confirmedWrongFileOverwrite) {
+        safeRemoveStorage(getBackupKey());
+      }
       overwriteDiskWithoutMerge = confirmedWrongFileOverwrite;
       confirmedMissingDbInject = confirmedMissingBlock;
       pendingInitialLinkFile = preReadLink;
@@ -4628,6 +4633,7 @@ function setButtonIconAndSr(
 }
 
 function updateUi(state: string, message: string): void {
+  currentPillState = state;
   if (!statusEl || !actionBtn) return;
   const online = isOnlineMode();
   const saveKbd = getSaveShortcutKbd();
@@ -5742,6 +5748,7 @@ function detachListeners(): void {
   }
   teardownUiTimersAndObservers();
   resetChangeDispatchState();
+  currentPillState = 'cached';
   bootHydrated = false;
   if (listenerController !== null) {
     listenerController.abort();
@@ -6246,6 +6253,7 @@ export async function initNaizo(): Promise<void> {
   fileHandlePermission = 'prompt';
   writeInFlightPromise = null;
   writeQueued = false;
+  currentPillState = 'cached';
   netRevealed = false;
   netState = 'idle';
   netInFlightCount = 0;

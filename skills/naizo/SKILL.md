@@ -116,8 +116,8 @@ Every `naizo.js` HTML document embeds `<script id="naizodb" type="application/js
 
 ### CDN & Local Script Options (`D17`, `D34`, `D39`)
 
-- **jsDelivr (readable, ~42.2 KB gzipped / ~188.6 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
-- **jsDelivr (minified, ~28.3 KB gzipped / 95.9 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
+- **jsDelivr (readable, ~42.3 KB gzipped / ~188.9 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js`
+- **jsDelivr (minified, ~28.4 KB gzipped / 96.0 KB raw):** `https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js`
 - **unpkg:** `https://unpkg.com/naizojs@latest/dist/naizo.js`
 - **Pinned version:** replace `@latest` with a specific published version tag
 - **Local / offline:** `<script src="./dist/naizo.js" defer></script>` (inside the `naizo` repository examples, use `../dist/naizo.js`)
@@ -215,7 +215,7 @@ const apiRes = await Naizo.fetch('https://api.example.com/tasks', {
 Naizo.bind(containerEl); // Hydrate dynamically inserted DOM from store (skips persistence when seeding mutates zero keys, EC59)
 const ok = await Naizo.save(); // Flush cache + await single-flight disk write (skips createWritable() when on-disk #naizodb already matches, EC59)
 Naizo.reset(); // Back up dirty state to ↺ Restore and reset to initial boot baseline
-const linked = await Naizo.link(); // Prompt/resume FileSystemFileHandle (decoded suggestedName + wrong-file guard, EC60) & write #naizodb to disk (Promise<boolean>, D56)
+const linked = await Naizo.link(); // Prompt/resume FileSystemFileHandle (decoded suggestedName + wrong-file guard EC60; clears stale pre-link non-conflict backups on first-time picker link while preserving real conflict & Resume Disk Sync backups D62/EC64) & write #naizodb to disk (Promise<boolean>, D56)
 await Naizo.unlink(); // Forget linked FileSystemFileHandle
 const json = await Naizo.copyJSON(); // Copy 2-space #naizodb JSON to clipboard
 const html = Naizo.exportHTML(); // Clean HTML snapshot with baked attributes & stripped runtime UI
