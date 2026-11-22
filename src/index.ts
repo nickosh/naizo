@@ -518,6 +518,7 @@ let copyResetTimeout: ReturnType<typeof setTimeout> | null = null;
 let bootClearTimeout: ReturnType<typeof setTimeout> | null = null;
 let themeObserver: MutationObserver | null = null;
 let themeMediaCleanup: (() => void) | null = null;
+let dragWindowCleanup: (() => void) | null = null;
 let netRevealed = false;
 let netState: 'idle' | 'active' | 'error' = 'idle';
 let netInFlightCount = 0;
@@ -2943,7 +2944,7 @@ async function performSingleDiskWrite(epoch: number): Promise<boolean> {
   } catch (err) {
     if (!isCurrentHandle(epoch, handle)) return false;
     console.warn('[naizo.js] Disk write failed:', err);
-    updateUi('cached', 'Browser Cache · Click to Link Disk');
+    updateUi('cached', fileHandle ? 'Browser Cache · Pending Sync' : 'Browser Cache · Not Linked');
     return false;
   }
 }
@@ -2997,10 +2998,7 @@ function updateUnlinkedStatusUi(storedOk = true): void {
   if (isOnlineMode()) {
     updateUi(storedOk ? 'saved' : 'cached', storedOk ? 'Saved in Browser' : 'In-Memory Only');
   } else {
-    updateUi(
-      'cached',
-      storedOk ? 'Browser Cache · Click to Link Disk' : 'In-Memory Only · Link Disk',
-    );
+    updateUi('cached', storedOk ? 'Browser Cache · Not Linked' : 'In-Memory Only · Not Linked');
   }
 }
 
@@ -3672,6 +3670,10 @@ function teardownUiTimersAndObservers(): void {
     themeMediaCleanup();
     themeMediaCleanup = null;
   }
+  if (dragWindowCleanup !== null) {
+    dragWindowCleanup();
+    dragWindowCleanup = null;
+  }
   clearPillTooltipTimersAndTitles();
   if (bootClearTimeout !== null) {
     clearTimeout(bootClearTimeout);
@@ -4191,12 +4193,12 @@ function mountUi(): void {
         <button id="reset-cancel" type="button" aria-label="Cancel reset">Cancel</button>
       </div>
       <div class="pill-tooltip" id="pill-tooltip" role="tooltip" aria-hidden="true">
-        <span id="tooltip-text">Browser Cache · Click to Link Disk</span>
+        <span id="tooltip-text">Browser Cache · Not Linked</span>
         <span class="kbd" id="tooltip-kbd" style="display: none">${saveKbd}</span>
       </div>
       <div class="pill" id="pill" role="region" aria-label="naizo.js sync status">
-        <span id="status" class="sr-only" role="status" aria-live="polite">Browser Cache · Click to Link Disk</span>
-        <button type="button" class="dot" id="dot" data-naizo-boot="1" data-tip="Browser Cache · Click to Link Disk" title="Browser Cache · Click to Link Disk" aria-label="Naizo sync status"><svg class="naizo-logo-svg" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="8" /><rect class="c-top" x="39" y="26" width="22" height="22" rx="4.5" fill="currentColor" /><rect class="c-bl" x="26" y="52" width="22" height="22" rx="4.5" fill="currentColor" /><rect class="c-br" x="52" y="52" width="22" height="22" rx="4.5" fill="currentColor" /></svg></button>
+        <span id="status" class="sr-only" role="status" aria-live="polite">Browser Cache · Not Linked</span>
+        <button type="button" class="dot" id="dot" data-naizo-boot="1" data-tip="Browser Cache · Not Linked" title="Browser Cache · Not Linked" aria-label="Naizo sync status"><svg class="naizo-logo-svg" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring" cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="8" /><rect class="c-top" x="39" y="26" width="22" height="22" rx="4.5" fill="currentColor" /><rect class="c-bl" x="26" y="52" width="22" height="22" rx="4.5" fill="currentColor" /><rect class="c-br" x="52" y="52" width="22" height="22" rx="4.5" fill="currentColor" /></svg></button>
         <span class="pill-sep" id="dot-sep" aria-hidden="true"></span>
         <button id="action" type="button" class="icon-btn" data-tip="Link Disk" data-kbd="${saveKbd}" title="Link local HTML file on disk (⌘S / Ctrl+S)" aria-label="Link disk file"><span class="sr-only" id="action-sr">Link Disk</span><svg id="action-svg" viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.link}</svg></button>
         <button id="unlink" type="button" class="icon-btn danger-hover" style="display: none" data-tip="Unlink Disk" title="Forget linked disk file" aria-label="Unlink disk file"><span class="sr-only">× Unlink</span><svg viewBox="0 0 24 24" aria-hidden="true">${PILL_ICONS.unlink}</svg></button>
@@ -4467,44 +4469,24 @@ function mountUi(): void {
   let dragState: { pointerId: number; startX: number; startY: number; moved: boolean } | null =
     null;
 
-  pillEl?.addEventListener('pointerdown', (e: PointerEvent) => {
-    if (
-      (e.pointerType === 'mouse' || !e.pointerType) &&
-      typeof e.button === 'number' &&
-      e.button !== 0
-    ) {
-      return;
+  const detachDragWindowListeners = () => {
+    if (dragWindowCleanup !== null) {
+      dragWindowCleanup();
+      dragWindowCleanup = null;
     }
-    if (dragState !== null) return;
-    const target = e.target as Element | null;
-    const clickedBtn = target?.closest('button');
-    if (clickedBtn && clickedBtn !== dotBtnEl) return;
-    suppressNextDotClick = false;
-    if (dragClickResetTimeout !== null) {
-      clearTimeout(dragClickResetTimeout);
-      dragClickResetTimeout = null;
-    }
-    syncDropZoneSizes();
-    const pointerId = e.pointerId ?? 0;
-    dragState = {
-      pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      moved: false,
-    };
-    try {
-      pillEl.setPointerCapture?.(pointerId);
-    } catch {
-      // Ignore pointer capture errors in synthetic test environments
-    }
-  });
+  };
 
-  pillEl?.addEventListener('pointermove', (e: PointerEvent) => {
+  const handleDragMove = (e: PointerEvent) => {
     if (!dragState || (e.pointerId ?? 0) !== dragState.pointerId) return;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
     if (!dragState.moved && Math.hypot(dx, dy) > 5) {
       dragState.moved = true;
+      try {
+        pillEl?.setPointerCapture?.(dragState.pointerId);
+      } catch {
+        // Ignore pointer capture errors in synthetic test environments
+      }
       host.setAttribute('data-naizo-dragging', '1');
       anchorEl?.classList.add('is-dragging');
       hidePillTooltip(true);
@@ -4513,17 +4495,20 @@ function mountUi(): void {
       anchorEl.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
       highlightDropZone(getNearestViewportCorner(e.clientX, e.clientY));
     }
-  });
+  };
 
   const finishDrag = (e: PointerEvent) => {
     if (!dragState || (e.pointerId ?? 0) !== dragState.pointerId) return;
     const wasMoved = dragState.moved;
     const activePointerId = dragState.pointerId;
     dragState = null;
-    try {
-      pillEl?.releasePointerCapture?.(activePointerId);
-    } catch {
-      // Ignore pointer capture release errors in synthetic test environments
+    detachDragWindowListeners();
+    if (wasMoved) {
+      try {
+        pillEl?.releasePointerCapture?.(activePointerId);
+      } catch {
+        // Ignore pointer capture release errors in synthetic test environments
+      }
     }
     host.removeAttribute('data-naizo-dragging');
     if (!wasMoved) {
@@ -4566,6 +4551,46 @@ function mountUi(): void {
     anchorEl.classList.remove('is-dragging');
     anchorEl.style.transform = '';
   };
+
+  pillEl?.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (
+      (e.pointerType === 'mouse' || !e.pointerType) &&
+      typeof e.button === 'number' &&
+      e.button !== 0
+    ) {
+      return;
+    }
+    if (dragState !== null) return;
+    const target = e.target as Element | null;
+    const clickedBtn = target?.closest('button');
+    if (clickedBtn && clickedBtn !== dotBtnEl) return;
+    suppressNextDotClick = false;
+    if (dragClickResetTimeout !== null) {
+      clearTimeout(dragClickResetTimeout);
+      dragClickResetTimeout = null;
+    }
+    syncDropZoneSizes();
+    const pointerId = e.pointerId ?? 0;
+    dragState = {
+      pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+    };
+    detachDragWindowListeners();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointermove', handleDragMove);
+      window.addEventListener('pointerup', finishDrag);
+      window.addEventListener('pointercancel', finishDrag);
+      dragWindowCleanup = () => {
+        window.removeEventListener('pointermove', handleDragMove);
+        window.removeEventListener('pointerup', finishDrag);
+        window.removeEventListener('pointercancel', finishDrag);
+      };
+    }
+  });
+
+  pillEl?.addEventListener('pointermove', handleDragMove);
   pillEl?.addEventListener('pointerup', finishDrag);
   pillEl?.addEventListener('pointercancel', finishDrag);
 
@@ -6152,7 +6177,7 @@ export const Naizo: NaizoAPI = {
         updateUi('saved', 'Saved to PC · Ready for Local Mode');
       } else {
         if (!fileHandle) {
-          updateUi('cached', 'Browser Cache · Click to Link Disk');
+          updateUi('cached', 'Browser Cache · Not Linked');
         }
         flashPillTooltip('✓ Downloaded HTML Snapshot', 1200);
       }
@@ -6344,7 +6369,7 @@ export async function initNaizo(): Promise<void> {
         if (hasBootConflict || lastExternalCheckHadConflict) {
           updateUi('conflict', 'External Disk Edit · Conflict Backed Up');
         } else if (isDirtyComparedToDisk) {
-          updateUi('cached', 'Browser Cache · Click to Link Disk');
+          updateUi('cached', 'Browser Cache · Pending Sync');
         } else {
           updateUi('saved', 'Synced to Disk');
         }

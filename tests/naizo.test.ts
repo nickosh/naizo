@@ -1032,7 +1032,7 @@ describe('naizo.js core runtime', () => {
     const dotEl = host?.shadowRoot?.getElementById('dot');
 
     // Before linking, status pill is amber
-    expect(statusEl?.textContent).toBe('Browser Cache · Click to Link Disk');
+    expect(statusEl?.textContent).toBe('Browser Cache · Not Linked');
     expect(dotEl?.className).toBe('dot');
 
     // Link disk (first write starts and pauses at close)
@@ -1065,7 +1065,7 @@ describe('naizo.js core runtime', () => {
     expect(writeTextSpy).toHaveBeenCalledWith(copied);
 
     await Naizo.unlink();
-    expect(statusEl?.textContent).toBe('Browser Cache · Click to Link Disk');
+    expect(statusEl?.textContent).toBe('Browser Cache · Not Linked');
     expect(dotEl?.className).toBe('dot');
 
     Reflect.deleteProperty(window, 'showSaveFilePicker');
@@ -1490,7 +1490,7 @@ describe('naizo.js core runtime', () => {
 
     await bundleNaizo.unlink();
     expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
-      'Browser Cache · Click to Link Disk',
+      'Browser Cache · Not Linked',
     );
 
     // Verify M4.5 Online Mode, reset() (against advanced disk baseline per M11.1/D56), and downloadHTML() in shipped dist/naizo.js bundle
@@ -1800,7 +1800,7 @@ describe('naizo.js core runtime', () => {
     const host = document.getElementById('__naizodb_host__');
     const statusEl = host?.shadowRoot?.getElementById('status');
     const dotEl = host?.shadowRoot?.getElementById('dot');
-    expect(statusEl?.textContent).toBe('Browser Cache · Click to Link Disk');
+    expect(statusEl?.textContent).toBe('Browser Cache · Pending Sync');
     expect(dotEl?.className).toBe('dot');
 
     const saveOk = await Naizo.save();
@@ -2073,7 +2073,7 @@ describe('naizo.js core runtime', () => {
     // Flush Tab B's state, then simulate Tab A writing that exact state to disk and updating naizodb_disk_hash_/
     Naizo.setField('beta', 'tab-b-uncommitted');
     expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
-      'Browser Cache · Click to Link Disk',
+      'Browser Cache · Not Linked',
     );
 
     // Re-init to compute canonical hash for the current state, then test snapshot storage event
@@ -4635,9 +4635,10 @@ describe('naizo.js core runtime', () => {
 
       // 6. FLIP 4-corner snap drag release + multi-pointer, non-primary button, pointercancel, releasePointerCapture, and drag-click suppression
       pickerSpy.mockClear();
+      const captureSpy = vi.fn();
       const releaseSpy = vi.fn();
       if (pillEl) {
-        pillEl.setPointerCapture = vi.fn();
+        pillEl.setPointerCapture = captureSpy;
         pillEl.releasePointerCapture = releaseSpy;
       }
       const makeRect = (left: number, top: number): DOMRect => ({
@@ -4678,15 +4679,25 @@ describe('naizo.js core runtime', () => {
       pillEl?.dispatchEvent(makeDragEv('pointermove', 50, 50, { button: 2 }));
       expect(host?.getAttribute('data-naizo-dragging')).toBeNull();
 
-      // Start primary drag with pointerId: 7; pointermove from pointerId: 99 is ignored
+      // Stationary click on #dot (<= 5px jitter) must NOT call pillEl.setPointerCapture (which would steal pointerup from #dot in Chromium)
+      dotEl?.dispatchEvent(makeDragEv('pointerdown', 900, 730, { pointerId: 6 }));
+      window.dispatchEvent(makeDragEv('pointermove', 902, 731, { pointerId: 6 }));
+      dotEl?.dispatchEvent(makeDragEv('pointerup', 902, 731, { pointerId: 6 }));
+      expect(captureSpy).not.toHaveBeenCalled();
+      expect(releaseSpy).not.toHaveBeenCalled();
+
+      // Start primary drag with pointerId: 7; pointermove from pointerId: 99 is ignored, and setPointerCapture waits until > 5px
       dotEl?.dispatchEvent(makeDragEv('pointerdown', 900, 730, { pointerId: 7 }));
+      expect(captureSpy).not.toHaveBeenCalled();
       pillEl?.dispatchEvent(makeDragEv('pointermove', 50, 50, { pointerId: 99 }));
       expect(host?.getAttribute('data-naizo-dragging')).toBeNull();
+      expect(captureSpy).not.toHaveBeenCalled();
 
-      // Move pointerId: 7 to top-left; pointercancel reverts without overwriting saved bottom-right corner
-      pillEl?.dispatchEvent(makeDragEv('pointermove', 50, 50, { pointerId: 7 }));
+      // Move pointerId: 7 to top-left (even via window when cursor exits pill in 1 frame); captures pointer & pointercancel reverts cleanly
+      window.dispatchEvent(makeDragEv('pointermove', 50, 50, { pointerId: 7 }));
+      expect(captureSpy).toHaveBeenCalledWith(7);
       expect(host?.getAttribute('data-naizo-dragging')).toBe('1');
-      pillEl?.dispatchEvent(makeDragEv('pointercancel', 0, 0, { pointerId: 7 }));
+      window.dispatchEvent(makeDragEv('pointercancel', 0, 0, { pointerId: 7 }));
       expect(releaseSpy).toHaveBeenCalledWith(7);
       expect(anchorEl?.dataset.corner).toBe('bottom-right');
 
@@ -4770,12 +4781,22 @@ describe('naizo.js core runtime', () => {
 
       const minShadow = document.getElementById('__naizodb_host__')?.shadowRoot;
       const minDot = minShadow?.getElementById('dot');
+      const minPill = minShadow?.getElementById('pill') as HTMLElement | null;
       const minReset = minShadow?.getElementById('reset') as HTMLButtonElement | null;
+      expect(minShadow?.getElementById('status')?.textContent).toBe('Browser Cache · Not Linked');
       expect(minDot?.querySelector('rect.c-top')?.getAttribute('width')).toBe('22');
       expect(minDot?.querySelector('rect.c-top')?.getAttribute('rx')).toBe('4.5');
       expect(minReset?.style.display).toBe('none');
       window.Naizo.setField('note', 'Minified Unlinked Edit');
       expect(minReset?.style.display).toBe('inline-block');
+
+      const minCaptureSpy = vi.fn();
+      if (minPill) {
+        minPill.setPointerCapture = minCaptureSpy;
+      }
+      minDot?.dispatchEvent(makeDragEv('pointerdown', 900, 730, { pointerId: 21 }));
+      minDot?.dispatchEvent(makeDragEv('pointerup', 900, 730, { pointerId: 21 }));
+      expect(minCaptureSpy).not.toHaveBeenCalled();
     } finally {
       window.matchMedia = origMatchMedia;
       perfSpy.mockRestore();
@@ -7859,7 +7880,7 @@ describe('naizo.js core runtime', () => {
 
       Naizo.setField('note', 'Saved Before Unlink');
       await Naizo.unlink();
-      expect(statusEl?.textContent).toBe('Browser Cache · Click to Link Disk');
+      expect(statusEl?.textContent).toBe('Browser Cache · Not Linked');
       expect(
         JSON.parse(localStorage.getItem('naizodb_state_/::m15-3-live-invalid') ?? '{}').fields
           ?.note,
@@ -8423,7 +8444,7 @@ describe('naizo.js core runtime', () => {
       expect(eventsSeen).toEqual(['hydrate', 'change:restore:api']);
       expect(restoreDetails[0]?.scope).toBe('restore');
       expect(restoreDetails[0]?.source).toBe('api');
-      expect(statusEl?.textContent).toBe('Browser Cache · Click to Link Disk');
+      expect(statusEl?.textContent).toBe('Browser Cache · Not Linked');
       expect(dotEl?.className).toBe('dot');
       expect(actionBtn?.style.display).toBe('inline-block');
       expect(actionBtn?.dataset.tip).toBe('Link Disk');
@@ -8682,7 +8703,7 @@ describe('naizo.js core runtime', () => {
       expect(Naizo.getField('v')).toBe('two');
       const host = document.getElementById('__naizodb_host__');
       expect(host?.shadowRoot?.getElementById('status')?.textContent).toBe(
-        'Browser Cache · Click to Link Disk',
+        'Browser Cache · Not Linked',
       );
       expect(
         (host?.shadowRoot?.getElementById('unlink') as HTMLButtonElement | null)?.style.display,
@@ -8749,7 +8770,7 @@ describe('naizo.js core runtime', () => {
       try {
         expect(await Naizo.link()).toBe(false);
         expect(anchorClickSpy).toHaveBeenCalledTimes(1);
-        expect(statusEl.textContent).toBe('Browser Cache · Click to Link Disk');
+        expect(statusEl.textContent).toBe('Browser Cache · Not Linked');
         expect(dotEl.className).toBe('dot');
         expect(actionBtn.style.display).toBe('inline-block');
         expect(actionBtn.dataset.tip).toBe('Link Disk');
@@ -8932,7 +8953,7 @@ describe('naizo.js core runtime', () => {
       const [saveSkipRes] = await Promise.all([saveSkipPromise, unlinkPromise1]);
       expect(saveSkipRes).toBe(false);
       expect(warnSpy).not.toHaveBeenCalled();
-      expect(statusEl.textContent).toBe('Browser Cache · Click to Link Disk');
+      expect(statusEl.textContent).toBe('Browser Cache · Not Linked');
       expect(dotEl.className).toBe('dot');
       expect(actionBtn.style.display).toBe('inline-block');
 
@@ -8960,7 +8981,7 @@ describe('naizo.js core runtime', () => {
       expect(abortWritableSpy).toHaveBeenCalledTimes(1);
       expect(writeAfterAbortSpy).not.toHaveBeenCalled();
       expect(warnSpy).not.toHaveBeenCalled();
-      expect(statusEl.textContent).toBe('Browser Cache · Click to Link Disk');
+      expect(statusEl.textContent).toBe('Browser Cache · Not Linked');
     } finally {
       confirmSpy.mockRestore();
       warnSpy.mockRestore();
@@ -9071,7 +9092,7 @@ describe('naizo.js core runtime', () => {
       expect(
         document.getElementById('__naizodb_host__')?.shadowRoot?.getElementById('status')
           ?.textContent,
-      ).toBe('Browser Cache · Click to Link Disk');
+      ).toBe('Browser Cache · Not Linked');
       expect(localStorage.getItem('naizodb_backup_/::m19-1-micro-guards')).toBeNull();
 
       // 2. Out-of-bounds removeItem() and moveItem() are strict no-ops (zero naizo:change, zero updatedAt bump)
@@ -9240,7 +9261,7 @@ describe('naizo.js core runtime', () => {
       const bClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
       try {
         bNaizo.downloadHTML('bundle-snap.html');
-        expect(bStatus.textContent).toBe('Browser Cache · Click to Link Disk');
+        expect(bStatus.textContent).toBe('Browser Cache · Not Linked');
         expect(bDot.className).toBe('dot');
         expect(bAction.style.display).toBe('inline-block');
         expect(bTooltipText.textContent).toBe('✓ Downloaded HTML Snapshot');
@@ -10413,16 +10434,12 @@ describe('naizo.js core runtime', () => {
       const resumePromise = Naizo.link();
       await vi.advanceTimersByTimeAsync(5);
       await Naizo.unlink();
-      expect(pillShadow.getElementById('status')?.textContent).toBe(
-        'Browser Cache · Click to Link Disk',
-      );
+      expect(pillShadow.getElementById('status')?.textContent).toBe('Browser Cache · Not Linked');
 
       // Dismissing permission prompt after unlinking must NOT flip pill back to Resume Disk Sync
       resolveReqPerm('denied');
       expect(await resumePromise).toBe(false);
-      expect(pillShadow.getElementById('status')?.textContent).toBe(
-        'Browser Cache · Click to Link Disk',
-      );
+      expect(pillShadow.getElementById('status')?.textContent).toBe('Browser Cache · Not Linked');
       expect((pillShadow.getElementById('action') as HTMLButtonElement).dataset.tip).toBe(
         'Link Disk',
       );
