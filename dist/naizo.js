@@ -309,7 +309,6 @@
 	let activeTipBtn = null;
 	let pillTipTargets = [];
 	let transientTipTimeout = null;
-	let dragClickResetTimeout = null;
 	let savingCycleStart = 0;
 	let savingMinCycles = 1;
 	let savingHoldTimeout = null;
@@ -2538,10 +2537,6 @@
 			clearTimeout(transientTipTimeout);
 			transientTipTimeout = null;
 		}
-		if (dragClickResetTimeout !== null) {
-			clearTimeout(dragClickResetTimeout);
-			dragClickResetTimeout = null;
-		}
 		pillTipTargets.forEach((btn) => {
 			restoreElementTitle(btn);
 		});
@@ -3202,18 +3197,7 @@
 				};
 			}
 		} catch {}
-		let suppressNextDotClick = false;
 		let lastPointerWasTouch = false;
-		dotBtnEl?.addEventListener("click", (e) => {
-			if (suppressNextDotClick) {
-				suppressNextDotClick = false;
-				e.preventDefault();
-				return;
-			}
-			if (isInvalidDbState() || isOnlineMode()) return;
-			if (!fileHandle || fileHandlePermission !== "granted") connectOrResumeDisk();
-			else if (dotBtnEl?.className === "dot") Naizo.save();
-		});
 		actionBtn?.addEventListener("click", () => {
 			if (isOnlineMode()) Naizo.downloadHTML();
 			else connectOrResumeDisk();
@@ -3389,14 +3373,6 @@
 				if (anchorEl) anchorEl.style.transform = "";
 				return;
 			}
-			if (e.type !== "pointercancel") {
-				suppressNextDotClick = true;
-				if (dragClickResetTimeout !== null) clearTimeout(dragClickResetTimeout);
-				dragClickResetTimeout = setTimeout(() => {
-					dragClickResetTimeout = null;
-					suppressNextDotClick = false;
-				}, 60);
-			}
 			if (!anchorEl) return;
 			const fromRect = anchorEl.getBoundingClientRect();
 			if (e.type !== "pointercancel") {
@@ -3426,11 +3402,6 @@
 			if (dragState !== null) return;
 			const clickedBtn = e.target?.closest("button");
 			if (clickedBtn && clickedBtn !== dotBtnEl) return;
-			suppressNextDotClick = false;
-			if (dragClickResetTimeout !== null) {
-				clearTimeout(dragClickResetTimeout);
-				dragClickResetTimeout = null;
-			}
 			syncDropZoneSizes();
 			dragState = {
 				pointerId: e.pointerId ?? 0,

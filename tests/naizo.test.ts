@@ -3818,6 +3818,11 @@ describe('naizo.js core runtime', () => {
       expect(kbSurface).not.toContain('94.8 KB');
       expect(kbSurface).not.toContain('41.6 KB');
       expect(kbSurface).not.toContain('185.3 KB');
+      expect(kbSurface).not.toContain('28.4 KB');
+      expect(kbSurface).not.toContain('28.4_KB');
+      expect(kbSurface).not.toContain('96.0 KB');
+      expect(kbSurface).not.toContain('42.3 KB');
+      expect(kbSurface).not.toContain('188.9 KB');
       const minKbMatch = kbSurface.match(
         /(?:min(?:ified)?[^\n~]{0,25}~(\d+\.\d+)\s*KB|~(\d+\.\d+)\s*KB\s*min)/i,
       );
@@ -4563,7 +4568,7 @@ describe('naizo.js core runtime', () => {
       );
       expect(resetBtn?.style.display).toBe('inline-block');
 
-      // Open #reset-confirm, then click #dot (non-drag!) to link disk: connects disk, auto-hides #reset, and auto-closes #reset-confirm
+      // Open #reset-confirm; clicking #dot does NOT trigger Link Disk (D63), while clicking #action (1. Link Disk) connects disk, auto-hides #reset, and auto-closes #reset-confirm
       resetBtn?.click();
       expect(resetConfirmEl?.style.display).toBe('inline-flex');
 
@@ -4598,6 +4603,12 @@ describe('naizo.js core runtime', () => {
       window.showSaveFilePicker = pickerSpy;
 
       dotEl?.click();
+      await flushMicrotasks(6);
+      expect(pickerSpy).not.toHaveBeenCalled();
+      expect(shadow?.getElementById('status')?.textContent).toBe('Browser Cache · Not Linked');
+      expect(resetConfirmEl?.style.display).toBe('inline-flex');
+
+      actionBtn?.click();
       await flushMicrotasks(14);
       expect(pickerSpy).toHaveBeenCalledTimes(1);
       expect(shadow?.getElementById('status')?.textContent).toBe('Synced to Disk');
@@ -4615,10 +4626,14 @@ describe('naizo.js core runtime', () => {
       expect(dotEl?.className).toBe('dot needs-permission');
       expect(dotEl?.dataset.naizoSaving).toBeUndefined();
 
-      // Re-grant permission via #dot click and save new disk state ('Saved V2'), then × Unlink: #reset stays hidden because initialDiskDb advanced
+      // Clicking #dot while needs-permission does NOT resume disk (D63); clicking #action (1. Resume Disk Sync) re-grants permission and saves 'Saved V2', keeping #reset hidden after × Unlink
       handlePerm = 'granted';
       Naizo.setField('note', 'Saved V2');
       dotEl?.click();
+      await flushMicrotasks(6);
+      expect(diskHtml).not.toContain('"Saved V2"');
+
+      actionBtn?.click();
       await flushMicrotasks(14);
       expect(diskHtml).toContain('"Saved V2"');
 
@@ -4794,9 +4809,16 @@ describe('naizo.js core runtime', () => {
       if (minPill) {
         minPill.setPointerCapture = minCaptureSpy;
       }
+      pickerSpy.mockClear();
       minDot?.dispatchEvent(makeDragEv('pointerdown', 900, 730, { pointerId: 21 }));
       minDot?.dispatchEvent(makeDragEv('pointerup', 900, 730, { pointerId: 21 }));
+      minDot?.click();
+      await flushMicrotasks(6);
       expect(minCaptureSpy).not.toHaveBeenCalled();
+      expect(pickerSpy).not.toHaveBeenCalled();
+      (minShadow?.getElementById('action') as HTMLButtonElement | null)?.click();
+      await flushMicrotasks(14);
+      expect(pickerSpy).toHaveBeenCalledTimes(1);
     } finally {
       window.matchMedia = origMatchMedia;
       perfSpy.mockRestore();
@@ -8716,7 +8738,7 @@ describe('naizo.js core runtime', () => {
     }
   });
 
-  it('enforces Status Pill EC36 durability across needs-permission typing, mid-flight unlink(), EC28 cancel, non-FSAA Local Mode downloadHTML(), granted-dirty Amber #dot clicks, and cross-tab storage resets/divergence (M19.1, D41, D50, D56, D60, EC28, EC36, EC48, EC62)', async () => {
+  it('enforces Status Pill EC36 durability across needs-permission typing, mid-flight unlink(), EC28 cancel, non-FSAA Local Mode downloadHTML(), pure-indicator #dot clicks (D63), and cross-tab storage resets/divergence (M19.1, M19.7, D41, D50, D56, D60, D63, EC28, EC36, EC48, EC62)', async () => {
     vi.useFakeTimers();
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
@@ -8838,8 +8860,8 @@ describe('naizo.js core runtime', () => {
       await vi.advanceTimersByTimeAsync(50);
       expect(statusEl.textContent).toBe('Synced to Disk');
 
-      // 4e. Cross-tab storage divergence on linked tab sets 'Browser Cache · Pending Sync' without auto-writing,
-      // and clicking granted-dirty Amber #dot triggers Naizo.save()!
+      // 4e. Cross-tab storage divergence on linked tab sets 'Browser Cache · Pending Sync' without auto-writing;
+      // clicking #dot is a pure indicator no-op (D63), while ⌘S flushes Naizo.save() to disk!
       createWritableSpy.mockClear();
       window.dispatchEvent(
         new StorageEvent('storage', {
@@ -8858,14 +8880,21 @@ describe('naizo.js core runtime', () => {
       expect(statusEl.textContent).toBe('Browser Cache · Pending Sync');
       expect(dotEl.className).toBe('dot');
 
-      // Non-drag click on granted-dirty Amber #dot saves to disk
+      // Clicking Amber #dot does NOT trigger disk writes (D63); ⌘S flushes Pending Sync to disk
       dotEl.click();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(createWritableSpy).not.toHaveBeenCalled();
+      expect(statusEl.textContent).toBe('Browser Cache · Pending Sync');
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }),
+      );
       await vi.advanceTimersByTimeAsync(50);
       expect(createWritableSpy).toHaveBeenCalledTimes(1);
       expect(statusEl.textContent).toBe('Synced to Disk');
       expect(dotEl.className).toBe('dot saved');
 
-      // Clicking Green #dot when already saved is a no-op
+      // Clicking Green #dot when already saved is also a no-op
       dotEl.click();
       await vi.advanceTimersByTimeAsync(50);
       expect(createWritableSpy).toHaveBeenCalledTimes(1);

@@ -511,7 +511,6 @@ let tooltipKbdEl: HTMLElement | null = null;
 let activeTipBtn: HTMLButtonElement | null = null;
 let pillTipTargets: HTMLButtonElement[] = [];
 let transientTipTimeout: ReturnType<typeof setTimeout> | null = null;
-let dragClickResetTimeout: ReturnType<typeof setTimeout> | null = null;
 let savingCycleStart = 0;
 let savingMinCycles = 1;
 let savingHoldTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -3596,10 +3595,6 @@ function clearPillTooltipTimersAndTitles(): void {
     clearTimeout(transientTipTimeout);
     transientTipTimeout = null;
   }
-  if (dragClickResetTimeout !== null) {
-    clearTimeout(dragClickResetTimeout);
-    dragClickResetTimeout = null;
-  }
   pillTipTargets.forEach((btn) => {
     restoreElementTitle(btn);
   });
@@ -4294,22 +4289,8 @@ function mountUi(): void {
     }
   }
 
-  let suppressNextDotClick = false;
   let lastPointerWasTouch = false;
 
-  dotBtnEl?.addEventListener('click', (e) => {
-    if (suppressNextDotClick) {
-      suppressNextDotClick = false;
-      e.preventDefault();
-      return;
-    }
-    if (isInvalidDbState() || isOnlineMode()) return;
-    if (!fileHandle || fileHandlePermission !== 'granted') {
-      void connectOrResumeDisk();
-    } else if (dotBtnEl?.className === 'dot') {
-      void Naizo.save();
-    }
-  });
   actionBtn?.addEventListener('click', () => {
     if (isOnlineMode()) {
       Naizo.downloadHTML();
@@ -4522,15 +4503,6 @@ function mountUi(): void {
       return;
     }
 
-    if (e.type !== 'pointercancel') {
-      suppressNextDotClick = true;
-      if (dragClickResetTimeout !== null) clearTimeout(dragClickResetTimeout);
-      dragClickResetTimeout = setTimeout(() => {
-        dragClickResetTimeout = null;
-        suppressNextDotClick = false;
-      }, 60);
-    }
-
     if (!anchorEl) return;
     const fromRect = anchorEl.getBoundingClientRect();
     if (e.type !== 'pointercancel') {
@@ -4569,11 +4541,6 @@ function mountUi(): void {
     const target = e.target as Element | null;
     const clickedBtn = target?.closest('button');
     if (clickedBtn && clickedBtn !== dotBtnEl) return;
-    suppressNextDotClick = false;
-    if (dragClickResetTimeout !== null) {
-      clearTimeout(dragClickResetTimeout);
-      dragClickResetTimeout = null;
-    }
     syncDropZoneSizes();
     const pointerId = e.pointerId ?? 0;
     dragState = {

@@ -132,10 +132,10 @@ JSON.stringify(db, null, 2).replace(/</g, '\\u003c');
 Load one provider in `<head>` with `defer` (`D34`, `D39`):
 
 ```html
-<!-- Readable IIFE bundle (~42.3 KB gzipped / ~188.9 KB raw, jsDelivr) -->
+<!-- Readable IIFE bundle (~41.9 KB gzipped / ~187.9 KB raw, jsDelivr) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.js" defer></script>
 
-<!-- Prebuilt minified IIFE bundle (~28.4 KB gzipped / 96.0 KB raw) -->
+<!-- Prebuilt minified IIFE bundle (~28.2 KB gzipped / 95.7 KB raw) -->
 <script src="https://cdn.jsdelivr.net/npm/naizojs@latest/dist/naizo.min.js" defer></script>
 
 <!-- Alternative: unpkg -->
@@ -639,6 +639,7 @@ The floating translucent frosted-glass Status Pill is isolated inside an open Sh
 
 1. **Leftmost `#dot` (`丸に三つ石` / `品` Brand Crest, Semantic Colors, & 5 Narrative Motion States):**
    - **Architectural & cultural meaning:** The outer circle (`丸`) represents the standalone single-file `.html` boundary; the three `22×22` rounded stones (`三つ石` arranged as the kanji `品`) represent `State + Logic + View` working together inside the document (and **品質** _Quality_, **作品** _Artifact_, **品格** _Dignity_).
+   - **Pure status indicator & drag handle (`D63`):** `#dot` uses `cursor: grab` / `grabbing` to display status tooltips and drag the pill across the 4 viewport corners—clicking `#dot` never opens file pickers or triggers disk writes (use Slot `1` `Link Disk` / `Resume Disk Sync` or `⌘S` / `Ctrl+S` instead).
    - **3 semantic colors:**
      - **Green (`#10b981`):** `Synced to Disk`, `Saved in Browser`, and `Saving...` (no blue flash during saves).
      - **Amber (`#f59e0b`):** `Browser Cache · Not Linked`, `Resume Disk Sync` (`needs-permission`), and `External Disk Edit · Conflict Backed Up` (`conflict`).
