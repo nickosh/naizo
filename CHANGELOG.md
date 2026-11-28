@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.3.0](https://github.com/nickosh/naizo/compare/v0.2.0...v0.3.0) (2026-11-28)
+
+
+### Features
+
+* add declarative Mini-API client, Naizo.setList, Naizo.fetch, and #net globe (M8.1) ([aae9500](https://github.com/nickosh/naizo/commit/aae9500add160740ce2b1e407bb8cf415bf2db03))
+* add M15.1 two-tier 3-way list merge, list DOM reconciliation, and live disk-sync guards ([972db53](https://github.com/nickosh/naizo/commit/972db530f81be474fde9878925e9826e51825a40))
+* add naizo-no-pill headless mode and Naizo.link() disk-link API ([f0ac967](https://github.com/nickosh/naizo/commit/f0ac96799695268e29fa6b3b173010cf821f922e))
+* add Naizo.batch(), Naizo.ready(), naizo-pill-corner, and M13.1 runtime refinements ([a360248](https://github.com/nickosh/naizo/commit/a360248de169ae0d53e00ad6b6e9c4f246064978))
+* **examples:** add weather outing planner and network debugging docs ([12318f6](https://github.com/nickosh/naizo/commit/12318f688f3fce5023e4dbe031d484339f6d9c20))
+* harden M19.1 startup JSON repair, initNaizo epoch reset, and Status Pill EC36 transitions ([8bbadab](https://github.com/nickosh/naizo/commit/8bbadab2630a414ec66e9fa397d2e5b71cb0cc74))
+* **site:** add brand logo assets, 62x62 Hero Crest, and README header (M9.1) ([cc9a724](https://github.com/nickosh/naizo/commit/cc9a724b2aad0ec4ee28e12a9d4261995d89f1a1))
+* **site:** add Maru ni Mitsuishi logo to site SEO metadata and example favicons (M9.1) ([6bd5ebf](https://github.com/nickosh/naizo/commit/6bd5ebf1de11676b1bd7e87b757622d048514b03))
+* **ui:** implement frosted-glass Status Pill, Maru ni Mitsuishi #dot animations, 1-6 icon buttons, and 4-corner snap drag (M9.2) ([556d703](https://github.com/nickosh/naizo/commit/556d703920657d0f1aebb2def849148d77cf6008))
+
+
+### Bug Fixes
+
+* align M15.2 &lt;select&gt; CSS and synchronize browser, live-reload, and list-merge docs ([2a266ef](https://github.com/nickosh/naizo/commit/2a266efe9b994dd12c9c4df1e7c8f386df35e224))
+* **docs:** use transform-box fill-box and &lt;g&gt; transforms in SVG explainers for Chrome (M9.3) ([b639c94](https://github.com/nickosh/naizo/commit/b639c94f6630e350b2dd845be504c6be5fbdf096))
+* harden M15.3 list merge, live invalid-JSON persistence, and HTML scanner edge cases ([4d3586d](https://github.com/nickosh/naizo/commit/4d3586d0bbdc843edfe8bf765b982db4c5d6df3b))
+* harden M19.2 blueprints, playground, and status-pill design assets ([1757d50](https://github.com/nickosh/naizo/commit/1757d50437235f0238e3eb3e86ef0d228daa116d))
+* harden M8.1 Mini-API client boundaries and record D51 ([5d9d73b](https://github.com/nickosh/naizo/commit/5d9d73bd66517443460dffc26db35ecdf2d1ecd3))
+* keep programmatic Naizo.fetch without into non-mutating ([c83e3ca](https://github.com/nickosh/naizo/commit/c83e3ca0cbcf5b1dc6c9ed62cae4ca1122a25526))
+* **net:** persist #net error indicator across subsequent successful requests until clicked (D50, EC50) ([872b4ba](https://github.com/nickosh/naizo/commit/872b4ba1ad2abe28930fc8c9d8404ca2d8459d5a))
+* **pill:** clarify unlinked #dot status label and defer drag pointer capture ([a9c1328](https://github.com/nickosh/naizo/commit/a9c13283020e320b0a1ac5dbd3e06be38b54f6a2))
+* **pill:** clear stale pre-link Reset backups on Link Disk while preserving conflicts ([6f5928b](https://github.com/nickosh/naizo/commit/6f5928b9b0024e6d8e64ee947c19e33330d09ef0))
+* **pill:** harden hit-testing, 22x22 crest, FLIP drag, unlinked Reset, and &lt;100 KB compaction ([0771bda](https://github.com/nickosh/naizo/commit/0771bdaffca2272830412cbc89dce386ae3ab749))
+* **pill:** keep status crest a pure indicator and drag handle (M19.7) ([d886c6f](https://github.com/nickosh/naizo/commit/d886c6f1af4a4cf1cdb973ac17cc187b4b7152d3))
+* **site:** add dark/light favicons, logo.png, 22x22 crest symbols, and real KB doc sync ([fcfb207](https://github.com/nickosh/naizo/commit/fcfb2072076f5911b3e34ff8dfea631c7b7cc721))
+* unify M19.4 initEpoch and handle-session async fencing across peripheral I/O ([3af0dd1](https://github.com/nickosh/naizo/commit/3af0dd1560538354e8f697dc8338ec65208cfd23))
+
 ## [0.2.0](https://github.com/nickosh/naizo/compare/v0.1.0...v0.2.0) (2026-10-28)
 
 
