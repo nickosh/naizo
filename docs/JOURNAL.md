@@ -2,6 +2,12 @@
 
 Newest first. One short entry per working session, slice, or milestone: 2–5 concise bullets covering **done**, **decided** (when relevant), **verification or blockers**, and the **next concrete technical action**. Keep branch names, commit SHAs, PR numbers/status, push/pull/merge steps, and hosting-service run IDs in Git and chat, not here.
 
+## 2026-11-28 — Fixed `M14.2` → `M19.2` async `weather.html` fetch leak in `tests/naizo.test.ts` (`D61`, `EC63`)
+
+- Done: updated the `M14.2` blueprint dogfooding test in `tests/naizo.test.ts` to bind `window.Naizo` / `window.NaizoDB` explicitly (fixing isolated execution), wrap `document.addEventListener` alongside `window.addEventListener` with the per-blueprint `AbortController`, flush a macrotask (`setTimeout(resolve, 0)`) before advancing to the next blueprint and assert `#day-cards-grid .wx-card-add-btn` + `fetchMock` called once for `examples/weather.html`, and invoke `window.__naizoCleanup?.()` in `finally` — preventing `M14.2`'s `examples/weather.html` primary forecast fetch from being aborted by `site/index.html`'s `initNaizo()` (`initEpoch`) and leaking live fallback `api.met.no` / `wttr.in` requests after `vi.unstubAllGlobals()` that intermittently wiped `M19.2`'s `#day-cards-grid`.
+- Verified: `vp fmt`, `vp check` (0 warnings or errors across formatted, linted, and type-checked files), isolated `vp test --run tests/naizo.test.ts -t "dogfoods M14.2"`, full `vp test --run` (67/67 passing project tests across `tests/naizo.test.ts` and `tests/release.test.ts`), and `git diff --check`. Runtime bundle packing (`vp pack` — `src/` unchanged), isolated `.github/release-tools` tests, and remote workflows were not re-run.
+- Next: ready to push and re-run release preparation for `v0.3.0`, then iterate on the skills/documentation approach (`M18`) for `v0.3.1` or `v0.4.0`.
+
 ## 2026-11-28 — Planned Milestone `M20` & recorded `D64` (Status Pill Compact View toggled via stationary `#dot` crest click with `{ corner, compact }` `naizodb_ui_<key>` persistence & urgent-state temporary auto-expand, `D50`, `D55`, `D56`, `D63`, `D64`, `EC48`, `EC52`)
 
 - Done (planning only; zero runtime or bundle changes): added Milestone `M20` (`M20.1`–`M20.2`) to `docs/PLAN.md` at the end of the active queue (`M18` → `M16` → `M17` → `M20`, ahead of paused `M10`) and recorded `D64` in `docs/DECISIONS.md`.

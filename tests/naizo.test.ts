@@ -6387,7 +6387,8 @@ describe('naizo.js core runtime', () => {
         }
 
         const listenerAbort = new AbortController();
-        const origAdd = window.addEventListener.bind(window);
+        const origWinAdd = window.addEventListener.bind(window);
+        const origDocAdd = document.addEventListener.bind(document);
         const winAddSpy = vi
           .spyOn(window, 'addEventListener')
           .mockImplementation(
@@ -6400,17 +6401,41 @@ describe('naizo.js core runtime', () => {
                 typeof options === 'boolean'
                   ? { capture: options, signal: listenerAbort.signal }
                   : { ...options, signal: listenerAbort.signal };
-              origAdd(type, listener, merged);
+              origWinAdd(type, listener, merged);
+            },
+          );
+        const docAddSpy = vi
+          .spyOn(document, 'addEventListener')
+          .mockImplementation(
+            (
+              type: string,
+              listener: EventListenerOrEventListenerObject,
+              options?: boolean | AddEventListenerOptions,
+            ) => {
+              const merged: AddEventListenerOptions =
+                typeof options === 'boolean'
+                  ? { capture: options, signal: listenerAbort.signal }
+                  : { ...options, signal: listenerAbort.signal };
+              origDocAdd(type, listener, merged);
             },
           );
 
         try {
+          window.Naizo = Naizo;
+          window.NaizoDB = NaizoDB;
           await initNaizo();
           const inlineScript = staticDoc.body.querySelector('script')?.textContent ?? '';
           if (inlineScript.trim()) {
             runInThisContext(inlineScript);
           }
-          await Promise.resolve();
+          // Let async boot tasks (e.g. examples/weather.html's primary forecast fetch) finish
+          // before the next blueprint's initNaizo() increments initEpoch or vi.unstubAllGlobals()
+          // restores real fetch, preventing leaked fallback fetches from clobbering later tests.
+          await new Promise((resolveTick) => setTimeout(resolveTick, 0));
+          if (bp.name === 'examples/weather.html') {
+            expect(document.querySelector('#day-cards-grid .wx-card-add-btn')).not.toBeNull();
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+          }
 
           const hydratedItems = document.querySelectorAll(
             `[naizo-list="${bp.listName}"] > [naizo-item]`,
@@ -6480,12 +6505,14 @@ describe('naizo.js core runtime', () => {
           ).not.toThrow();
         } finally {
           listenerAbort.abort();
+          docAddSpy.mockRestore();
           winAddSpy.mockRestore();
         }
       }
 
       expect(warnSpy).not.toHaveBeenCalled();
     } finally {
+      window.__naizoCleanup?.();
       warnSpy.mockRestore();
       vi.unstubAllGlobals();
       createUrlSpy.mockRestore();
